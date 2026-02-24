@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.synthesize-papers]
 verify_jwt = false
+
+[functions.evaluate-question]
+verify_jwt = false
+
+[functions.extract-column]
+verify_jwt = false

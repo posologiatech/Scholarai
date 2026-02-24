@@ -1,27 +1,27 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import AppHeader from "@/components/app/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Search, Clock, FolderOpen, ArrowRight, Sparkles } from "lucide-react";
+import QuestionEvaluator, { type Evaluation } from "@/components/app/QuestionEvaluator";
 
 const Dashboard = () => {
   const { t, locale } = useLanguage();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
 
-  // Load recent searches from localStorage
   const recentSearches: string[] = JSON.parse(localStorage.getItem("scholarai_recent") || "[]");
 
   const handleSearch = (searchQuery?: string) => {
     const q = searchQuery || query;
     if (!q.trim()) return;
-
-    // Save to recent searches
     const updated = [q, ...recentSearches.filter((s) => s !== q)].slice(0, 8);
     localStorage.setItem("scholarai_recent", JSON.stringify(updated));
-
-    navigate(`/search?q=${encodeURIComponent(q)}`);
+    // Pass suggested columns via state if we have them
+    const suggestedColumns = evaluation?.suggested_columns || [];
+    navigate(`/search?q=${encodeURIComponent(q)}`, { state: { suggestedColumns } });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -54,23 +54,43 @@ const Dashboard = () => {
             </p>
           </div>
 
-          {/* Search bar */}
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={t("dashboard.searchPlaceholder")}
-              className="w-full rounded-xl border border-border bg-card py-4 pl-12 pr-28 text-foreground shadow-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            <Button
-              onClick={() => handleSearch()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              {t("dashboard.searchButton")}
-            </Button>
+          {/* Search bar + evaluation */}
+          <div className="space-y-0">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+              <textarea
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSearch();
+                  }
+                }}
+                placeholder={t("dashboard.searchPlaceholder")}
+                rows={3}
+                className="w-full resize-none bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none"
+              />
+
+              {/* Question evaluation */}
+              <QuestionEvaluator question={query} onEvaluation={setEvaluation} />
+
+              {/* Bottom bar */}
+              <div className="mt-3 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Source</span>
+                  <select className="rounded border border-border bg-background px-2 py-1 text-xs">
+                    <option>Research papers</option>
+                  </select>
+                </div>
+                <Button
+                  onClick={() => handleSearch()}
+                  size="icon"
+                  className="h-9 w-9 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
 
           {/* Suggested queries */}
@@ -84,7 +104,9 @@ const Dashboard = () => {
                 return (
                   <button
                     key={i}
-                    onClick={() => handleSearch(label)}
+                    onClick={() => {
+                      setQuery(label);
+                    }}
                     className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
                   >
                     {label}
