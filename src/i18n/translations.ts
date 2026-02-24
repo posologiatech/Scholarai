@@ -182,6 +182,29 @@ export const translations = {
 
   // Common
   "common.backHome": { pt: "Voltar ao início", en: "Back to home" },
+
+  // Dashboard
+  "dashboard.badge": { pt: "Pesquisa com IA", en: "AI-powered research" },
+  "dashboard.title": { pt: "Qual é sua pergunta de pesquisa?", en: "What's your research question?" },
+  "dashboard.subtitle": { pt: "Busque em milhões de artigos científicos com inteligência artificial", en: "Search millions of scientific papers with artificial intelligence" },
+  "dashboard.searchPlaceholder": { pt: "Ex: Efeitos do jejum intermitente na pressão arterial", en: "E.g., Effects of intermittent fasting on blood pressure" },
+  "dashboard.searchButton": { pt: "Pesquisar", en: "Search" },
+  "dashboard.tryAsking": { pt: "Experimente perguntar", en: "Try asking" },
+  "dashboard.recentSearches": { pt: "Buscas recentes", en: "Recent searches" },
+  "dashboard.projectsPlaceholder": { pt: "Seus projetos salvos aparecerão aqui em breve", en: "Your saved projects will appear here soon" },
+  "dashboard.signOut": { pt: "Sair", en: "Sign out" },
+
+  // Search Results
+  "search.searchButton": { pt: "Pesquisar", en: "Search" },
+  "search.filters": { pt: "Filtros", en: "Filters" },
+  "search.allSources": { pt: "Todas as fontes", en: "All sources" },
+  "search.yearFrom": { pt: "Ano mín.", en: "Year from" },
+  "search.loading": { pt: "Buscando artigos...", en: "Searching papers..." },
+  "search.results": { pt: "resultados para", en: "results for" },
+  "search.citations": { pt: "citações", en: "citations" },
+  "search.showMore": { pt: "Mostrar mais", en: "Show more" },
+  "search.showLess": { pt: "Mostrar menos", en: "Show less" },
+  "search.noResults": { pt: "Nenhum resultado encontrado. Tente reformular sua busca.", en: "No results found. Try rephrasing your search." },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

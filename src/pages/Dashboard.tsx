@@ -1,0 +1,130 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useLanguage } from "@/i18n/LanguageContext";
+import AppHeader from "@/components/app/AppHeader";
+import { Button } from "@/components/ui/button";
+import { Search, Clock, FolderOpen, ArrowRight, Sparkles } from "lucide-react";
+
+const Dashboard = () => {
+  const { t, locale } = useLanguage();
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+
+  // Load recent searches from localStorage
+  const recentSearches: string[] = JSON.parse(localStorage.getItem("scholarai_recent") || "[]");
+
+  const handleSearch = (searchQuery?: string) => {
+    const q = searchQuery || query;
+    if (!q.trim()) return;
+
+    // Save to recent searches
+    const updated = [q, ...recentSearches.filter((s) => s !== q)].slice(0, 8);
+    localStorage.setItem("scholarai_recent", JSON.stringify(updated));
+
+    navigate(`/search?q=${encodeURIComponent(q)}`);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleSearch();
+  };
+
+  const suggestedQueries = [
+    { pt: "Efeitos do jejum intermitente na pressão arterial", en: "Effects of intermittent fasting on blood pressure" },
+    { pt: "Machine learning para diagnóstico de câncer", en: "Machine learning for cancer diagnosis" },
+    { pt: "Impacto das mudanças climáticas na biodiversidade", en: "Impact of climate change on biodiversity" },
+  ];
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      <AppHeader />
+
+      <main className="flex flex-1 flex-col items-center justify-center px-4 pb-20">
+        <div className="w-full max-w-2xl space-y-8">
+          {/* Welcome */}
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
+              <Sparkles className="h-4 w-4" />
+              {t("dashboard.badge")}
+            </div>
+            <h1 className="font-display text-3xl font-bold text-foreground md:text-4xl">
+              {t("dashboard.title")}
+            </h1>
+            <p className="text-muted-foreground">
+              {t("dashboard.subtitle")}
+            </p>
+          </div>
+
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={t("dashboard.searchPlaceholder")}
+              className="w-full rounded-xl border border-border bg-card py-4 pl-12 pr-28 text-foreground shadow-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <Button
+              onClick={() => handleSearch()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {t("dashboard.searchButton")}
+            </Button>
+          </div>
+
+          {/* Suggested queries */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              {t("dashboard.tryAsking")}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {suggestedQueries.map((sq, i) => {
+                const label = sq[locale as "pt" | "en"];
+                return (
+                  <button
+                    key={i}
+                    onClick={() => handleSearch(label)}
+                    className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Recent searches */}
+          {recentSearches.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                {t("dashboard.recentSearches")}
+              </div>
+              <div className="space-y-1">
+                {recentSearches.slice(0, 5).map((search, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSearch(search)}
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                  >
+                    <span className="truncate">{search}</span>
+                    <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Projects placeholder */}
+          <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
+            <FolderOpen className="mx-auto h-8 w-8 text-muted-foreground/50" />
+            <p className="mt-2 text-sm text-muted-foreground">{t("dashboard.projectsPlaceholder")}</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default Dashboard;
