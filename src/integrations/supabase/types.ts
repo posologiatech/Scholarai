@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      saved_searches: {
+        Row: {
+          column_data: Json
+          columns: Json
+          created_at: string
+          id: string
+          papers: Json
+          query: string
+          user_id: string
+        }
+        Insert: {
+          column_data?: Json
+          columns?: Json
+          created_at?: string
+          id?: string
+          papers?: Json
+          query: string
+          user_id: string
+        }
+        Update: {
+          column_data?: Json
+          columns?: Json
+          created_at?: string
+          id?: string
+          papers?: Json
+          query?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
