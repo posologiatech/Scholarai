@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { query, papers, column_name, locale = 'en' } = await req.json();
+    const { query, papers, column_name, custom_prompt, locale = 'en' } = await req.json();
 
     if (!query || !papers || !Array.isArray(papers) || papers.length === 0 || !column_name) {
       return new Response(JSON.stringify({ error: 'query, papers, and column_name are required' }), {
@@ -27,14 +27,21 @@ Deno.serve(async (req) => {
     }
 
     const papersSummary = papers.slice(0, 15).map((p: any, i: number) => {
-      return `Paper ${i}: "${p.title}" (${p.authors?.slice(0, 3).join(', ')}${p.authors?.length > 3 ? ' et al.' : ''}, ${p.year || 'n.d.'}). Abstract: ${p.abstract ? p.abstract.slice(0, 500) : 'No abstract.'}`;
+      return `Paper ${i}: "${p.title}" (${p.authors?.slice(0, 3).join(', ')}${p.authors?.length > 3 ? ' et al.' : ''}, ${p.year || 'n.d.'}). Abstract: ${p.abstract || 'No abstract available.'}`;
     }).join('\n\n');
 
-    const systemPrompt = locale === 'pt'
-      ? `Você é um assistente de extração de dados acadêmicos. Para cada paper, extraia a informação correspondente à coluna "${column_name}" em relação à pergunta de pesquisa. Seja conciso (1-3 frases por paper). Use asteriscos (*) para marcar citações inline. Responda APENAS usando a função fornecida.`
-      : `You are an academic data extraction assistant. For each paper, extract information for the column "${column_name}" relative to the research question. Be concise (1-3 sentences per paper). Use asterisks (*) for inline citations. Respond ONLY using the provided function.`;
+    // Use custom_prompt if provided, otherwise use column_name as the extraction target
+    const extractionTarget = custom_prompt
+      ? `Column: "${column_name}"\nCustom instruction: ${custom_prompt}`
+      : `Column: "${column_name}"`;
 
-    const paperIndices = papers.slice(0, 15).map((_: any, i: number) => i);
+    const systemPrompt = locale === 'pt'
+      ? `Você é um assistente de extração de dados acadêmicos. Para cada paper, extraia a informação correspondente à coluna solicitada em relação à pergunta de pesquisa. Seja conciso (1-3 frases por paper). Se o paper não tiver abstract ou informações suficientes, indique "Informação não disponível no abstract". Use asteriscos (*) para marcar citações inline. Responda APENAS usando a função fornecida.
+
+${custom_prompt ? `INSTRUÇÃO ESPECÍFICA DO USUÁRIO: ${custom_prompt}` : ''}`
+      : `You are an academic data extraction assistant. For each paper, extract information for the requested column relative to the research question. Be concise (1-3 sentences per paper). If the paper has no abstract or insufficient information, indicate "Information not available in abstract". Use asterisks (*) for inline citations. Respond ONLY using the provided function.
+
+${custom_prompt ? `USER SPECIFIC INSTRUCTION: ${custom_prompt}` : ''}`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -46,7 +53,7 @@ Deno.serve(async (req) => {
         model: 'google/gemini-3-flash-preview',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Research question: "${query}"\n\nColumn to extract: "${column_name}"\n\nPapers:\n\n${papersSummary}` },
+          { role: 'user', content: `Research question: "${query}"\n\n${extractionTarget}\n\nPapers:\n\n${papersSummary}` },
         ],
         tools: [
           {

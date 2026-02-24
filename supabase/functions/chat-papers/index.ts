@@ -26,13 +26,40 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Send FULL abstracts - don't truncate
     const papersSummary = papers.slice(0, 15).map((p: any, i: number) => {
-      return `[${i + 1}] "${p.title}" (${p.authors?.slice(0, 3).join(', ')}${p.authors?.length > 3 ? ' et al.' : ''}, ${p.year || 'n.d.'}). ${p.abstract ? p.abstract.slice(0, 400) + '...' : 'No abstract.'}`;
-    }).join('\n\n');
+      return `[${i + 1}] "${p.title}" (${p.authors?.slice(0, 4).join(', ')}${p.authors?.length > 4 ? ' et al.' : ''}, ${p.year || 'n.d.'}).\nAbstract: ${p.abstract || 'No abstract available.'}\nJournal: ${p.journal || 'Unknown'}\nDOI: ${p.doi || 'N/A'}`;
+    }).join('\n\n---\n\n');
 
     const systemPrompt = locale === 'pt'
-      ? `Você é um assistente de pesquisa acadêmica. O usuário fez a pesquisa: "${query}". Abaixo estão os artigos encontrados. Responda às perguntas do usuário com base nesses artigos. Cite os artigos por número [1], [2] etc. Use linguagem acadêmica mas acessível. Responda em português.\n\nArtigos:\n${papersSummary}`
-      : `You are an academic research assistant. The user searched: "${query}". Below are the papers found. Answer user questions based on these papers. Cite papers by number [1], [2] etc. Use academic but accessible language.\n\nPapers:\n${papersSummary}`;
+      ? `Você é um assistente de pesquisa acadêmica avançado. O usuário fez a pesquisa: "${query}". Abaixo estão os artigos encontrados com seus abstracts COMPLETOS e metadados.
+
+Suas respostas devem:
+- Ser baseadas no conteúdo COMPLETO dos abstracts, não apenas nos títulos ou resumos curtos
+- Analisar detalhadamente metodologias, resultados e conclusões mencionados nos abstracts
+- Citar os artigos por número [1], [2] etc.
+- Identificar padrões, convergências e divergências entre os estudos
+- Ser detalhadas e acadêmicas mas acessíveis
+- Quando o usuário perguntar sobre algo específico, buscar a informação em TODOS os papers relevantes
+
+Responda em português.
+
+Artigos encontrados:
+${papersSummary}`
+      : `You are an advanced academic research assistant. The user searched: "${query}". Below are the papers found with their FULL abstracts and metadata.
+
+Your responses should:
+- Be based on the COMPLETE content of abstracts, not just titles or short summaries
+- Analyze methodologies, results and conclusions mentioned in abstracts in detail
+- Cite papers by number [1], [2] etc.
+- Identify patterns, agreements and disagreements among studies
+- Be detailed and academic but accessible
+- When the user asks about something specific, search for information across ALL relevant papers
+
+Answer in English.
+
+Papers found:
+${papersSummary}`;
 
     const aiMessages = [
       { role: 'system', content: systemPrompt },

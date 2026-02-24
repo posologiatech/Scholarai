@@ -26,14 +26,34 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build a concise summary of the papers for the AI
-    const papersSummary = papers.slice(0, 10).map((p: any, i: number) => {
-      return `[${i + 1}] "${p.title}" (${p.authors?.slice(0, 3).join(', ')}${p.authors?.length > 3 ? ' et al.' : ''}, ${p.year || 'n.d.'}). ${p.abstract ? p.abstract.slice(0, 300) + '...' : 'No abstract.'}`;
+    // Send full abstracts for better synthesis
+    const papersSummary = papers.slice(0, 15).map((p: any, i: number) => {
+      return `[${i + 1}] "${p.title}" (${p.authors?.slice(0, 4).join(', ')}${p.authors?.length > 4 ? ' et al.' : ''}, ${p.year || 'n.d.'}). ${p.abstract || 'No abstract available.'}`;
     }).join('\n\n');
 
     const systemPrompt = locale === 'pt'
-      ? `Você é um assistente de pesquisa acadêmica. Sintetize os artigos científicos abaixo para responder à pergunta do usuário. Seja conciso (3-5 parágrafos), cite os artigos por número [1], [2] etc. Use linguagem acadêmica mas acessível. Responda em português.`
-      : `You are an academic research assistant. Synthesize the scientific papers below to answer the user's question. Be concise (3-5 paragraphs), cite papers by number [1], [2] etc. Use academic but accessible language. Answer in English.`;
+      ? `Você é um assistente de pesquisa acadêmica especializado em sínteses de literatura. Analise detalhadamente os artigos científicos abaixo para responder à pergunta do usuário.
+
+Sua síntese deve ser EXTENSA e DETALHADA (mínimo 6-8 parágrafos):
+1. **Introdução**: Contextualize o tema e a pergunta de pesquisa (1 parágrafo)
+2. **Principais achados**: Descreva os resultados mais relevantes dos artigos, agrupando por subtemas quando apropriado (2-3 parágrafos)
+3. **Metodologias**: Comente brevemente as abordagens metodológicas utilizadas (1 parágrafo)
+4. **Convergências e divergências**: Identifique pontos de consenso e controvérsias entre os estudos (1 parágrafo)
+5. **Lacunas e limitações**: Aponte limitações dos estudos e lacunas na literatura (1 parágrafo)
+6. **Conclusão**: Sintetize as implicações práticas e direções futuras (1 parágrafo)
+
+Cite os artigos por número [1], [2] etc. ao longo do texto. Use linguagem acadêmica mas acessível. Responda em português.`
+      : `You are an academic research assistant specialized in literature synthesis. Analyze the scientific papers below in detail to answer the user's question.
+
+Your synthesis must be EXTENSIVE and DETAILED (minimum 6-8 paragraphs):
+1. **Introduction**: Contextualize the topic and research question (1 paragraph)
+2. **Key findings**: Describe the most relevant results, grouping by subtopics when appropriate (2-3 paragraphs)
+3. **Methodologies**: Briefly comment on the methodological approaches used (1 paragraph)
+4. **Agreements and disagreements**: Identify points of consensus and controversies among studies (1 paragraph)
+5. **Gaps and limitations**: Point out study limitations and literature gaps (1 paragraph)
+6. **Conclusion**: Summarize practical implications and future directions (1 paragraph)
+
+Cite papers by number [1], [2] etc. throughout. Use academic but accessible language. Answer in English.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -45,7 +65,7 @@ Deno.serve(async (req) => {
         model: 'google/gemini-3-flash-preview',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Research question: "${query}"\n\nPapers found:\n\n${papersSummary}` },
+          { role: 'user', content: `Research question: "${query}"\n\nPapers found (${papers.length} total):\n\n${papersSummary}` },
         ],
         stream: true,
       }),
