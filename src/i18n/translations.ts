@@ -234,6 +234,19 @@ export const translations = {
   "nav.library": { pt: "Biblioteca", en: "Library" },
   "nav.extraction": { pt: "Extração", en: "Extraction" },
   "nav.reports": { pt: "Relatórios", en: "Reports" },
+  "nav.admin": { pt: "Admin", en: "Admin" },
+
+  // Admin
+  "admin.title": { pt: "Painel Administrativo", en: "Admin Panel" },
+  "admin.subtitle": { pt: "Gerencie usuários e permissões do sistema", en: "Manage users and system permissions" },
+  "admin.totalAdmins": { pt: "Administradores", en: "Admins" },
+  "admin.totalUsers": { pt: "Usuários", en: "Users" },
+  "admin.totalRoles": { pt: "Total de Roles", en: "Total Roles" },
+  "admin.userRoles": { pt: "Roles de Usuários", en: "User Roles" },
+  "admin.noRoles": { pt: "Nenhuma role encontrada", en: "No roles found" },
+  "admin.roleRemoved": { pt: "Role removida com sucesso", en: "Role removed successfully" },
+  "admin.addViaSupabase": { pt: "Para adicionar roles, use o painel do Supabase", en: "To add roles, use the Supabase dashboard" },
+  "admin.manageNote": { pt: "Para gerenciamento avançado de usuários, acesse o painel do Supabase.", en: "For advanced user management, access the Supabase dashboard." },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
