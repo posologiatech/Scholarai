@@ -1,29 +1,69 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Switch } from "@/components/ui/switch";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Loader2, Send, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export interface ColumnDef {
   name: string;
   description?: string;
   enabled: boolean;
   isCustom?: boolean;
+  prompt?: string;
+}
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface Paper {
+  title: string;
+  authors: string[];
+  year: number | null;
+  abstract: string;
 }
 
 interface ColumnsPanelProps {
   suggestedColumns: ColumnDef[];
   onColumnsChange: (columns: ColumnDef[]) => void;
+  papers?: Paper[];
+  query?: string;
 }
 
-const ColumnsPanel = ({ suggestedColumns, onColumnsChange }: ColumnsPanelProps) => {
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-papers`;
+
+const ColumnsPanel = ({ suggestedColumns, onColumnsChange, papers = [], query = "" }: ColumnsPanelProps) => {
   const { locale } = useLanguage();
-  const [activeTab, setActiveTab] = useState<"columns">("columns");
+  const [activeTab, setActiveTab] = useState<"chat" | "columns">("columns");
   const [newColumnName, setNewColumnName] = useState("");
+
+  // Custom column prompt dialog
+  const [showPromptDialog, setShowPromptDialog] = useState(false);
+  const [pendingColumnName, setPendingColumnName] = useState("");
+  const [columnPrompt, setColumnPrompt] = useState("");
+
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const customColumns = suggestedColumns.filter((c) => c.isCustom);
   const suggested = suggestedColumns.filter((c) => !c.isCustom);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
   const toggleColumn = (name: string) => {
     const updated = suggestedColumns.map((c) =>
@@ -32,83 +72,281 @@ const ColumnsPanel = ({ suggestedColumns, onColumnsChange }: ColumnsPanelProps) 
     onColumnsChange(updated);
   };
 
-  const addCustomColumn = () => {
+  const handleAddCustomColumn = () => {
     if (!newColumnName.trim()) return;
-    const updated = [
-      ...suggestedColumns,
-      { name: newColumnName.trim(), enabled: true, isCustom: true },
-    ];
-    onColumnsChange(updated);
+    setPendingColumnName(newColumnName.trim());
+    setColumnPrompt("");
+    setShowPromptDialog(true);
     setNewColumnName("");
   };
 
-  return (
-    <div className="flex h-full w-72 flex-col border-l border-border bg-card">
-      {/* Tabs */}
-      <div className="flex border-b border-border">
-        <button
-          className="flex-1 px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground"
-        >
-          {locale === "pt" ? "Chat com papers" : "Chat with papers"}
-        </button>
-        <button
-          className="flex-1 border-b-2 border-primary px-4 py-3 text-sm font-medium text-primary"
-        >
-          {locale === "pt" ? "Editar colunas" : "Edit columns"}
-        </button>
-      </div>
+  const confirmCustomColumn = () => {
+    if (!pendingColumnName) return;
+    const updated = [
+      ...suggestedColumns,
+      {
+        name: pendingColumnName,
+        description: columnPrompt || pendingColumnName,
+        prompt: columnPrompt || undefined,
+        enabled: true,
+        isCustom: true,
+      },
+    ];
+    onColumnsChange(updated);
+    setShowPromptDialog(false);
+    setPendingColumnName("");
+    setColumnPrompt("");
+  };
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Custom columns */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium text-muted-foreground">
-            {locale === "pt" ? "Colunas customizadas" : "Custom columns"}
-          </h4>
-          {customColumns.map((col) => (
-            <div key={col.name} className="flex items-center justify-between">
-              <span className="text-sm text-foreground">{col.name}</span>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={col.enabled}
-                  onCheckedChange={() => toggleColumn(col.name)}
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg: ChatMessage = { role: "user", content: chatInput.trim() };
+    const newMessages = [...chatMessages, userMsg];
+    setChatMessages(newMessages);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const resp = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          query,
+          papers: papers.map((p) => ({
+            title: p.title,
+            authors: p.authors,
+            year: p.year,
+            abstract: p.abstract,
+          })),
+          messages: newMessages,
+          locale,
+        }),
+      });
+
+      if (!resp.ok) throw new Error("Chat failed");
+      const data = await resp.json();
+      setChatMessages([...newMessages, { role: "assistant", content: data.content }]);
+    } catch {
+      setChatMessages([
+        ...newMessages,
+        {
+          role: "assistant",
+          content: locale === "pt" ? "Erro ao processar. Tente novamente." : "Error processing. Try again.",
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="flex h-full w-80 flex-col border-l border-border bg-card">
+        {/* Tabs */}
+        <div className="flex border-b border-border">
+          <button
+            onClick={() => setActiveTab("chat")}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === "chat"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {locale === "pt" ? "Chat com papers" : "Chat with papers"}
+          </button>
+          <button
+            onClick={() => setActiveTab("columns")}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === "columns"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {locale === "pt" ? "Editar colunas" : "Edit columns"}
+          </button>
+        </div>
+
+        {activeTab === "columns" ? (
+          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+            {/* Custom columns */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                {locale === "pt" ? "Colunas customizadas" : "Custom columns"}
+              </h4>
+              {customColumns.map((col) => (
+                <div key={col.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-foreground">{col.name}</span>
+                    {col.prompt && (
+                      <span title={col.prompt}>
+                        <Info className="h-3 w-3 text-muted-foreground" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={col.enabled}
+                      onCheckedChange={() => toggleColumn(col.name)}
+                    />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+              ))}
+              <div
+                className="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  const input = document.getElementById("custom-col-input");
+                  input?.focus();
+                }}
+              >
+                <Input
+                  id="custom-col-input"
+                  value={newColumnName}
+                  onChange={(e) => setNewColumnName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddCustomColumn()}
+                  placeholder={locale === "pt" ? "+ Adicionar nova..." : "+ Add new..."}
+                  className="text-sm"
                 />
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </div>
             </div>
-          ))}
-          <div className="flex gap-2">
-            <Input
-              value={newColumnName}
-              onChange={(e) => setNewColumnName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addCustomColumn()}
-              placeholder={locale === "pt" ? "+ Adicionar nova..." : "+ Add new..."}
+
+            {/* Suggested columns */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  {locale === "pt" ? "Colunas sugeridas" : "Suggested columns"}
+                </h4>
+                <Info className="h-3.5 w-3.5 text-muted-foreground/50" />
+              </div>
+              {suggested.map((col) => (
+                <div key={col.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-sm text-foreground truncate">{col.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Switch
+                      checked={col.enabled}
+                      onCheckedChange={() => toggleColumn(col.name)}
+                    />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+              ))}
+              {suggested.length === 0 && (
+                <p className="text-xs text-muted-foreground/60">
+                  {locale === "pt"
+                    ? "Nenhuma sugestão disponível"
+                    : "No suggestions available"}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Chat tab */
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {chatMessages.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  {locale === "pt"
+                    ? "Faça perguntas sobre os papers encontrados"
+                    : "Ask questions about the papers found"}
+                </p>
+              )}
+              {chatMessages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`text-sm leading-relaxed ${
+                    msg.role === "user"
+                      ? "ml-6 rounded-lg bg-primary/10 p-3 text-foreground"
+                      : "text-foreground/80"
+                  }`}
+                >
+                  {msg.content.split("\n").map((line, j) => (
+                    <p key={j} className={j > 0 ? "mt-2" : ""}>
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {locale === "pt" ? "Pensando..." : "Thinking..."}
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+            <div className="border-t border-border p-3">
+              <div className="flex gap-2">
+                <Input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendChatMessage()}
+                  placeholder={
+                    locale === "pt"
+                      ? "Pergunte sobre os papers..."
+                      : "Ask about the papers..."
+                  }
+                  className="text-sm"
+                  disabled={chatLoading}
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={sendChatMessage}
+                  disabled={chatLoading || !chatInput.trim()}
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Custom column prompt dialog */}
+      <Dialog open={showPromptDialog} onOpenChange={setShowPromptDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {locale === "pt"
+                ? `Configurar coluna: ${pendingColumnName}`
+                : `Configure column: ${pendingColumnName}`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {locale === "pt"
+                ? "Descreva o que deseja extrair de cada paper para esta coluna:"
+                : "Describe what you want to extract from each paper for this column:"}
+            </p>
+            <Textarea
+              value={columnPrompt}
+              onChange={(e) => setColumnPrompt(e.target.value)}
+              placeholder={
+                locale === "pt"
+                  ? "Ex: Extraia o tamanho da amostra e a metodologia utilizada no estudo..."
+                  : "E.g.: Extract the sample size and methodology used in the study..."
+              }
+              rows={4}
               className="text-sm"
+              autoFocus
             />
           </div>
-        </div>
-
-        {/* Suggested columns */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium text-muted-foreground">
-            {locale === "pt" ? "Colunas sugeridas" : "Suggested columns"}
-          </h4>
-          {suggested.map((col) => (
-            <div key={col.name} className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-foreground">{col.name}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={col.enabled}
-                  onCheckedChange={() => toggleColumn(col.name)}
-                />
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPromptDialog(false)}>
+              {locale === "pt" ? "Cancelar" : "Cancel"}
+            </Button>
+            <Button onClick={confirmCustomColumn}>
+              {locale === "pt" ? "Adicionar coluna" : "Add column"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

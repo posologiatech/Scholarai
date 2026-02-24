@@ -13,7 +13,6 @@ import {
   PanelRightOpen,
   PanelRightClose,
   FileText,
-  ChevronDown,
 } from "lucide-react";
 import ColumnsPanel, { type ColumnDef } from "@/components/app/ColumnsPanel";
 
@@ -80,7 +79,7 @@ const SearchResults = () => {
   useEffect(() => {
     if (papers.length > 0) {
       const enabledCols = columns.filter((c) => c.enabled && !columnData[c.name]);
-      enabledCols.forEach((col) => extractColumnData(col.name));
+      enabledCols.forEach((col) => extractColumnData(col.name, col.prompt));
     }
   }, [papers]);
 
@@ -113,7 +112,7 @@ const SearchResults = () => {
     }
   };
 
-  const extractColumnData = async (columnName: string) => {
+  const extractColumnData = async (columnName: string, customPrompt?: string) => {
     if (papers.length === 0) return;
     setLoadingColumns((prev) => new Set(prev).add(columnName));
     try {
@@ -132,6 +131,7 @@ const SearchResults = () => {
             abstract: p.abstract,
           })),
           column_name: columnName,
+          custom_prompt: customPrompt,
           locale,
         }),
       });
@@ -155,14 +155,13 @@ const SearchResults = () => {
   };
 
   const handleColumnsChange = (updated: ColumnDef[]) => {
-    // Check for newly enabled columns that need extraction
     const newlyEnabled = updated.filter(
       (u) => u.enabled && !columns.find((c) => c.name === u.name)?.enabled
     );
     setColumns(updated);
     newlyEnabled.forEach((col) => {
       if (!columnData[col.name]) {
-        extractColumnData(col.name);
+        extractColumnData(col.name, col.prompt);
       }
     });
   };
@@ -298,7 +297,6 @@ const SearchResults = () => {
             {/* Table */}
             {!loading && !error && (
               <div className="overflow-x-auto">
-                {/* Table header */}
                 <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
                   <span>{sorted.length} {locale === "pt" ? "fontes" : "sources"}</span>
                 </div>
@@ -327,7 +325,6 @@ const SearchResults = () => {
                   <tbody>
                     {sorted.map((paper, idx) => (
                       <tr key={paper.id} className="border-b border-border/50 hover:bg-muted/30">
-                        {/* Paper cell */}
                         <td className="py-4 pr-4 align-top">
                           <div className="max-w-lg space-y-1.5">
                             <h3 className="text-sm font-semibold leading-snug text-primary hover:underline">
@@ -380,7 +377,6 @@ const SearchResults = () => {
                           </div>
                         </td>
 
-                        {/* Data columns */}
                         {enabledColumns.map((col) => (
                           <td key={col.name} className="min-w-[280px] px-4 py-4 align-top">
                             {loadingColumns.has(col.name) ? (
@@ -413,11 +409,13 @@ const SearchResults = () => {
           </div>
         </main>
 
-        {/* Columns panel */}
+        {/* Columns panel - aligned flush with table from top */}
         {showPanel && !loading && papers.length > 0 && (
           <ColumnsPanel
             suggestedColumns={columns}
             onColumnsChange={handleColumnsChange}
+            papers={papers}
+            query={query}
           />
         )}
       </div>

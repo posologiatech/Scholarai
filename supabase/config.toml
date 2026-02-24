@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.extract-column]
 verify_jwt = false
+
+[functions.chat-papers]
+verify_jwt = false
