@@ -51,22 +51,29 @@ const SearchResults = () => {
     setLoading(true);
     setError(null);
     try {
-      console.log("[SearchResults] Invoking search-papers with query:", q);
-      const { data, error: fnError } = await supabase.functions.invoke("search-papers", {
-        body: { query: q, limit: 20 },
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-papers`;
+      console.log("[SearchResults] Fetching:", url, "query:", q);
+      
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ query: q, limit: 20 }),
       });
-      console.log("[SearchResults] Response data:", data, "error:", fnError);
-      if (fnError) throw fnError;
-      if (data && typeof data === 'object' && Array.isArray(data.papers)) {
-        setPapers(data.papers);
-      } else if (typeof data === 'string') {
-        // Sometimes invoke returns string instead of parsed JSON
-        const parsed = JSON.parse(data);
-        setPapers(parsed.papers || []);
-      } else {
-        console.warn("[SearchResults] Unexpected data format:", data);
-        setPapers([]);
+
+      console.log("[SearchResults] Response status:", resp.status);
+      
+      if (!resp.ok) {
+        const errText = await resp.text();
+        console.error("[SearchResults] Error response:", errText);
+        throw new Error(`Search failed (${resp.status}): ${errText}`);
       }
+
+      const data = await resp.json();
+      console.log("[SearchResults] Papers found:", data.papers?.length || 0);
+      setPapers(data.papers || []);
     } catch (err: any) {
       console.error("[SearchResults] Error:", err);
       setError(err.message || "Failed to search");
