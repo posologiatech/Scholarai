@@ -102,9 +102,26 @@ const SearchResults = () => {
 
   const tableRef = useRef<HTMLTableElement>(null);
 
-  // Initialize suggested columns from navigation state
+  // Initialize from navigation state (saved search or suggested columns)
   useEffect(() => {
-    const state = location.state as { suggestedColumns?: { name: string; description: string }[] } | null;
+    const state = location.state as {
+      suggestedColumns?: { name: string; description: string }[];
+      savedSearch?: { papers: any[]; columns: any[]; column_data: Record<string, Record<number, string>> };
+    } | null;
+
+    if (state?.savedSearch) {
+      // Restore full saved search: papers, columns, and extracted data
+      setPapers(state.savedSearch.papers || []);
+      if (Array.isArray(state.savedSearch.columns) && state.savedSearch.columns.length > 0) {
+        setColumns(state.savedSearch.columns);
+      }
+      if (state.savedSearch.column_data && typeof state.savedSearch.column_data === "object") {
+        setColumnData(state.savedSearch.column_data);
+      }
+      setLoading(false);
+      return;
+    }
+
     if (state?.suggestedColumns?.length) {
       setColumns([
         { name: "Summary", enabled: true },
@@ -118,6 +135,9 @@ const SearchResults = () => {
   }, []);
 
   useEffect(() => {
+    const state = location.state as { savedSearch?: any } | null;
+    // Don't fetch if we loaded from a saved search
+    if (state?.savedSearch) return;
     if (query) fetchPapers(query);
   }, [query]);
 
