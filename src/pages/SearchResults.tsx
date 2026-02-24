@@ -23,10 +23,12 @@ interface Paper {
   authors: string[];
   year: number | null;
   abstract: string;
-  source: "semantic_scholar" | "pubmed";
+  source: "semantic_scholar" | "pubmed" | "openalex" | "clinical_trials" | "europe_pmc";
   citationCount?: number;
   doi?: string;
   url?: string;
+  journal?: string;
+  openAccess?: boolean;
 }
 
 const EXTRACT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-column`;
@@ -185,8 +187,16 @@ const SearchResults = () => {
   });
 
   const enabledColumns = columns.filter((c) => c.enabled);
-  const sourceLabel = (s: string) =>
-    s === "semantic_scholar" ? "Semantic Scholar" : "PubMed";
+  const sourceLabel = (s: string) => {
+    const labels: Record<string, string> = {
+      semantic_scholar: "Semantic Scholar",
+      pubmed: "PubMed",
+      openalex: "OpenAlex",
+      clinical_trials: "ClinicalTrials.gov",
+      europe_pmc: "Europe PMC",
+    };
+    return labels[s] || s;
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -246,6 +256,9 @@ const SearchResults = () => {
                   <option value="all">{t("search.allSources")}</option>
                   <option value="semantic_scholar">Semantic Scholar</option>
                   <option value="pubmed">PubMed</option>
+                  <option value="openalex">OpenAlex</option>
+                  <option value="clinical_trials">ClinicalTrials.gov</option>
+                  <option value="europe_pmc">Europe PMC</option>
                 </select>
               </button>
 
@@ -333,7 +346,7 @@ const SearchResults = () => {
                             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <FileText className="h-3 w-3" />
-                                {sourceLabel(paper.source)}
+                                {paper.journal || sourceLabel(paper.source)}
                                 {paper.year && `, ${paper.year}`}
                                 {paper.citationCount != null && `, ${paper.citationCount} ${locale === "pt" ? "citações" : "citations"}`}
                               </span>
@@ -344,17 +357,26 @@ const SearchResults = () => {
                                   rel="noopener noreferrer"
                                   className="text-primary hover:underline"
                                 >
-                                  DOI
+                                  ⌕ DOI
                                 </a>
                               )}
+                              {paper.openAccess && (
+                                <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                  Open Access
+                                </span>
+                              )}
                             </div>
-                            <p className="text-xs text-muted-foreground/70">
-                              {paper.abstract ? (
-                                paper.abstract.length > 100
-                                  ? "Abstract only"
-                                  : "Full text"
-                              ) : "Abstract only"}
-                            </p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
+                              <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                paper.source === 'semantic_scholar' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' :
+                                paper.source === 'pubmed' ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400' :
+                                paper.source === 'openalex' ? 'bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400' :
+                                paper.source === 'clinical_trials' ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400' :
+                                'bg-teal-50 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400'
+                              }`}>
+                                {sourceLabel(paper.source)}
+                              </span>
+                            </div>
                           </div>
                         </td>
 
