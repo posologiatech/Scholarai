@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
                       required: ['name', 'description'],
                       additionalProperties: false,
                     },
-                    description: 'Suggest 3-4 data extraction columns relevant to this research question (besides Summary which is always included)',
+                    description: 'Suggest 5-7 data extraction columns relevant to this research question (besides Summary which is always included). Include columns like methodology, sample size, outcomes, interventions, limitations, etc.',
                   },
                 },
                 required: ['quality', 'message', 'missing_elements', 'suggested_columns'],
