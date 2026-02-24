@@ -72,7 +72,7 @@ const Library = () => {
               >
                 <div
                   className="flex-1 cursor-pointer"
-                  onClick={() => navigate(`/search?q=${encodeURIComponent(s.query)}`)}
+                  onClick={() => navigate(`/search?q=${encodeURIComponent(s.query)}`, { state: { savedSearch: s } })}
                 >
                   <h3 className="text-sm font-semibold text-foreground">{s.query}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -83,7 +83,7 @@ const Library = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => navigate(`/search?q=${encodeURIComponent(s.query)}`)}
+                    onClick={() => navigate(`/search?q=${encodeURIComponent(s.query)}`, { state: { savedSearch: s } })}
                   >
                     <ExternalLink className="h-4 w-4" />
                   </Button>
