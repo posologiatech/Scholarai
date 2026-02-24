@@ -1,12 +1,14 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Globe, LogOut, Search, BookOpen, Table, FileText, LayoutDashboard } from "lucide-react";
+import { GraduationCap, Globe, LogOut, BookOpen, Table, FileText, LayoutDashboard, Shield } from "lucide-react";
 
 const AppHeader = () => {
   const { t, locale, setLocale } = useLanguage();
   const { user, signOut } = useAuth();
+  const { isAdmin } = useAdmin();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -22,6 +24,7 @@ const AppHeader = () => {
     { label: t("nav.library"), href: "/library", icon: BookOpen },
     { label: t("nav.extraction"), href: "/extraction", icon: Table },
     { label: t("nav.reports"), href: "/reports", icon: FileText },
+    ...(isAdmin ? [{ label: t("nav.admin"), href: "/admin", icon: Shield }] : []),
   ];
 
   return (
