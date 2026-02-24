@@ -44,6 +44,48 @@ export type Database = {
         }
         Relationships: []
       }
+      uploaded_papers: {
+        Row: {
+          created_at: string | null
+          extracted_text: string | null
+          extraction_data: Json | null
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          status: string | null
+          title: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          extracted_text?: string | null
+          extraction_data?: Json | null
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          status?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          extracted_text?: string | null
+          extraction_data?: Json | null
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          status?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
