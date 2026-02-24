@@ -2,3 +2,6 @@ project_id = "opogckyuwexdlczfvvtb"
 
 [functions.search-papers]
 verify_jwt = false
+
+[functions.synthesize-papers]
+verify_jwt = false
