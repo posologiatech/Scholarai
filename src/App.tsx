@@ -18,6 +18,9 @@ import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import Dashboard from "./pages/Dashboard";
 import SearchResults from "./pages/SearchResults";
+import Library from "./pages/Library";
+import Extraction from "./pages/Extraction";
+import Reports from "./pages/Reports";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -45,6 +48,9 @@ const App = () => (
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
+              <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
+              <Route path="/extraction" element={<ProtectedRoute><Extraction /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

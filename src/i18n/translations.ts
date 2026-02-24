@@ -205,6 +205,35 @@ export const translations = {
   "search.showMore": { pt: "Mostrar mais", en: "Show more" },
   "search.showLess": { pt: "Mostrar menos", en: "Show less" },
   "search.noResults": { pt: "Nenhum resultado encontrado. Tente reformular sua busca.", en: "No results found. Try rephrasing your search." },
+  "search.aiSynthesis": { pt: "Síntese de IA", en: "AI Synthesis" },
+  "search.synthesizing": { pt: "Gerando síntese dos artigos...", en: "Generating paper synthesis..." },
+
+  // Library
+  "library.title": { pt: "Minha Biblioteca", en: "My Library" },
+  "library.subtitle": { pt: "Gerencie seus PDFs e artigos salvos", en: "Manage your saved PDFs and papers" },
+  "library.empty": { pt: "Sua biblioteca está vazia", en: "Your library is empty" },
+  "library.emptyDesc": { pt: "Faça upload de PDFs ou salve artigos das buscas", en: "Upload PDFs or save papers from searches" },
+  "library.upload": { pt: "Fazer Upload", en: "Upload" },
+
+  // Extraction
+  "extraction.title": { pt: "Extração de Dados", en: "Data Extraction" },
+  "extraction.subtitle": { pt: "Extraia dados estruturados de artigos científicos", en: "Extract structured data from scientific papers" },
+  "extraction.empty": { pt: "Nenhuma extração criada", en: "No extractions created" },
+  "extraction.emptyDesc": { pt: "Crie tabelas com colunas customizáveis para extrair dados dos seus artigos", en: "Create tables with customizable columns to extract data from your papers" },
+  "extraction.create": { pt: "Nova Extração", en: "New Extraction" },
+
+  // Reports
+  "reports.title": { pt: "Relatórios", en: "Reports" },
+  "reports.subtitle": { pt: "Gere relatórios de pesquisa com IA", en: "Generate AI-powered research reports" },
+  "reports.empty": { pt: "Nenhum relatório criado", en: "No reports created" },
+  "reports.emptyDesc": { pt: "Gere relatórios síntese a partir de seus artigos e extrações", en: "Generate synthesis reports from your papers and extractions" },
+  "reports.create": { pt: "Novo Relatório", en: "New Report" },
+
+  // App nav
+  "nav.dashboard": { pt: "Dashboard", en: "Dashboard" },
+  "nav.library": { pt: "Biblioteca", en: "Library" },
+  "nav.extraction": { pt: "Extração", en: "Extraction" },
+  "nav.reports": { pt: "Relatórios", en: "Reports" },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

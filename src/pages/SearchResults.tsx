@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Search,
-  Sparkles,
   ExternalLink,
   Filter,
   Loader2,
@@ -14,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import AISynthesis from "@/components/app/AISynthesis";
 
 interface Paper {
   id: string;
@@ -153,6 +153,9 @@ const SearchResults = () => {
             {error}
           </div>
         )}
+
+        {/* AI Synthesis */}
+        <AISynthesis query={query} papers={papers} loading={loading} />
 
         {/* Results */}
         {!loading && !error && (
