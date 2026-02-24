@@ -84,6 +84,104 @@ export const translations = {
   "footer.terms": { pt: "Termos de Serviço", en: "Terms of Service" },
   "footer.privacy": { pt: "Política de Privacidade", en: "Privacy Policy" },
   "footer.rights": { pt: "Todos os direitos reservados.", en: "All rights reserved." },
+
+  // Auth
+  "auth.login.title": { pt: "Bem-vindo de volta", en: "Welcome back" },
+  "auth.login.subtitle": { pt: "Entre na sua conta para continuar pesquisando", en: "Sign in to your account to continue researching" },
+  "auth.signup.title": { pt: "Crie sua conta", en: "Create your account" },
+  "auth.signup.subtitle": { pt: "Comece a pesquisar de forma mais inteligente", en: "Start researching smarter" },
+  "auth.email": { pt: "Email", en: "Email" },
+  "auth.password": { pt: "Senha", en: "Password" },
+  "auth.confirmPassword": { pt: "Confirmar senha", en: "Confirm password" },
+  "auth.fullName": { pt: "Nome completo", en: "Full name" },
+  "auth.loginButton": { pt: "Entrar", en: "Sign in" },
+  "auth.signupButton": { pt: "Criar conta", en: "Create account" },
+  "auth.forgotPassword": { pt: "Esqueceu a senha?", en: "Forgot password?" },
+  "auth.noAccount": { pt: "Não tem uma conta?", en: "Don't have an account?" },
+  "auth.hasAccount": { pt: "Já tem uma conta?", en: "Already have an account?" },
+  "auth.orContinueWith": { pt: "ou continue com", en: "or continue with" },
+  "auth.google": { pt: "Google", en: "Google" },
+  "auth.resetPassword.title": { pt: "Recuperar senha", en: "Reset password" },
+  "auth.resetPassword.subtitle": { pt: "Enviaremos um link para redefinir sua senha", en: "We'll send you a link to reset your password" },
+  "auth.resetPassword.button": { pt: "Enviar link", en: "Send reset link" },
+  "auth.resetPassword.sent": { pt: "Email enviado! Verifique sua caixa de entrada.", en: "Email sent! Check your inbox." },
+  "auth.resetPassword.newPassword": { pt: "Nova senha", en: "New password" },
+  "auth.resetPassword.update": { pt: "Atualizar senha", en: "Update password" },
+  "auth.resetPassword.success": { pt: "Senha atualizada com sucesso!", en: "Password updated successfully!" },
+  "auth.signupSuccess": { pt: "Conta criada! Verifique seu email para confirmar.", en: "Account created! Check your email to confirm." },
+
+  // Solutions page
+  "solutions.title": { pt: "Nossas Soluções", en: "Our Solutions" },
+  "solutions.subtitle": { pt: "Ferramentas de IA para cada etapa da pesquisa acadêmica", en: "AI tools for every stage of academic research" },
+  "solutions.search.title": { pt: "Busca de Artigos", en: "Paper Search" },
+  "solutions.search.desc": {
+    pt: "Busca semântica avançada que entende sua pergunta de pesquisa e retorna os artigos mais relevantes de Semantic Scholar e PubMed. Sem necessidade de palavras-chave exatas.",
+    en: "Advanced semantic search that understands your research question and returns the most relevant papers from Semantic Scholar and PubMed. No exact keywords needed.",
+  },
+  "solutions.search.features": {
+    pt: "Busca em linguagem natural|Cobertura de 200M+ papers|Resultados ranqueados por relevância|Filtros avançados por ano, tipo e área",
+    en: "Natural language search|Coverage of 200M+ papers|Results ranked by relevance|Advanced filters by year, type and field",
+  },
+  "solutions.review.title": { pt: "Revisão Sistemática", en: "Systematic Review" },
+  "solutions.review.desc": {
+    pt: "Automatize a triagem de artigos com critérios de inclusão e exclusão definidos por você. A IA analisa centenas de artigos e identifica quais atendem seus critérios.",
+    en: "Automate paper screening with inclusion and exclusion criteria you define. AI analyzes hundreds of papers and identifies which meet your criteria.",
+  },
+  "solutions.review.features": {
+    pt: "Triagem automatizada por IA|Critérios de inclusão/exclusão|Extração de dados em massa|Exportação para ferramentas de revisão",
+    en: "Automated AI screening|Inclusion/exclusion criteria|Bulk data extraction|Export to review tools",
+  },
+  "solutions.alerts.title": { pt: "Alertas Inteligentes", en: "Smart Alerts" },
+  "solutions.alerts.desc": {
+    pt: "Receba notificações automáticas quando novos artigos relevantes forem publicados. Baseado em IA, não apenas palavras-chave — monitoramento verdadeiramente inteligente.",
+    en: "Get automatic notifications when new relevant papers are published. AI-based, not just keywords — truly intelligent monitoring.",
+  },
+  "solutions.alerts.features": {
+    pt: "Alertas baseados em IA|Monitoramento contínuo|Notificações por email|Resumos semanais automáticos",
+    en: "AI-based alerts|Continuous monitoring|Email notifications|Automatic weekly summaries",
+  },
+  "solutions.reports.title": { pt: "Relatórios por IA", en: "AI Reports" },
+  "solutions.reports.desc": {
+    pt: "Gere relatórios de pesquisa completos a partir de dezenas de artigos. A IA sintetiza informações com citações no nível da frase para máxima transparência.",
+    en: "Generate complete research reports from dozens of papers. AI synthesizes information with sentence-level citations for maximum transparency.",
+  },
+  "solutions.reports.features": {
+    pt: "Síntese de múltiplos artigos|Citações no nível da frase|Formatação profissional|Exportação em múltiplos formatos",
+    en: "Multi-paper synthesis|Sentence-level citations|Professional formatting|Export in multiple formats",
+  },
+  "solutions.learnMore": { pt: "Saiba mais", en: "Learn more" },
+  "solutions.comingSoon": { pt: "Em breve", en: "Coming soon" },
+
+  // Use Cases
+  "useCases.title": { pt: "Casos de Uso", en: "Use Cases" },
+  "useCases.subtitle": { pt: "Veja como diferentes setores usam o ScholarAI", en: "See how different sectors use ScholarAI" },
+
+  // About
+  "about.title": { pt: "Sobre o ScholarAI", en: "About ScholarAI" },
+  "about.subtitle": { pt: "Nossa missão é democratizar o acesso à pesquisa científica com inteligência artificial", en: "Our mission is to democratize access to scientific research with artificial intelligence" },
+  "about.mission.title": { pt: "Nossa Missão", en: "Our Mission" },
+  "about.mission.desc": {
+    pt: "Acreditamos que a pesquisa científica deveria ser acessível, eficiente e precisa. O ScholarAI foi criado para eliminar as horas gastas em busca manual de literatura, permitindo que pesquisadores se concentrem no que realmente importa: gerar conhecimento.",
+    en: "We believe scientific research should be accessible, efficient, and accurate. ScholarAI was built to eliminate the hours spent in manual literature search, allowing researchers to focus on what truly matters: generating knowledge.",
+  },
+  "about.team.title": { pt: "Nossa Equipe", en: "Our Team" },
+  "about.team.desc": {
+    pt: "Somos uma equipe de pesquisadores, engenheiros e designers apaixonados por ciência e tecnologia.",
+    en: "We're a team of researchers, engineers, and designers passionate about science and technology.",
+  },
+
+  // FAQ
+  "faq.title": { pt: "Perguntas Frequentes", en: "Frequently Asked Questions" },
+  "faq.subtitle": { pt: "Tudo que você precisa saber sobre o ScholarAI", en: "Everything you need to know about ScholarAI" },
+
+  // Legal
+  "terms.title": { pt: "Termos de Serviço", en: "Terms of Service" },
+  "terms.lastUpdated": { pt: "Última atualização", en: "Last updated" },
+  "privacy.title": { pt: "Política de Privacidade", en: "Privacy Policy" },
+  "privacy.lastUpdated": { pt: "Última atualização", en: "Last updated" },
+
+  // Common
+  "common.backHome": { pt: "Voltar ao início", en: "Back to home" },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
