@@ -1,1 +1,4 @@
 project_id = "opogckyuwexdlczfvvtb"
+
+[functions.search-papers]
+verify_jwt = false
