@@ -67,12 +67,21 @@ async function searchPubMed(query: string, limit = 10): Promise<Paper[]> {
     const abstractRes = await fetch(abstractUrl);
     const abstractXml = abstractRes.ok ? await abstractRes.text() : '';
 
+    // Extract abstracts – handle multiple <AbstractText> tags per article
     const abstracts: Record<string, string> = {};
-    const articleRegex = /<PubmedArticle>[\s\S]*?<PMID[^>]*>(\d+)<\/PMID>[\s\S]*?(?:<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>|<\/PubmedArticle>)/g;
-    let match;
-    while ((match = articleRegex.exec(abstractXml)) !== null) {
-      if (match[2]) {
-        abstracts[match[1]] = match[2].replace(/<[^>]+>/g, '').trim();
+    const articleBlocks = abstractXml.split('<PubmedArticle>');
+    for (const block of articleBlocks) {
+      const pmidMatch = block.match(/<PMID[^>]*>(\d+)<\/PMID>/);
+      if (!pmidMatch) continue;
+      const pmid = pmidMatch[1];
+      const textParts: string[] = [];
+      const abstractTextRegex = /<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/g;
+      let m;
+      while ((m = abstractTextRegex.exec(block)) !== null) {
+        textParts.push(m[1].replace(/<[^>]+>/g, '').trim());
+      }
+      if (textParts.length > 0) {
+        abstracts[pmid] = textParts.join(' ');
       }
     }
 
