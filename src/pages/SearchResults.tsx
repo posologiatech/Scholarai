@@ -51,12 +51,24 @@ const SearchResults = () => {
     setLoading(true);
     setError(null);
     try {
+      console.log("[SearchResults] Invoking search-papers with query:", q);
       const { data, error: fnError } = await supabase.functions.invoke("search-papers", {
         body: { query: q, limit: 20 },
       });
+      console.log("[SearchResults] Response data:", data, "error:", fnError);
       if (fnError) throw fnError;
-      setPapers(data.papers || []);
+      if (data && typeof data === 'object' && Array.isArray(data.papers)) {
+        setPapers(data.papers);
+      } else if (typeof data === 'string') {
+        // Sometimes invoke returns string instead of parsed JSON
+        const parsed = JSON.parse(data);
+        setPapers(parsed.papers || []);
+      } else {
+        console.warn("[SearchResults] Unexpected data format:", data);
+        setPapers([]);
+      }
     } catch (err: any) {
+      console.error("[SearchResults] Error:", err);
       setError(err.message || "Failed to search");
     } finally {
       setLoading(false);
