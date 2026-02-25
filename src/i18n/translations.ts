@@ -295,6 +295,10 @@ export const translations = {
   "features.refcheck.desc": { pt: "Verifique se as referências do seu manuscrito foram retratadas ou contestadas pela comunidade científica.", en: "Check if your manuscript's references have been retracted or contested by the scientific community." },
   "features.illustrations.title": { pt: "Ilustrações com IA", en: "AI Illustrations" },
   "features.illustrations.desc": { pt: "Gere diagramas científicos profissionais no estilo BioRender com inteligência artificial.", en: "Generate professional BioRender-style scientific diagrams with artificial intelligence." },
+
+  // Search progress
+  "search.queryingDatabases": { pt: "Consultando múltiplas bases de dados científicas...", en: "Querying multiple scientific databases..." },
+  "search.extractingColumn": { pt: "Extraindo coluna", en: "Extracting column" },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
