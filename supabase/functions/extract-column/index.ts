@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { query, papers, column_name, custom_prompt, locale = 'en' } = await req.json();
+    const { query, papers, column_name, custom_prompt, locale = 'en', stream = false } = await req.json();
 
     if (!query || !papers || !Array.isArray(papers) || papers.length === 0 || !column_name) {
       return new Response(JSON.stringify({ error: 'query, papers, and column_name are required' }), {
@@ -45,11 +45,185 @@ Deno.serve(async (req) => {
       cacheMap.set(r.paper_id, { value: r.extracted_value, citation: r.citation_context });
     });
 
-    // Step 2: Identify papers needing extraction
-    const papersToExtract = papers.filter((p: any, idx: number) => {
-      return p.id && !cacheMap.has(p.id);
-    });
+    // If streaming, use SSE
+    if (stream) {
+      const encoder = new TextEncoder();
+      const readableStream = new ReadableStream({
+        async start(controller) {
+          const send = (data: any) => {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+          };
 
+          // Send cached results immediately
+          for (let idx = 0; idx < papers.length; idx++) {
+            const p = papers[idx];
+            if (p.id && cacheMap.has(p.id)) {
+              const cached = cacheMap.get(p.id)!;
+              send({
+                paper_index: idx,
+                value: cached.value,
+                citation_context: cached.citation || undefined,
+                from_cache: true,
+              });
+            }
+          }
+
+          // Identify papers needing extraction
+          const papersToExtract = papers.filter((p: any) => p.id && !cacheMap.has(p.id));
+
+          if (papersToExtract.length > 0) {
+            // Get semantic context
+            const semanticContextMap = new Map<string, string>();
+            try {
+              const questionText = custom_prompt || column_name;
+              const embResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model: 'google/text-embedding-004',
+                  input: questionText.slice(0, 8000),
+                }),
+              });
+              if (embResponse.ok) {
+                const embData = await embResponse.json();
+                const questionEmbedding = embData.data?.[0]?.embedding;
+                if (questionEmbedding) {
+                  await Promise.all(papersToExtract.map(async (paper: any) => {
+                    const { data: chunks } = await supabase.rpc('match_paper_chunks', {
+                      query_embedding: questionEmbedding,
+                      match_threshold: 0.3,
+                      match_count: 3,
+                      filter_paper_id: paper.id,
+                    });
+                    if (chunks && chunks.length > 0) {
+                      semanticContextMap.set(paper.id, chunks.map((c: any) => c.chunk_text).join('\n\n'));
+                    }
+                  }));
+                }
+              }
+            } catch (err) {
+              console.error('Semantic search failed:', err);
+            }
+
+            // Process papers in small batches for streaming
+            const batchSize = 3;
+            for (let i = 0; i < papersToExtract.length; i += batchSize) {
+              const batch = papersToExtract.slice(i, i + batchSize);
+
+              const papersSummary = batch.map((p: any) => {
+                const originalIdx = papers.findIndex((op: any) => op.id === p.id);
+                const semanticContext = semanticContextMap.get(p.id);
+                const textContent = semanticContext
+                  ? `Semantic chunks:\n${semanticContext}\n\nAbstract: ${p.abstract || 'No abstract available.'}`
+                  : `Abstract: ${p.abstract || 'No abstract available.'}`;
+                return `Paper ${originalIdx}: "${p.title}" (${p.authors?.slice(0, 3).join(', ')}${p.authors?.length > 3 ? ' et al.' : ''}, ${p.year || 'n.d.'}). ${textContent}`;
+              }).join('\n\n');
+
+              const extractionTarget = custom_prompt
+                ? `Column: "${column_name}"\nCustom instruction: ${custom_prompt}`
+                : `Column: "${column_name}"`;
+
+              const systemPrompt = locale === 'pt'
+                ? `Você é um assistente de extração de dados acadêmicos. Para cada paper, extraia a informação correspondente à coluna solicitada em relação à pergunta de pesquisa. Seja conciso (1-3 frases por paper). Se o paper não tiver informações suficientes, indique "Informação não disponível". Use asteriscos (*) para marcar citações inline. Responda APENAS usando a função fornecida. IMPORTANTE: Para cada extração, inclua o trecho exato do texto original de onde você extraiu a informação no campo citation_context.\n\n${custom_prompt ? `INSTRUÇÃO ESPECÍFICA DO USUÁRIO: ${custom_prompt}` : ''}`
+                : `You are an academic data extraction assistant. For each paper, extract information for the requested column relative to the research question. Be concise (1-3 sentences per paper). If the paper has insufficient information, indicate "Information not available". Use asterisks (*) for inline citations. Respond ONLY using the provided function. IMPORTANT: For each extraction, include the exact text excerpt from the original where you extracted the information in the citation_context field.\n\n${custom_prompt ? `USER SPECIFIC INSTRUCTION: ${custom_prompt}` : ''}`;
+
+              try {
+                const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model: 'google/gemini-3-flash-preview',
+                    messages: [
+                      { role: 'system', content: systemPrompt },
+                      { role: 'user', content: `Research question: "${query}"\n\n${extractionTarget}\n\nPapers:\n\n${papersSummary}` },
+                    ],
+                    tools: [{
+                      type: 'function',
+                      function: {
+                        name: 'extract_column_data',
+                        description: 'Return extracted data for each paper with citation context',
+                        parameters: {
+                          type: 'object',
+                          properties: {
+                            extractions: {
+                              type: 'array',
+                              items: {
+                                type: 'object',
+                                properties: {
+                                  paper_index: { type: 'number' },
+                                  value: { type: 'string' },
+                                  citation_context: { type: 'string' },
+                                },
+                                required: ['paper_index', 'value'],
+                                additionalProperties: false,
+                              },
+                            },
+                          },
+                          required: ['extractions'],
+                          additionalProperties: false,
+                        },
+                      },
+                    }],
+                    tool_choice: { type: 'function', function: { name: 'extract_column_data' } },
+                  }),
+                });
+
+                if (response.ok) {
+                  const data = await response.json();
+                  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+                  if (toolCall) {
+                    const result = JSON.parse(toolCall.function.arguments);
+                    for (const ext of (result.extractions || [])) {
+                      const paper = papers[ext.paper_index];
+                      if (paper?.id) {
+                        // Cache
+                        await supabase.from('extraction_cache').upsert({
+                          paper_id: paper.id,
+                          column_name,
+                          column_prompt: custom_prompt || null,
+                          extracted_value: ext.value,
+                          citation_context: ext.citation_context || null,
+                        }, { onConflict: 'paper_id,column_name' });
+                      }
+                      // Stream to client
+                      send({
+                        paper_index: ext.paper_index,
+                        value: ext.value,
+                        citation_context: ext.citation_context || undefined,
+                        from_cache: false,
+                      });
+                    }
+                  }
+                }
+              } catch (err) {
+                console.error('Batch extraction error:', err);
+              }
+            }
+          }
+
+          send({ done: true });
+          controller.close();
+        },
+      });
+
+      return new Response(readableStream, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+
+    // Non-streaming path (original behavior)
+    const papersToExtract = papers.filter((p: any) => p.id && !cacheMap.has(p.id));
     const extractions: { paper_index: number; value: string; citation_context?: string; from_cache?: boolean }[] = [];
 
     // Add cached results
@@ -65,13 +239,9 @@ Deno.serve(async (req) => {
       }
     });
 
-    // Step 3: For uncached papers, try semantic search for richer context
     if (papersToExtract.length > 0) {
-      // Try to get embeddings for the column question to do semantic search
       let semanticContextMap = new Map<string, string>();
-
       try {
-        // Generate embedding for the extraction question
         const questionText = custom_prompt || column_name;
         const embResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
           method: 'POST',
@@ -84,13 +254,10 @@ Deno.serve(async (req) => {
             input: questionText.slice(0, 8000),
           }),
         });
-
         if (embResponse.ok) {
           const embData = await embResponse.json();
           const questionEmbedding = embData.data?.[0]?.embedding;
-
           if (questionEmbedding) {
-            // For each uncached paper, find the most relevant chunks
             await Promise.all(papersToExtract.map(async (paper: any) => {
               const { data: chunks } = await supabase.rpc('match_paper_chunks', {
                 query_embedding: questionEmbedding,
@@ -98,10 +265,8 @@ Deno.serve(async (req) => {
                 match_count: 3,
                 filter_paper_id: paper.id,
               });
-
               if (chunks && chunks.length > 0) {
-                const context = chunks.map((c: any) => c.chunk_text).join('\n\n');
-                semanticContextMap.set(paper.id, context);
+                semanticContextMap.set(paper.id, chunks.map((c: any) => c.chunk_text).join('\n\n'));
               }
             }));
           }
@@ -110,14 +275,12 @@ Deno.serve(async (req) => {
         console.error('Semantic search failed (falling back to abstract):', err);
       }
 
-      // Step 4: Build prompt with enriched context and call LLM
       const papersSummary = papersToExtract.map((p: any) => {
         const originalIdx = papers.findIndex((op: any) => op.id === p.id);
         const semanticContext = semanticContextMap.get(p.id);
         const textContent = semanticContext
           ? `Semantic chunks:\n${semanticContext}\n\nAbstract: ${p.abstract || 'No abstract available.'}`
           : `Abstract: ${p.abstract || 'No abstract available.'}`;
-
         return `Paper ${originalIdx}: "${p.title}" (${p.authors?.slice(0, 3).join(', ')}${p.authors?.length > 3 ? ' et al.' : ''}, ${p.year || 'n.d.'}). ${textContent}`;
       }).join('\n\n');
 
@@ -126,12 +289,8 @@ Deno.serve(async (req) => {
         : `Column: "${column_name}"`;
 
       const systemPrompt = locale === 'pt'
-        ? `Você é um assistente de extração de dados acadêmicos. Para cada paper, extraia a informação correspondente à coluna solicitada em relação à pergunta de pesquisa. Seja conciso (1-3 frases por paper). Se o paper não tiver informações suficientes, indique "Informação não disponível". Use asteriscos (*) para marcar citações inline. Responda APENAS usando a função fornecida. IMPORTANTE: Para cada extração, inclua o trecho exato do texto original de onde você extraiu a informação no campo citation_context.
-
-${custom_prompt ? `INSTRUÇÃO ESPECÍFICA DO USUÁRIO: ${custom_prompt}` : ''}`
-        : `You are an academic data extraction assistant. For each paper, extract information for the requested column relative to the research question. Be concise (1-3 sentences per paper). If the paper has insufficient information, indicate "Information not available". Use asterisks (*) for inline citations. Respond ONLY using the provided function. IMPORTANT: For each extraction, include the exact text excerpt from the original where you extracted the information in the citation_context field.
-
-${custom_prompt ? `USER SPECIFIC INSTRUCTION: ${custom_prompt}` : ''}`;
+        ? `Você é um assistente de extração de dados acadêmicos. Para cada paper, extraia a informação correspondente à coluna solicitada em relação à pergunta de pesquisa. Seja conciso (1-3 frases por paper). Se o paper não tiver informações suficientes, indique "Informação não disponível". Use asteriscos (*) para marcar citações inline. Responda APENAS usando a função fornecida. IMPORTANTE: Para cada extração, inclua o trecho exato do texto original de onde você extraiu a informação no campo citation_context.\n\n${custom_prompt ? `INSTRUÇÃO ESPECÍFICA DO USUÁRIO: ${custom_prompt}` : ''}`
+        : `You are an academic data extraction assistant. For each paper, extract information for the requested column relative to the research question. Be concise (1-3 sentences per paper). If the paper has insufficient information, indicate "Information not available". Use asterisks (*) for inline citations. Respond ONLY using the provided function. IMPORTANT: For each extraction, include the exact text excerpt from the original where you extracted the information in the citation_context field.\n\n${custom_prompt ? `USER SPECIFIC INSTRUCTION: ${custom_prompt}` : ''}`;
 
       const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
@@ -145,35 +304,33 @@ ${custom_prompt ? `USER SPECIFIC INSTRUCTION: ${custom_prompt}` : ''}`;
             { role: 'system', content: systemPrompt },
             { role: 'user', content: `Research question: "${query}"\n\n${extractionTarget}\n\nPapers:\n\n${papersSummary}` },
           ],
-          tools: [
-            {
-              type: 'function',
-              function: {
-                name: 'extract_column_data',
-                description: 'Return extracted data for each paper with citation context',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    extractions: {
-                      type: 'array',
-                      items: {
-                        type: 'object',
-                        properties: {
-                          paper_index: { type: 'number' },
-                          value: { type: 'string' },
-                          citation_context: { type: 'string', description: 'The exact text excerpt from the source that supports this extraction' },
-                        },
-                        required: ['paper_index', 'value'],
-                        additionalProperties: false,
+          tools: [{
+            type: 'function',
+            function: {
+              name: 'extract_column_data',
+              description: 'Return extracted data for each paper with citation context',
+              parameters: {
+                type: 'object',
+                properties: {
+                  extractions: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        paper_index: { type: 'number' },
+                        value: { type: 'string' },
+                        citation_context: { type: 'string' },
                       },
+                      required: ['paper_index', 'value'],
+                      additionalProperties: false,
                     },
                   },
-                  required: ['extractions'],
-                  additionalProperties: false,
                 },
+                required: ['extractions'],
+                additionalProperties: false,
               },
             },
-          ],
+          }],
           tool_choice: { type: 'function', function: { name: 'extract_column_data' } },
         }),
       });
@@ -200,24 +357,17 @@ ${custom_prompt ? `USER SPECIFIC INSTRUCTION: ${custom_prompt}` : ''}`;
       const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
       if (toolCall) {
         const result = JSON.parse(toolCall.function.arguments);
-        const newExtractions = result.extractions || [];
-
-        // Save to cache and add to results
-        for (const ext of newExtractions) {
+        for (const ext of (result.extractions || [])) {
           const paper = papers[ext.paper_index];
           if (paper?.id) {
-            // Save to cache (upsert)
-            await supabase
-              .from('extraction_cache')
-              .upsert({
-                paper_id: paper.id,
-                column_name: column_name,
-                column_prompt: custom_prompt || null,
-                extracted_value: ext.value,
-                citation_context: ext.citation_context || null,
-              }, { onConflict: 'paper_id,column_name' });
+            await supabase.from('extraction_cache').upsert({
+              paper_id: paper.id,
+              column_name,
+              column_prompt: custom_prompt || null,
+              extracted_value: ext.value,
+              citation_context: ext.citation_context || null,
+            }, { onConflict: 'paper_id,column_name' });
           }
-
           extractions.push({
             paper_index: ext.paper_index,
             value: ext.value,
@@ -228,9 +378,7 @@ ${custom_prompt ? `USER SPECIFIC INSTRUCTION: ${custom_prompt}` : ''}`;
       }
     }
 
-    // Sort by paper_index
     extractions.sort((a, b) => a.paper_index - b.paper_index);
-
     return new Response(JSON.stringify({ extractions }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
