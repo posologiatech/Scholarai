@@ -594,21 +594,27 @@ const SearchResults = () => {
                   <span>{sorted.length} {locale === "pt" ? "fontes" : "sources"}</span>
                 </div>
 
-                <table ref={tableRef} className="w-full border-collapse">
+                <table ref={tableRef} className="w-full border-collapse table-fixed">
+                  <colgroup>
+                    <col style={{ width: enabledColumns.length > 1 ? "240px" : "320px" }} />
+                    {enabledColumns.map((col) => (
+                      <col key={col.name} />
+                    ))}
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="py-3 pr-4 text-left text-sm font-medium text-muted-foreground">
+                      <th className="py-3 pr-3 text-left text-sm font-medium text-muted-foreground">
                         Paper
                       </th>
                       {enabledColumns.map((col) => (
                         <th
                           key={col.name}
-                          className="min-w-[280px] py-3 px-4 text-left text-sm font-medium text-muted-foreground"
+                          className="py-3 px-3 text-left text-sm font-medium text-muted-foreground"
                         >
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 truncate">
                             {col.name}
                             {loadingColumns.has(col.name) && (
-                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <Loader2 className="h-3 w-3 animate-spin flex-shrink-0" />
                             )}
                           </div>
                         </th>
@@ -618,8 +624,8 @@ const SearchResults = () => {
                   <tbody>
                     {sorted.map((paper, idx) => (
                       <tr key={paper.id} className="border-b border-border/50 hover:bg-muted/30">
-                        <td className="py-4 pr-4 align-top">
-                          <div className="max-w-lg space-y-1.5">
+                        <td className="py-4 pr-3 align-top">
+                          <div className="space-y-1.5">
                             <h3 className="text-sm font-semibold leading-snug text-primary hover:underline">
                               {paper.url ? (
                                 <a href={paper.url} target="_blank" rel="noopener noreferrer">
@@ -671,7 +677,7 @@ const SearchResults = () => {
                         </td>
 
                         {enabledColumns.map((col) => (
-                          <td key={col.name} className="min-w-[280px] px-4 py-4 align-top">
+                          <td key={col.name} className="px-3 py-4 align-top">
                             {loadingColumns.has(col.name) ? (
                               <div className="space-y-2">
                                 <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
