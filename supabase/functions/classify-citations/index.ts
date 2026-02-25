@@ -13,7 +13,6 @@ Deno.serve(async (req) => {
   try {
     const { paper_id, paper_title, papers } = await req.json();
 
-    // Can classify a single paper or batch
     const papersToClassify = papers || (paper_id ? [{ id: paper_id, title: paper_title }] : []);
 
     if (papersToClassify.length === 0) {
@@ -46,10 +45,10 @@ Deno.serve(async (req) => {
         .limit(1);
 
       if (existing && existing.length > 0) {
-        continue; // Already classified
+        continue;
       }
 
-      // Get all chunks for this paper that mention other papers
+      // Get all chunks for this paper
       const { data: chunks } = await supabase
         .from('paper_chunks')
         .select('chunk_text, paper_id, paper_title')
@@ -60,7 +59,7 @@ Deno.serve(async (req) => {
 
       const fullText = chunks.map(c => c.chunk_text).join('\n\n');
 
-      // Use AI to find and classify citations in the text
+      // Use AI to find and classify citations with section detection
       const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -78,6 +77,14 @@ For each citation found, classify the context as:
 - "supporting": The citation supports or agrees with the referenced work
 - "contrasting": The citation contradicts, questions, or presents opposing findings to the referenced work  
 - "mentioning": The citation simply mentions the referenced work without clear support or opposition
+
+Additionally, determine the SECTION of the paper where the citation appears:
+- "Introduction": Background, literature review, context setting
+- "Methods": Methodology, experimental design, procedures
+- "Results": Findings, data presentation
+- "Discussion": Interpretation, comparison with other works, implications
+- "Conclusion": Summary, future work
+- "Other": If uncertain or doesn't fit the above categories
 
 Extract the exact sentence where the citation appears as the citation_context.
 Use the cited work's identifier (author names, year, or any identifier you can find) as the cited_paper_id.
@@ -110,8 +117,9 @@ ${fullText.slice(0, 15000)}`,
                         classification: { type: 'string', enum: ['supporting', 'contrasting', 'mentioning'] },
                         citation_context: { type: 'string', description: 'The exact sentence where this citation appears' },
                         confidence: { type: 'number', description: 'Confidence score 0-1' },
+                        section: { type: 'string', enum: ['Introduction', 'Methods', 'Results', 'Discussion', 'Conclusion', 'Other'], description: 'Section of the paper where this citation appears' },
                       },
-                      required: ['cited_paper_id', 'classification', 'citation_context'],
+                      required: ['cited_paper_id', 'classification', 'citation_context', 'section'],
                       additionalProperties: false,
                     },
                   },
@@ -145,6 +153,7 @@ ${fullText.slice(0, 15000)}`,
           classification: citation.classification,
           citation_context: citation.citation_context,
           confidence: citation.confidence || 0.8,
+          section: citation.section || 'Other',
         };
 
         await supabase

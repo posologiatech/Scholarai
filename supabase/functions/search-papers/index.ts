@@ -1,3 +1,5 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -33,18 +35,15 @@ async function searchSemanticScholar(query: string, limit = 10, filters?: Search
   try {
     let url = `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(query)}&limit=${limit}&fields=title,authors,year,abstract,citationCount,externalIds,url,journal,isOpenAccess`;
 
-    // Semantic Scholar supports year range filter
     if (filters?.yearMin || filters?.yearMax) {
       const yearStr = `${filters.yearMin || 1900}-${filters.yearMax || new Date().getFullYear()}`;
       url += `&year=${yearStr}`;
     }
 
-    // Open access filter
     if (filters?.openAccessOnly) {
       url += `&openAccessPdf`;
     }
 
-    // Min citations filter
     if (filters?.minCitations && filters.minCitations > 0) {
       url += `&minCitationCount=${filters.minCitations}`;
     }
@@ -77,17 +76,14 @@ async function searchSemanticScholar(query: string, limit = 10, filters?: Search
 // ─── PubMed ─────────────────────────────────────────────────────────
 async function searchPubMed(query: string, limit = 10, filters?: SearchFilters): Promise<Paper[]> {
   try {
-    // Build PubMed query with filters
     let pubmedQuery = query;
 
-    // Date range filter using PubMed's date syntax
     if (filters?.yearMin || filters?.yearMax) {
       const minDate = filters.yearMin || 1900;
       const maxDate = filters.yearMax || new Date().getFullYear();
       pubmedQuery += ` AND ${minDate}:${maxDate}[dp]`;
     }
 
-    // Study type filters using PubMed MeSH terms
     if (filters?.studyTypes && filters.studyTypes.length > 0) {
       const meshTerms: string[] = [];
       for (const st of filters.studyTypes) {
@@ -107,7 +103,6 @@ async function searchPubMed(query: string, limit = 10, filters?: SearchFilters):
       }
     }
 
-    // Open access filter
     if (filters?.openAccessOnly) {
       pubmedQuery += ' AND free full text[filter]';
     }
@@ -128,7 +123,6 @@ async function searchPubMed(query: string, limit = 10, filters?: SearchFilters):
     const abstractRes = await fetch(abstractUrl);
     const abstractXml = abstractRes.ok ? await abstractRes.text() : '';
 
-    // Extract abstracts and publication types
     const abstracts: Record<string, string> = {};
     const pubTypes: Record<string, string[]> = {};
     const articleBlocks = abstractXml.split('<PubmedArticle>');
@@ -137,7 +131,6 @@ async function searchPubMed(query: string, limit = 10, filters?: SearchFilters):
       if (!pmidMatch) continue;
       const pmid = pmidMatch[1];
       
-      // Extract abstract
       const textParts: string[] = [];
       const abstractTextRegex = /<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/g;
       let m;
@@ -148,7 +141,6 @@ async function searchPubMed(query: string, limit = 10, filters?: SearchFilters):
         abstracts[pmid] = textParts.join(' ');
       }
 
-      // Extract publication types
       const types: string[] = [];
       const pubTypeRegex = /<PublicationType[^>]*>([\s\S]*?)<\/PublicationType>/g;
       while ((m = pubTypeRegex.exec(block)) !== null) {
@@ -166,7 +158,6 @@ async function searchPubMed(query: string, limit = 10, filters?: SearchFilters):
       const pubYear = item.pubdate ? parseInt(item.pubdate.substring(0, 4)) : null;
       const doi = (item.elocationid || '').replace('doi: ', '');
       
-      // Determine study type from publication types
       const types = pubTypes[id] || [];
       let studyType = '';
       if (types.some(t => t.toLowerCase().includes('meta-analysis'))) studyType = 'Meta-Analysis';
@@ -202,7 +193,6 @@ async function searchOpenAlex(query: string, limit = 10, filters?: SearchFilters
   try {
     let url = `https://api.openalex.org/works?search=${encodeURIComponent(query)}&per_page=${limit}&select=id,title,authorships,publication_year,abstract_inverted_index,cited_by_count,doi,primary_location,open_access,type&mailto=scholarai@research.app`;
 
-    // Build OpenAlex filter string
     const oaFilters: string[] = [];
 
     if (filters?.yearMin || filters?.yearMax) {
@@ -219,7 +209,6 @@ async function searchOpenAlex(query: string, limit = 10, filters?: SearchFilters
       oaFilters.push(`cited_by_count:>${filters.minCitations - 1}`);
     }
 
-    // Study type mapping for OpenAlex
     if (filters?.studyTypes && filters.studyTypes.length > 0) {
       const oaTypes: string[] = [];
       for (const st of filters.studyTypes) {
@@ -287,7 +276,6 @@ async function searchClinicalTrials(query: string, limit = 10, filters?: SearchF
   try {
     let url = `https://clinicaltrials.gov/api/v2/studies?query.term=${encodeURIComponent(query)}&pageSize=${limit}&fields=NCTId,BriefTitle,OverallStatus,Condition,InterventionName,StartDate,BriefSummary,LeadSponsorName,StudyType&format=json`;
 
-    // Date range filter
     if (filters?.yearMin || filters?.yearMax) {
       const minDate = `${filters.yearMin || 1900}-01-01`;
       const maxDate = `${filters.yearMax || new Date().getFullYear()}-12-31`;
@@ -341,7 +329,6 @@ async function searchClinicalTrials(query: string, limit = 10, filters?: SearchF
 // ─── Europe PMC ─────────────────────────────────────────────────────
 async function searchEuropePMC(query: string, limit = 10, filters?: SearchFilters): Promise<Paper[]> {
   try {
-    // Build Europe PMC query with filters
     let epmcQuery = query;
 
     if (filters?.yearMin || filters?.yearMax) {
@@ -358,7 +345,6 @@ async function searchEuropePMC(query: string, limit = 10, filters?: SearchFilter
       epmcQuery += ` CITED:y`;
     }
 
-    // Study type filters
     if (filters?.studyTypes && filters.studyTypes.length > 0) {
       const typeTerms: string[] = [];
       for (const st of filters.studyTypes) {
@@ -440,6 +426,44 @@ async function translateToEnglish(query: string): Promise<string> {
   }
 }
 
+// ─── Persist papers to database ─────────────────────────────────────
+async function persistPapers(papers: Paper[]): Promise<void> {
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const papersWithDoi = papers.filter(p => p.doi);
+    if (papersWithDoi.length === 0) return;
+
+    // Batch upsert by DOI
+    const records = papersWithDoi.map(p => ({
+      doi: p.doi!.toLowerCase(),
+      title: p.title,
+      authors: JSON.stringify(p.authors),
+      year: p.year,
+      journal: p.journal || null,
+      abstract: (p.abstract || '').slice(0, 10000),
+      source: p.source,
+      url: p.url || null,
+      open_access: p.openAccess || false,
+      external_id: p.id,
+    }));
+
+    const { error } = await supabase
+      .from('papers')
+      .upsert(records, { onConflict: 'doi', ignoreDuplicates: true });
+
+    if (error) {
+      console.error('[search-papers] persistPapers error:', error.message);
+    } else {
+      console.log(`[search-papers] Persisted ${records.length} papers to DB`);
+    }
+  } catch (e) {
+    console.error('[search-papers] persistPapers exception:', e);
+  }
+}
+
 // ─── Main handler ───────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -461,7 +485,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Parse filters
     const searchFilters: SearchFilters | undefined = filters ? {
       yearMin: filters.yearMin,
       yearMax: filters.yearMax,
@@ -470,7 +493,6 @@ Deno.serve(async (req) => {
       minCitations: filters.minCitations,
     } : undefined;
 
-    // Translate non-English queries
     const query = await translateToEnglish(originalQuery);
 
     console.log(`[search-papers] Query: "${query}", sources: ${sources.join(',')}, limit: ${limit}, filters: ${JSON.stringify(searchFilters || {})}`);
@@ -525,6 +547,9 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[search-papers] After dedup: ${unique.length} unique papers`);
+
+    // Persist papers to database in background (fire-and-forget)
+    persistPapers(unique).catch(e => console.error('[search-papers] bg persist error:', e));
 
     return new Response(JSON.stringify({
       papers: unique,
