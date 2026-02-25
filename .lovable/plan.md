@@ -1,111 +1,93 @@
 
+# Gerador de Ilustracoes Cientificas via IA
 
-# Plano de Evolucao: Arquitetura Completa Inspirada no scite.ai
+## Resumo
 
-## O que JA ESTA implementado no seu sistema
+Criar uma pagina onde o usuario descreve em texto o diagrama cientifico desejado (ex: "Crie um diagrama mostrando a infeccao por SARS-CoV-2 na celula hospedeira") e a IA gera a imagem automaticamente. O usuario pode salvar, baixar e regenerar.
 
-| Funcionalidade | Status | Detalhes |
-|---|---|---|
-| Classificador de Citacoes (Edge Function) | Implementado | `classify-citations` classifica em Supporting/Contrasting/Mentioning via IA |
-| Tabela `citation_classifications` | Implementada | Campos paper_id, cited_paper_id, classification, citation_context, confidence |
-| Badges de Citacao (CitationBadge) | Implementado | Componente com contagem colorida (verde/vermelho/cinza) nos resultados |
-| Pagina de Relatorio do Artigo | Implementada | `/paper/:id` com graficos de pizza/barras e lista de contextos filtravelk |
-| Verificador de Referencias | Implementado | Pagina + Edge Function com verificacao via CrossRef e IA |
-| Assistente RAG (Chat) | Implementado | `chat-papers` com busca semantica em chunks + streaming |
-| Extracao de Colunas com Citacoes | Implementada | Prompts restritivos, cache, busca semantica, citacoes exatas |
-| Busca Multi-fonte | Implementada | Semantic Scholar, PubMed, OpenAlex, ClinicalTrials, Europe PMC |
-| Traducao automatica de queries | Implementada | PT -> EN automatico para maximizar resultados |
-| Upload de PDFs + Embeddings | Implementado | Fragmentacao em chunks + pgvector |
-| Dashboard + Biblioteca | Implementados | Historico, pesquisas salvas, exportacao PDF |
-| Autenticacao com aprovacao admin | Implementada | Tabela user_approvals com fluxo completo |
+## Componentes a criar
 
-## O que PRECISA ser implementado/melhorado (6 melhorias)
+### 1. Edge Function: `generate-illustration`
 
-### 1. Tabela dedicada de Papers (Entidade Artigo completa)
+- Recebe o prompt do usuario em texto
+- Envia para o Lovable AI Gateway usando o modelo `google/gemini-3-pro-image-preview` (melhor qualidade de imagem)
+- O prompt de sistema instrui a IA a gerar ilustracoes cientificas precisas, com estilo limpo e profissional (inspirado no BioRender)
+- Retorna a imagem em base64
+- Faz upload automatico da imagem para um bucket Supabase Storage (`illustrations`)
+- Salva os metadados em uma tabela `illustrations`
+- Trata erros 429 (rate limit) e 402 (creditos)
 
-Atualmente os papers nao tem tabela propria — o sistema depende de `paper_chunks` para metadados. A arquitetura descrita exige uma entidade Artigo robusta com contadores em cache.
+### 2. Migracao SQL
 
-**Nova tabela `papers`:**
-- id (UUID), doi (UNIQUE), title, authors (JSONB), year, journal, abstract, source, url, open_access
-- Contadores em cache: total_citations_received, total_supporting, total_contrasting, total_mentioning
-- created_at, updated_at
+**Nova tabela `illustrations`:**
+- id (UUID)
+- user_id (UUID, referencia auth.users)
+- prompt (TEXT) - o texto que o usuario digitou
+- image_url (TEXT) - URL publica no Storage
+- created_at (TIMESTAMPTZ)
 
-**Impacto:** O CitationBadge deixara de consultar `citation_classifications` a cada render e usara os contadores pre-calculados (performance dramaticamente melhor).
+**Novo bucket Storage `illustrations`** (publico, para exibir imagens)
 
-### 2. Campo `section` na tabela citation_classifications
+**RLS:**
+- SELECT: usuarios autenticados veem apenas suas proprias ilustracoes
+- INSERT: via service_role na Edge Function
 
-A arquitetura descreve que cada citacao deve registrar em qual secao do paper ela ocorre (Introducao, Metodologia, Resultados, Discussao). Isso e crucial para pesquisadores saberem se um paper foi citado "de passagem" na introducao ou criticamente na discussao.
+### 3. Pagina: `src/pages/Illustrations.tsx`
 
-**Alteracao:** Adicionar coluna `section` (TEXT) a `citation_classifications` e atualizar a Edge Function `classify-citations` para extrair a secao do texto.
+- Campo de texto (textarea) para o usuario descrever o diagrama
+- Botao "Gerar Ilustracao"
+- Estado de loading com animacao
+- Exibicao da imagem gerada
+- Botoes: "Baixar PNG", "Regenerar", "Salvar na Biblioteca"
+- Galeria abaixo com ilustracoes anteriores do usuario (grid de cards)
+- Cada card mostra: miniatura, prompt usado, data, botao de download e deletar
 
-### 3. Prompt Anti-Alucinacao Reforçado no Chat (chat-papers)
+### 4. Navegacao
 
-O prompt atual do assistente e funcional mas nao segue a engenharia rigorosa descrita. Melhorias:
-
-- Regras com "PENA DE FALHA" em caixa alta
-- Rota de fuga explicita ("Nao encontrei evidencias suficientes...")
-- Mapeamento estrito de IDs [1], [2] com proibicao de inventar fontes
-- Injecao do campo "Classificacao scite" (Apoio/Contraste) dentro do contexto de cada paper
-- Regra explicita para mencionar conflitos na literatura
-
-### 4. Validacao de Citacoes no Backend (Pos-Processamento)
-
-Implementar a "Guarda Pretoriana" descrita: apos a IA gerar a resposta no chat, o backend deve:
-
-1. Extrair todos os padroes `[N]` da resposta via Regex
-2. Verificar se cada N existe nos contextos fornecidos
-3. Remover frases com IDs inventados OU solicitar re-geracao
-4. Retornar a resposta limpa ao usuario
-
-Isso reduz alucinacoes a praticamente zero.
-
-### 5. Trigger para atualizar contadores em cache
-
-Criar um trigger PostgreSQL que, ao inserir/deletar em `citation_classifications`, atualiza automaticamente os contadores `total_supporting`, `total_contrasting`, `total_mentioning` na tabela `papers`.
-
-### 6. Pipeline de Ingestao Automatica de Papers
-
-Atualizar o fluxo de busca (`search-papers`) para que, ao encontrar papers novos, eles sejam automaticamente salvos na tabela `papers` (com deduplicacao por DOI). Isso constroi o banco de dados de artigos de forma incremental conforme os usuarios pesquisam.
+- Adicionar link "Ilustracoes" no AppHeader com icone `Palette` (lucide)
+- Adicionar rota `/illustrations` em App.tsx (protegida)
 
 ## Detalhamento Tecnico
 
-### Migracao SQL (1 migracao)
+### Edge Function `generate-illustration`
 
 ```text
-1. Criar tabela 'papers' com todos os campos + contadores
-2. Adicionar coluna 'section' em citation_classifications
-3. Criar trigger para atualizar contadores automaticamente
-4. Popular tabela papers a partir dos paper_chunks existentes
-5. RLS policies para leitura publica e escrita via service_role
+1. Recebe { prompt } do frontend
+2. Monta mensagem com system prompt cientifico + prompt do usuario
+3. Chama Lovable AI Gateway com modelo google/gemini-3-pro-image-preview
+4. Extrai base64 da resposta (choices[0].message.images[0].image_url.url)
+5. Converte base64 para Uint8Array
+6. Faz upload para Supabase Storage (illustrations/{user_id}/{uuid}.png)
+7. Obtem URL publica
+8. Insere registro na tabela illustrations
+9. Retorna { image_url, id } ao frontend
 ```
 
-### Arquivos a modificar
+### System Prompt para geracao
 
-| Arquivo | Alteracao |
+O prompt instrui o modelo a gerar ilustracoes cientificas com:
+- Estilo limpo, profissional, fundo branco
+- Rotulos e legendas claros
+- Precisao anatomica/molecular
+- Sem texto ambiguo ou erros cientificos
+- Estilo vetorial flat (inspirado no BioRender)
+
+### Arquivos a criar/modificar
+
+| Arquivo | Acao |
 |---|---|
-| Nova migracao SQL | Tabela papers + coluna section + trigger |
-| `supabase/functions/chat-papers/index.ts` | Prompt anti-alucinacao + validacao regex pos-IA + injecao de classificacao scite |
-| `supabase/functions/classify-citations/index.ts` | Extrair secao do texto (Intro/Methods/Results/Discussion) |
-| `supabase/functions/search-papers/index.ts` | Salvar papers novos na tabela papers (upsert por DOI) |
-| `src/components/app/CitationBadge.tsx` | Ler contadores da tabela papers ao inves de contar classifications |
-| `src/pages/PaperReport.tsx` | Exibir metadados completos da tabela papers + filtro por secao |
-| `src/integrations/supabase/types.ts` | Adicionar tipo da tabela papers |
+| Nova migracao SQL | Tabela illustrations + bucket + RLS |
+| `supabase/functions/generate-illustration/index.ts` | Nova Edge Function |
+| `supabase/config.toml` | Adicionar config da funcao |
+| `src/pages/Illustrations.tsx` | Nova pagina |
+| `src/App.tsx` | Adicionar rota /illustrations |
+| `src/components/app/AppHeader.tsx` | Adicionar link de navegacao |
+| `src/i18n/translations.ts` | Adicionar traducoes |
 
 ### Sequencia de implementacao
 
-1. Migracao do banco (tabela papers + coluna section + trigger de contadores)
-2. Atualizar search-papers para persistir papers no banco
-3. Atualizar classify-citations para extrair secao do texto
-4. Reescrever prompt do chat-papers com engenharia anti-alucinacao
-5. Implementar validacao regex pos-IA no chat-papers
-6. Atualizar CitationBadge para usar contadores em cache
-7. Atualizar PaperReport com metadados completos e filtro por secao
-
-### Sobre Neo4j e infraestrutura externa
-
-A arquitetura ideal descrita menciona Neo4j (banco de grafos) e Elasticsearch. Para o MVP dentro do Lovable/Supabase, usaremos **PostgreSQL com indices otimizados** para simular as consultas de grafo (JOINs na tabela citations). O pgvector ja cobre a necessidade vetorial. Neo4j e Kafka seriam evolucoes futuras em infraestrutura dedicada fora do Lovable.
-
-### Sobre o Pipeline de Workers (GPU/CPU)
-
-O pipeline descrito com Kubernetes, SQS e workers GPU e para escala de milhoes de artigos. No MVP atual, o processamento ocorre sob demanda via Edge Functions (quando o usuario clica "Classificar"). Para escala futura, seria necessario um repositorio separado com Python + Celery + GROBID.
-
+1. Migracao SQL (tabela + bucket)
+2. Edge Function generate-illustration
+3. Pagina Illustrations.tsx
+4. Navegacao (App.tsx + AppHeader)
+5. Deploy da Edge Function
