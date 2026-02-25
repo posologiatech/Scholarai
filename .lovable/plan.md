@@ -1,140 +1,91 @@
 
 
-# Plano: Arquitetura RAG para Extração Inteligente de Dados
+# Plano: Melhorias na Tabela e Prompt Anti-Alucinacao
 
-## Contexto
+## O que ja esta implementado (nao precisa mexer)
 
-Atualmente, a extração de colunas envia apenas abstracts para a IA, sem cache, sem embeddings e sem suporte a texto completo de PDFs. Isso limita a qualidade das respostas e gera custos desnecessarios com chamadas repetidas.
+- **Estado por celula + SSE streaming**: Cada celula carrega independentemente com skeleton e os resultados chegam via Server-Sent Events em tempo real
+- **Citacao clicavel**: O backend retorna `citation_context` e o frontend exibe via Popover ao clicar em "Fonte"
+- **Redimensionamento de colunas**: Ja funciona com drag via mousedown/mousemove
 
-## Arquitetura Proposta (Adaptada ao Supabase)
+## O que sera implementado
+
+### 1. Virtualizacao da Tabela com @tanstack/react-virtual
+
+**Problema**: Com 50+ papers e 5+ colunas, o DOM renderiza todas as linhas simultaneamente, podendo causar lentidao.
+
+**Solucao**: Instalar `@tanstack/react-virtual` e aplicar virtualizacao de linhas na tabela existente.
+
+**Arquivo**: `src/pages/SearchResults.tsx`
+
+- Adicionar `useVirtualizer` do `@tanstack/react-virtual`
+- Envolver o `<tbody>` em um container com altura fixa e overflow scroll
+- Renderizar apenas as linhas visiveis (estimativa: ~15 linhas na viewport)
+- Manter o comportamento atual de colunas, resize, filtros etc.
+- O container tera `max-height: calc(100vh - 280px)` para ocupar o espaco disponivel
+
+### 2. Migracao para TanStack Table
+
+**Problema**: A logica de ordenacao, filtragem e estrutura da tabela e toda manual, dificultando adicionar funcionalidades como reordenacao de colunas por drag.
+
+**Solucao**: Instalar `@tanstack/react-table` e migrar a tabela para usar o data grid padrao da industria.
+
+**Arquivo**: `src/pages/SearchResults.tsx`
+
+- Definir `columnDefs` usando `createColumnHelper` do TanStack Table
+- A coluna "Paper" sera fixa (pinned left)
+- Colunas dinamicas serao geradas a partir de `enabledColumns`
+- Sorting nativo via `getSortedRowModel()` substituindo o `sorted` manual
+- Column ordering para permitir arrastar colunas futuramente
+- Manter o resize handler existente integrado com `columnSizing` do TanStack
+- A virtualizacao do passo 1 se integra naturalmente com as rows do TanStack Table
+
+### 3. Prompt Estruturado Anti-Alucinacao
+
+**Problema**: O prompt atual pede citacao mas nao tem a regra explicita do "Nao mencionado" nem a restricao forte de usar apenas o texto fornecido.
+
+**Solucao**: Atualizar o system prompt na Edge Function para incluir as regras anti-alucinacao.
+
+**Arquivo**: `supabase/functions/extract-column/index.ts`
+
+Mudancas no prompt (tanto versao PT quanto EN):
 
 ```text
-+------------------+     +-------------------+     +------------------+
-|   Frontend       |     |  Edge Functions   |     |  Supabase DB     |
-|  (React)         |---->|  extract-column   |---->|  PostgreSQL      |
-|                  |     |  search-papers    |     |  + pgvector      |
-|  Tabela com      |     |  embed-papers     |     |                  |
-|  colunas         |     +-------------------+     |  paper_chunks    |
-|  dinamicas       |            |                  |  extraction_cache|
-+------------------+            v                  +------------------+
-                         Gemini AI Gateway
+[REGRAS]
+1. Baseie sua resposta APENAS no texto fornecido. Nao use conhecimento externo.
+2. Seja conciso (1-3 frases).
+3. Se a informacao NAO estiver explicitamente no texto, retorne "Nao mencionado" 
+   (ou "Not mentioned" em ingles). Jamais deduza ou invente.
+4. Para cada resposta encontrada, extraia a frase EXATA do texto original 
+   que comprova a resposta no campo citation_context.
 ```
 
-Como o projeto usa Supabase (PostgreSQL), usaremos **pgvector** como banco vetorial nativo, eliminando a necessidade de Pinecone/Weaviate. O cache de extracoes evita chamadas duplicadas a IA.
+- Atualizar o schema do Function Calling para incluir descricao mais restritiva nos campos
+- Adicionar `"Nao mencionado"` / `"Not mentioned"` como valor explicito esperado
+
+### 4. Tooltip de Citacao Aprimorado (Hover em vez de Click)
+
+**Problema**: Atualmente a citacao so aparece ao clicar no botao "Fonte". O padrao Elicit mostra ao passar o mouse sobre a celula.
+
+**Solucao**: Substituir o Popover por um `HoverCard` do Radix que aparece ao hover sobre o texto da celula.
+
+**Arquivo**: `src/pages/SearchResults.tsx`
+
+- Envolver o texto da celula com `<HoverCard>` + `<HoverCardTrigger>` + `<HoverCardContent>`
+- O hover mostra a citacao exata em italico com destaque visual
+- Manter o botao "Fonte" como fallback para mobile (onde hover nao funciona)
 
 ---
 
-## Etapa 1: Banco de Dados - Novas Tabelas
+## Sequencia de implementacao
 
-### 1.1 Habilitar pgvector + Tabela `paper_chunks`
+1. Instalar dependencias: `@tanstack/react-virtual` e `@tanstack/react-table`
+2. Atualizar o prompt anti-alucinacao no `extract-column`
+3. Migrar a tabela para TanStack Table com virtualizacao
+4. Adicionar HoverCard nas celulas de citacao
 
-Armazena o texto de artigos dividido em pedacos (chunks) com seus embeddings vetoriais.
+## Riscos e mitigacoes
 
-```sql
-CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;
-
-CREATE TABLE public.paper_chunks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  paper_id TEXT NOT NULL,          -- ID do paper (semantic scholar, pubmed, etc)
-  paper_title TEXT NOT NULL,
-  chunk_index INTEGER NOT NULL,    -- Ordem do chunk no texto
-  chunk_text TEXT NOT NULL,         -- Texto do pedaco
-  embedding vector(768),           -- Embedding do chunk (768 dims para Gemini)
-  source TEXT,                      -- abstract, full_text
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE INDEX paper_chunks_embedding_idx
-  ON public.paper_chunks
-  USING ivfflat (embedding vector_cosine_ops)
-  WITH (lists = 100);
-
-CREATE INDEX paper_chunks_paper_id_idx ON public.paper_chunks(paper_id);
-```
-
-### 1.2 Tabela `extraction_cache`
-
-Cache de resultados ja extraidos para evitar chamadas duplicadas.
-
-```sql
-CREATE TABLE public.extraction_cache (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  paper_id TEXT NOT NULL,
-  column_name TEXT NOT NULL,
-  column_prompt TEXT,
-  extracted_value TEXT NOT NULL,
-  citation_context TEXT,           -- Trecho original de onde veio a informacao
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(paper_id, column_name)
-);
-```
-
----
-
-## Etapa 2: Edge Function - `embed-papers`
-
-Nova edge function que processa papers em background:
-
-1. Recebe lista de papers (abstracts ou texto completo)
-2. Divide o texto em chunks de ~500 tokens
-3. Gera embeddings via Gemini
-4. Salva chunks + embeddings na tabela `paper_chunks`
-
-Isso permite que buscas futuras e extracoes usem busca semantica nos chunks.
-
----
-
-## Etapa 3: Melhorar `extract-column`
-
-Reescrever a edge function de extracao com pipeline RAG:
-
-1. **Verificar cache**: Antes de chamar a IA, verificar se ja existe resultado em `extraction_cache` para o par (paper_id, column_name)
-2. **Busca semantica**: Se o paper tem chunks com embeddings, buscar os chunks mais relevantes para a pergunta da coluna usando similaridade vetorial
-3. **Gerar extracao**: Enviar os chunks relevantes (nao so o abstract) para a IA extrair a resposta
-4. **Salvar no cache**: Armazenar resultado + citacao de contexto em `extraction_cache`
-5. **Retornar resultado**: Incluir o campo `citation_context` na resposta
-
----
-
-## Etapa 4: Integrar no Frontend
-
-### 4.1 Gerar embeddings apos busca
-
-Em `SearchResults.tsx`, apos receber os papers da busca, disparar uma chamada em background para `embed-papers` processar os abstracts.
-
-### 4.2 Exibir citacoes de contexto
-
-Nas celulas da tabela, adicionar um tooltip ou expandir com o trecho original de onde a IA extraiu a informacao (campo `citation_context`), garantindo transparencia.
-
-### 4.3 Indicador visual de cache
-
-Mostrar um icone sutil quando o dado veio do cache (resposta instantanea) vs. extracao em tempo real.
-
----
-
-## Etapa 5: Processamento de PDFs completos
-
-Integrar com a aba Extracao existente:
-
-- Quando um PDF e carregado e processado via `extract-pdf`, o texto extraido e automaticamente dividido em chunks e salvo em `paper_chunks` com embeddings
-- Isso permite que colunas customizadas busquem informacoes no texto completo do PDF, nao apenas no abstract
-
----
-
-## Resumo dos Arquivos
-
-| Arquivo | Acao |
-|---|---|
-| Migration SQL | Criar tabelas `paper_chunks` e `extraction_cache` + extensao pgvector |
-| `supabase/functions/embed-papers/index.ts` | Nova edge function para chunking + embeddings |
-| `supabase/functions/extract-column/index.ts` | Reescrever com cache + busca vetorial + citacoes |
-| `supabase/config.toml` | Adicionar config da nova edge function |
-| `src/pages/SearchResults.tsx` | Disparar embeddings em background + exibir citacoes |
-
-## Limitacoes e Consideracoes
-
-- O pgvector nativo do Supabase substitui Pinecone/Weaviate sem custo adicional
-- O Elasticsearch para filtros exatos nao e necessario pois o PostgreSQL com indices ja atende os filtros atuais (ano, fonte, tipo de estudo)
-- WebSockets para streaming nao sao implementados nesta fase; os resultados continuam sendo retornados via HTTP com loading indicators
-- O sistema de filas (Celery/Redis) e substituido por chamadas assincronas paralelas nas edge functions, que ja atendem a escala atual
+- **Migracao da tabela**: E a mudanca mais complexa. Sera feita preservando toda a logica existente de state (columnData, columnCitations, etc.) e apenas mudando a camada de renderizacao
+- **Virtualizacao + resize**: O `@tanstack/react-virtual` precisa de alturas estimadas por linha. Como o conteudo e texto variavel, usaremos `estimateSize` com valor generoso (~120px) e `measureElement` para correcao automatica
 
