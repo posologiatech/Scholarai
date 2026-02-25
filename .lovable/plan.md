@@ -1,87 +1,140 @@
 
 
-# ScholarAI — Plataforma de Pesquisa Acadêmica com IA
+# Plano: Arquitetura RAG para Extração Inteligente de Dados
 
-## Visão Geral
-Construir um site institucional de marketing completo + a estrutura inicial do aplicativo web (autenticação, dashboard e busca básica), com suporte bilíngue (PT-BR / EN).
+## Contexto
 
----
+Atualmente, a extração de colunas envia apenas abstracts para a IA, sem cache, sem embeddings e sem suporte a texto completo de PDFs. Isso limita a qualidade das respostas e gera custos desnecessarios com chamadas repetidas.
 
-## Fase 1: Site Institucional (Marketing)
+## Arquitetura Proposta (Adaptada ao Supabase)
 
-### 1.1 Landing Page / Home
-- **Hero Section** com proposta de valor ("IA para Pesquisa Científica"), barra de busca decorativa e CTA "Comece Gratuitamente"
-- **Prova social** com logos de universidades e estatísticas de uso
-- **Seções de features**: Busca Semântica, Tabela de Extração, Relatórios por IA, Revisão Sistemática
-- **Footer** com links institucionais
+```text
++------------------+     +-------------------+     +------------------+
+|   Frontend       |     |  Edge Functions   |     |  Supabase DB     |
+|  (React)         |---->|  extract-column   |---->|  PostgreSQL      |
+|                  |     |  search-papers    |     |  + pgvector      |
+|  Tabela com      |     |  embed-papers     |     |                  |
+|  colunas         |     +-------------------+     |  paper_chunks    |
+|  dinamicas       |            |                  |  extraction_cache|
++------------------+            v                  +------------------+
+                         Gemini AI Gateway
+```
 
-### 1.2 Páginas de Soluções
-- Página dedicada para cada recurso principal (Busca de Artigos, Revisão Sistemática, Alertas, Relatórios)
-- Explicações visuais com ilustrações e exemplos de uso
-
-### 1.3 Páginas por Público-alvo
-- Farmacêutica, Academia, Tecnologia Médica, Governo
-- Exemplos de aplicação e benefícios para cada setor
-
-### 1.4 Casos de Uso
-- Estudos de caso fictícios mas realistas mostrando economia de tempo e precisão
-
-### 1.5 Recursos e Suporte
-- FAQ / Central de Ajuda
-- Página "Sobre a Equipe"
-
-### 1.6 Páginas Legais
-- Termos de Serviço
-- Política de Privacidade
+Como o projeto usa Supabase (PostgreSQL), usaremos **pgvector** como banco vetorial nativo, eliminando a necessidade de Pinecone/Weaviate. O cache de extracoes evita chamadas duplicadas a IA.
 
 ---
 
-## Fase 2: Infraestrutura do App
+## Etapa 1: Banco de Dados - Novas Tabelas
 
-### 2.1 Sistema de Internacionalização (i18n)
-- Seletor de idioma (PT-BR / EN) no header
-- Todas as strings traduzidas via sistema de localização
+### 1.1 Habilitar pgvector + Tabela `paper_chunks`
 
-### 2.2 Autenticação
-- Login e Cadastro via email (Supabase Auth)
-- Login com Google
-- Recuperação de senha
-- Proteção de rotas do app
+Armazena o texto de artigos dividido em pedacos (chunks) com seus embeddings vetoriais.
 
-### 2.3 Dashboard / Workspace
-- Interface limpa com barra de busca central ("Qual sua pergunta de pesquisa?")
-- Histórico de buscas recentes
-- Atalhos para projetos salvos (estrutura visual, funcionalidade futura)
+```sql
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;
 
-### 2.4 Busca Básica de Papers
-- Campo de busca semântica
-- Integração via Edge Functions com **Semantic Scholar API** e **PubMed/NCBI API**
-- Resultados combinados em lista unificada
-- Uso do **Google Gemini** (via Lovable AI Gateway) para gerar resumo/síntese dos top resultados
+CREATE TABLE public.paper_chunks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  paper_id TEXT NOT NULL,          -- ID do paper (semantic scholar, pubmed, etc)
+  paper_title TEXT NOT NULL,
+  chunk_index INTEGER NOT NULL,    -- Ordem do chunk no texto
+  chunk_text TEXT NOT NULL,         -- Texto do pedaco
+  embedding vector(768),           -- Embedding do chunk (768 dims para Gemini)
+  source TEXT,                      -- abstract, full_text
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 
-### 2.5 Página de Resultados
-- **Súmula de IA** no topo respondendo à pergunta
-- **Lista de artigos** com título, autores, ano, abstract
-- Filtros básicos: ano, tipo de estudo, fonte (Semantic Scholar / PubMed)
-- Estrutura de tabela preparada para colunas customizáveis (funcionalidade avançada futura)
+CREATE INDEX paper_chunks_embedding_idx
+  ON public.paper_chunks
+  USING ivfflat (embedding vector_cosine_ops)
+  WITH (lists = 100);
+
+CREATE INDEX paper_chunks_paper_id_idx ON public.paper_chunks(paper_id);
+```
+
+### 1.2 Tabela `extraction_cache`
+
+Cache de resultados ja extraidos para evitar chamadas duplicadas.
+
+```sql
+CREATE TABLE public.extraction_cache (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  paper_id TEXT NOT NULL,
+  column_name TEXT NOT NULL,
+  column_prompt TEXT,
+  extracted_value TEXT NOT NULL,
+  citation_context TEXT,           -- Trecho original de onde veio a informacao
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(paper_id, column_name)
+);
+```
 
 ---
 
-## Fase 3: Funcionalidades Futuras (não implementadas agora, mas a arquitetura estará preparada)
-- Extração de dados em colunas customizáveis
-- Visualizador de PDF com chat integrado
-- Biblioteca pessoal e upload de PDFs
-- Gerador de relatórios / revisão sistemática
-- Alertas inteligentes
-- Exportação (CSV, BibTeX, RIS)
-- Sistema de pagamentos
+## Etapa 2: Edge Function - `embed-papers`
+
+Nova edge function que processa papers em background:
+
+1. Recebe lista de papers (abstracts ou texto completo)
+2. Divide o texto em chunks de ~500 tokens
+3. Gera embeddings via Gemini
+4. Salva chunks + embeddings na tabela `paper_chunks`
+
+Isso permite que buscas futuras e extracoes usem busca semantica nos chunks.
 
 ---
 
-## Design e UX
-- Design moderno e limpo inspirado no Elicit (baseado nas screenshots enviadas)
-- Cores neutras com acentos em azul/roxo para transmitir confiança acadêmica
-- Tipografia clara e espaçamento generoso para leitura confortável
-- Responsivo para desktop e mobile
-- Navegação principal com logo, links de soluções, idioma e CTA de login
+## Etapa 3: Melhorar `extract-column`
+
+Reescrever a edge function de extracao com pipeline RAG:
+
+1. **Verificar cache**: Antes de chamar a IA, verificar se ja existe resultado em `extraction_cache` para o par (paper_id, column_name)
+2. **Busca semantica**: Se o paper tem chunks com embeddings, buscar os chunks mais relevantes para a pergunta da coluna usando similaridade vetorial
+3. **Gerar extracao**: Enviar os chunks relevantes (nao so o abstract) para a IA extrair a resposta
+4. **Salvar no cache**: Armazenar resultado + citacao de contexto em `extraction_cache`
+5. **Retornar resultado**: Incluir o campo `citation_context` na resposta
+
+---
+
+## Etapa 4: Integrar no Frontend
+
+### 4.1 Gerar embeddings apos busca
+
+Em `SearchResults.tsx`, apos receber os papers da busca, disparar uma chamada em background para `embed-papers` processar os abstracts.
+
+### 4.2 Exibir citacoes de contexto
+
+Nas celulas da tabela, adicionar um tooltip ou expandir com o trecho original de onde a IA extraiu a informacao (campo `citation_context`), garantindo transparencia.
+
+### 4.3 Indicador visual de cache
+
+Mostrar um icone sutil quando o dado veio do cache (resposta instantanea) vs. extracao em tempo real.
+
+---
+
+## Etapa 5: Processamento de PDFs completos
+
+Integrar com a aba Extracao existente:
+
+- Quando um PDF e carregado e processado via `extract-pdf`, o texto extraido e automaticamente dividido em chunks e salvo em `paper_chunks` com embeddings
+- Isso permite que colunas customizadas busquem informacoes no texto completo do PDF, nao apenas no abstract
+
+---
+
+## Resumo dos Arquivos
+
+| Arquivo | Acao |
+|---|---|
+| Migration SQL | Criar tabelas `paper_chunks` e `extraction_cache` + extensao pgvector |
+| `supabase/functions/embed-papers/index.ts` | Nova edge function para chunking + embeddings |
+| `supabase/functions/extract-column/index.ts` | Reescrever com cache + busca vetorial + citacoes |
+| `supabase/config.toml` | Adicionar config da nova edge function |
+| `src/pages/SearchResults.tsx` | Disparar embeddings em background + exibir citacoes |
+
+## Limitacoes e Consideracoes
+
+- O pgvector nativo do Supabase substitui Pinecone/Weaviate sem custo adicional
+- O Elasticsearch para filtros exatos nao e necessario pois o PostgreSQL com indices ja atende os filtros atuais (ano, fonte, tipo de estudo)
+- WebSockets para streaming nao sao implementados nesta fase; os resultados continuam sendo retornados via HTTP com loading indicators
+- O sistema de filas (Celery/Redis) e substituido por chamadas assincronas paralelas nas edge functions, que ja atendem a escala atual
 
