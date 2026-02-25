@@ -624,8 +624,8 @@ const SearchResults = () => {
               )}
             </div>
           ),
-          size: columnSizing[col.name] || 160,
-          minSize: 80,
+          size: columnSizing[col.name] || 300,
+          minSize: 120,
           cell: ({ row }) => {
             const idx = row.original.originalIndex;
             const isLoading = loadingColumns.has(col.name);
@@ -648,7 +648,7 @@ const SearchResults = () => {
                   {citation ? (
                     <HoverCard openDelay={200}>
                       <HoverCardTrigger asChild>
-                        <p className="text-sm leading-relaxed text-foreground/80 cursor-help border-b border-dashed border-muted-foreground/30">
+                        <p className="text-sm leading-relaxed text-foreground/80 cursor-help border-b border-dashed border-muted-foreground/30 whitespace-normal break-words">
                           {value}
                         </p>
                       </HoverCardTrigger>
@@ -660,7 +660,7 @@ const SearchResults = () => {
                       </HoverCardContent>
                     </HoverCard>
                   ) : (
-                    <p className="text-sm leading-relaxed text-foreground/80">{value}</p>
+                    <p className="text-sm leading-relaxed text-foreground/80 whitespace-normal break-words">{value}</p>
                   )}
                   <div className="flex items-center gap-1.5">
                     {isCached && (
