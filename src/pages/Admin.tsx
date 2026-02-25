@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Shield, Users, Trash2, Loader2, Search, FileText,
-  Database, Activity, BarChart3, Settings, CheckCircle2, XCircle, Clock, UserCheck,
+  Database, Activity, BarChart3, Settings, CheckCircle2, XCircle, Clock, UserCheck, Key,
 } from "lucide-react";
+import ApiKeysPanel from "@/components/app/ApiKeysPanel";
 import { toast } from "sonner";
 
 interface UserRole {
@@ -48,7 +49,7 @@ const Admin = () => {
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [approvals, setApprovals] = useState<UserApproval[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "users" | "searches" | "system">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "users" | "searches" | "apikeys" | "system">("overview");
   const [searchFilter, setSearchFilter] = useState("");
   const [approvalFilter, setApprovalFilter] = useState<"pending" | "approved" | "all">("pending");
 
@@ -161,6 +162,7 @@ const Admin = () => {
     { id: "approvals" as const, label: locale === "pt" ? "Aprovações" : "Approvals", icon: UserCheck, badge: pendingApprovals.length },
     { id: "users" as const, label: locale === "pt" ? "Usuários" : "Users", icon: Users },
     { id: "searches" as const, label: locale === "pt" ? "Pesquisas" : "Searches", icon: Search },
+    { id: "apikeys" as const, label: locale === "pt" ? "API Keys" : "API Keys", icon: Key },
     { id: "system" as const, label: locale === "pt" ? "Sistema" : "System", icon: Settings },
   ];
 
@@ -472,6 +474,13 @@ const Admin = () => {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* API Keys Tab */}
+        {activeTab === "apikeys" && (
+          <div className="rounded-xl border border-border bg-card p-6">
+            <ApiKeysPanel />
           </div>
         )}
 
