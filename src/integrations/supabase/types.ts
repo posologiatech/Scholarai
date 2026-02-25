@@ -98,6 +98,30 @@ export type Database = {
         }
         Relationships: []
       }
+      illustrations: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string
+          prompt: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url: string
+          prompt: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string
+          prompt?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       paper_chunks: {
         Row: {
           chunk_index: number
