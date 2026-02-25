@@ -127,8 +127,28 @@ Deno.serve(async (req) => {
                 : `Column: "${column_name}"`;
 
               const systemPrompt = locale === 'pt'
-                ? `Você é um assistente de extração de dados acadêmicos. Para cada paper, extraia a informação correspondente à coluna solicitada em relação à pergunta de pesquisa. Seja conciso (1-3 frases por paper). Se o paper não tiver informações suficientes, indique "Informação não disponível". Use asteriscos (*) para marcar citações inline. Responda APENAS usando a função fornecida. IMPORTANTE: Para cada extração, inclua o trecho exato do texto original de onde você extraiu a informação no campo citation_context.\n\n${custom_prompt ? `INSTRUÇÃO ESPECÍFICA DO USUÁRIO: ${custom_prompt}` : ''}`
-                : `You are an academic data extraction assistant. For each paper, extract information for the requested column relative to the research question. Be concise (1-3 sentences per paper). If the paper has insufficient information, indicate "Information not available". Use asterisks (*) for inline citations. Respond ONLY using the provided function. IMPORTANT: For each extraction, include the exact text excerpt from the original where you extracted the information in the citation_context field.\n\n${custom_prompt ? `USER SPECIFIC INSTRUCTION: ${custom_prompt}` : ''}`;
+                ? `Você é um assistente de pesquisa científica altamente preciso e rigoroso.
+Sua tarefa é ler o texto de artigos científicos e extrair uma informação específica solicitada pelo usuário.
+
+[REGRAS E RESTRIÇÕES]
+1. Baseie sua resposta APENAS no texto fornecido. NÃO use conhecimento externo.
+2. Seja extremamente conciso (1-3 frases por paper).
+3. Se a informação solicitada NÃO estiver explicitamente no texto, você DEVE retornar "Não mencionado" como valor. Jamais tente deduzir ou inventar.
+4. Para cada resposta encontrada, você DEVE extrair a frase EXATA (quote) do texto original que comprova a sua resposta no campo citation_context.
+5. Responda APENAS usando a função fornecida.
+
+${custom_prompt ? `INSTRUÇÃO ESPECÍFICA DO USUÁRIO: ${custom_prompt}` : ''}`
+                : `You are a highly precise and rigorous scientific research assistant.
+Your task is to read the text of scientific papers and extract specific information requested by the user.
+
+[RULES AND CONSTRAINTS]
+1. Base your answer ONLY on the provided text. Do NOT use external knowledge.
+2. Be extremely concise (1-3 sentences per paper).
+3. If the requested information is NOT explicitly in the text, you MUST return "Not mentioned" as the value. Never try to deduce or invent.
+4. For each answer found, you MUST extract the EXACT quote from the original text that proves your answer in the citation_context field.
+5. Respond ONLY using the provided function.
+
+${custom_prompt ? `USER SPECIFIC INSTRUCTION: ${custom_prompt}` : ''}`;
 
               try {
                 const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -147,7 +167,7 @@ Deno.serve(async (req) => {
                       type: 'function',
                       function: {
                         name: 'extract_column_data',
-                        description: 'Return extracted data for each paper with citation context',
+                        description: 'Return extracted data for each paper. Use "Not mentioned" / "Não mencionado" when information is not found. Always include the exact quote from source text.',
                         parameters: {
                           type: 'object',
                           properties: {
@@ -156,9 +176,9 @@ Deno.serve(async (req) => {
                               items: {
                                 type: 'object',
                                 properties: {
-                                  paper_index: { type: 'number' },
-                                  value: { type: 'string' },
-                                  citation_context: { type: 'string' },
+                                  paper_index: { type: 'number', description: 'Index of the paper' },
+                                  value: { type: 'string', description: 'Extracted info or "Not mentioned"/"Não mencionado" if not found' },
+                                  citation_context: { type: 'string', description: 'EXACT quote from source text proving the answer, or null if not mentioned' },
                                 },
                                 required: ['paper_index', 'value'],
                                 additionalProperties: false,
@@ -289,8 +309,28 @@ Deno.serve(async (req) => {
         : `Column: "${column_name}"`;
 
       const systemPrompt = locale === 'pt'
-        ? `Você é um assistente de extração de dados acadêmicos. Para cada paper, extraia a informação correspondente à coluna solicitada em relação à pergunta de pesquisa. Seja conciso (1-3 frases por paper). Se o paper não tiver informações suficientes, indique "Informação não disponível". Use asteriscos (*) para marcar citações inline. Responda APENAS usando a função fornecida. IMPORTANTE: Para cada extração, inclua o trecho exato do texto original de onde você extraiu a informação no campo citation_context.\n\n${custom_prompt ? `INSTRUÇÃO ESPECÍFICA DO USUÁRIO: ${custom_prompt}` : ''}`
-        : `You are an academic data extraction assistant. For each paper, extract information for the requested column relative to the research question. Be concise (1-3 sentences per paper). If the paper has insufficient information, indicate "Information not available". Use asterisks (*) for inline citations. Respond ONLY using the provided function. IMPORTANT: For each extraction, include the exact text excerpt from the original where you extracted the information in the citation_context field.\n\n${custom_prompt ? `USER SPECIFIC INSTRUCTION: ${custom_prompt}` : ''}`;
+        ? `Você é um assistente de pesquisa científica altamente preciso e rigoroso.
+Sua tarefa é ler o texto de artigos científicos e extrair uma informação específica solicitada pelo usuário.
+
+[REGRAS E RESTRIÇÕES]
+1. Baseie sua resposta APENAS no texto fornecido. NÃO use conhecimento externo.
+2. Seja extremamente conciso (1-3 frases por paper).
+3. Se a informação solicitada NÃO estiver explicitamente no texto, você DEVE retornar "Não mencionado" como valor. Jamais tente deduzir ou inventar.
+4. Para cada resposta encontrada, você DEVE extrair a frase EXATA (quote) do texto original que comprova a sua resposta no campo citation_context.
+5. Responda APENAS usando a função fornecida.
+
+${custom_prompt ? `INSTRUÇÃO ESPECÍFICA DO USUÁRIO: ${custom_prompt}` : ''}`
+        : `You are a highly precise and rigorous scientific research assistant.
+Your task is to read the text of scientific papers and extract specific information requested by the user.
+
+[RULES AND CONSTRAINTS]
+1. Base your answer ONLY on the provided text. Do NOT use external knowledge.
+2. Be extremely concise (1-3 sentences per paper).
+3. If the requested information is NOT explicitly in the text, you MUST return "Not mentioned" as the value. Never try to deduce or invent.
+4. For each answer found, you MUST extract the EXACT quote from the original text that proves your answer in the citation_context field.
+5. Respond ONLY using the provided function.
+
+${custom_prompt ? `USER SPECIFIC INSTRUCTION: ${custom_prompt}` : ''}`;
 
       const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
@@ -308,7 +348,7 @@ Deno.serve(async (req) => {
             type: 'function',
             function: {
               name: 'extract_column_data',
-              description: 'Return extracted data for each paper with citation context',
+              description: 'Return extracted data for each paper. Use "Not mentioned" / "Não mencionado" when information is not found. Always include the exact quote from source text.',
               parameters: {
                 type: 'object',
                 properties: {
@@ -317,9 +357,9 @@ Deno.serve(async (req) => {
                     items: {
                       type: 'object',
                       properties: {
-                        paper_index: { type: 'number' },
-                        value: { type: 'string' },
-                        citation_context: { type: 'string' },
+                        paper_index: { type: 'number', description: 'Index of the paper' },
+                        value: { type: 'string', description: 'Extracted info or "Not mentioned"/"Não mencionado" if not found' },
+                        citation_context: { type: 'string', description: 'EXACT quote from source text proving the answer, or null if not mentioned' },
                       },
                       required: ['paper_index', 'value'],
                       additionalProperties: false,
