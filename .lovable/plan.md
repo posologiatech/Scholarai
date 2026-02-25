@@ -1,96 +1,111 @@
 
 
-# Plano: Funcionalidades Inspiradas no scite.ai
+# Plano de Evolucao: Arquitetura Completa Inspirada no scite.ai
 
-## Status Atual - O que JA existe no seu sistema
+## O que JA ESTA implementado no seu sistema
 
-| Funcionalidade | Status |
-|---|---|
-| Assistente de Pesquisa (Chat RAG com citacoes) | Implementado |
-| Extracao de colunas com citacoes verificaveis | Implementado |
-| Dashboard com historico de buscas | Implementado |
-| Busca com tabela virtualizada e colunas | Implementado |
-| Upload de PDFs + extracao automatica | Implementado |
-| Relatorios/Sintese de pesquisas | Implementado |
-| Biblioteca de pesquisas salvas | Implementado |
-| Landing page institucional | Implementado |
-| Autenticacao com aprovacao de admin | Implementado |
+| Funcionalidade | Status | Detalhes |
+|---|---|---|
+| Classificador de Citacoes (Edge Function) | Implementado | `classify-citations` classifica em Supporting/Contrasting/Mentioning via IA |
+| Tabela `citation_classifications` | Implementada | Campos paper_id, cited_paper_id, classification, citation_context, confidence |
+| Badges de Citacao (CitationBadge) | Implementado | Componente com contagem colorida (verde/vermelho/cinza) nos resultados |
+| Pagina de Relatorio do Artigo | Implementada | `/paper/:id` com graficos de pizza/barras e lista de contextos filtravelk |
+| Verificador de Referencias | Implementado | Pagina + Edge Function com verificacao via CrossRef e IA |
+| Assistente RAG (Chat) | Implementado | `chat-papers` com busca semantica em chunks + streaming |
+| Extracao de Colunas com Citacoes | Implementada | Prompts restritivos, cache, busca semantica, citacoes exatas |
+| Busca Multi-fonte | Implementada | Semantic Scholar, PubMed, OpenAlex, ClinicalTrials, Europe PMC |
+| Traducao automatica de queries | Implementada | PT -> EN automatico para maximizar resultados |
+| Upload de PDFs + Embeddings | Implementado | Fragmentacao em chunks + pgvector |
+| Dashboard + Biblioteca | Implementados | Historico, pesquisas salvas, exportacao PDF |
+| Autenticacao com aprovacao admin | Implementada | Tabela user_approvals com fluxo completo |
 
-## O que sera implementado (4 funcionalidades novas)
+## O que PRECISA ser implementado/melhorado (6 melhorias)
 
-### 1. Classificador de Citacoes Inteligentes
+### 1. Tabela dedicada de Papers (Entidade Artigo completa)
 
-Nova Edge Function `classify-citations` que recebe um paper e analisa o contexto de cada citacao encontrada no texto completo (via chunks armazenados no banco vetorial), classificando em:
+Atualmente os papers nao tem tabela propria — o sistema depende de `paper_chunks` para metadados. A arquitetura descrita exige uma entidade Artigo robusta com contadores em cache.
 
-- **Apoiando** (Supporting) - verde
-- **Contrastando** (Contrasting) - vermelho  
-- **Mencionando** (Mentioning) - cinza
+**Nova tabela `papers`:**
+- id (UUID), doi (UNIQUE), title, authors (JSONB), year, journal, abstract, source, url, open_access
+- Contadores em cache: total_citations_received, total_supporting, total_contrasting, total_mentioning
+- created_at, updated_at
 
-**Como funciona**: Para cada paper, buscamos os chunks que contem referencias a outros papers. A IA classifica o contexto de cada citacao usando o trecho exato onde ela aparece. O resultado e salvo em uma nova tabela `citation_classifications`.
+**Impacto:** O CitationBadge deixara de consultar `citation_classifications` a cada render e usara os contadores pre-calculados (performance dramaticamente melhor).
 
-**Arquivos envolvidos**:
-- `supabase/functions/classify-citations/index.ts` (nova Edge Function)
-- Nova migracao para tabela `citation_classifications` (paper_id, cited_paper_id, classification, citation_context, created_at)
+### 2. Campo `section` na tabela citation_classifications
 
-### 2. Badges de Citacao nos Resultados de Busca
+A arquitetura descreve que cada citacao deve registrar em qual secao do paper ela ocorre (Introducao, Metodologia, Resultados, Discussao). Isso e crucial para pesquisadores saberem se um paper foi citado "de passagem" na introducao ou criticamente na discussao.
 
-Cada paper na tabela de resultados exibira um mini-badge colorido mostrando a contagem de citacoes classificadas:
+**Alteracao:** Adicionar coluna `section` (TEXT) a `citation_classifications` e atualizar a Edge Function `classify-citations` para extrair a secao do texto.
+
+### 3. Prompt Anti-Alucinacao Reforçado no Chat (chat-papers)
+
+O prompt atual do assistente e funcional mas nao segue a engenharia rigorosa descrita. Melhorias:
+
+- Regras com "PENA DE FALHA" em caixa alta
+- Rota de fuga explicita ("Nao encontrei evidencias suficientes...")
+- Mapeamento estrito de IDs [1], [2] com proibicao de inventar fontes
+- Injecao do campo "Classificacao scite" (Apoio/Contraste) dentro do contexto de cada paper
+- Regra explicita para mencionar conflitos na literatura
+
+### 4. Validacao de Citacoes no Backend (Pos-Processamento)
+
+Implementar a "Guarda Pretoriana" descrita: apos a IA gerar a resposta no chat, o backend deve:
+
+1. Extrair todos os padroes `[N]` da resposta via Regex
+2. Verificar se cada N existe nos contextos fornecidos
+3. Remover frases com IDs inventados OU solicitar re-geracao
+4. Retornar a resposta limpa ao usuario
+
+Isso reduz alucinacoes a praticamente zero.
+
+### 5. Trigger para atualizar contadores em cache
+
+Criar um trigger PostgreSQL que, ao inserir/deletar em `citation_classifications`, atualiza automaticamente os contadores `total_supporting`, `total_contrasting`, `total_mentioning` na tabela `papers`.
+
+### 6. Pipeline de Ingestao Automatica de Papers
+
+Atualizar o fluxo de busca (`search-papers`) para que, ao encontrar papers novos, eles sejam automaticamente salvos na tabela `papers` (com deduplicacao por DOI). Isso constroi o banco de dados de artigos de forma incremental conforme os usuarios pesquisam.
+
+## Detalhamento Tecnico
+
+### Migracao SQL (1 migracao)
 
 ```text
-+-------+----------+-----------+
-| 12 Ap | 3 Cont   | 45 Menc   |
-| verde | vermelho | cinza     |
-+-------+----------+-----------+
+1. Criar tabela 'papers' com todos os campos + contadores
+2. Adicionar coluna 'section' em citation_classifications
+3. Criar trigger para atualizar contadores automaticamente
+4. Popular tabela papers a partir dos paper_chunks existentes
+5. RLS policies para leitura publica e escrita via service_role
 ```
 
-**Arquivos envolvidos**:
-- `src/components/app/CitationBadge.tsx` (novo componente)
-- `src/pages/SearchResults.tsx` (adicionar badge na coluna Paper)
+### Arquivos a modificar
 
-### 3. Pagina de Relatorio do Artigo (Article Report)
+| Arquivo | Alteracao |
+|---|---|
+| Nova migracao SQL | Tabela papers + coluna section + trigger |
+| `supabase/functions/chat-papers/index.ts` | Prompt anti-alucinacao + validacao regex pos-IA + injecao de classificacao scite |
+| `supabase/functions/classify-citations/index.ts` | Extrair secao do texto (Intro/Methods/Results/Discussion) |
+| `supabase/functions/search-papers/index.ts` | Salvar papers novos na tabela papers (upsert por DOI) |
+| `src/components/app/CitationBadge.tsx` | Ler contadores da tabela papers ao inves de contar classifications |
+| `src/pages/PaperReport.tsx` | Exibir metadados completos da tabela papers + filtro por secao |
+| `src/integrations/supabase/types.ts` | Adicionar tipo da tabela papers |
 
-Nova pagina `/paper/:id` com visao detalhada de um paper especifico:
+### Sequencia de implementacao
 
-- Metadados no topo (titulo, autores, resumo, DOI)
-- Grafico de pizza/barras com o "Indice de Citacoes" (Apoio vs Contraste vs Mencao)
-- Lista dos trechos exatos de outros artigos que citam este paper, com filtro por tipo (Apoio/Contraste/Mencao)
-- Botao para ver o paper original
+1. Migracao do banco (tabela papers + coluna section + trigger de contadores)
+2. Atualizar search-papers para persistir papers no banco
+3. Atualizar classify-citations para extrair secao do texto
+4. Reescrever prompt do chat-papers com engenharia anti-alucinacao
+5. Implementar validacao regex pos-IA no chat-papers
+6. Atualizar CitationBadge para usar contadores em cache
+7. Atualizar PaperReport com metadados completos e filtro por secao
 
-**Arquivos envolvidos**:
-- `src/pages/PaperReport.tsx` (nova pagina)
-- `src/App.tsx` (adicionar rota `/paper/:id`)
-- Utiliza `recharts` (ja instalado) para o grafico
+### Sobre Neo4j e infraestrutura externa
 
-### 4. Verificador de Referencias (Reference Check)
+A arquitetura ideal descrita menciona Neo4j (banco de grafos) e Elasticsearch. Para o MVP dentro do Lovable/Supabase, usaremos **PostgreSQL com indices otimizados** para simular as consultas de grafo (JOINs na tabela citations). O pgvector ja cobre a necessidade vetorial. Neo4j e Kafka seriam evolucoes futuras em infraestrutura dedicada fora do Lovable.
 
-Nova pagina `/reference-check` onde o usuario faz upload de um manuscrito (PDF) e o sistema:
+### Sobre o Pipeline de Workers (GPU/CPU)
 
-1. Extrai todas as referencias citadas no documento
-2. Busca cada referencia no banco de dados
-3. Verifica se alguma foi retratada ou amplamente contestada
-4. Gera um relatorio visual com sinalizacao verde/amarelo/vermelho
-
-**Arquivos envolvidos**:
-- `src/pages/ReferenceCheck.tsx` (nova pagina)
-- `supabase/functions/check-references/index.ts` (nova Edge Function)
-- `src/App.tsx` (adicionar rota `/reference-check`)
-
-## Sobre a Extensao de Navegador
-
-A extensao de navegador (Chrome/Firefox) **nao pode ser implementada dentro do Lovable**, pois requer um projeto separado com manifest.json, content scripts e publicacao nas lojas de extensoes. Isso precisaria ser desenvolvido em um repositorio separado. Posso criar a **landing page** explicando a extensao, mas o plugin em si esta fora do escopo da plataforma.
-
-## Sequencia de implementacao
-
-1. Migracao do banco (tabela `citation_classifications`)
-2. Edge Function `classify-citations`
-3. Componente `CitationBadge` + integracao na tabela de resultados
-4. Pagina `PaperReport` com grafico e lista de citacoes
-5. Edge Function `check-references` + pagina `ReferenceCheck`
-6. Atualizacao de rotas e navegacao
-
-## Consideracoes tecnicas
-
-- O classificador usa a IA generativa (Gemini) para analisar o contexto de cada citacao. Para escala massiva, seria ideal treinar um modelo menor (BERT/RoBERTa), mas para o MVP a abordagem com LLM e viavel e precisa
-- A verificacao de retratacoes consulta a API do Retraction Watch / CrossRef quando disponivel, com fallback para analise via IA
-- Os badges sao carregados sob demanda (lazy) para nao atrasar a renderizacao da tabela de resultados
+O pipeline descrito com Kubernetes, SQS e workers GPU e para escala de milhoes de artigos. No MVP atual, o processamento ocorre sob demanda via Edge Functions (quando o usuario clica "Classificar"). Para escala futura, seria necessario um repositorio separado com Python + Celery + GROBID.
 
