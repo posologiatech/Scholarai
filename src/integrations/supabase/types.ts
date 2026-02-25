@@ -17,32 +17,56 @@ export type Database = {
       citation_classifications: {
         Row: {
           citation_context: string | null
+          cited_paper_db_id: string | null
           cited_paper_id: string
           classification: string
           confidence: number | null
           created_at: string
           id: string
+          paper_db_id: string | null
           paper_id: string
+          section: string | null
         }
         Insert: {
           citation_context?: string | null
+          cited_paper_db_id?: string | null
           cited_paper_id: string
           classification: string
           confidence?: number | null
           created_at?: string
           id?: string
+          paper_db_id?: string | null
           paper_id: string
+          section?: string | null
         }
         Update: {
           citation_context?: string | null
+          cited_paper_db_id?: string | null
           cited_paper_id?: string
           classification?: string
           confidence?: number | null
           created_at?: string
           id?: string
+          paper_db_id?: string | null
           paper_id?: string
+          section?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "citation_classifications_cited_paper_db_id_fkey"
+            columns: ["cited_paper_db_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citation_classifications_paper_db_id_fkey"
+            columns: ["paper_db_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       extraction_cache: {
         Row: {
@@ -104,6 +128,66 @@ export type Database = {
           paper_id?: string
           paper_title?: string
           source?: string | null
+        }
+        Relationships: []
+      }
+      papers: {
+        Row: {
+          abstract: string | null
+          authors: Json | null
+          created_at: string
+          doi: string | null
+          external_id: string | null
+          id: string
+          journal: string | null
+          open_access: boolean | null
+          source: string | null
+          title: string
+          total_citations_received: number
+          total_contrasting: number
+          total_mentioning: number
+          total_supporting: number
+          updated_at: string
+          url: string | null
+          year: number | null
+        }
+        Insert: {
+          abstract?: string | null
+          authors?: Json | null
+          created_at?: string
+          doi?: string | null
+          external_id?: string | null
+          id?: string
+          journal?: string | null
+          open_access?: boolean | null
+          source?: string | null
+          title: string
+          total_citations_received?: number
+          total_contrasting?: number
+          total_mentioning?: number
+          total_supporting?: number
+          updated_at?: string
+          url?: string | null
+          year?: number | null
+        }
+        Update: {
+          abstract?: string | null
+          authors?: Json | null
+          created_at?: string
+          doi?: string | null
+          external_id?: string | null
+          id?: string
+          journal?: string | null
+          open_access?: boolean | null
+          source?: string | null
+          title?: string
+          total_citations_received?: number
+          total_contrasting?: number
+          total_mentioning?: number
+          total_supporting?: number
+          updated_at?: string
+          url?: string | null
+          year?: number | null
         }
         Relationships: []
       }

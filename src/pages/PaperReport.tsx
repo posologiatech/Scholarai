@@ -6,9 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
-import { ArrowLeft, ExternalLink, Loader2, ThumbsUp, ThumbsDown, MessageSquare } from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2, ThumbsUp, ThumbsDown, MessageSquare, Filter } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface CitationEntry {
   id: string;
@@ -16,6 +16,7 @@ interface CitationEntry {
   classification: string;
   citation_context: string;
   confidence: number;
+  section: string | null;
 }
 
 interface PaperInfo {
@@ -35,6 +36,8 @@ const COLORS = {
   mentioning: "hsl(var(--muted-foreground))",
 };
 
+const SECTIONS = ["Introduction", "Methods", "Results", "Discussion", "Conclusion", "Other"];
+
 const PaperReport = () => {
   const { id } = useParams<{ id: string }>();
   const { locale } = useLanguage();
@@ -43,6 +46,7 @@ const PaperReport = () => {
   const [loading, setLoading] = useState(true);
   const [classifying, setClassifying] = useState(false);
   const [filter, setFilter] = useState<string>("all");
+  const [sectionFilter, setSectionFilter] = useState<string>("all");
 
   useEffect(() => {
     if (!id) return;
@@ -53,21 +57,46 @@ const PaperReport = () => {
     if (!id) return;
     setLoading(true);
 
-    // Load paper info from chunks
-    const { data: chunks } = await supabase
-      .from("paper_chunks")
-      .select("paper_title, paper_id")
-      .eq("paper_id", id)
-      .limit(1);
+    // Try to load from papers table first (complete metadata)
+    const { data: paperRow } = await supabase
+      .from("papers")
+      .select("*")
+      .eq("external_id", id)
+      .maybeSingle();
 
-    if (chunks && chunks.length > 0) {
+    if (paperRow) {
+      const authors = Array.isArray(paperRow.authors) 
+        ? (paperRow.authors as string[]) 
+        : typeof paperRow.authors === 'string' 
+          ? JSON.parse(paperRow.authors as string) 
+          : [];
       setPaper({
-        id: chunks[0].paper_id,
-        title: chunks[0].paper_title,
-        authors: [],
-        year: null,
-        abstract: "",
+        id: paperRow.external_id || id,
+        title: paperRow.title,
+        authors,
+        year: paperRow.year,
+        abstract: paperRow.abstract || "",
+        doi: paperRow.doi || undefined,
+        url: paperRow.url || undefined,
+        journal: paperRow.journal || undefined,
       });
+    } else {
+      // Fallback: load from chunks
+      const { data: chunks } = await supabase
+        .from("paper_chunks")
+        .select("paper_title, paper_id")
+        .eq("paper_id", id)
+        .limit(1);
+
+      if (chunks && chunks.length > 0) {
+        setPaper({
+          id: chunks[0].paper_id,
+          title: chunks[0].paper_title,
+          authors: [],
+          year: null,
+          abstract: "",
+        });
+      }
     }
 
     // Load citations
@@ -119,7 +148,29 @@ const PaperReport = () => {
     { name: locale === "pt" ? "Menção" : "Mentioning", value: stats.mentioning, color: COLORS.mentioning },
   ].filter((d) => d.value > 0);
 
-  const filteredCitations = filter === "all" ? citations : citations.filter((c) => c.classification === filter);
+  // Build section distribution data
+  const sectionCounts: Record<string, { supporting: number; contrasting: number; mentioning: number }> = {};
+  citations.forEach((c) => {
+    const sec = c.section || "Other";
+    if (!sectionCounts[sec]) sectionCounts[sec] = { supporting: 0, contrasting: 0, mentioning: 0 };
+    if (c.classification in sectionCounts[sec]) {
+      sectionCounts[sec][c.classification as keyof typeof sectionCounts[typeof sec]]++;
+    }
+  });
+
+  const sectionBarData = SECTIONS
+    .filter((s) => sectionCounts[s])
+    .map((s) => ({
+      name: s,
+      supporting: sectionCounts[s]?.supporting || 0,
+      contrasting: sectionCounts[s]?.contrasting || 0,
+      mentioning: sectionCounts[s]?.mentioning || 0,
+    }));
+
+  let filteredCitations = filter === "all" ? citations : citations.filter((c) => c.classification === filter);
+  if (sectionFilter !== "all") {
+    filteredCitations = filteredCitations.filter((c) => (c.section || "Other") === sectionFilter);
+  }
 
   const classificationIcon = (type: string) => {
     switch (type) {
@@ -137,6 +188,8 @@ const PaperReport = () => {
     };
     return labels[type]?.[locale] || type;
   };
+
+  const availableSections = [...new Set(citations.map((c) => c.section || "Other"))];
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -162,6 +215,16 @@ const PaperReport = () => {
               {/* Paper header */}
               <div className="space-y-3">
                 <h1 className="text-2xl font-bold text-foreground leading-tight">{paper.title}</h1>
+                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                  {paper.authors.length > 0 && (
+                    <span>{paper.authors.slice(0, 5).join(", ")}{paper.authors.length > 5 ? " et al." : ""}</span>
+                  )}
+                  {paper.year && <span>({paper.year})</span>}
+                  {paper.journal && <Badge variant="secondary" className="text-xs">{paper.journal}</Badge>}
+                </div>
+                {paper.abstract && (
+                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-4">{paper.abstract}</p>
+                )}
                 {paper.doi && (
                   <a
                     href={`https://doi.org/${paper.doi}`}
@@ -257,28 +320,52 @@ const PaperReport = () => {
                     </CardContent>
                   </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">
-                        {locale === "pt" ? "Distribuição" : "Distribution"}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={250}>
-                        <BarChart data={pieData}>
-                          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                          <XAxis dataKey="name" className="text-xs" />
-                          <YAxis className="text-xs" />
-                          <RechartsTooltip />
-                          <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                            {pieData.map((entry, i) => (
-                              <Cell key={i} fill={entry.color} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
+                  {sectionBarData.length > 0 ? (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">
+                          {locale === "pt" ? "Distribuição por Seção" : "Distribution by Section"}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <BarChart data={sectionBarData}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                            <XAxis dataKey="name" className="text-xs" />
+                            <YAxis className="text-xs" />
+                            <RechartsTooltip />
+                            <Legend />
+                            <Bar dataKey="supporting" name={locale === "pt" ? "Apoio" : "Supporting"} fill={COLORS.supporting} stackId="a" />
+                            <Bar dataKey="contrasting" name={locale === "pt" ? "Contraste" : "Contrasting"} fill={COLORS.contrasting} stackId="a" />
+                            <Bar dataKey="mentioning" name={locale === "pt" ? "Menção" : "Mentioning"} fill={COLORS.mentioning} stackId="a" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">
+                          {locale === "pt" ? "Distribuição" : "Distribution"}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <BarChart data={pieData}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                            <XAxis dataKey="name" className="text-xs" />
+                            <YAxis className="text-xs" />
+                            <RechartsTooltip />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                              {pieData.map((entry, i) => (
+                                <Cell key={i} fill={entry.color} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               )}
 
@@ -286,29 +373,45 @@ const PaperReport = () => {
               {total > 0 && (
                 <Card>
                   <CardHeader>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <CardTitle className="text-base">
                         {locale === "pt" ? "Contextos de Citação" : "Citation Contexts"}
                       </CardTitle>
-                      <div className="flex gap-1">
-                        {["all", "supporting", "contrasting", "mentioning"].map((f) => (
-                          <Button
-                            key={f}
-                            variant={filter === f ? "default" : "outline"}
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => setFilter(f)}
-                          >
-                            {f === "all"
-                              ? locale === "pt" ? "Todos" : "All"
-                              : classificationLabel(f)}
-                            {f !== "all" && (
-                              <span className="ml-1">
-                                ({f === "supporting" ? stats.supporting : f === "contrasting" ? stats.contrasting : stats.mentioning})
-                              </span>
-                            )}
-                          </Button>
-                        ))}
+                      <div className="flex flex-wrap gap-2">
+                        <div className="flex gap-1">
+                          {["all", "supporting", "contrasting", "mentioning"].map((f) => (
+                            <Button
+                              key={f}
+                              variant={filter === f ? "default" : "outline"}
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => setFilter(f)}
+                            >
+                              {f === "all"
+                                ? locale === "pt" ? "Todos" : "All"
+                                : classificationLabel(f)}
+                              {f !== "all" && (
+                                <span className="ml-1">
+                                  ({f === "supporting" ? stats.supporting : f === "contrasting" ? stats.contrasting : stats.mentioning})
+                                </span>
+                              )}
+                            </Button>
+                          ))}
+                        </div>
+                        {availableSections.length > 1 && (
+                          <Select value={sectionFilter} onValueChange={setSectionFilter}>
+                            <SelectTrigger className="w-[140px] h-8 text-xs">
+                              <Filter className="h-3 w-3 mr-1" />
+                              <SelectValue placeholder={locale === "pt" ? "Seção" : "Section"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">{locale === "pt" ? "Todas seções" : "All sections"}</SelectItem>
+                              {availableSections.map((s) => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
@@ -339,6 +442,11 @@ const PaperReport = () => {
                             >
                               {classificationLabel(citation.classification)}
                             </Badge>
+                            {citation.section && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {citation.section}
+                              </Badge>
+                            )}
                             <span className="text-xs text-muted-foreground">
                               {locale === "pt" ? "Citado por" : "Cited by"}: {citation.cited_paper_id}
                             </span>

@@ -11,16 +11,40 @@ interface CitationStats {
 
 interface CitationBadgeProps {
   paperId: string;
+  doi?: string;
   compact?: boolean;
 }
 
-const CitationBadge = ({ paperId, compact = false }: CitationBadgeProps) => {
+const CitationBadge = ({ paperId, doi, compact = false }: CitationBadgeProps) => {
   const { locale } = useLanguage();
   const [stats, setStats] = useState<CitationStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
+      // Try to get cached counters from papers table first (O(1))
+      if (doi) {
+        const { data: paperData } = await supabase
+          .from("papers")
+          .select("total_supporting, total_contrasting, total_mentioning")
+          .eq("doi", doi.toLowerCase())
+          .maybeSingle();
+
+        if (paperData) {
+          const total = (paperData.total_supporting || 0) + (paperData.total_contrasting || 0) + (paperData.total_mentioning || 0);
+          if (total > 0) {
+            setStats({
+              supporting: paperData.total_supporting || 0,
+              contrasting: paperData.total_contrasting || 0,
+              mentioning: paperData.total_mentioning || 0,
+            });
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      // Fallback: count from citation_classifications
       const { data, error } = await supabase
         .from("citation_classifications")
         .select("classification")
@@ -46,7 +70,7 @@ const CitationBadge = ({ paperId, compact = false }: CitationBadgeProps) => {
     };
 
     fetchStats();
-  }, [paperId]);
+  }, [paperId, doi]);
 
   if (loading || !stats) return null;
 
