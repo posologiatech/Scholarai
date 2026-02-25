@@ -167,11 +167,11 @@ const ReferenceCheck = () => {
                 </p>
                 <p className="text-xs text-muted-foreground mb-4">
                   {locale === "pt" ? "ou clique para selecionar" : "or click to select"}
-                  {" · TXT, PDF"}
+                  {" · TXT, DOCX"}
                 </p>
                 <input
                   type="file"
-                  accept=".txt,.pdf,.doc,.docx"
+                  accept=".txt,.doc,.docx"
                   onChange={handleFileChange}
                   className="absolute inset-0 cursor-pointer opacity-0"
                 />

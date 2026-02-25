@@ -2,8 +2,9 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import AppHeader from "@/components/app/AppHeader";
+import OnboardingDialog from "@/components/app/OnboardingDialog";
 import { Button } from "@/components/ui/button";
-import { Search, Clock, FolderOpen, ArrowRight, Sparkles } from "lucide-react";
+import { Search, Clock, ArrowRight, Sparkles, BookOpen, Table, FileText, Palette } from "lucide-react";
 import QuestionEvaluator, { type Evaluation } from "@/components/app/QuestionEvaluator";
 
 const Dashboard = () => {
@@ -37,6 +38,7 @@ const Dashboard = () => {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <AppHeader />
+      <OnboardingDialog />
 
       <main className="flex flex-1 flex-col items-center justify-center px-4 pb-20">
         <div className="w-full max-w-2xl space-y-8">
@@ -138,10 +140,28 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* Projects placeholder */}
-          <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
-            <FolderOpen className="mx-auto h-8 w-8 text-muted-foreground/50" />
-            <p className="mt-2 text-sm text-muted-foreground">{t("dashboard.projectsPlaceholder")}</p>
+          {/* Quick actions */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              {t("dashboard.quickActions")}
+            </p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { icon: BookOpen, label: t("dashboard.action.library"), href: "/library" },
+                { icon: Table, label: t("dashboard.action.extraction"), href: "/extraction" },
+                { icon: FileText, label: t("dashboard.action.reports"), href: "/reports" },
+                { icon: Palette, label: t("dashboard.action.illustrations"), href: "/illustrations" },
+              ].map((action) => (
+                <button
+                  key={action.href}
+                  onClick={() => navigate(action.href)}
+                  className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 text-center transition-colors hover:border-primary/40 hover:bg-muted/50"
+                >
+                  <action.icon className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-medium text-foreground">{action.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </main>

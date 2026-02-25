@@ -1,4 +1,4 @@
-import { Search, Table, FileText, ClipboardCheck } from "lucide-react";
+import { Search, Table, FileText, ClipboardCheck, ShieldCheck, Palette } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import AnimatedSection from "./AnimatedSection";
 
@@ -26,6 +26,16 @@ const FeaturesSection = () => {
       title: t("features.review.title"),
       desc: t("features.review.desc"),
     },
+    {
+      icon: ShieldCheck,
+      title: t("features.refcheck.title"),
+      desc: t("features.refcheck.desc"),
+    },
+    {
+      icon: Palette,
+      title: t("features.illustrations.title"),
+      desc: t("features.illustrations.desc"),
+    },
   ];
 
   return (
@@ -42,7 +52,7 @@ const FeaturesSection = () => {
           </div>
         </AnimatedSection>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {features.map((f, i) => (
             <AnimatedSection key={f.title} delay={i * 0.1}>
               <div className="group rounded-xl border border-border/50 bg-card p-7 transition-all hover:border-border hover:shadow-md">

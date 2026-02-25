@@ -17,7 +17,7 @@ interface Illustration {
 }
 
 const Illustrations = () => {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const { user } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -131,6 +131,27 @@ const Illustrations = () => {
             className="min-h-[120px] text-base"
             disabled={generating}
           />
+
+          {/* Example prompt chips */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { pt: "Diagrama da replicação do SARS-CoV-2", en: "SARS-CoV-2 replication diagram" },
+              { pt: "Ciclo de Krebs com enzimas", en: "Krebs cycle with enzymes" },
+              { pt: "Sinapse neuronal com neurotransmissores", en: "Neuronal synapse with neurotransmitters" },
+              { pt: "Estrutura do DNA com bases nitrogenadas", en: "DNA structure with nitrogenous bases" },
+            ].map((example, i) => {
+              const label = example[locale as "pt" | "en"] || example.en;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setPrompt(label)}
+                  className="rounded-full border border-border bg-muted/50 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
 
           <div className="flex gap-2">
             <Button onClick={handleGenerate} disabled={generating || !prompt.trim()} className="flex-1">

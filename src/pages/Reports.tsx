@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import AppHeader from "@/components/app/AppHeader";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,6 +31,7 @@ const SYNTHESIZE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/synthe
 const Reports = () => {
   const { t, locale } = useLanguage();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,10 +231,11 @@ const Reports = () => {
             <FileText className="h-12 w-12 text-muted-foreground/40" />
             <h3 className="mt-4 font-display text-lg font-semibold text-foreground">{t("reports.empty")}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {locale === "pt"
-                ? "Salve uma pesquisa na biblioteca para gerar relatórios"
-                : "Save a search to the library to generate reports"}
+              {t("reports.emptyHint")}
             </p>
+            <Button className="mt-4" onClick={() => navigate("/library")}>
+              {t("reports.goLibrary")}
+            </Button>
           </div>
         ) : null}
       </main>

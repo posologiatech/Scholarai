@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import AppHeader from "@/components/app/AppHeader";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { BookOpen, Trash2, ExternalLink, Loader2 } from "lucide-react";
+import { BookOpen, Trash2, ExternalLink, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -62,6 +62,10 @@ const Library = () => {
             <BookOpen className="h-12 w-12 text-muted-foreground/40" />
             <h3 className="mt-4 font-display text-lg font-semibold text-foreground">{t("library.empty")}</h3>
             <p className="mt-1 text-sm text-muted-foreground">{t("library.emptyDesc")}</p>
+            <Button className="mt-4" onClick={() => navigate("/dashboard")}>
+              <Search className="mr-2 h-4 w-4" />
+              {t("library.goSearch")}
+            </Button>
           </div>
         ) : (
           <div className="space-y-3">
