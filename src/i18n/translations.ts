@@ -235,6 +235,21 @@ export const translations = {
   "nav.extraction": { pt: "Extração", en: "Extraction" },
   "nav.reports": { pt: "Relatórios", en: "Reports" },
   "nav.admin": { pt: "Admin", en: "Admin" },
+  "nav.illustrations": { pt: "Ilustrações", en: "Illustrations" },
+
+  // Illustrations
+  "illustrations.title": { pt: "Gerador de Ilustrações Científicas", en: "Scientific Illustration Generator" },
+  "illustrations.subtitle": { pt: "Descreva o diagrama que você precisa e a IA gerará uma ilustração profissional no estilo BioRender.", en: "Describe the diagram you need and AI will generate a professional BioRender-style illustration." },
+  "illustrations.placeholder": { pt: "Ex: Diagrama mostrando a infecção por SARS-CoV-2 na célula hospedeira, incluindo receptor ACE2, fusão de membrana e replicação viral", en: "E.g., Diagram showing SARS-CoV-2 infection in host cell, including ACE2 receptor, membrane fusion, and viral replication" },
+  "illustrations.generate": { pt: "Gerar Ilustração", en: "Generate Illustration" },
+  "illustrations.generating": { pt: "Gerando...", en: "Generating..." },
+  "illustrations.generatingHint": { pt: "A IA está criando sua ilustração científica. Isso pode levar até 30 segundos.", en: "AI is creating your scientific illustration. This may take up to 30 seconds." },
+  "illustrations.generated": { pt: "Ilustração gerada com sucesso!", en: "Illustration generated successfully!" },
+  "illustrations.download": { pt: "Baixar PNG", en: "Download PNG" },
+  "illustrations.regenerate": { pt: "Regenerar", en: "Regenerate" },
+  "illustrations.gallery": { pt: "Minhas Ilustrações", en: "My Illustrations" },
+  "illustrations.emptyGallery": { pt: "Nenhuma ilustração gerada ainda. Descreva um diagrama acima para começar!", en: "No illustrations generated yet. Describe a diagram above to get started!" },
+  "illustrations.deleted": { pt: "Ilustração removida.", en: "Illustration deleted." },
 
   // Admin
   "admin.title": { pt: "Painel Administrativo", en: "Admin Panel" },

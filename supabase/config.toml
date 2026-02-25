@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.check-references]
 verify_jwt = false
+
+[functions.generate-illustration]
+verify_jwt = false

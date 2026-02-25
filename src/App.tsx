@@ -24,6 +24,7 @@ import Reports from "./pages/Reports";
 import Admin from "./pages/Admin";
 import PaperReport from "./pages/PaperReport";
 import ReferenceCheck from "./pages/ReferenceCheck";
+import Illustrations from "./pages/Illustrations";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -57,6 +58,7 @@ const App = () => (
               <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
               <Route path="/paper/:id" element={<ProtectedRoute><PaperReport /></ProtectedRoute>} />
               <Route path="/reference-check" element={<ProtectedRoute><ReferenceCheck /></ProtectedRoute>} />
+              <Route path="/illustrations" element={<ProtectedRoute><Illustrations /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
