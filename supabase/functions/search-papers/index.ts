@@ -238,6 +238,44 @@ async function searchEuropePMC(query: string, limit = 10): Promise<Paper[]> {
   }
 }
 
+// ─── Translate query to English for better API results ──────────────
+async function translateToEnglish(query: string): Promise<string> {
+  // Quick heuristic: if query has common Portuguese/Spanish characters or words, translate
+  const nonEnglishPattern = /[àáâãéêíóôõúüç]|(\b(qual|quais|como|para|pode|causa|entre|sobre|efeito|tratamento|comparado|mulheres|homens|idosos|crianças|estudo|risco|aumenta|reduz|previne)\b)/i;
+  if (!nonEnglishPattern.test(query)) return query;
+
+  try {
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) return query;
+
+    const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-3-flash-preview',
+        messages: [
+          { role: 'system', content: 'Translate the following research question to English. Output ONLY the translated question, nothing else.' },
+          { role: 'user', content: query },
+        ],
+        max_tokens: 200,
+      }),
+    });
+    if (!resp.ok) return query;
+    const data = await resp.json();
+    const translated = data.choices?.[0]?.message?.content?.trim();
+    if (translated) {
+      console.log(`[search-papers] Translated: "${query}" → "${translated}"`);
+      return translated;
+    }
+    return query;
+  } catch {
+    return query;
+  }
+}
+
 // ─── Main handler ───────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -246,17 +284,20 @@ Deno.serve(async (req) => {
 
   try {
     const {
-      query,
+      query: originalQuery,
       sources = ['semantic_scholar', 'pubmed', 'openalex', 'clinical_trials', 'europe_pmc'],
       limit = 10,
     } = await req.json();
 
-    if (!query || typeof query !== 'string') {
+    if (!originalQuery || typeof originalQuery !== 'string') {
       return new Response(JSON.stringify({ error: 'Query is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Translate non-English queries for better results across all APIs
+    const query = await translateToEnglish(originalQuery);
 
     console.log(`[search-papers] Query: "${query}", sources: ${sources.join(',')}, limit: ${limit}`);
 

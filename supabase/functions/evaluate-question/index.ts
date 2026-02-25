@@ -64,10 +64,18 @@ Deno.serve(async (req) => {
                   },
                   missing_elements: {
                     type: 'array',
-                    items: { type: 'string' },
+                    items: {
+                      type: 'object',
+                      properties: {
+                        label: { type: 'string', description: 'Short label for the improvement chip (2-4 words)' },
+                        rewritten_question: { type: 'string', description: 'The full research question rewritten to incorporate this missing element' },
+                      },
+                      required: ['label', 'rewritten_question'],
+                      additionalProperties: false,
+                    },
                     description: locale === 'pt'
-                      ? 'Elementos que poderiam melhorar a pergunta, ex: "População específica", "Comparação", "Desfecho mensurável", "Período temporal", "Tipo de estudo"'
-                      : 'Elements that could improve the question, e.g.: "Specific population", "Comparison", "Measurable outcome", "Time period", "Study type"',
+                      ? 'Elementos que poderiam melhorar a pergunta. Cada item tem um label curto e a pergunta reescrita incorporando esse elemento. Responda no mesmo idioma da pergunta.'
+                      : 'Elements that could improve the question. Each item has a short label and the question rewritten incorporating that element. Respond in the same language as the question.',
                   },
                   suggested_columns: {
                     type: 'array',

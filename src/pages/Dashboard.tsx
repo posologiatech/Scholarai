@@ -72,7 +72,7 @@ const Dashboard = () => {
               />
 
               {/* Question evaluation */}
-              <QuestionEvaluator question={query} onEvaluation={setEvaluation} />
+              <QuestionEvaluator question={query} onEvaluation={setEvaluation} onRewrite={setQuery} />
 
               {/* Bottom bar */}
               <div className="mt-3 flex items-center justify-between">
