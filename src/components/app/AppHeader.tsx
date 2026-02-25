@@ -3,7 +3,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Globe, LogOut, BookOpen, Table, FileText, LayoutDashboard, Shield } from "lucide-react";
+import { GraduationCap, Globe, LogOut, BookOpen, Table, FileText, LayoutDashboard, Shield, ShieldCheck } from "lucide-react";
 
 const AppHeader = () => {
   const { t, locale, setLocale } = useLanguage();
@@ -24,6 +24,7 @@ const AppHeader = () => {
     { label: t("nav.library"), href: "/library", icon: BookOpen },
     { label: t("nav.extraction"), href: "/extraction", icon: Table },
     { label: t("nav.reports"), href: "/reports", icon: FileText },
+    { label: locale === "pt" ? "Ref. Check" : "Ref. Check", href: "/reference-check", icon: ShieldCheck },
     ...(isAdmin ? [{ label: t("nav.admin"), href: "/admin", icon: Shield }] : []),
   ];
 

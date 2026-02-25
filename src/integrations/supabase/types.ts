@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      citation_classifications: {
+        Row: {
+          citation_context: string | null
+          cited_paper_id: string
+          classification: string
+          confidence: number | null
+          created_at: string
+          id: string
+          paper_id: string
+        }
+        Insert: {
+          citation_context?: string | null
+          cited_paper_id: string
+          classification: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          paper_id: string
+        }
+        Update: {
+          citation_context?: string | null
+          cited_paper_id?: string
+          classification?: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          paper_id?: string
+        }
+        Relationships: []
+      }
       extraction_cache: {
         Row: {
           citation_context: string | null
