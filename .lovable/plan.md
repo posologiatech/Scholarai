@@ -1,91 +1,96 @@
 
 
-# Plano: Melhorias na Tabela e Prompt Anti-Alucinacao
+# Plano: Funcionalidades Inspiradas no scite.ai
 
-## O que ja esta implementado (nao precisa mexer)
+## Status Atual - O que JA existe no seu sistema
 
-- **Estado por celula + SSE streaming**: Cada celula carrega independentemente com skeleton e os resultados chegam via Server-Sent Events em tempo real
-- **Citacao clicavel**: O backend retorna `citation_context` e o frontend exibe via Popover ao clicar em "Fonte"
-- **Redimensionamento de colunas**: Ja funciona com drag via mousedown/mousemove
+| Funcionalidade | Status |
+|---|---|
+| Assistente de Pesquisa (Chat RAG com citacoes) | Implementado |
+| Extracao de colunas com citacoes verificaveis | Implementado |
+| Dashboard com historico de buscas | Implementado |
+| Busca com tabela virtualizada e colunas | Implementado |
+| Upload de PDFs + extracao automatica | Implementado |
+| Relatorios/Sintese de pesquisas | Implementado |
+| Biblioteca de pesquisas salvas | Implementado |
+| Landing page institucional | Implementado |
+| Autenticacao com aprovacao de admin | Implementado |
 
-## O que sera implementado
+## O que sera implementado (4 funcionalidades novas)
 
-### 1. Virtualizacao da Tabela com @tanstack/react-virtual
+### 1. Classificador de Citacoes Inteligentes
 
-**Problema**: Com 50+ papers e 5+ colunas, o DOM renderiza todas as linhas simultaneamente, podendo causar lentidao.
+Nova Edge Function `classify-citations` que recebe um paper e analisa o contexto de cada citacao encontrada no texto completo (via chunks armazenados no banco vetorial), classificando em:
 
-**Solucao**: Instalar `@tanstack/react-virtual` e aplicar virtualizacao de linhas na tabela existente.
+- **Apoiando** (Supporting) - verde
+- **Contrastando** (Contrasting) - vermelho  
+- **Mencionando** (Mentioning) - cinza
 
-**Arquivo**: `src/pages/SearchResults.tsx`
+**Como funciona**: Para cada paper, buscamos os chunks que contem referencias a outros papers. A IA classifica o contexto de cada citacao usando o trecho exato onde ela aparece. O resultado e salvo em uma nova tabela `citation_classifications`.
 
-- Adicionar `useVirtualizer` do `@tanstack/react-virtual`
-- Envolver o `<tbody>` em um container com altura fixa e overflow scroll
-- Renderizar apenas as linhas visiveis (estimativa: ~15 linhas na viewport)
-- Manter o comportamento atual de colunas, resize, filtros etc.
-- O container tera `max-height: calc(100vh - 280px)` para ocupar o espaco disponivel
+**Arquivos envolvidos**:
+- `supabase/functions/classify-citations/index.ts` (nova Edge Function)
+- Nova migracao para tabela `citation_classifications` (paper_id, cited_paper_id, classification, citation_context, created_at)
 
-### 2. Migracao para TanStack Table
+### 2. Badges de Citacao nos Resultados de Busca
 
-**Problema**: A logica de ordenacao, filtragem e estrutura da tabela e toda manual, dificultando adicionar funcionalidades como reordenacao de colunas por drag.
-
-**Solucao**: Instalar `@tanstack/react-table` e migrar a tabela para usar o data grid padrao da industria.
-
-**Arquivo**: `src/pages/SearchResults.tsx`
-
-- Definir `columnDefs` usando `createColumnHelper` do TanStack Table
-- A coluna "Paper" sera fixa (pinned left)
-- Colunas dinamicas serao geradas a partir de `enabledColumns`
-- Sorting nativo via `getSortedRowModel()` substituindo o `sorted` manual
-- Column ordering para permitir arrastar colunas futuramente
-- Manter o resize handler existente integrado com `columnSizing` do TanStack
-- A virtualizacao do passo 1 se integra naturalmente com as rows do TanStack Table
-
-### 3. Prompt Estruturado Anti-Alucinacao
-
-**Problema**: O prompt atual pede citacao mas nao tem a regra explicita do "Nao mencionado" nem a restricao forte de usar apenas o texto fornecido.
-
-**Solucao**: Atualizar o system prompt na Edge Function para incluir as regras anti-alucinacao.
-
-**Arquivo**: `supabase/functions/extract-column/index.ts`
-
-Mudancas no prompt (tanto versao PT quanto EN):
+Cada paper na tabela de resultados exibira um mini-badge colorido mostrando a contagem de citacoes classificadas:
 
 ```text
-[REGRAS]
-1. Baseie sua resposta APENAS no texto fornecido. Nao use conhecimento externo.
-2. Seja conciso (1-3 frases).
-3. Se a informacao NAO estiver explicitamente no texto, retorne "Nao mencionado" 
-   (ou "Not mentioned" em ingles). Jamais deduza ou invente.
-4. Para cada resposta encontrada, extraia a frase EXATA do texto original 
-   que comprova a resposta no campo citation_context.
++-------+----------+-----------+
+| 12 Ap | 3 Cont   | 45 Menc   |
+| verde | vermelho | cinza     |
++-------+----------+-----------+
 ```
 
-- Atualizar o schema do Function Calling para incluir descricao mais restritiva nos campos
-- Adicionar `"Nao mencionado"` / `"Not mentioned"` como valor explicito esperado
+**Arquivos envolvidos**:
+- `src/components/app/CitationBadge.tsx` (novo componente)
+- `src/pages/SearchResults.tsx` (adicionar badge na coluna Paper)
 
-### 4. Tooltip de Citacao Aprimorado (Hover em vez de Click)
+### 3. Pagina de Relatorio do Artigo (Article Report)
 
-**Problema**: Atualmente a citacao so aparece ao clicar no botao "Fonte". O padrao Elicit mostra ao passar o mouse sobre a celula.
+Nova pagina `/paper/:id` com visao detalhada de um paper especifico:
 
-**Solucao**: Substituir o Popover por um `HoverCard` do Radix que aparece ao hover sobre o texto da celula.
+- Metadados no topo (titulo, autores, resumo, DOI)
+- Grafico de pizza/barras com o "Indice de Citacoes" (Apoio vs Contraste vs Mencao)
+- Lista dos trechos exatos de outros artigos que citam este paper, com filtro por tipo (Apoio/Contraste/Mencao)
+- Botao para ver o paper original
 
-**Arquivo**: `src/pages/SearchResults.tsx`
+**Arquivos envolvidos**:
+- `src/pages/PaperReport.tsx` (nova pagina)
+- `src/App.tsx` (adicionar rota `/paper/:id`)
+- Utiliza `recharts` (ja instalado) para o grafico
 
-- Envolver o texto da celula com `<HoverCard>` + `<HoverCardTrigger>` + `<HoverCardContent>`
-- O hover mostra a citacao exata em italico com destaque visual
-- Manter o botao "Fonte" como fallback para mobile (onde hover nao funciona)
+### 4. Verificador de Referencias (Reference Check)
 
----
+Nova pagina `/reference-check` onde o usuario faz upload de um manuscrito (PDF) e o sistema:
+
+1. Extrai todas as referencias citadas no documento
+2. Busca cada referencia no banco de dados
+3. Verifica se alguma foi retratada ou amplamente contestada
+4. Gera um relatorio visual com sinalizacao verde/amarelo/vermelho
+
+**Arquivos envolvidos**:
+- `src/pages/ReferenceCheck.tsx` (nova pagina)
+- `supabase/functions/check-references/index.ts` (nova Edge Function)
+- `src/App.tsx` (adicionar rota `/reference-check`)
+
+## Sobre a Extensao de Navegador
+
+A extensao de navegador (Chrome/Firefox) **nao pode ser implementada dentro do Lovable**, pois requer um projeto separado com manifest.json, content scripts e publicacao nas lojas de extensoes. Isso precisaria ser desenvolvido em um repositorio separado. Posso criar a **landing page** explicando a extensao, mas o plugin em si esta fora do escopo da plataforma.
 
 ## Sequencia de implementacao
 
-1. Instalar dependencias: `@tanstack/react-virtual` e `@tanstack/react-table`
-2. Atualizar o prompt anti-alucinacao no `extract-column`
-3. Migrar a tabela para TanStack Table com virtualizacao
-4. Adicionar HoverCard nas celulas de citacao
+1. Migracao do banco (tabela `citation_classifications`)
+2. Edge Function `classify-citations`
+3. Componente `CitationBadge` + integracao na tabela de resultados
+4. Pagina `PaperReport` com grafico e lista de citacoes
+5. Edge Function `check-references` + pagina `ReferenceCheck`
+6. Atualizacao de rotas e navegacao
 
-## Riscos e mitigacoes
+## Consideracoes tecnicas
 
-- **Migracao da tabela**: E a mudanca mais complexa. Sera feita preservando toda a logica existente de state (columnData, columnCitations, etc.) e apenas mudando a camada de renderizacao
-- **Virtualizacao + resize**: O `@tanstack/react-virtual` precisa de alturas estimadas por linha. Como o conteudo e texto variavel, usaremos `estimateSize` com valor generoso (~120px) e `measureElement` para correcao automatica
+- O classificador usa a IA generativa (Gemini) para analisar o contexto de cada citacao. Para escala massiva, seria ideal treinar um modelo menor (BERT/RoBERTa), mas para o MVP a abordagem com LLM e viavel e precisa
+- A verificacao de retratacoes consulta a API do Retraction Watch / CrossRef quando disponivel, com fallback para analise via IA
+- Os badges sao carregados sob demanda (lazy) para nao atrasar a renderizacao da tabela de resultados
 
