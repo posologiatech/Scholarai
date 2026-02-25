@@ -1,20 +1,20 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Mail, Lock, User, Loader2 } from "lucide-react";
+import { GraduationCap, Mail, Lock, User, Loader2, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 const Signup = () => {
-  const { t } = useLanguage();
-  const navigate = useNavigate();
+  const { t, locale } = useLanguage();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [signupComplete, setSignupComplete] = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,8 +31,7 @@ const Signup = () => {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success(t("auth.signupSuccess"));
-      navigate("/login");
+      setSignupComplete(true);
     }
   };
 
@@ -43,6 +42,55 @@ const Signup = () => {
     });
     if (error) toast.error(error.message);
   };
+
+  if (signupComplete) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md text-center">
+          <div className="mb-6 inline-flex items-center gap-2 font-display text-2xl font-bold text-foreground">
+            <GraduationCap className="h-8 w-8 text-primary" />
+            ScholarAI
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10">
+              <CheckCircle2 className="h-8 w-8 text-green-500" />
+            </div>
+
+            <h1 className="mb-2 font-display text-xl font-bold text-foreground">
+              {locale === "pt" ? "Conta criada com sucesso!" : "Account created successfully!"}
+            </h1>
+
+            <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+              {locale === "pt"
+                ? "Verifique seu email para confirmar sua conta."
+                : "Check your email to confirm your account."}
+            </p>
+
+            <div className="mb-6 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+              <div className="mb-2 flex items-center justify-center gap-2">
+                <Clock className="h-4 w-4 text-amber-500" />
+                <span className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                  {locale === "pt" ? "Aprovação necessária" : "Approval required"}
+                </span>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {locale === "pt"
+                  ? "Após confirmar seu email, um administrador precisará aprovar seu acesso. Você será notificado quando sua conta estiver ativa."
+                  : "After confirming your email, an administrator will need to approve your access. You'll be notified when your account is active."}
+              </p>
+            </div>
+
+            <Link to="/login">
+              <Button variant="outline" className="w-full">
+                {locale === "pt" ? "Ir para o login" : "Go to login"}
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -79,6 +127,13 @@ const Signup = () => {
                 <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10" minLength={6} required />
               </div>
             </div>
+
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+              {locale === "pt"
+                ? "⏳ Após o cadastro, sua conta precisará ser aprovada por um administrador antes de poder acessar a plataforma."
+                : "⏳ After signing up, your account will need to be approved by an administrator before you can access the platform."}
+            </div>
+
             <Button type="submit" className="w-full bg-primary text-primary-foreground" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t("auth.signupButton")}

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Shield, Users, Trash2, Loader2, Search, FileText,
-  Database, Activity, BarChart3, Settings,
+  Database, Activity, BarChart3, Settings, CheckCircle2, XCircle, Clock, UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,6 +28,16 @@ interface SavedSearch {
   papers: any[];
 }
 
+interface UserApproval {
+  id: string;
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  approved: boolean;
+  created_at: string;
+  approved_at: string | null;
+}
+
 const Admin = () => {
   const { t, locale } = useLanguage();
   const { user } = useAuth();
@@ -36,9 +46,11 @@ const Admin = () => {
 
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [searches, setSearches] = useState<SavedSearch[]>([]);
+  const [approvals, setApprovals] = useState<UserApproval[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "searches" | "system">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "users" | "searches" | "system">("overview");
   const [searchFilter, setSearchFilter] = useState("");
+  const [approvalFilter, setApprovalFilter] = useState<"pending" | "approved" | "all">("pending");
 
   useEffect(() => {
     if (!adminLoading && !isAdmin) navigate("/dashboard");
@@ -48,6 +60,7 @@ const Admin = () => {
     if (isAdmin) {
       fetchRoles();
       fetchSearches();
+      fetchApprovals();
     }
   }, [isAdmin]);
 
@@ -68,6 +81,40 @@ const Admin = () => {
       .order("created_at", { ascending: false })
       .limit(50);
     if (data) setSearches(data as unknown as SavedSearch[]);
+  };
+
+  const fetchApprovals = async () => {
+    const { data } = await supabase
+      .from("user_approvals")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) setApprovals(data as UserApproval[]);
+  };
+
+  const approveUser = async (approvalId: string) => {
+    const { error } = await supabase
+      .from("user_approvals")
+      .update({ approved: true, approved_at: new Date().toISOString(), approved_by: user?.id })
+      .eq("id", approvalId);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success(locale === "pt" ? "Usuário aprovado!" : "User approved!");
+      fetchApprovals();
+    }
+  };
+
+  const revokeApproval = async (approvalId: string) => {
+    const { error } = await supabase
+      .from("user_approvals")
+      .update({ approved: false, approved_at: null, approved_by: null })
+      .eq("id", approvalId);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success(locale === "pt" ? "Acesso revogado" : "Access revoked");
+      fetchApprovals();
+    }
   };
 
   const removeRole = async (roleId: string) => {
@@ -102,9 +149,16 @@ const Admin = () => {
   const filteredSearches = searches.filter((s) =>
     !searchFilter || s.query.toLowerCase().includes(searchFilter.toLowerCase())
   );
+  const pendingApprovals = approvals.filter((a) => !a.approved);
+  const filteredApprovals = approvals.filter((a) => {
+    if (approvalFilter === "pending") return !a.approved;
+    if (approvalFilter === "approved") return a.approved;
+    return true;
+  });
 
   const tabs = [
     { id: "overview" as const, label: locale === "pt" ? "Visão Geral" : "Overview", icon: BarChart3 },
+    { id: "approvals" as const, label: locale === "pt" ? "Aprovações" : "Approvals", icon: UserCheck, badge: pendingApprovals.length },
     { id: "users" as const, label: locale === "pt" ? "Usuários" : "Users", icon: Users },
     { id: "searches" as const, label: locale === "pt" ? "Pesquisas" : "Searches", icon: Search },
     { id: "system" as const, label: locale === "pt" ? "Sistema" : "System", icon: Settings },
@@ -124,12 +178,12 @@ const Admin = () => {
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 flex gap-1 rounded-lg border border-border bg-muted/50 p-1">
+        <div className="mb-6 flex gap-1 rounded-lg border border-border bg-muted/50 p-1 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === tab.id
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -137,6 +191,11 @@ const Admin = () => {
             >
               <tab.icon className="h-4 w-4" />
               {tab.label}
+              {tab.badge ? (
+                <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {tab.badge}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -151,8 +210,19 @@ const Admin = () => {
                     <Users className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-foreground">{uniqueUsers.size}</p>
-                    <p className="text-xs text-muted-foreground">{locale === "pt" ? "Usuários únicos" : "Unique users"}</p>
+                    <p className="text-2xl font-bold text-foreground">{approvals.length}</p>
+                    <p className="text-xs text-muted-foreground">{locale === "pt" ? "Total de usuários" : "Total users"}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
+                    <Clock className="h-5 w-5 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-foreground">{pendingApprovals.length}</p>
+                    <p className="text-xs text-muted-foreground">{locale === "pt" ? "Pendentes" : "Pending"}</p>
                   </div>
                 </div>
               </div>
@@ -178,20 +248,27 @@ const Admin = () => {
                   </div>
                 </div>
               </div>
-              <div className="rounded-xl border border-border bg-card p-5">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10">
-                    <FileText className="h-5 w-5 text-orange-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-foreground">
-                      {searches.reduce((acc, s) => acc + ((s.papers as any[]) || []).length, 0)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{locale === "pt" ? "Papers indexados" : "Papers indexed"}</p>
-                  </div>
-                </div>
-              </div>
             </div>
+
+            {/* Pending approvals alert */}
+            {pendingApprovals.length > 0 && (
+              <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                <Clock className="h-5 w-5 flex-shrink-0 text-amber-500" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    {locale === "pt"
+                      ? `${pendingApprovals.length} usuário(s) aguardando aprovação`
+                      : `${pendingApprovals.length} user(s) awaiting approval`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {locale === "pt" ? "Clique na aba Aprovações para gerenciar" : "Click the Approvals tab to manage"}
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setActiveTab("approvals")}>
+                  {locale === "pt" ? "Ver" : "View"}
+                </Button>
+              </div>
+            )}
 
             {/* Recent activity */}
             <div className="rounded-xl border border-border bg-card">
@@ -215,6 +292,89 @@ const Admin = () => {
                 {searches.length === 0 && (
                   <div className="py-8 text-center text-sm text-muted-foreground">
                     {locale === "pt" ? "Nenhuma atividade recente" : "No recent activity"}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Approvals Tab */}
+        {activeTab === "approvals" && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1 rounded-lg border border-border bg-muted/50 p-1">
+                {([
+                  { id: "pending" as const, label: locale === "pt" ? "Pendentes" : "Pending" },
+                  { id: "approved" as const, label: locale === "pt" ? "Aprovados" : "Approved" },
+                  { id: "all" as const, label: locale === "pt" ? "Todos" : "All" },
+                ] as const).map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setApprovalFilter(f.id)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      approvalFilter === f.id
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-sm text-muted-foreground">
+                {filteredApprovals.length} {locale === "pt" ? "usuários" : "users"}
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card">
+              <div className="divide-y divide-border">
+                {filteredApprovals.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                        a.approved ? "bg-green-500/10" : "bg-amber-500/10"
+                      }`}>
+                        {a.approved
+                          ? <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          : <Clock className="h-4 w-4 text-amber-500" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {a.full_name || (locale === "pt" ? "Sem nome" : "No name")}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {a.email || a.user_id.slice(0, 8) + "..."} • {new Date(a.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {a.approved ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => revokeApproval(a.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <XCircle className="mr-1 h-3.5 w-3.5" />
+                          {locale === "pt" ? "Revogar" : "Revoke"}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => approveUser(a.id)}
+                          className="bg-green-600 text-white hover:bg-green-700"
+                        >
+                          <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                          {locale === "pt" ? "Aprovar" : "Approve"}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {filteredApprovals.length === 0 && (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    {locale === "pt" ? "Nenhum usuário nesta categoria" : "No users in this category"}
                   </div>
                 )}
               </div>
@@ -348,6 +508,7 @@ const Admin = () => {
               <div className="grid gap-2 sm:grid-cols-2">
                 {[
                   { name: "user_roles", desc: locale === "pt" ? "Roles e permissões" : "Roles & permissions", count: roles.length },
+                  { name: "user_approvals", desc: locale === "pt" ? "Aprovações de acesso" : "Access approvals", count: approvals.length },
                   { name: "saved_searches", desc: locale === "pt" ? "Pesquisas salvas" : "Saved searches", count: searches.length },
                 ].map((table) => (
                   <div key={table.name} className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
