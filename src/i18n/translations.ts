@@ -262,6 +262,39 @@ export const translations = {
   "admin.roleRemoved": { pt: "Role removida com sucesso", en: "Role removed successfully" },
   "admin.addViaSupabase": { pt: "Para adicionar roles, use o painel do Supabase", en: "To add roles, use the Supabase dashboard" },
   "admin.manageNote": { pt: "Para gerenciamento avançado de usuários, acesse o painel do Supabase.", en: "For advanced user management, access the Supabase dashboard." },
+
+  // Onboarding
+  "onboarding.welcome.title": { pt: "Bem-vindo ao ScholarAI! 🎓", en: "Welcome to ScholarAI! 🎓" },
+  "onboarding.welcome.desc": { pt: "Sua plataforma de pesquisa científica com IA. Vamos mostrar como você pode acelerar sua pesquisa em poucos passos.", en: "Your AI-powered scientific research platform. Let us show you how to speed up your research in a few steps." },
+  "onboarding.search.title": { pt: "Pesquise artigos científicos", en: "Search scientific papers" },
+  "onboarding.search.desc": { pt: "Faça perguntas em linguagem natural e encontre artigos relevantes de múltiplas fontes como Semantic Scholar e PubMed.", en: "Ask questions in natural language and find relevant papers from multiple sources like Semantic Scholar and PubMed." },
+  "onboarding.extraction.title": { pt: "Extraia dados automaticamente", en: "Extract data automatically" },
+  "onboarding.extraction.desc": { pt: "A IA extrai dados específicos de cada artigo — amostra, metodologia, resultados — e organiza em colunas comparativas.", en: "AI extracts specific data from each paper — sample size, methodology, results — organized in comparative columns." },
+  "onboarding.reports.title": { pt: "Gere relatórios com IA", en: "Generate AI reports" },
+  "onboarding.reports.desc": { pt: "Síntese automática de dezenas de artigos em um texto coerente com citações no nível da frase.", en: "Automatic synthesis of dozens of papers into coherent text with sentence-level citations." },
+  "onboarding.refcheck.title": { pt: "Verifique suas referências", en: "Check your references" },
+  "onboarding.refcheck.desc": { pt: "Faça upload do seu manuscrito e verifique se alguma referência foi retratada ou contestada pela comunidade científica.", en: "Upload your manuscript and check if any reference has been retracted or contested by the scientific community." },
+  "onboarding.skip": { pt: "Pular", en: "Skip" },
+  "onboarding.next": { pt: "Próximo", en: "Next" },
+  "onboarding.start": { pt: "Começar!", en: "Get started!" },
+
+  // Dashboard quick actions
+  "dashboard.quickActions": { pt: "Acesso rápido", en: "Quick actions" },
+  "dashboard.action.library": { pt: "Biblioteca", en: "Library" },
+  "dashboard.action.extraction": { pt: "Extração", en: "Extraction" },
+  "dashboard.action.reports": { pt: "Relatórios", en: "Reports" },
+  "dashboard.action.illustrations": { pt: "Ilustrações", en: "Illustrations" },
+
+  // Empty state CTAs
+  "library.goSearch": { pt: "Fazer sua primeira pesquisa", en: "Make your first search" },
+  "reports.emptyHint": { pt: "Salve uma pesquisa na biblioteca para gerar relatórios", en: "Save a search to the library to generate reports" },
+  "reports.goLibrary": { pt: "Ir para a biblioteca", en: "Go to library" },
+
+  // Features landing - new
+  "features.refcheck.title": { pt: "Verificação de Referências", en: "Reference Check" },
+  "features.refcheck.desc": { pt: "Verifique se as referências do seu manuscrito foram retratadas ou contestadas pela comunidade científica.", en: "Check if your manuscript's references have been retracted or contested by the scientific community." },
+  "features.illustrations.title": { pt: "Ilustrações com IA", en: "AI Illustrations" },
+  "features.illustrations.desc": { pt: "Gere diagramas científicos profissionais no estilo BioRender com inteligência artificial.", en: "Generate professional BioRender-style scientific diagrams with artificial intelligence." },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

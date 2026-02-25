@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, Globe, LogOut, BookOpen, Table, FileText, LayoutDashboard, Shield, ShieldCheck, Palette } from "lucide-react";
+import MobileNav from "./MobileNav";
 
 const AppHeader = () => {
   const { t, locale, setLocale } = useLanguage();
@@ -32,7 +33,8 @@ const AppHeader = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <div className="container flex h-14 items-center justify-between">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 md:gap-6">
+          <MobileNav navLinks={navLinks} />
           <Link to="/dashboard" className="flex items-center gap-2 font-display text-lg font-bold text-foreground">
             <GraduationCap className="h-6 w-6 text-primary" />
             ScholarAI
