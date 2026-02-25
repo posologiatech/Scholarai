@@ -16,6 +16,10 @@ import About from "./pages/About";
 import FAQ from "./pages/FAQ";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import Blog from "./pages/Blog";
+import Docs from "./pages/Docs";
+import Careers from "./pages/Careers";
+import Contact from "./pages/Contact";
 import Dashboard from "./pages/Dashboard";
 import SearchResults from "./pages/SearchResults";
 import Library from "./pages/Library";
@@ -49,6 +53,10 @@ const App = () => (
               <Route path="/use-cases" element={<UseCases />} />
               <Route path="/about" element={<About />} />
               <Route path="/faq" element={<FAQ />} />
+              <Route path="/blog" element={<Blog />} />
+              <Route path="/docs" element={<Docs />} />
+              <Route path="/careers" element={<Careers />} />
+              <Route path="/contact" element={<Contact />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

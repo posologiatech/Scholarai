@@ -69,7 +69,7 @@ const Footer = () => {
           ))}
         </div>
         <div className="mt-10 border-t border-border pt-6 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} ScholarAI. {t("footer.rights")}
+          © {new Date().getFullYear()} ScholarAI. {t("footer.rights")} — Desenvolvido por Sérgio Araújo. Posologia Produções
         </div>
       </div>
     </footer>
