@@ -120,6 +120,10 @@ const SearchResults = () => {
 
   const tableRef = useRef<HTMLTableElement>(null);
 
+  // Column resizing state
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const resizingCol = useRef<{ name: string; startX: number; startW: number } | null>(null);
+
   // Initialize from navigation state (saved search or suggested columns)
   useEffect(() => {
     const state = location.state as {
@@ -264,21 +268,59 @@ const SearchResults = () => {
           column_name: columnName,
           custom_prompt: customPrompt,
           locale,
+          stream: true,
         }),
       });
       if (!resp.ok) throw new Error("Extraction failed");
-      const data = await resp.json();
-      const extracted: Record<number, string> = {};
-      const citations: Record<number, string> = {};
-      const cacheStatus: Record<number, boolean> = {};
-      (data.extractions || []).forEach((e: { paper_index: number; value: string; citation_context?: string; from_cache?: boolean }) => {
-        extracted[e.paper_index] = e.value;
-        if (e.citation_context) citations[e.paper_index] = e.citation_context;
-        if (e.from_cache) cacheStatus[e.paper_index] = true;
-      });
-      setColumnData((prev) => ({ ...prev, [columnName]: extracted }));
-      setColumnCitations((prev) => ({ ...prev, [columnName]: citations }));
-      setColumnCacheStatus((prev) => ({ ...prev, [columnName]: cacheStatus }));
+
+      // Stream SSE responses
+      const reader = resp.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+          let line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.done) break;
+
+            // Update state incrementally
+            const { paper_index, value: extractedValue, citation_context, from_cache } = parsed;
+            if (paper_index !== undefined && extractedValue) {
+              setColumnData((prev) => ({
+                ...prev,
+                [columnName]: { ...(prev[columnName] || {}), [paper_index]: extractedValue },
+              }));
+              if (citation_context) {
+                setColumnCitations((prev) => ({
+                  ...prev,
+                  [columnName]: { ...(prev[columnName] || {}), [paper_index]: citation_context },
+                }));
+              }
+              if (from_cache) {
+                setColumnCacheStatus((prev) => ({
+                  ...prev,
+                  [columnName]: { ...(prev[columnName] || {}), [paper_index]: true },
+                }));
+              }
+            }
+          } catch { /* incomplete JSON, skip */ }
+        }
+      }
     } catch (err) {
       console.error(`Failed to extract column ${columnName}:`, err);
     } finally {
@@ -494,6 +536,31 @@ const SearchResults = () => {
         : [...prev.studyTypes, value],
     }));
   };
+
+  // Column resize handlers
+  const handleResizeStart = useCallback((e: React.MouseEvent, colName: string) => {
+    e.preventDefault();
+    const currentWidth = columnWidths[colName] || 160;
+    resizingCol.current = { name: colName, startX: e.clientX, startW: currentWidth };
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!resizingCol.current) return;
+      const delta = ev.clientX - resizingCol.current.startX;
+      const newWidth = Math.max(80, resizingCol.current.startW + delta);
+      setColumnWidths((prev) => ({ ...prev, [resizingCol.current!.name]: newWidth }));
+    };
+    const onMouseUp = () => {
+      resizingCol.current = null;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, [columnWidths]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -839,11 +906,11 @@ const SearchResults = () => {
                   <span>{sorted.length} {locale === "pt" ? "fontes" : "sources"}</span>
                 </div>
 
-                <table ref={tableRef} className="w-full border-collapse table-fixed">
+                <table ref={tableRef} className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
                   <colgroup>
                     <col style={{ width: enabledColumns.length > 1 ? "240px" : "320px" }} />
                     {enabledColumns.map((col) => (
-                      <col key={col.name} />
+                      <col key={col.name} style={{ width: columnWidths[col.name] ? `${columnWidths[col.name]}px` : undefined }} />
                     ))}
                   </colgroup>
                   <thead>
@@ -854,7 +921,7 @@ const SearchResults = () => {
                       {enabledColumns.map((col) => (
                         <th
                           key={col.name}
-                          className="py-3 px-3 text-left text-sm font-medium text-muted-foreground"
+                          className="relative py-3 px-3 text-left text-sm font-medium text-muted-foreground group"
                         >
                           <div className="flex items-center gap-1 truncate">
                             {col.name}
@@ -862,6 +929,11 @@ const SearchResults = () => {
                               <Loader2 className="h-3 w-3 animate-spin flex-shrink-0" />
                             )}
                           </div>
+                          {/* Resize handle */}
+                          <div
+                            onMouseDown={(e) => handleResizeStart(e, col.name)}
+                            className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize opacity-0 group-hover:opacity-100 hover:bg-primary/30 transition-opacity"
+                          />
                         </th>
                       ))}
                     </tr>
