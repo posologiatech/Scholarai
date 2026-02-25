@@ -49,6 +49,7 @@ interface Paper {
   url?: string;
   journal?: string;
   openAccess?: boolean;
+  studyType?: string;
 }
 
 interface AdvancedFilters {
@@ -57,6 +58,8 @@ interface AdvancedFilters {
   studyTypes: string[];
   abstractKeyword: string;
   sourceFilter: string;
+  minCitations: number;
+  authorKeyword: string;
 }
 
 const EXTRACT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-column`;
@@ -67,7 +70,10 @@ const STUDY_TYPES = [
   { value: "meta-analysis", label: "Meta-Analysis" },
   { value: "systematic-review", label: "Systematic Review" },
   { value: "rct", label: "RCT" },
-  { value: "longitudinal", label: "Longitudinal" },
+  { value: "clinical-trial", label: "Clinical Trial" },
+  { value: "observational", label: "Observational" },
+  { value: "cohort", label: "Cohort" },
+  { value: "case-report", label: "Case Report" },
 ];
 
 const SearchResults = () => {
@@ -104,7 +110,13 @@ const SearchResults = () => {
     studyTypes: [],
     abstractKeyword: "",
     sourceFilter: "all",
+    minCitations: 0,
+    authorKeyword: "",
   });
+  const [searchInResults, setSearchInResults] = useState("");
+  const [showSearchInResults, setShowSearchInResults] = useState(false);
+  const [sourceCounts, setSourceCounts] = useState<Record<string, number>>({});
+  const [studyTypeCounts, setStudyTypeCounts] = useState<Record<string, number>>({});
 
   const tableRef = useRef<HTMLTableElement>(null);
 
@@ -182,18 +194,37 @@ const SearchResults = () => {
     }
   };
 
-  const fetchPapers = async (q: string) => {
+  const fetchPapers = async (q: string, appliedFilters?: AdvancedFilters) => {
     setLoading(true);
     setError(null);
     try {
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-papers`;
+      const f = appliedFilters || filters;
+      const hasActiveFilters = f.hasPdf || f.studyTypes.length > 0 || f.minCitations > 0 ||
+        f.yearRange[0] !== 2000 || f.yearRange[1] !== currentYear;
+
+      const body: any = { query: q, limit: 20 };
+      if (hasActiveFilters) {
+        body.filters = {
+          yearMin: f.yearRange[0],
+          yearMax: f.yearRange[1],
+          openAccessOnly: f.hasPdf,
+          studyTypes: f.studyTypes.length > 0 ? f.studyTypes : undefined,
+          minCitations: f.minCitations > 0 ? f.minCitations : undefined,
+        };
+      }
+      // Source filter
+      if (f.sourceFilter !== "all") {
+        body.sources = [f.sourceFilter];
+      }
+
       const resp = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ query: q, limit: 20 }),
+        body: JSON.stringify(body),
       });
       if (!resp.ok) {
         const errText = await resp.text();
@@ -201,6 +232,8 @@ const SearchResults = () => {
       }
       const data = await resp.json();
       setPapers(data.papers || []);
+      setSourceCounts(data.source_counts || {});
+      setStudyTypeCounts(data.study_type_counts || {});
     } catch (err: any) {
       console.error("[SearchResults] Error:", err);
       setError(err.message || "Failed to search");
@@ -277,22 +310,23 @@ const SearchResults = () => {
     navigate(`/search?q=${encodeURIComponent(newQuery)}`);
   };
 
-  // Apply filters
+  // Apply client-side filters (server already handled most, these are supplementary)
   const filtered = papers.filter((p) => {
-    if (filters.sourceFilter !== "all" && p.source !== filters.sourceFilter) return false;
-    if (filters.hasPdf && !p.openAccess) return false;
-    if (p.year && (p.year < filters.yearRange[0] || p.year > filters.yearRange[1])) return false;
+    // Author keyword (client-side only)
+    if (filters.authorKeyword.trim()) {
+      const kw = filters.authorKeyword.toLowerCase();
+      if (!p.authors.some((a) => a.toLowerCase().includes(kw))) return false;
+    }
+    // Abstract keyword (client-side refinement)
     if (filters.abstractKeyword.trim()) {
       const kw = filters.abstractKeyword.toLowerCase();
       if (!p.abstract?.toLowerCase().includes(kw) && !p.title.toLowerCase().includes(kw)) return false;
     }
-    if (filters.studyTypes.length > 0) {
-      const titleLower = (p.title + " " + (p.abstract || "")).toLowerCase();
-      const matches = filters.studyTypes.some((st) => {
-        if (st === "rct") return titleLower.includes("randomized") || titleLower.includes("randomised");
-        return titleLower.includes(st.replace("-", " "));
-      });
-      if (!matches) return false;
+    // Search in results
+    if (searchInResults.trim()) {
+      const q = searchInResults.toLowerCase();
+      const text = `${p.title} ${p.abstract || ''} ${p.authors.join(' ')} ${p.journal || ''}`.toLowerCase();
+      if (!text.includes(q)) return false;
     }
     return true;
   });
@@ -315,6 +349,78 @@ const SearchResults = () => {
     };
     return labels[s] || s;
   };
+
+  // Count active filters for badge
+  const activeFilterCount = [
+    filters.hasPdf,
+    filters.studyTypes.length > 0,
+    filters.minCitations > 0,
+    filters.yearRange[0] !== 2000 || filters.yearRange[1] !== currentYear,
+    filters.sourceFilter !== "all",
+    filters.abstractKeyword.trim(),
+    filters.authorKeyword.trim(),
+  ].filter(Boolean).length;
+
+  // Active filter chips for display
+  const activeFilterChips: { label: string; onRemove: () => void }[] = [];
+  if (filters.sourceFilter !== "all") {
+    activeFilterChips.push({
+      label: sourceLabel(filters.sourceFilter),
+      onRemove: () => setFilters((p) => ({ ...p, sourceFilter: "all" })),
+    });
+  }
+  if (filters.hasPdf) {
+    activeFilterChips.push({
+      label: locale === "pt" ? "Open Access" : "Open Access",
+      onRemove: () => setFilters((p) => ({ ...p, hasPdf: false })),
+    });
+  }
+  if (filters.yearRange[0] !== 2000 || filters.yearRange[1] !== currentYear) {
+    activeFilterChips.push({
+      label: `${filters.yearRange[0]}–${filters.yearRange[1]}`,
+      onRemove: () => setFilters((p) => ({ ...p, yearRange: [2000, currentYear] })),
+    });
+  }
+  filters.studyTypes.forEach((st) => {
+    const label = STUDY_TYPES.find((s) => s.value === st)?.label || st;
+    activeFilterChips.push({
+      label,
+      onRemove: () => setFilters((p) => ({ ...p, studyTypes: p.studyTypes.filter((s) => s !== st) })),
+    });
+  });
+  if (filters.minCitations > 0) {
+    activeFilterChips.push({
+      label: `≥${filters.minCitations} ${locale === "pt" ? "citações" : "citations"}`,
+      onRemove: () => setFilters((p) => ({ ...p, minCitations: 0 })),
+    });
+  }
+  if (filters.authorKeyword.trim()) {
+    activeFilterChips.push({
+      label: `${locale === "pt" ? "Autor" : "Author"}: ${filters.authorKeyword}`,
+      onRemove: () => setFilters((p) => ({ ...p, authorKeyword: "" })),
+    });
+  }
+
+  const handleApplyFilters = () => {
+    setShowFilters(false);
+    if (query) fetchPapers(query, filters);
+  };
+
+  const handleClearAllFilters = () => {
+    const cleared: AdvancedFilters = {
+      hasPdf: false,
+      yearRange: [2000, currentYear],
+      studyTypes: [],
+      abstractKeyword: "",
+      sourceFilter: "all",
+      minCitations: 0,
+      authorKeyword: "",
+    };
+    setFilters(cleared);
+    if (query) fetchPapers(query, cleared);
+  };
+
+  // sourceLabel and enabledColumns already declared above
 
   // Export PDF
   const handleExportPDF = () => {
@@ -440,10 +546,33 @@ const SearchResults = () => {
               <div className="h-5 w-px bg-border" />
 
               {/* Search in results */}
-              <button className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-                <Search className="h-3.5 w-3.5" />
-                <span>{locale === "pt" ? "Buscar" : "Search"}</span>
-              </button>
+              {showSearchInResults ? (
+                <div className="flex items-center gap-1.5">
+                  <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={searchInResults}
+                    onChange={(e) => setSearchInResults(e.target.value)}
+                    placeholder={locale === "pt" ? "Buscar nos resultados..." : "Search in results..."}
+                    className="w-40 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none border-b border-primary"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => { setShowSearchInResults(false); setSearchInResults(""); }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowSearchInResults(true)}
+                  className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                  <span>{locale === "pt" ? "Buscar" : "Search"}</span>
+                </button>
+              )}
 
               <div className="h-5 w-px bg-border" />
 
@@ -453,31 +582,31 @@ const SearchResults = () => {
                   <button className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                     <Filter className="h-3.5 w-3.5" />
                     <span>{locale === "pt" ? "Filtros" : "Filters"}</span>
-                    {(filters.hasPdf || filters.studyTypes.length > 0 || filters.abstractKeyword || filters.sourceFilter !== "all") && (
-                      <span className="ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                        !
+                    {activeFilterCount > 0 && (
+                      <span className="ml-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                        {activeFilterCount}
                       </span>
                     )}
                   </button>
                 </PopoverTrigger>
-                <PopoverContent className="w-80 p-0 z-50 bg-card border border-border shadow-lg" align="start">
+                <PopoverContent className="w-96 p-0 z-50 bg-card border border-border shadow-lg" align="start">
                   <div className="flex items-center justify-between border-b border-border px-4 py-3">
                     <button
-                      onClick={() => setShowFilters(false)}
+                      onClick={handleClearAllFilters}
                       className="text-sm text-muted-foreground hover:text-foreground"
                     >
-                      {locale === "pt" ? "Cancelar" : "Cancel"}
+                      {locale === "pt" ? "Limpar tudo" : "Clear all"}
                     </button>
-                    <Button size="sm" onClick={() => setShowFilters(false)}>
-                      {locale === "pt" ? "Aplicar" : "Apply"}
+                    <Button size="sm" onClick={handleApplyFilters}>
+                      {locale === "pt" ? "Aplicar filtros" : "Apply filters"}
                     </Button>
                   </div>
 
                   <div className="max-h-[60vh] overflow-y-auto p-4 space-y-6">
-                    {/* Has PDF */}
+                    {/* Open Access */}
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-foreground">
-                        {locale === "pt" ? "Tem PDF" : "Has PDF"}
+                        Open Access
                       </span>
                       <Switch
                         checked={filters.hasPdf}
@@ -504,39 +633,89 @@ const SearchResults = () => {
                       </div>
                     </div>
 
-                    {/* Source */}
+                    {/* Min Citations */}
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-foreground">
+                        {locale === "pt" ? "Citações mínimas" : "Minimum citations"}
+                      </h4>
+                      <div className="flex items-center gap-3">
+                        <Slider
+                          value={[filters.minCitations]}
+                          onValueChange={(v) => setFilters((p) => ({ ...p, minCitations: v[0] }))}
+                          min={0}
+                          max={500}
+                          step={5}
+                          className="flex-1"
+                        />
+                        <span className="text-sm font-mono text-foreground w-10 text-right">{filters.minCitations}</span>
+                      </div>
+                    </div>
+
+                    {/* Source with counts */}
                     <div className="space-y-3">
                       <h4 className="text-sm font-medium text-foreground">
                         {locale === "pt" ? "Fonte" : "Source"}
                       </h4>
-                      <select
-                        value={filters.sourceFilter}
-                        onChange={(e) => setFilters((p) => ({ ...p, sourceFilter: e.target.value }))}
-                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none"
-                      >
-                        <option value="all">{locale === "pt" ? "Todas as fontes" : "All sources"}</option>
-                        <option value="semantic_scholar">Semantic Scholar</option>
-                        <option value="pubmed">PubMed</option>
-                        <option value="openalex">OpenAlex</option>
-                        <option value="clinical_trials">ClinicalTrials.gov</option>
-                        <option value="europe_pmc">Europe PMC</option>
-                      </select>
+                      <div className="space-y-1.5">
+                        {[
+                          { value: "all", label: locale === "pt" ? "Todas as fontes" : "All sources" },
+                          { value: "semantic_scholar", label: "Semantic Scholar" },
+                          { value: "pubmed", label: "PubMed" },
+                          { value: "openalex", label: "OpenAlex" },
+                          { value: "clinical_trials", label: "ClinicalTrials.gov" },
+                          { value: "europe_pmc", label: "Europe PMC" },
+                        ].map((src) => (
+                          <label key={src.value} className="flex items-center justify-between cursor-pointer rounded-md px-2 py-1.5 hover:bg-muted">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="source"
+                                checked={filters.sourceFilter === src.value}
+                                onChange={() => setFilters((p) => ({ ...p, sourceFilter: src.value }))}
+                                className="accent-primary"
+                              />
+                              <span className="text-sm text-foreground">{src.label}</span>
+                            </div>
+                            {src.value !== "all" && sourceCounts[src.value] !== undefined && (
+                              <span className="text-xs text-muted-foreground">{sourceCounts[src.value]}</span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
                     </div>
 
-                    {/* Study Type */}
+                    {/* Study Type with counts */}
                     <div className="space-y-3">
                       <h4 className="text-sm font-medium text-foreground">
                         {locale === "pt" ? "Tipo de estudo" : "Study Type"}
                       </h4>
-                      {STUDY_TYPES.map((st) => (
-                        <label key={st.value} className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox
-                            checked={filters.studyTypes.includes(st.value)}
-                            onCheckedChange={() => toggleStudyType(st.value)}
-                          />
-                          <span className="text-sm text-foreground">{st.label}</span>
-                        </label>
-                      ))}
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {STUDY_TYPES.map((st) => (
+                          <label key={st.value} className="flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5 hover:bg-muted">
+                            <Checkbox
+                              checked={filters.studyTypes.includes(st.value)}
+                              onCheckedChange={() => toggleStudyType(st.value)}
+                            />
+                            <span className="text-sm text-foreground">{st.label}</span>
+                            {studyTypeCounts[st.label] && (
+                              <span className="text-xs text-muted-foreground">({studyTypeCounts[st.label]})</span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Author search */}
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-foreground">
+                        {locale === "pt" ? "Buscar por autor" : "Search by author"}
+                      </h4>
+                      <Input
+                        value={filters.authorKeyword}
+                        onChange={(e) => setFilters((p) => ({ ...p, authorKeyword: e.target.value }))}
+                        placeholder={locale === "pt" ? "Nome do autor..." : "Author name..."}
+                        className="text-sm"
+                      />
                     </div>
 
                     {/* Abstract keywords */}
@@ -612,6 +791,31 @@ const SearchResults = () => {
               </div>
             </div>
 
+            {/* Active filter chips */}
+            {activeFilterChips.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {locale === "pt" ? "Filtros ativos:" : "Active filters:"}
+                </span>
+                {activeFilterChips.map((chip, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
+                  >
+                    {chip.label}
+                    <button onClick={chip.onRemove} className="hover:text-destructive">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                <button
+                  onClick={handleClearAllFilters}
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                >
+                  {locale === "pt" ? "Limpar tudo" : "Clear all"}
+                </button>
+              </div>
+            )}
             {/* Loading */}
             {loading && (
               <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
