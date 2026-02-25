@@ -4,7 +4,7 @@ import AppHeader from "@/components/app/AppHeader";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { FileText, Plus, Loader2, Sparkles, Download, Trash2 } from "lucide-react";
+import { FileText, Loader2, Sparkles, Download, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
@@ -22,8 +22,8 @@ interface Report {
   id: string;
   title: string;
   content: string;
-  searchId: string;
-  createdAt: string;
+  search_id: string | null;
+  created_at: string;
 }
 
 const SYNTHESIZE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/synthesize-papers`;
@@ -40,11 +40,8 @@ const Reports = () => {
   useEffect(() => {
     if (user) {
       fetchSavedSearches();
-      // Load reports from localStorage
-      const stored = localStorage.getItem(`reports_${user.id}`);
-      if (stored) setReports(JSON.parse(stored));
+      fetchReports();
     }
-    setLoading(false);
   }, [user]);
 
   const fetchSavedSearches = async () => {
@@ -55,6 +52,19 @@ const Reports = () => {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     if (data) setSavedSearches(data as unknown as SavedSearch[]);
+  };
+
+  const fetchReports = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("reports")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setReports(data as Report[]);
+    }
+    setLoading(false);
   };
 
   const generateReport = async (search: SavedSearch) => {
@@ -105,17 +115,25 @@ const Reports = () => {
         }
       }
 
-      const newReport: Report = {
-        id: crypto.randomUUID(),
-        title: search.query,
-        content: fullText,
-        searchId: search.id,
-        createdAt: new Date().toISOString(),
-      };
+      // Save to Supabase
+      const { data: newReport, error } = await supabase
+        .from("reports")
+        .insert({
+          user_id: user!.id,
+          title: search.query,
+          content: fullText,
+          search_id: search.id,
+        })
+        .select()
+        .single();
 
-      const updated = [newReport, ...reports];
-      setReports(updated);
-      if (user) localStorage.setItem(`reports_${user.id}`, JSON.stringify(updated));
+      if (error) {
+        console.error("Error saving report:", error);
+        toast.error(locale === "pt" ? "Erro ao salvar relatório" : "Failed to save report");
+        return;
+      }
+
+      setReports((prev) => [newReport as Report, ...prev]);
       toast.success(locale === "pt" ? "Relatório gerado!" : "Report generated!");
     } catch (err) {
       console.error(err);
@@ -130,7 +148,7 @@ const Reports = () => {
     doc.setFontSize(16);
     doc.text(report.title, 14, 20);
     doc.setFontSize(9);
-    doc.text(new Date(report.createdAt).toLocaleDateString(), 14, 28);
+    doc.text(new Date(report.created_at).toLocaleDateString(), 14, 28);
     doc.setFontSize(11);
 
     const lines = doc.splitTextToSize(report.content, 180);
@@ -143,10 +161,13 @@ const Reports = () => {
     doc.save(`report-${report.title.slice(0, 30).replace(/\s+/g, "_")}.pdf`);
   };
 
-  const deleteReport = (id: string) => {
-    const updated = reports.filter((r) => r.id !== id);
-    setReports(updated);
-    if (user) localStorage.setItem(`reports_${user.id}`, JSON.stringify(updated));
+  const deleteReport = async (id: string) => {
+    const { error } = await supabase.from("reports").delete().eq("id", id);
+    if (error) {
+      toast.error(locale === "pt" ? "Erro ao remover" : "Failed to delete");
+      return;
+    }
+    setReports((prev) => prev.filter((r) => r.id !== id));
     toast.success(locale === "pt" ? "Relatório removido" : "Report deleted");
   };
 
@@ -194,7 +215,11 @@ const Reports = () => {
         )}
 
         {/* Reports list */}
-        {reports.length > 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : reports.length > 0 ? (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground">
               {locale === "pt" ? "Seus relatórios" : "Your reports"}
@@ -205,7 +230,7 @@ const Reports = () => {
                   <div>
                     <h3 className="font-medium text-foreground">{report.title}</h3>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(report.createdAt).toLocaleDateString()}
+                      {new Date(report.created_at).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="flex gap-2">
