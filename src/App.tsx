@@ -22,6 +22,8 @@ import Library from "./pages/Library";
 import Extraction from "./pages/Extraction";
 import Reports from "./pages/Reports";
 import Admin from "./pages/Admin";
+import PaperReport from "./pages/PaperReport";
+import ReferenceCheck from "./pages/ReferenceCheck";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -53,6 +55,8 @@ const App = () => (
               <Route path="/extraction" element={<ProtectedRoute><Extraction /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+              <Route path="/paper/:id" element={<ProtectedRoute><PaperReport /></ProtectedRoute>} />
+              <Route path="/reference-check" element={<ProtectedRoute><ReferenceCheck /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import CitationBadge from "@/components/app/CitationBadge";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import AppHeader from "@/components/app/AppHeader";
@@ -557,13 +558,15 @@ const SearchResults = () => {
           return (
             <div className="space-y-1.5">
               <h3 className="text-sm font-semibold leading-snug text-primary hover:underline">
-                {paper.url ? (
-                  <a href={paper.url} target="_blank" rel="noopener noreferrer">
-                    {paper.title}
-                  </a>
-                ) : (
-                  paper.title
-                )}
+                <a
+                  href={`/paper/${encodeURIComponent(paper.id)}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate(`/paper/${encodeURIComponent(paper.id)}`);
+                  }}
+                >
+                  {paper.title}
+                </a>
               </h3>
               <p className="text-xs text-muted-foreground">
                 {paper.authors.slice(0, 3).join(", ")}
@@ -602,6 +605,7 @@ const SearchResults = () => {
                 }`}>
                   {sourceLabel(paper.source)}
                 </span>
+                <CitationBadge paperId={paper.id} compact />
               </div>
             </div>
           );

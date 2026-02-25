@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.embed-papers]
 verify_jwt = false
+
+[functions.classify-citations]
+verify_jwt = false
+
+[functions.check-references]
+verify_jwt = false
