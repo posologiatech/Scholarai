@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import AppHeader from "@/components/app/AppHeader";
@@ -30,12 +30,27 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { toast } from "sonner";
 import ColumnsPanel, { type ColumnDef } from "@/components/app/ColumnsPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  createColumnHelper,
+  type SortingState,
+  type ColumnDef as TanStackColumnDef,
+} from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 interface Paper {
   id: string;
@@ -76,6 +91,17 @@ const STUDY_TYPES = [
   { value: "case-report", label: "Case Report" },
 ];
 
+const sourceLabel = (s: string) => {
+  const labels: Record<string, string> = {
+    semantic_scholar: "Semantic Scholar",
+    pubmed: "PubMed",
+    openalex: "OpenAlex",
+    clinical_trials: "ClinicalTrials.gov",
+    europe_pmc: "Europe PMC",
+  };
+  return labels[s] || s;
+};
+
 const SearchResults = () => {
   const { t, locale } = useLanguage();
   const [searchParams] = useSearchParams();
@@ -102,7 +128,7 @@ const SearchResults = () => {
   const [embeddingStatus, setEmbeddingStatus] = useState<'idle' | 'processing' | 'done'>('idle');
 
   // Sorting & filters
-  const [sortBy, setSortBy] = useState<string>("relevance");
+  const [sorting, setSorting] = useState<SortingState>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<AdvancedFilters>({
     hasPdf: false,
@@ -118,11 +144,11 @@ const SearchResults = () => {
   const [sourceCounts, setSourceCounts] = useState<Record<string, number>>({});
   const [studyTypeCounts, setStudyTypeCounts] = useState<Record<string, number>>({});
 
-  const tableRef = useRef<HTMLTableElement>(null);
-
   // Column resizing state
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const resizingCol = useRef<{ name: string; startX: number; startW: number } | null>(null);
+  const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
+
+  // Virtualizer ref
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   // Initialize from navigation state (saved search or suggested columns)
   useEffect(() => {
@@ -132,7 +158,6 @@ const SearchResults = () => {
     } | null;
 
     if (state?.savedSearch) {
-      // Restore full saved search: papers, columns, and extracted data
       setPapers(state.savedSearch.papers || []);
       if (Array.isArray(state.savedSearch.columns) && state.savedSearch.columns.length > 0) {
         setColumns(state.savedSearch.columns);
@@ -158,7 +183,6 @@ const SearchResults = () => {
 
   useEffect(() => {
     const state = location.state as { savedSearch?: any } | null;
-    // Don't fetch if we loaded from a saved search
     if (state?.savedSearch) return;
     if (query) fetchPapers(query);
   }, [query]);
@@ -167,7 +191,6 @@ const SearchResults = () => {
     if (papers.length > 0) {
       const enabledCols = columns.filter((c) => c.enabled && !columnData[c.name]);
       enabledCols.forEach((col) => extractColumnData(col.name, col.prompt));
-      // Trigger background embedding generation
       triggerEmbeddings(papers);
     }
   }, [papers]);
@@ -217,7 +240,6 @@ const SearchResults = () => {
           minCitations: f.minCitations > 0 ? f.minCitations : undefined,
         };
       }
-      // Source filter
       if (f.sourceFilter !== "all") {
         body.sources = [f.sourceFilter];
       }
@@ -273,7 +295,6 @@ const SearchResults = () => {
       });
       if (!resp.ok) throw new Error("Extraction failed");
 
-      // Stream SSE responses
       const reader = resp.body?.getReader();
       if (!reader) throw new Error("No response body");
 
@@ -298,7 +319,6 @@ const SearchResults = () => {
             const parsed = JSON.parse(jsonStr);
             if (parsed.done) break;
 
-            // Update state incrementally
             const { paper_index, value: extractedValue, citation_context, from_cache } = parsed;
             if (paper_index !== undefined && extractedValue) {
               setColumnData((prev) => ({
@@ -352,45 +372,25 @@ const SearchResults = () => {
     navigate(`/search?q=${encodeURIComponent(newQuery)}`);
   };
 
-  // Apply client-side filters (server already handled most, these are supplementary)
-  const filtered = papers.filter((p) => {
-    // Author keyword (client-side only)
+  // Apply client-side filters
+  const filtered = useMemo(() => papers.filter((p) => {
     if (filters.authorKeyword.trim()) {
       const kw = filters.authorKeyword.toLowerCase();
       if (!p.authors.some((a) => a.toLowerCase().includes(kw))) return false;
     }
-    // Abstract keyword (client-side refinement)
     if (filters.abstractKeyword.trim()) {
       const kw = filters.abstractKeyword.toLowerCase();
       if (!p.abstract?.toLowerCase().includes(kw) && !p.title.toLowerCase().includes(kw)) return false;
     }
-    // Search in results
     if (searchInResults.trim()) {
       const q = searchInResults.toLowerCase();
       const text = `${p.title} ${p.abstract || ''} ${p.authors.join(' ')} ${p.journal || ''}`.toLowerCase();
       if (!text.includes(q)) return false;
     }
     return true;
-  });
-
-  const sorted = [...filtered].sort((a, b) => {
-    if (sortBy === "year") return (b.year || 0) - (a.year || 0);
-    if (sortBy === "citations") return (b.citationCount || 0) - (a.citationCount || 0);
-    return 0;
-  });
+  }), [papers, filters, searchInResults]);
 
   const enabledColumns = columns.filter((c) => c.enabled);
-
-  const sourceLabel = (s: string) => {
-    const labels: Record<string, string> = {
-      semantic_scholar: "Semantic Scholar",
-      pubmed: "PubMed",
-      openalex: "OpenAlex",
-      clinical_trials: "ClinicalTrials.gov",
-      europe_pmc: "Europe PMC",
-    };
-    return labels[s] || s;
-  };
 
   // Count active filters for badge
   const activeFilterCount = [
@@ -413,7 +413,7 @@ const SearchResults = () => {
   }
   if (filters.hasPdf) {
     activeFilterChips.push({
-      label: locale === "pt" ? "Open Access" : "Open Access",
+      label: "Open Access",
       onRemove: () => setFilters((p) => ({ ...p, hasPdf: false })),
     });
   }
@@ -462,8 +462,6 @@ const SearchResults = () => {
     if (query) fetchPapers(query, cleared);
   };
 
-  // sourceLabel and enabledColumns already declared above
-
   // Export PDF
   const handleExportPDF = () => {
     const colCount = enabledColumns.length + 1;
@@ -478,10 +476,10 @@ const SearchResults = () => {
     doc.setFontSize(14);
     doc.text(`${locale === "pt" ? "Pesquisa" : "Search"}: ${query}`, 14, 15);
     doc.setFontSize(9);
-    doc.text(`${sorted.length} ${locale === "pt" ? "resultados" : "results"} — ${new Date().toLocaleDateString()}`, 14, 21);
+    doc.text(`${filtered.length} ${locale === "pt" ? "resultados" : "results"} — ${new Date().toLocaleDateString()}`, 14, 21);
 
     const head = ["Paper", ...enabledColumns.map((c) => c.name)];
-    const body = sorted.map((paper, idx) => {
+    const body = filtered.map((paper, idx) => {
       const paperCell = `${paper.title}\n${paper.authors.slice(0, 2).join(", ")}${paper.authors.length > 2 ? " et al." : ""}, ${paper.year || "n.d."}`;
       const dataCells = enabledColumns.map((col) => columnData[col.name]?.[idx] || "—");
       return [paperCell, ...dataCells];
@@ -514,7 +512,7 @@ const SearchResults = () => {
       const { error } = await supabase.from("saved_searches").insert({
         user_id: user.id,
         query,
-        papers: sorted as any,
+        papers: filtered as any,
         columns: columns as any,
         column_data: columnData as any,
       });
@@ -537,30 +535,186 @@ const SearchResults = () => {
     }));
   };
 
-  // Column resize handlers
-  const handleResizeStart = useCallback((e: React.MouseEvent, colName: string) => {
-    e.preventDefault();
-    const currentWidth = columnWidths[colName] || 160;
-    resizingCol.current = { name: colName, startX: e.clientX, startW: currentWidth };
+  // --- TanStack Table setup ---
+  type RowData = { paper: Paper; originalIndex: number };
 
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!resizingCol.current) return;
-      const delta = ev.clientX - resizingCol.current.startX;
-      const newWidth = Math.max(80, resizingCol.current.startW + delta);
-      setColumnWidths((prev) => ({ ...prev, [resizingCol.current!.name]: newWidth }));
-    };
-    const onMouseUp = () => {
-      resizingCol.current = null;
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  }, [columnWidths]);
+  const tableData = useMemo<RowData[]>(
+    () => filtered.map((paper, idx) => ({ paper, originalIndex: idx })),
+    [filtered]
+  );
+
+  const columnHelper = createColumnHelper<RowData>();
+
+  const tableColumns = useMemo<TanStackColumnDef<RowData, any>[]>(() => {
+    const cols: TanStackColumnDef<RowData, any>[] = [
+      columnHelper.accessor("paper", {
+        id: "paper",
+        header: "Paper",
+        size: enabledColumns.length > 1 ? 240 : 320,
+        minSize: 180,
+        cell: ({ row }) => {
+          const paper = row.original.paper;
+          return (
+            <div className="space-y-1.5">
+              <h3 className="text-sm font-semibold leading-snug text-primary hover:underline">
+                {paper.url ? (
+                  <a href={paper.url} target="_blank" rel="noopener noreferrer">
+                    {paper.title}
+                  </a>
+                ) : (
+                  paper.title
+                )}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {paper.authors.slice(0, 3).join(", ")}
+                {paper.authors.length > 3 && ` +${paper.authors.length - 3}`}
+              </p>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <FileText className="h-3 w-3" />
+                  {paper.journal || sourceLabel(paper.source)}
+                  {paper.year && `, ${paper.year}`}
+                  {paper.citationCount != null && `, ${paper.citationCount} ${locale === "pt" ? "citações" : "citations"}`}
+                </span>
+                {paper.doi && (
+                  <a
+                    href={`https://doi.org/${paper.doi}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    ⌕ DOI
+                  </a>
+                )}
+                {paper.openAccess && (
+                  <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                    Open Access
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                  paper.source === "semantic_scholar" ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400" :
+                  paper.source === "pubmed" ? "bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400" :
+                  paper.source === "openalex" ? "bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400" :
+                  paper.source === "clinical_trials" ? "bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400" :
+                  "bg-teal-50 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400"
+                }`}>
+                  {sourceLabel(paper.source)}
+                </span>
+              </div>
+            </div>
+          );
+        },
+        sortingFn: (rowA, rowB) => {
+          return (rowA.original.paper.year || 0) - (rowB.original.paper.year || 0);
+        },
+      }),
+    ];
+
+    enabledColumns.forEach((col) => {
+      cols.push(
+        columnHelper.display({
+          id: col.name,
+          header: () => (
+            <div className="flex items-center gap-1 truncate">
+              {col.name}
+              {loadingColumns.has(col.name) && (
+                <Loader2 className="h-3 w-3 animate-spin flex-shrink-0" />
+              )}
+            </div>
+          ),
+          size: columnSizing[col.name] || 160,
+          minSize: 80,
+          cell: ({ row }) => {
+            const idx = row.original.originalIndex;
+            const isLoading = loadingColumns.has(col.name);
+            const value = columnData[col.name]?.[idx];
+            const citation = columnCitations[col.name]?.[idx];
+            const isCached = columnCacheStatus[col.name]?.[idx];
+
+            if (isLoading && !value) {
+              return (
+                <div className="space-y-2">
+                  <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+                  <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+                </div>
+              );
+            }
+
+            if (value) {
+              return (
+                <div className="space-y-1">
+                  {citation ? (
+                    <HoverCard openDelay={200}>
+                      <HoverCardTrigger asChild>
+                        <p className="text-sm leading-relaxed text-foreground/80 cursor-help border-b border-dashed border-muted-foreground/30">
+                          {value}
+                        </p>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-80 text-xs leading-relaxed" side="top">
+                        <p className="font-medium text-foreground mb-1">
+                          {locale === "pt" ? "Trecho original:" : "Source excerpt:"}
+                        </p>
+                        <p className="italic text-foreground/70">"{citation}"</p>
+                      </HoverCardContent>
+                    </HoverCard>
+                  ) : (
+                    <p className="text-sm leading-relaxed text-foreground/80">{value}</p>
+                  )}
+                  <div className="flex items-center gap-1.5">
+                    {isCached && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground" title={locale === "pt" ? "Resultado do cache (instantâneo)" : "Cached result (instant)"}>
+                        <Zap className="h-2.5 w-2.5" />
+                      </span>
+                    )}
+                    {citation && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="inline-flex items-center gap-0.5 text-[10px] text-primary hover:underline md:hidden">
+                            <Info className="h-2.5 w-2.5" />
+                            <span>{locale === "pt" ? "Fonte" : "Source"}</span>
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80 text-xs leading-relaxed text-foreground/70" side="top">
+                          <p className="font-medium text-foreground mb-1">{locale === "pt" ? "Trecho original:" : "Source excerpt:"}</p>
+                          <p className="italic">"{citation}"</p>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            return <span className="text-xs text-muted-foreground/50">—</span>;
+          },
+        })
+      );
+    });
+
+    return cols;
+  }, [enabledColumns, loadingColumns, columnData, columnCitations, columnCacheStatus, columnSizing, locale]);
+
+  const table = useReactTable({
+    data: tableData,
+    columns: tableColumns,
+    state: { sorting, columnSizing },
+    onSortingChange: setSorting,
+    onColumnSizingChange: setColumnSizing,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    columnResizeMode: "onChange",
+  });
+
+  const { rows } = table.getRowModel();
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 120,
+    overscan: 5,
+  });
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -588,14 +742,23 @@ const SearchResults = () => {
               </Button>
             </div>
 
-            {/* Toolbar — matches reference image layout */}
+            {/* Toolbar */}
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
               {/* Sort */}
               <button className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                 <ArrowUpDown className="h-3.5 w-3.5" />
                 <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  value={sorting.length > 0 ? sorting[0].id : "relevance"}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "relevance") {
+                      setSorting([]);
+                    } else if (val === "year") {
+                      setSorting([{ id: "paper", desc: true }]);
+                    } else if (val === "citations") {
+                      setSorting([{ id: "paper", desc: true }]);
+                    }
+                  }}
                   className="bg-transparent text-sm focus:outline-none cursor-pointer"
                 >
                   <option value="relevance">
@@ -672,9 +835,7 @@ const SearchResults = () => {
                   <div className="max-h-[60vh] overflow-y-auto p-4 space-y-6">
                     {/* Open Access */}
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-foreground">
-                        Open Access
-                      </span>
+                      <span className="text-sm font-medium text-foreground">Open Access</span>
                       <Switch
                         checked={filters.hasPdf}
                         onCheckedChange={(v) => setFilters((p) => ({ ...p, hasPdf: v }))}
@@ -817,7 +978,7 @@ const SearchResults = () => {
               {/* Export */}
               <button
                 onClick={handleExportPDF}
-                disabled={sorted.length === 0}
+                disabled={filtered.length === 0}
                 className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
               >
                 <Download className="h-3.5 w-3.5" />
@@ -829,7 +990,7 @@ const SearchResults = () => {
               {/* Save to library */}
               <button
                 onClick={handleSaveToLibrary}
-                disabled={savingToLibrary || sorted.length === 0}
+                disabled={savingToLibrary || filtered.length === 0}
                 className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
               >
                 {savingToLibrary ? (
@@ -883,6 +1044,7 @@ const SearchResults = () => {
                 </button>
               </div>
             )}
+
             {/* Loading */}
             {loading && (
               <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
@@ -899,145 +1061,91 @@ const SearchResults = () => {
               </div>
             )}
 
-            {/* Table */}
+            {/* Table with virtualization */}
             {!loading && !error && (
-              <div className="overflow-x-auto">
+              <div>
                 <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>{sorted.length} {locale === "pt" ? "fontes" : "sources"}</span>
+                  <span>{rows.length} {locale === "pt" ? "fontes" : "sources"}</span>
                 </div>
 
-                <table ref={tableRef} className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
-                  <colgroup>
-                    <col style={{ width: enabledColumns.length > 1 ? "240px" : "320px" }} />
-                    {enabledColumns.map((col) => (
-                      <col key={col.name} style={{ width: columnWidths[col.name] ? `${columnWidths[col.name]}px` : undefined }} />
-                    ))}
-                  </colgroup>
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="py-3 pr-3 text-left text-sm font-medium text-muted-foreground">
-                        Paper
-                      </th>
-                      {enabledColumns.map((col) => (
-                        <th
-                          key={col.name}
-                          className="relative py-3 px-3 text-left text-sm font-medium text-muted-foreground group"
-                        >
-                          <div className="flex items-center gap-1 truncate">
-                            {col.name}
-                            {loadingColumns.has(col.name) && (
-                              <Loader2 className="h-3 w-3 animate-spin flex-shrink-0" />
-                            )}
-                          </div>
-                          {/* Resize handle */}
-                          <div
-                            onMouseDown={(e) => handleResizeStart(e, col.name)}
-                            className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize opacity-0 group-hover:opacity-100 hover:bg-primary/30 transition-opacity"
-                          />
-                        </th>
+                <div
+                  ref={tableContainerRef}
+                  className="overflow-auto rounded-lg border border-border"
+                  style={{ maxHeight: "calc(100vh - 280px)" }}
+                >
+                  <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+                    <colgroup>
+                      {table.getHeaderGroups()[0]?.headers.map((header) => (
+                        <col
+                          key={header.id}
+                          style={{ width: header.getSize() }}
+                        />
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.map((paper, idx) => (
-                      <tr key={paper.id} className="border-b border-border/50 hover:bg-muted/30">
-                        <td className="py-4 pr-3 align-top">
-                          <div className="space-y-1.5">
-                            <h3 className="text-sm font-semibold leading-snug text-primary hover:underline">
-                              {paper.url ? (
-                                <a href={paper.url} target="_blank" rel="noopener noreferrer">
-                                  {paper.title}
-                                </a>
-                              ) : (
-                                paper.title
-                              )}
-                            </h3>
-                            <p className="text-xs text-muted-foreground">
-                              {paper.authors.slice(0, 3).join(", ")}
-                              {paper.authors.length > 3 && ` +${paper.authors.length - 3}`}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <FileText className="h-3 w-3" />
-                                {paper.journal || sourceLabel(paper.source)}
-                                {paper.year && `, ${paper.year}`}
-                                {paper.citationCount != null && `, ${paper.citationCount} ${locale === "pt" ? "citações" : "citations"}`}
-                              </span>
-                              {paper.doi && (
-                                <a
-                                  href={`https://doi.org/${paper.doi}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-primary hover:underline"
-                                >
-                                  ⌕ DOI
-                                </a>
-                              )}
-                              {paper.openAccess && (
-                                <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                  Open Access
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs">
-                              <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                                paper.source === "semantic_scholar" ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400" :
-                                paper.source === "pubmed" ? "bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400" :
-                                paper.source === "openalex" ? "bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400" :
-                                paper.source === "clinical_trials" ? "bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400" :
-                                "bg-teal-50 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400"
-                              }`}>
-                                {sourceLabel(paper.source)}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
+                    </colgroup>
+                    <thead className="sticky top-0 z-10 bg-card">
+                      {table.getHeaderGroups().map((headerGroup) => (
+                        <tr key={headerGroup.id} className="border-b border-border">
+                          {headerGroup.headers.map((header) => (
+                            <th
+                              key={header.id}
+                              className="relative py-3 px-3 text-left text-sm font-medium text-muted-foreground group"
+                              style={{ width: header.getSize() }}
+                            >
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(header.column.columnDef.header, header.getContext())}
+                              {/* Resize handle */}
+                              <div
+                                onMouseDown={header.getResizeHandler()}
+                                onTouchStart={header.getResizeHandler()}
+                                className={`absolute right-0 top-0 h-full w-1.5 cursor-col-resize opacity-0 group-hover:opacity-100 hover:bg-primary/30 transition-opacity ${
+                                  header.column.getIsResizing() ? "bg-primary/50 opacity-100" : ""
+                                }`}
+                              />
+                            </th>
+                          ))}
+                        </tr>
+                      ))}
+                    </thead>
+                    <tbody
+                      style={{
+                        height: `${rowVirtualizer.getTotalSize()}px`,
+                        position: "relative",
+                      }}
+                    >
+                      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const row = rows[virtualRow.index];
+                        return (
+                          <tr
+                            key={row.id}
+                            data-index={virtualRow.index}
+                            ref={(node) => rowVirtualizer.measureElement(node)}
+                            className="border-b border-border/50 hover:bg-muted/30"
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              left: 0,
+                              width: "100%",
+                              transform: `translateY(${virtualRow.start}px)`,
+                            }}
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <td
+                                key={cell.id}
+                                className="px-3 py-4 align-top"
+                                style={{ width: cell.column.getSize() }}
+                              >
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                        {enabledColumns.map((col) => (
-                          <td key={col.name} className="px-3 py-4 align-top">
-                            {loadingColumns.has(col.name) ? (
-                              <div className="space-y-2">
-                                <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
-                                <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
-                              </div>
-                            ) : columnData[col.name]?.[idx] ? (
-                              <div className="space-y-1">
-                                <p className="text-sm leading-relaxed text-foreground/80">
-                                  {columnData[col.name][idx]}
-                                </p>
-                                <div className="flex items-center gap-1.5">
-                                  {columnCacheStatus[col.name]?.[idx] && (
-                                    <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground" title={locale === "pt" ? "Resultado do cache (instantâneo)" : "Cached result (instant)"}>
-                                      <Zap className="h-2.5 w-2.5" />
-                                    </span>
-                                  )}
-                                  {columnCitations[col.name]?.[idx] && (
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <button className="inline-flex items-center gap-0.5 text-[10px] text-primary hover:underline">
-                                          <Info className="h-2.5 w-2.5" />
-                                          <span>{locale === "pt" ? "Fonte" : "Source"}</span>
-                                        </button>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="w-80 text-xs leading-relaxed text-foreground/70" side="top">
-                                        <p className="font-medium text-foreground mb-1">{locale === "pt" ? "Trecho original:" : "Source excerpt:"}</p>
-                                        <p className="italic">"{columnCitations[col.name][idx]}"</p>
-                                      </PopoverContent>
-                                    </Popover>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground/50">—</span>
-                            )}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {sorted.length === 0 && (
+                {rows.length === 0 && (
                   <div className="py-12 text-center text-muted-foreground">
                     <Search className="mx-auto h-10 w-10 opacity-30" />
                     <p className="mt-3">{t("search.noResults")}</p>
