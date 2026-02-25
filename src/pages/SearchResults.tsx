@@ -21,6 +21,9 @@ import {
   BookmarkPlus,
   X,
   Check,
+  Info,
+  Zap,
+  Database,
 } from "lucide-react";
 import {
   Popover,
@@ -86,8 +89,11 @@ const SearchResults = () => {
     { name: "Summary", enabled: true },
   ]);
   const [columnData, setColumnData] = useState<Record<string, Record<number, string>>>({});
+  const [columnCitations, setColumnCitations] = useState<Record<string, Record<number, string>>>({});
+  const [columnCacheStatus, setColumnCacheStatus] = useState<Record<string, Record<number, boolean>>>({});
   const [loadingColumns, setLoadingColumns] = useState<Set<string>>(new Set());
   const [showPanel, setShowPanel] = useState(true);
+  const [embeddingStatus, setEmbeddingStatus] = useState<'idle' | 'processing' | 'done'>('idle');
 
   // Sorting & filters
   const [sortBy, setSortBy] = useState<string>("relevance");
@@ -145,8 +151,36 @@ const SearchResults = () => {
     if (papers.length > 0) {
       const enabledCols = columns.filter((c) => c.enabled && !columnData[c.name]);
       enabledCols.forEach((col) => extractColumnData(col.name, col.prompt));
+      // Trigger background embedding generation
+      triggerEmbeddings(papers);
     }
   }, [papers]);
+
+  const triggerEmbeddings = async (papersToEmbed: Paper[]) => {
+    if (embeddingStatus !== 'idle') return;
+    setEmbeddingStatus('processing');
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/embed-papers`;
+      await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          papers: papersToEmbed.map((p) => ({
+            id: p.id,
+            title: p.title,
+            abstract: p.abstract,
+          })),
+        }),
+      });
+      setEmbeddingStatus('done');
+    } catch (err) {
+      console.error('Embedding trigger failed:', err);
+      setEmbeddingStatus('idle');
+    }
+  };
 
   const fetchPapers = async (q: string) => {
     setLoading(true);
@@ -188,6 +222,7 @@ const SearchResults = () => {
         body: JSON.stringify({
           query,
           papers: papers.map((p) => ({
+            id: p.id,
             title: p.title,
             authors: p.authors,
             year: p.year,
@@ -201,10 +236,16 @@ const SearchResults = () => {
       if (!resp.ok) throw new Error("Extraction failed");
       const data = await resp.json();
       const extracted: Record<number, string> = {};
-      (data.extractions || []).forEach((e: { paper_index: number; value: string }) => {
+      const citations: Record<number, string> = {};
+      const cacheStatus: Record<number, boolean> = {};
+      (data.extractions || []).forEach((e: { paper_index: number; value: string; citation_context?: string; from_cache?: boolean }) => {
         extracted[e.paper_index] = e.value;
+        if (e.citation_context) citations[e.paper_index] = e.citation_context;
+        if (e.from_cache) cacheStatus[e.paper_index] = true;
       });
       setColumnData((prev) => ({ ...prev, [columnName]: extracted }));
+      setColumnCitations((prev) => ({ ...prev, [columnName]: citations }));
+      setColumnCacheStatus((prev) => ({ ...prev, [columnName]: cacheStatus }));
     } catch (err) {
       console.error(`Failed to extract column ${columnName}:`, err);
     } finally {
@@ -684,9 +725,32 @@ const SearchResults = () => {
                                 <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
                               </div>
                             ) : columnData[col.name]?.[idx] ? (
-                              <p className="text-sm leading-relaxed text-foreground/80">
-                                {columnData[col.name][idx]}
-                              </p>
+                              <div className="space-y-1">
+                                <p className="text-sm leading-relaxed text-foreground/80">
+                                  {columnData[col.name][idx]}
+                                </p>
+                                <div className="flex items-center gap-1.5">
+                                  {columnCacheStatus[col.name]?.[idx] && (
+                                    <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground" title={locale === "pt" ? "Resultado do cache (instantâneo)" : "Cached result (instant)"}>
+                                      <Zap className="h-2.5 w-2.5" />
+                                    </span>
+                                  )}
+                                  {columnCitations[col.name]?.[idx] && (
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <button className="inline-flex items-center gap-0.5 text-[10px] text-primary hover:underline">
+                                          <Info className="h-2.5 w-2.5" />
+                                          <span>{locale === "pt" ? "Fonte" : "Source"}</span>
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-80 text-xs leading-relaxed text-foreground/70" side="top">
+                                        <p className="font-medium text-foreground mb-1">{locale === "pt" ? "Trecho original:" : "Source excerpt:"}</p>
+                                        <p className="italic">"{columnCitations[col.name][idx]}"</p>
+                                      </PopoverContent>
+                                    </Popover>
+                                  )}
+                                </div>
+                              </div>
                             ) : (
                               <span className="text-xs text-muted-foreground/50">—</span>
                             )}
