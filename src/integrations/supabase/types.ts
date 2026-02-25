@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      extraction_cache: {
+        Row: {
+          citation_context: string | null
+          column_name: string
+          column_prompt: string | null
+          created_at: string | null
+          extracted_value: string
+          id: string
+          paper_id: string
+        }
+        Insert: {
+          citation_context?: string | null
+          column_name: string
+          column_prompt?: string | null
+          created_at?: string | null
+          extracted_value: string
+          id?: string
+          paper_id: string
+        }
+        Update: {
+          citation_context?: string | null
+          column_name?: string
+          column_prompt?: string | null
+          created_at?: string | null
+          extracted_value?: string
+          id?: string
+          paper_id?: string
+        }
+        Relationships: []
+      }
+      paper_chunks: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          created_at: string | null
+          embedding: string | null
+          id: string
+          paper_id: string
+          paper_title: string
+          source: string | null
+        }
+        Insert: {
+          chunk_index: number
+          chunk_text: string
+          created_at?: string | null
+          embedding?: string | null
+          id?: string
+          paper_id: string
+          paper_title: string
+          source?: string | null
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          created_at?: string | null
+          embedding?: string | null
+          id?: string
+          paper_id?: string
+          paper_title?: string
+          source?: string | null
+        }
+        Relationships: []
+      }
       saved_searches: {
         Row: {
           column_data: Json
@@ -118,6 +181,23 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      match_paper_chunks: {
+        Args: {
+          filter_paper_id?: string
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_index: number
+          chunk_text: string
+          id: string
+          paper_id: string
+          paper_title: string
+          similarity: number
+          source: string
+        }[]
       }
     }
     Enums: {
