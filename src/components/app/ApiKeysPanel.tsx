@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Key, Eye, EyeOff, Trash2, ExternalLink, Loader2 } from "lucide-react";
+import { Key, Eye, EyeOff, Trash2, ExternalLink, Loader2, CheckCircle2, Circle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 interface ApiKey {
@@ -180,6 +181,17 @@ export default function ApiKeysPanel() {
                   <span className="font-medium text-foreground">
                     {provider.label}
                   </span>
+                  {existingKey ? (
+                    <Badge variant="outline" className="gap-1 border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400 text-xs font-normal">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {locale === "pt" ? "Configurada" : "Configured"}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="gap-1 border-border text-muted-foreground text-xs font-normal">
+                      <Circle className="h-3 w-3" />
+                      {locale === "pt" ? "Não configurada" : "Not configured"}
+                    </Badge>
+                  )}
                 </div>
                 <a
                   href={provider.url}
