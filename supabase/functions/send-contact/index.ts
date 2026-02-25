@@ -36,8 +36,8 @@ serve(async (req) => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "ScholarAI Contact <onboarding@resend.dev>",
-        to: ["contato@scholarai.com"],
+        from: "ScholarAI Contact <contato@tbl.posologia.app>",
+        to: ["sergio.araujo@ufrn.br"],
         subject: `[Contato] ${subject || "Nova mensagem"}`,
         html: `
           <h2>Nova mensagem de contato</h2>
