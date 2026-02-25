@@ -2,21 +2,27 @@ import { useState, useEffect, useRef } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Circle, Loader2 } from "lucide-react";
 
+interface MissingElement {
+  label: string;
+  rewritten_question: string;
+}
+
 interface Evaluation {
   quality: "good" | "fair" | "poor";
   message: string;
-  missing_elements: string[];
+  missing_elements: MissingElement[];
   suggested_columns: { name: string; description: string }[];
 }
 
 interface QuestionEvaluatorProps {
   question: string;
   onEvaluation?: (evaluation: Evaluation | null) => void;
+  onRewrite?: (newQuestion: string) => void;
 }
 
 const EVALUATE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/evaluate-question`;
 
-const QuestionEvaluator = ({ question, onEvaluation }: QuestionEvaluatorProps) => {
+const QuestionEvaluator = ({ question, onEvaluation, onRewrite }: QuestionEvaluatorProps) => {
   const { locale } = useLanguage();
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [loading, setLoading] = useState(false);
@@ -97,12 +103,14 @@ const QuestionEvaluator = ({ question, onEvaluation }: QuestionEvaluatorProps) =
       {evaluation.missing_elements.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {evaluation.missing_elements.map((el, i) => (
-            <span
+            <button
               key={i}
-              className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-muted-foreground"
+              onClick={() => onRewrite?.(el.rewritten_question)}
+              className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground hover:bg-primary/5 transition-colors cursor-pointer"
+              title={el.rewritten_question}
             >
-              {el}
-            </span>
+              {el.label}
+            </button>
           ))}
         </div>
       )}
