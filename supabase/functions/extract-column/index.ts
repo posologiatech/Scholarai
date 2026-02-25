@@ -45,8 +45,39 @@ Deno.serve(async (req) => {
       cacheMap.set(r.paper_id, { value: r.extracted_value, citation: r.citation_context });
     });
 
-    const buildSystemPrompt = (lc: string, cp?: string) => lc === 'pt'
-      ? `Você é um assistente de pesquisa científica altamente preciso e rigoroso.
+    // Detect if the column is a synthesis/summary type vs factual extraction
+    const summaryKeywords = ['summary', 'resumo', 'overview', 'visão geral', 'síntese', 'synopsis'];
+    const isSynthesisColumn = summaryKeywords.some(k => column_name.toLowerCase().includes(k));
+
+    const buildSystemPrompt = (lc: string, cp?: string) => {
+      if (isSynthesisColumn) {
+        return lc === 'pt'
+          ? `Você é um assistente de pesquisa científica preciso.
+Sua tarefa é ler o texto de artigos científicos e gerar um breve resumo do conteúdo principal.
+
+[REGRAS]
+1. Baseie seu resumo APENAS no texto fornecido. NÃO use conhecimento externo.
+2. Seja conciso (2-4 frases por paper). Capture o objetivo, método principal e conclusão.
+3. Se o texto estiver vazio ou indisponível, retorne "Sem texto disponível".
+4. Use o campo citation_context para incluir a frase mais representativa do texto.
+5. Responda APENAS usando a função fornecida.
+
+${cp ? `INSTRUÇÃO ESPECÍFICA DO USUÁRIO: ${cp}` : ''}`
+          : `You are a precise scientific research assistant.
+Your task is to read the text of scientific papers and generate a brief summary of their main content.
+
+[RULES]
+1. Base your summary ONLY on the provided text. Do NOT use external knowledge.
+2. Be concise (2-4 sentences per paper). Capture the objective, main method, and conclusion.
+3. If the text is empty or unavailable, return "No text available".
+4. Use the citation_context field to include the most representative sentence from the text.
+5. Respond ONLY using the provided function.
+
+${cp ? `USER SPECIFIC INSTRUCTION: ${cp}` : ''}`;
+      }
+
+      return lc === 'pt'
+        ? `Você é um assistente de pesquisa científica altamente preciso e rigoroso.
 Sua tarefa é ler o texto de artigos científicos e extrair uma informação específica solicitada pelo usuário.
 
 [REGRAS E RESTRIÇÕES]
@@ -57,7 +88,7 @@ Sua tarefa é ler o texto de artigos científicos e extrair uma informação esp
 5. Responda APENAS usando a função fornecida.
 
 ${cp ? `INSTRUÇÃO ESPECÍFICA DO USUÁRIO: ${cp}` : ''}`
-      : `You are a highly precise and rigorous scientific research assistant.
+        : `You are a highly precise and rigorous scientific research assistant.
 Your task is to read the text of scientific papers and extract specific information requested by the user.
 
 [RULES AND CONSTRAINTS]
@@ -68,6 +99,7 @@ Your task is to read the text of scientific papers and extract specific informat
 5. Respond ONLY using the provided function.
 
 ${cp ? `USER SPECIFIC INSTRUCTION: ${cp}` : ''}`;
+    };
 
     const toolsDef = [{
       type: 'function' as const,
