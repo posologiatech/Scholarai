@@ -1053,7 +1053,24 @@ const SearchResults = () => {
             {loading && (
               <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="mt-3 text-sm">{t("search.loading")}</p>
+                <p className="mt-3 text-sm font-medium">{t("search.loading")}</p>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                  {["Semantic Scholar", "PubMed", "OpenAlex", "Europe PMC"].map((source, i) => (
+                    <span
+                      key={source}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground animate-pulse"
+                      style={{ animationDelay: `${i * 200}ms` }}
+                    >
+                      <Database className="h-3 w-3" />
+                      {source}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground/60">
+                  {locale === "pt"
+                    ? "Consultando múltiplas bases de dados científicas..."
+                    : "Querying multiple scientific databases..."}
+                </p>
               </div>
             )}
 
@@ -1070,6 +1087,14 @@ const SearchResults = () => {
               <div>
                 <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
                   <span>{rows.length} {locale === "pt" ? "fontes" : "sources"}</span>
+                  {loadingColumns.size > 0 && (
+                    <span className="ml-2 inline-flex items-center gap-1.5 text-xs text-primary">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      {locale === "pt"
+                        ? `Extraindo coluna: ${Array.from(loadingColumns).join(", ")}`
+                        : `Extracting column: ${Array.from(loadingColumns).join(", ")}`}
+                    </span>
+                  )}
                 </div>
 
                 <div

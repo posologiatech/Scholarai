@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Upload, FileText, Loader2, Trash2, Plus, Sparkles, X,
-  CheckCircle2, AlertCircle, Table,
+  CheckCircle2, AlertCircle, Table, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -300,6 +300,58 @@ const Extraction = () => {
             onChange={(e) => handleUpload(e.target.files)}
           />
         </div>
+
+        {/* Wizard stepper */}
+        {(() => {
+          const hasPapers = papers.length > 0;
+          const hasQuery = extractionQuery.trim().length > 0;
+          const hasColumns = columns.length > 0;
+          const hasExtracted = papers.some((p) => p.status === "ready");
+          const currentStep = hasExtracted ? 4 : hasColumns ? 3 : hasQuery ? 2 : hasPapers ? 1 : 0;
+
+          const steps = [
+            { label: locale === "pt" ? "Upload PDFs" : "Upload PDFs", done: hasPapers },
+            { label: locale === "pt" ? "Pergunta" : "Question", done: hasQuery },
+            { label: locale === "pt" ? "Colunas" : "Columns", done: hasColumns },
+            { label: locale === "pt" ? "Extrair" : "Extract", done: hasExtracted },
+          ];
+
+          return (
+            <div className="mb-6 flex items-center justify-center gap-0">
+              {steps.map((step, i) => {
+                const isActive = i === currentStep;
+                const isDone = i < currentStep || step.done;
+                return (
+                  <div key={i} className="flex items-center">
+                    {i > 0 && (
+                      <div className={`h-px w-8 sm:w-12 ${isDone ? "bg-primary" : "bg-border"}`} />
+                    )}
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div
+                        className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
+                          isDone
+                            ? "bg-primary text-primary-foreground"
+                            : isActive
+                            ? "border-2 border-primary text-primary bg-primary/10"
+                            : "border border-border text-muted-foreground bg-muted"
+                        }`}
+                      >
+                        {isDone ? <Check className="h-4 w-4" /> : i + 1}
+                      </div>
+                      <span
+                        className={`text-[11px] font-medium ${
+                          isDone || isActive ? "text-foreground" : "text-muted-foreground"
+                        }`}
+                      >
+                        {step.label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Research question + extraction controls */}
         <div className="mb-6 space-y-4 rounded-xl border border-border bg-card p-4">
