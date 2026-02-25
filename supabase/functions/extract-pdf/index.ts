@@ -6,6 +6,67 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Split text into chunks of ~500 tokens (~2000 chars)
+function chunkText(text: string, maxChars = 2000): string[] {
+  if (!text || text.length <= maxChars) return [text].filter(Boolean);
+  const sentences = text.match(/[^.!?]+[.!?]+\s*/g) || [text];
+  const chunks: string[] = [];
+  let current = '';
+  for (const sentence of sentences) {
+    if ((current + sentence).length > maxChars && current.length > 0) {
+      chunks.push(current.trim());
+      current = sentence;
+    } else {
+      current += sentence;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+async function generateAndSaveEmbeddings(
+  paperId: string,
+  paperTitle: string,
+  text: string,
+  apiKey: string,
+  supabase: any
+) {
+  const chunks = chunkText(text);
+
+  for (let i = 0; i < chunks.length; i++) {
+    // Generate embedding via Lovable AI Gateway
+    const embResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/text-embedding-004',
+        input: chunks[i].slice(0, 8000),
+      }),
+    });
+
+    if (!embResponse.ok) {
+      console.error(`Embedding error for chunk ${i}:`, embResponse.status);
+      continue;
+    }
+
+    const embData = await embResponse.json();
+    const embedding = embData.data?.[0]?.embedding;
+    if (!embedding) continue;
+
+    await supabase.from('paper_chunks').insert({
+      paper_id: paperId,
+      paper_title: paperTitle,
+      chunk_index: i,
+      chunk_text: chunks[i],
+      embedding: embedding,
+      source: 'full_text',
+    });
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -151,6 +212,32 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq("id", paper_id);
+
+      // Generate embeddings in background for the extracted text
+      try {
+        await generateAndSaveEmbeddings(paper_id, extractedTitle, textContent, LOVABLE_API_KEY, supabase);
+        console.log(`Embeddings generated for paper ${paper_id}`);
+      } catch (embErr) {
+        console.error(`Embedding generation failed for paper ${paper_id}:`, embErr);
+        // Non-blocking: extraction still succeeds even if embeddings fail
+      }
+    } else {
+      // Text already exists — check if embeddings exist, generate if not
+      const { data: existingChunks } = await supabase
+        .from('paper_chunks')
+        .select('id')
+        .eq('paper_id', paper_id)
+        .limit(1);
+
+      if (!existingChunks || existingChunks.length === 0) {
+        try {
+          const title = paper.title || paper.file_name.replace(/\.pdf$/i, "");
+          await generateAndSaveEmbeddings(paper_id, title, textContent, LOVABLE_API_KEY, supabase);
+          console.log(`Embeddings generated (existing text) for paper ${paper_id}`);
+        } catch (embErr) {
+          console.error(`Embedding generation failed for paper ${paper_id}:`, embErr);
+        }
+      }
     }
 
     // If columns are provided, extract structured data
