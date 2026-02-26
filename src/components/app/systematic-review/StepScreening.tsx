@@ -116,8 +116,8 @@ const StepScreening = ({
     }
     setScreening(true);
     try {
-      // Screen a sample of papers (first 50 unscreened)
-      const unscreened = papers.filter((p) => !screeningResults[p.id]).slice(0, 50);
+      // Screen a sample of papers (first 20 unscreened)
+      const unscreened = papers.filter((p) => !screeningResults[p.id]).slice(0, 20);
       if (unscreened.length === 0) {
         toast.info(locale === "pt" ? "Todos os artigos já foram triados" : "All papers already screened");
         setScreening(false);
@@ -135,7 +135,9 @@ const StepScreening = ({
 
       const newResults = { ...screeningResults };
       for (const result of data?.results || []) {
-        newResults[result.paperId] = result;
+        if (result.paperId) {
+          newResults[result.paperId] = result;
+        }
       }
       onScreeningResultsChange(newResults);
 
@@ -145,12 +147,14 @@ const StepScreening = ({
         .map(([id]) => id);
       onIncludedPaperIdsChange(included);
 
+      const screenedNow = (data?.results || []).filter((r: any) => r.paperId).length;
       toast.success(
         locale === "pt"
-          ? `${unscreened.length} artigos triados`
-          : `${unscreened.length} papers screened`
+          ? `${screenedNow} artigos triados`
+          : `${screenedNow} papers screened`
       );
     } catch (err: any) {
+      console.error("Screening error:", err);
       toast.error(err.message || "Screening failed");
     } finally {
       setScreening(false);
