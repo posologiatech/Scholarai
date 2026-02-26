@@ -143,7 +143,7 @@ const StepScreening = ({
 
       // Auto-update included papers
       const included = Object.entries(newResults)
-        .filter(([_, r]) => (r.overridden ? r.overriddenTo === "include" : r.recommendation === "include"))
+        .filter(([_, r]) => (r.overridden ? r.overriddenTo === "include" : r.recommendation === "include" || r.recommendation === "maybe"))
         .map(([id]) => id);
       onIncludedPaperIdsChange(included);
 
@@ -190,7 +190,7 @@ const StepScreening = ({
         onScreeningResultsChange({ ...newResults });
       }
       const included = Object.entries(newResults)
-        .filter(([_, r]) => (r.overridden ? r.overriddenTo === "include" : r.recommendation === "include"))
+        .filter(([_, r]) => (r.overridden ? r.overriddenTo === "include" : r.recommendation === "include" || r.recommendation === "maybe"))
         .map(([id]) => id);
       onIncludedPaperIdsChange(included);
       toast.success(locale === "pt" ? "Triagem completa!" : "Screening complete!");
@@ -219,7 +219,7 @@ const StepScreening = ({
     }
     onScreeningResultsChange(newResults);
     const included = Object.entries(newResults)
-      .filter(([_, r]) => (r.overridden ? r.overriddenTo === "include" : r.recommendation === "include"))
+      .filter(([_, r]) => (r.overridden ? r.overriddenTo === "include" : r.recommendation === "include" || r.recommendation === "maybe"))
       .map(([id]) => id);
     onIncludedPaperIdsChange(included);
   };
