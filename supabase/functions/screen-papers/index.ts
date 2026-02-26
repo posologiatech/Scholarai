@@ -1,0 +1,92 @@
+import { callAI } from "../_shared/ai-caller.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { question, papers, criteria } = await req.json();
+
+    if (!question || !papers?.length || !criteria?.length) {
+      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const results = [];
+
+    // Process papers in batches of 5 for efficiency
+    for (let i = 0; i < papers.length; i += 5) {
+      const batch = papers.slice(i, i + 5);
+
+      const criteriaDesc = criteria
+        .map((c: any) => `- ${c.id} (${c.name}): ${c.description}`)
+        .join("\n");
+
+      const papersDesc = batch
+        .map((p: any, idx: number) => `Paper ${idx + 1} [ID: ${p.id}]:\nTitle: ${p.title}\nAbstract: ${p.abstract || "No abstract available"}`)
+        .join("\n\n");
+
+      const systemPrompt = `You are a systematic review screening assistant. Evaluate each paper against the given screening criteria based on the research question.
+
+For each paper, provide:
+1. An assessment for each criterion: "yes", "no", or "maybe" with a brief explanation
+2. An overall inclusion score from 0.0 to 1.0
+3. A recommendation: "include", "exclude", or "maybe"
+
+Return a JSON array where each element has:
+{
+  "paperId": "the paper ID",
+  "criteria": { "criterion_id": { "answer": "yes|no|maybe", "explanation": "brief reason" } },
+  "inclusionScore": 0.0-1.0,
+  "recommendation": "include|exclude|maybe"
+}`;
+
+      const response = await callAI({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: `Research question: "${question}"
+
+Screening criteria:
+${criteriaDesc}
+
+Papers to evaluate:
+${papersDesc}
+
+Return the evaluation as a JSON array.`,
+          },
+        ],
+        temperature: 0.2,
+      });
+
+      const data = await response.json();
+      const text = data.choices?.[0]?.message?.content || "[]";
+
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const batchResults = JSON.parse(jsonMatch[0]);
+        results.push(...batchResults);
+      }
+    }
+
+    return new Response(JSON.stringify({ results }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Error screening papers:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
