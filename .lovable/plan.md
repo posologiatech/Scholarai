@@ -1,44 +1,38 @@
 
+## Problema
 
-## Problema Identificado
+A extração retorna "Não mencionado" para a maioria dos campos porque:
 
-A triagem esta excluindo a maioria dos artigos por dois motivos principais:
+1. **Papers não são incorporados (embedded)**: O fluxo de revisão sistemática nunca chama `embed-papers` antes da extração. A busca semântica (`match_paper_chunks`) não encontra nada, então a IA só vê o abstract.
+2. **Abstracts curtos ou ausentes**: Muitos papers têm abstracts vagos que não contêm dados específicos como tamanho de amostra, tipo de estudo, etc.
+3. **Prompt muito rigoroso**: O prompt atual exige que a informação esteja EXPLÍCITA no texto. Se não está, retorna "Não mencionado" -- mas para abstracts, quase nunca estará explícita.
 
-1. **Artigos sem abstract**: Muitos artigos coletados das APIs nao possuem abstract. Quando o abstract esta vazio ("No abstract available"), a IA nao consegue avaliar os criterios e marca tudo como "no", resultando em exclusao automatica.
+## Solução
 
-2. **Prompt de triagem muito rigoroso**: O prompt atual trata a falta de informacao como motivo de exclusao. Em revisoes sistematicas, a triagem inicial deve ser **inclusiva** -- na duvida, o artigo deve ser incluido (principio da sensibilidade sobre especificidade).
+### 1. Incorporar (embed) os papers antes da extração
 
-3. **Criterios gerados muito restritivos**: Os criterios auto-gerados podem ser muito especificos, causando exclusoes desnecessarias.
+Adicionar uma etapa automática no `StepExtraction.tsx` que chama `embed-papers` para todos os artigos incluídos antes de executar a extração. Isso alimenta a tabela `paper_chunks` para que a busca semântica funcione.
 
-## Solucao Proposta
+### 2. Adaptar o prompt de extração para abstracts
 
-### 1. Melhorar o prompt de triagem (`screen-papers/index.ts`)
+Modificar o prompt em `extract-column/index.ts` para:
+- Quando só houver abstract disponível, instruir a IA a **inferir** informações razoáveis do contexto do abstract em vez de exigir menção explícita
+- Permitir respostas como "Ensaio clínico randomizado (inferido do abstract)" em vez de "Não mencionado"
+- Manter "Não mencionado" apenas quando realmente não há NENHUMA pista no texto
 
-- Instruir a IA a seguir o principio de **inclusao na duvida**: se o abstract nao contem informacao suficiente para excluir, a resposta deve ser "maybe" ou "yes", nunca "no"
-- Artigos sem abstract devem automaticamente receber recomendacao "maybe" (nao "exclude")
-- Ajustar o limiar: so excluir quando o artigo e **claramente** irrelevante para a pergunta de pesquisa
+### 3. Enriquecer o contexto enviado à IA
 
-### 2. Tratar "maybe" como inclusao no frontend (`StepScreening.tsx`)
+Modificar `buildPaperSummary` em `extract-column/index.ts` para incluir todos os metadados disponíveis (autores completos, journal, DOI, ano) no texto enviado à IA, pois esses dados podem ajudar a inferir tipo de estudo, população, etc.
 
-- Atualmente so artigos com `recommendation === "include"` sao incluidos
-- Mudar para incluir tanto "include" quanto "maybe" na contagem de artigos incluidos
-- Isso segue a pratica padrao de revisoes sistematicas onde artigos duvidosos passam para a fase seguinte
+## Detalhes Técnicos
 
-### 3. Melhorar os criterios gerados (`generate-screening-criteria/index.ts`)
+### `src/components/app/systematic-review/StepExtraction.tsx`
+- Adicionar função `embedPapers()` que chama `embed-papers` com os artigos incluídos
+- Chamar `embedPapers()` automaticamente ao montar o componente (antes da extração) ou como primeiro passo do `runExtraction()`
+- Mostrar indicador de progresso "Preparando artigos..." durante o embedding
 
-- Ajustar o prompt para gerar criterios mais amplos e com foco em relevancia tematica geral
-- Reduzir de 5-8 para 3-5 criterios para evitar exclusoes multiplas
-
-## Detalhes Tecnicos
-
-**`supabase/functions/screen-papers/index.ts`**: Reescrever o system prompt para:
-- Explicitar que a triagem deve ser inclusiva (sensibilidade > especificidade)
-- Artigos sem abstract devem receber score >= 0.5 e recomendacao "maybe"
-- So excluir quando o titulo claramente indica irrelevancia total
-
-**`src/components/app/systematic-review/StepScreening.tsx`**: Alterar a logica de inclusao (linhas 145-148 e 192-195) para incluir artigos com recomendacao "include" OU "maybe".
-
-**`supabase/functions/generate-screening-criteria/index.ts`**: Reduzir criterios para 3-5 e instruir que sejam amplos.
-
-Ambas as edge functions serao reimplantadas apos as alteracoes.
-
+### `supabase/functions/extract-column/index.ts`
+- Alterar `buildSystemPrompt` para a extração factual: permitir inferência quando só abstract está disponível, distinguindo entre "extraído diretamente" e "inferido do contexto"
+- Alterar `buildPaperSummary` para incluir metadados extras: journal, DOI, lista completa de autores
+- Reduzir `match_threshold` de 0.3 para 0.2 na busca semântica para capturar mais contexto relevante
+- Reimplantar a edge function após alterações
