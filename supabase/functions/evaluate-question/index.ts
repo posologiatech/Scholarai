@@ -46,8 +46,8 @@ Deno.serve(async (req) => {
                   items: {
                     type: 'object',
                     properties: {
-                      label: { type: 'string' },
-                      rewritten_question: { type: 'string' },
+                      label: { type: 'string', description: locale === 'pt' ? 'Nome curto do elemento faltante (ex: População, Intervenção, Comparação, Desfecho, Tempo)' : 'Short name of the missing element (e.g. Population, Intervention, Comparison, Outcome, Time)' },
+                      rewritten_question: { type: 'string', description: locale === 'pt' ? 'A pergunta original COMPLETA reescrita incorporando este elemento faltante de forma natural. NÃO escreva orientações ou instruções — escreva a pergunta final melhorada pronta para uso.' : 'The COMPLETE original question rewritten naturally incorporating this missing element. Do NOT write guidance or instructions — write the final improved question ready to use.' },
                     },
                     required: ['label', 'rewritten_question'],
                     additionalProperties: false,
