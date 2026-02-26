@@ -33,10 +33,9 @@ const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev }: St
     if (!question.trim()) return;
     setSearching(true);
     try {
-      // Divide limit by number of sources (5) so user gets roughly the selected total
-      const perSourceLimit = Math.ceil(searchCount / 5);
+      // Use the selected total limit; backend handles source balancing and caps final total
       const { data, error } = await supabase.functions.invoke("search-papers", {
-        body: { query: question, limit: perSourceLimit },
+        body: { query: question, limit: searchCount },
       });
       if (error) throw error;
       const results: Paper[] = (data?.papers || data?.results || []).map((p: any) => ({

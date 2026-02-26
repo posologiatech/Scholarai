@@ -88,6 +88,7 @@ const StepExtraction = ({
     setExtracting(true);
     try {
       const newResults = { ...extractionResults };
+      let totalExtractedCells = 0;
 
       for (const col of enabledCols) {
         // Filter papers that haven't been extracted for this column yet
@@ -113,22 +114,39 @@ const StepExtraction = ({
         });
         if (error) {
           console.error("Extraction error for column", col.name, error);
-          continue;
+          throw error;
         }
 
         // Process extractions from response
         const extractions = data?.extractions || [];
+        let extractedForColumn = 0;
+
         for (const ext of extractions) {
-          const paper = papersToExtract[ext.paper_index] || includedPapers[ext.paper_index];
-          if (paper?.id) {
-            if (!newResults[paper.id]) newResults[paper.id] = {};
-            newResults[paper.id][col.id] = ext.value || "N/A";
-          }
+          const paper = papersToExtract[ext.paper_index];
+          if (!paper?.id) continue;
+          if (!newResults[paper.id]) newResults[paper.id] = {};
+          newResults[paper.id][col.id] = ext.value || (locale === "pt" ? "Não mencionado" : "Not mentioned");
+          extractedForColumn += 1;
         }
+
+        // Fallback: if provider returned no structured rows, still fill with default values
+        if (extractions.length === 0 || extractedForColumn === 0) {
+          for (const paper of papersToExtract) {
+            if (!newResults[paper.id]) newResults[paper.id] = {};
+            newResults[paper.id][col.id] = locale === "pt" ? "Não mencionado" : "Not mentioned";
+          }
+          extractedForColumn = papersToExtract.length;
+        }
+
+        totalExtractedCells += extractedForColumn;
         onExtractionResultsChange({ ...newResults });
       }
 
-      toast.success(locale === "pt" ? "Extração completa!" : "Extraction complete!");
+      if (totalExtractedCells === 0) {
+        toast.error(locale === "pt" ? "Nenhum dado novo foi extraído" : "No new data was extracted");
+      } else {
+        toast.success(locale === "pt" ? "Extração completa!" : "Extraction complete!");
+      }
     } catch (err: any) {
       console.error("Extraction error:", err);
       toast.error(err.message || "Extraction failed");

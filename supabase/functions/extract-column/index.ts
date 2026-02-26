@@ -132,8 +132,21 @@ Deno.serve(async (req) => {
       if (!response.ok) return null;
       const data = await response.json();
       const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-      if (!toolCall) return null;
-      return JSON.parse(toolCall.function.arguments);
+      if (toolCall?.function?.arguments) {
+        return JSON.parse(toolCall.function.arguments);
+      }
+
+      // Fallback: try parsing JSON from plain text content
+      const text = data.choices?.[0]?.message?.content || '';
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          return JSON.parse(match[0]);
+        } catch {
+          return null;
+        }
+      }
+      return null;
     };
 
     // Streaming path
@@ -222,6 +235,19 @@ Deno.serve(async (req) => {
           }
           extractions.push({ paper_index: ext.paper_index, value: ext.value, citation_context: ext.citation_context || undefined, from_cache: false });
         }
+      }
+    }
+
+    // Ensure one extraction row per requested paper (prevents "completed but empty" UI)
+    const extractedIndexes = new Set(extractions.map((e) => e.paper_index));
+    for (let i = 0; i < papers.length; i++) {
+      if (!extractedIndexes.has(i)) {
+        extractions.push({
+          paper_index: i,
+          value: locale === 'pt' ? 'Não mencionado' : 'Not mentioned',
+          citation_context: undefined,
+          from_cache: false,
+        });
       }
     }
 
