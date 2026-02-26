@@ -1,38 +1,83 @@
 
+# Buscar Texto Completo dos Artigos para Extração
+
 ## Problema
-
-A extração retorna "Não mencionado" para a maioria dos campos porque:
-
-1. **Papers não são incorporados (embedded)**: O fluxo de revisão sistemática nunca chama `embed-papers` antes da extração. A busca semântica (`match_paper_chunks`) não encontra nada, então a IA só vê o abstract.
-2. **Abstracts curtos ou ausentes**: Muitos papers têm abstracts vagos que não contêm dados específicos como tamanho de amostra, tipo de estudo, etc.
-3. **Prompt muito rigoroso**: O prompt atual exige que a informação esteja EXPLÍCITA no texto. Se não está, retorna "Não mencionado" -- mas para abstracts, quase nunca estará explícita.
+Atualmente, a extração de dados usa apenas o **abstract** dos artigos, que geralmente tem 200-300 palavras e não contém detalhes como tamanho da amostra, metodologia específica, resultados numéricos, etc. Por isso, a maioria dos campos retorna "Não mencionado".
 
 ## Solução
+Criar um pipeline que busca o **texto completo** dos artigos em fontes de acesso aberto antes da extração, permitindo que a IA analise o conteúdo integral.
 
-### 1. Incorporar (embed) os papers antes da extração
+## Como vai funcionar
 
-Adicionar uma etapa automática no `StepExtraction.tsx` que chama `embed-papers` para todos os artigos incluídos antes de executar a extração. Isso alimenta a tabela `paper_chunks` para que a busca semântica funcione.
+```text
+Artigos incluídos
+       |
+       v
+[Buscar texto completo]  <-- Nova etapa
+  - Europe PMC (XML gratuito para artigos OA)
+  - Unpaywall (encontra PDFs abertos via DOI)
+       |
+       v
+[Indexar conteúdo]  <-- embed-papers atualizado
+  - Usa texto completo quando disponível
+  - Fallback para abstract
+       |
+       v
+[Extrair dados]  <-- Já existente, agora com mais contexto
+```
 
-### 2. Adaptar o prompt de extração para abstracts
+## Etapas de Implementação
 
-Modificar o prompt em `extract-column/index.ts` para:
-- Quando só houver abstract disponível, instruir a IA a **inferir** informações razoáveis do contexto do abstract em vez de exigir menção explícita
-- Permitir respostas como "Ensaio clínico randomizado (inferido do abstract)" em vez de "Não mencionado"
-- Manter "Não mencionado" apenas quando realmente não há NENHUMA pista no texto
+### 1. Criar edge function `fetch-full-text`
+Nova função que tenta obter o texto completo de cada artigo:
+- **Europe PMC**: API gratuita que retorna XML do texto completo para artigos de acesso aberto (`/fullTextXML`)
+- **Unpaywall**: API gratuita que encontra URLs de PDFs abertos via DOI
+- Converte XML/HTML para texto limpo
+- Retorna o texto completo ou indica que não está disponível
 
-### 3. Enriquecer o contexto enviado à IA
+### 2. Atualizar `StepExtraction.tsx`
+- Adicionar nova etapa "Buscando texto completo..." antes do embedding
+- Mostrar progresso (ex: "12/25 artigos com texto completo encontrado")
+- Passar o texto completo para o embed-papers
 
-Modificar `buildPaperSummary` em `extract-column/index.ts` para incluir todos os metadados disponíveis (autores completos, journal, DOI, ano) no texto enviado à IA, pois esses dados podem ajudar a inferir tipo de estudo, população, etc.
+### 3. Atualizar `embed-papers`
+- Aceitar campo `full_text` opcional nos papers
+- Quando disponível, indexar o texto completo em vez do abstract
+- Gera chunks maiores e mais ricos para busca semântica
+
+### 4. Atualizar `extract-column`
+- Quando há texto completo disponível via chunks semânticos, priorizar esse conteúdo
+- Ajustar o prompt para indicar que o texto completo está disponível
 
 ## Detalhes Técnicos
 
-### `src/components/app/systematic-review/StepExtraction.tsx`
-- Adicionar função `embedPapers()` que chama `embed-papers` com os artigos incluídos
-- Chamar `embedPapers()` automaticamente ao montar o componente (antes da extração) ou como primeiro passo do `runExtraction()`
-- Mostrar indicador de progresso "Preparando artigos..." durante o embedding
+### Nova Edge Function: `supabase/functions/fetch-full-text/index.ts`
+- Recebe array de papers com IDs, DOIs e source
+- Para papers do Europe PMC: chama `https://www.ebi.ac.uk/europepmc/webservices/rest/{source}/{id}/fullTextXML`
+- Para papers com DOI: chama Unpaywall `https://api.unpaywall.org/v2/{doi}?email=team@arca.research`
+- Se encontrar PDF URL via Unpaywall, usa Gemini Vision para extrair texto do PDF
+- Retorna mapa de paper_id -> full_text
+- Processa em lotes de 3-5 para evitar sobrecarga
 
-### `supabase/functions/extract-column/index.ts`
-- Alterar `buildSystemPrompt` para a extração factual: permitir inferência quando só abstract está disponível, distinguindo entre "extraído diretamente" e "inferido do contexto"
-- Alterar `buildPaperSummary` para incluir metadados extras: journal, DOI, lista completa de autores
-- Reduzir `match_threshold` de 0.3 para 0.2 na busca semântica para capturar mais contexto relevante
-- Reimplantar a edge function após alterações
+### Modificações em `src/components/app/systematic-review/StepExtraction.tsx`
+- Adicionar estado `fetchingFullText` e `fullTextProgress`
+- Nova função `fetchFullTexts()` chamada antes de `embedPapers()`
+- Passa full_text para embed-papers quando disponível
+- UI mostra "Buscando texto completo dos artigos... (X/Y encontrados)"
+
+### Modificações em `supabase/functions/embed-papers/index.ts`
+- Aceitar campo `full_text` no objeto paper
+- Priorizar `full_text` sobre `abstract` para chunking
+- Marcar source como `full_text` nos chunks
+
+### Modificações em `supabase/functions/extract-column/index.ts`
+- Quando semantic chunks vêm de `full_text`, informar a IA no prompt que o texto completo está disponível
+- Remover instrução de inferência quando texto completo está disponível (extração direta)
+
+### Config: `supabase/config.toml`
+- Adicionar entrada para a nova função `fetch-full-text` com `verify_jwt = false`
+
+## Limitações
+- Nem todos os artigos têm texto completo aberto (muitos são pagos)
+- Para artigos sem texto completo, o sistema continuará usando abstract + inferência
+- O progresso mostrará quantos artigos tiveram texto completo encontrado vs. apenas abstract
