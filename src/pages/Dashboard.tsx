@@ -4,7 +4,8 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import AppHeader from "@/components/app/AppHeader";
 import OnboardingDialog from "@/components/app/OnboardingDialog";
 import { Button } from "@/components/ui/button";
-import { Search, Clock, ArrowRight, Sparkles, BookOpen, Table, FileText, Palette } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Clock, ArrowRight, Sparkles, BookOpen, Table, FileText, Palette, ClipboardList } from "lucide-react";
 import QuestionEvaluator, { type Evaluation } from "@/components/app/QuestionEvaluator";
 
 const Dashboard = () => {
@@ -12,6 +13,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+  const [systematicReview, setSystematicReview] = useState(false);
 
   const recentSearches: string[] = JSON.parse(localStorage.getItem("scholarai_recent") || "[]");
 
@@ -20,9 +22,12 @@ const Dashboard = () => {
     if (!q.trim()) return;
     const updated = [q, ...recentSearches.filter((s) => s !== q)].slice(0, 8);
     localStorage.setItem("scholarai_recent", JSON.stringify(updated));
-    // Pass suggested columns via state if we have them
-    const suggestedColumns = evaluation?.suggested_columns || [];
-    navigate(`/search?q=${encodeURIComponent(q)}`, { state: { suggestedColumns } });
+    if (systematicReview) {
+      navigate(`/systematic-review?q=${encodeURIComponent(q)}&auto=true`);
+    } else {
+      const suggestedColumns = evaluation?.suggested_columns || [];
+      navigate(`/search?q=${encodeURIComponent(q)}`, { state: { suggestedColumns } });
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -75,6 +80,20 @@ const Dashboard = () => {
 
               {/* Question evaluation */}
               <QuestionEvaluator question={query} onEvaluation={setEvaluation} onRewrite={setQuery} />
+
+              {/* Systematic review checkbox */}
+              <div className="mt-3 flex items-center gap-2">
+                <Checkbox
+                  id="systematic-review"
+                  checked={systematicReview}
+                  onCheckedChange={(checked) => setSystematicReview(checked === true)}
+                />
+                <label htmlFor="systematic-review" className="cursor-pointer text-xs text-muted-foreground">
+                  {locale === "pt"
+                    ? "Preencher etapas com sugestões baseadas na pergunta de pesquisa (Revisão Sistemática)"
+                    : "Fill steps with suggestions based on the research question (Systematic Review)"}
+                </label>
+              </div>
 
               {/* Bottom bar */}
               <div className="mt-3 flex items-center justify-between">
@@ -151,6 +170,7 @@ const Dashboard = () => {
                 { icon: Table, label: t("dashboard.action.extraction"), href: "/extraction" },
                 { icon: FileText, label: t("dashboard.action.reports"), href: "/reports" },
                 { icon: Palette, label: t("dashboard.action.illustrations"), href: "/illustrations" },
+                { icon: ClipboardList, label: locale === "pt" ? "Revisão Sistemática" : "Systematic Review", href: "/systematic-review" },
               ].map((action) => (
                 <button
                   key={action.href}

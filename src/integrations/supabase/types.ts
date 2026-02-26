@@ -307,6 +307,57 @@ export type Database = {
         }
         Relationships: []
       }
+      systematic_reviews: {
+        Row: {
+          auto_suggestions: boolean
+          created_at: string
+          extraction_columns: Json
+          extraction_results: Json
+          id: string
+          included_paper_ids: string[]
+          papers: Json
+          report_content: string | null
+          research_question: string
+          screening_criteria: Json
+          screening_results: Json
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_suggestions?: boolean
+          created_at?: string
+          extraction_columns?: Json
+          extraction_results?: Json
+          id?: string
+          included_paper_ids?: string[]
+          papers?: Json
+          report_content?: string | null
+          research_question: string
+          screening_criteria?: Json
+          screening_results?: Json
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_suggestions?: boolean
+          created_at?: string
+          extraction_columns?: Json
+          extraction_results?: Json
+          id?: string
+          included_paper_ids?: string[]
+          papers?: Json
+          report_content?: string | null
+          research_question?: string
+          screening_criteria?: Json
+          screening_results?: Json
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       uploaded_papers: {
         Row: {
           created_at: string | null
