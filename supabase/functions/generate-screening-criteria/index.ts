@@ -50,6 +50,12 @@ Return JSON array of objects with keys: id, name, description.`;
       temperature: 0.3,
     });
 
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("AI response error:", response.status, errText);
+      throw new Error(`AI call failed with status ${response.status}`);
+    }
+
     const data = await response.json();
     const text = data.choices?.[0]?.message?.content || "[]";
 
