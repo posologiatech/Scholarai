@@ -2,7 +2,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, Loader2, Sparkles, Table, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Sparkles, Table, Plus, Trash2, FileText } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -52,23 +52,71 @@ const StepExtraction = ({
   const { locale } = useLanguage();
   const [generatingColumns, setGeneratingColumns] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [fetchingFullText, setFetchingFullText] = useState(false);
+  const [fullTextFound, setFullTextFound] = useState(0);
+  const [fullTextTotal, setFullTextTotal] = useState(0);
   const [embedding, setEmbedding] = useState(false);
   const [embedProgress, setEmbedProgress] = useState(0);
   const [newColName, setNewColName] = useState("");
   const [newColPrompt, setNewColPrompt] = useState("");
   const embeddingDone = useRef(false);
+  const fullTextsRef = useRef<Record<string, string>>({});
 
   const includedPapers = papers.filter((p) => includedPaperIds.includes(p.id));
 
-  // Auto-embed papers on mount
+  // Auto-fetch full text + embed papers on mount
   useEffect(() => {
     if (includedPapers.length > 0 && !embeddingDone.current) {
-      embedPapers();
+      fetchFullTextsAndEmbed();
     }
   }, []);
 
-  const embedPapers = async () => {
+  const fetchFullTextsAndEmbed = async () => {
     if (embeddingDone.current) return;
+    
+    // Step 1: Fetch full texts
+    setFetchingFullText(true);
+    setFullTextTotal(includedPapers.length);
+    setFullTextFound(0);
+    
+    try {
+      const batchSize = 10;
+      const batches: Paper[][] = [];
+      for (let i = 0; i < includedPapers.length; i += batchSize) {
+        batches.push(includedPapers.slice(i, i + batchSize));
+      }
+
+      let totalFound = 0;
+      for (const batch of batches) {
+        try {
+          const { data, error } = await supabase.functions.invoke("fetch-full-text", {
+            body: {
+              papers: batch.map((p) => ({
+                id: p.id,
+                doi: p.doi || "",
+                source: "pubmed",
+                external_id: p.id,
+              })),
+            },
+          });
+          if (!error && data?.results) {
+            Object.assign(fullTextsRef.current, data.results);
+            totalFound += data.found || 0;
+            setFullTextFound(totalFound);
+          }
+        } catch (err) {
+          console.error("Full text fetch batch error:", err);
+        }
+      }
+      
+      console.log(`Full text: found ${totalFound}/${includedPapers.length}`);
+    } catch (err) {
+      console.error("Full text fetch error:", err);
+    } finally {
+      setFetchingFullText(false);
+    }
+
+    // Step 2: Embed papers (with full text when available)
     setEmbedding(true);
     setEmbedProgress(0);
     try {
@@ -86,6 +134,7 @@ const StepExtraction = ({
               id: p.id,
               title: p.title,
               abstract: p.abstract || "",
+              full_text: fullTextsRef.current[p.id] || undefined,
             })),
           },
         });
@@ -95,7 +144,6 @@ const StepExtraction = ({
       embeddingDone.current = true;
     } catch (err: any) {
       console.error("Embedding error:", err);
-      // Non-blocking: extraction can still work with abstracts only
     } finally {
       setEmbedding(false);
       setEmbedProgress(100);
@@ -278,22 +326,51 @@ const StepExtraction = ({
         </div>
       </div>
 
+      {/* Full text fetch progress */}
+      {fetchingFullText && (
+        <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-primary animate-pulse" />
+            <p className="text-sm font-medium text-foreground">
+              {locale === "pt" ? "Buscando texto completo dos artigos..." : "Fetching full text of papers..."}
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {locale === "pt"
+              ? `${fullTextFound}/${fullTextTotal} artigos com texto completo encontrado`
+              : `${fullTextFound}/${fullTextTotal} papers with full text found`}
+          </p>
+        </div>
+      )}
+
+      {/* Full text summary (after fetch) */}
+      {!fetchingFullText && fullTextTotal > 0 && Object.keys(fullTextsRef.current).length > 0 && (
+        <div className="rounded-xl border border-border bg-card/50 p-3">
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5 text-primary" />
+            {locale === "pt"
+              ? `${Object.keys(fullTextsRef.current).length}/${fullTextTotal} artigos com texto completo disponível`
+              : `${Object.keys(fullTextsRef.current).length}/${fullTextTotal} papers with full text available`}
+          </p>
+        </div>
+      )}
+
       {/* Embedding progress */}
       {embedding && (
         <div className="rounded-xl border border-border bg-card p-4 space-y-2">
           <p className="text-sm font-medium text-foreground">
-            {locale === "pt" ? "Preparando artigos para extração..." : "Preparing papers for extraction..."}
+            {locale === "pt" ? "Indexando conteúdo para extração..." : "Indexing content for extraction..."}
           </p>
           <Progress value={embedProgress} className="h-2" />
           <p className="text-xs text-muted-foreground">
-            {locale === "pt" ? "Indexando conteúdo para busca semântica" : "Indexing content for semantic search"}
+            {locale === "pt" ? "Preparando busca semântica" : "Preparing semantic search"}
           </p>
         </div>
       )}
 
       {/* Run extraction */}
       <div className="flex items-center gap-3">
-        <Button onClick={runExtraction} disabled={extracting || embedding || enabledCols.length === 0} className="gap-2">
+        <Button onClick={runExtraction} disabled={extracting || embedding || fetchingFullText || enabledCols.length === 0} className="gap-2">
           {extracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Table className="h-4 w-4" />}
           {locale === "pt" ? "Executar Extração" : "Run Extraction"}
         </Button>
