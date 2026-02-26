@@ -464,6 +464,15 @@ async function persistPapers(papers: Paper[]): Promise<void> {
   }
 }
 
+// ─── Source map ──────────────────────────────────────────────────────
+const sourceMap: Record<string, (query: string, limit: number, filters?: SearchFilters) => Promise<Paper[]>> = {
+  semantic_scholar: searchSemanticScholar,
+  pubmed: searchPubMed,
+  openalex: searchOpenAlex,
+  clinical_trials: searchClinicalTrials,
+  europe_pmc: searchEuropePMC,
+};
+
 // ─── Main handler ───────────────────────────────────────────────────
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
