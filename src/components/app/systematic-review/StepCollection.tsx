@@ -37,7 +37,7 @@ const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev }: St
         body: { query: question, limit: searchCount },
       });
       if (error) throw error;
-      const results: Paper[] = (data?.results || []).map((p: any) => ({
+      const results: Paper[] = (data?.papers || data?.results || []).map((p: any) => ({
         id: p.paperId || p.id || crypto.randomUUID(),
         title: p.title,
         authors: p.authors?.map((a: any) => a.name || a) || [],
