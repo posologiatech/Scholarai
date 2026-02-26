@@ -109,15 +109,17 @@ Deno.serve(async (req) => {
           return;
         }
 
-        // Get text to embed (abstract or full text)
-        const text = paper.abstract || paper.extracted_text || '';
+        // Get text to embed: prioritize full_text > extracted_text > abstract
+        const text = paper.full_text || paper.extracted_text || paper.abstract || '';
+        const textSource = paper.full_text ? 'full_text' : (paper.extracted_text ? 'full_text' : 'abstract');
         if (!text || text.length < 50) {
           skippedCount++;
           return;
         }
 
-        // Chunk the text
-        const chunks = chunkText(text);
+        // Chunk the text (larger chunks for full text)
+        const chunkSize = textSource === 'full_text' ? 3000 : 2000;
+        const chunks = chunkText(text, chunkSize);
 
         // Generate embeddings for each chunk
         for (let ci = 0; ci < chunks.length; ci++) {
@@ -132,7 +134,7 @@ Deno.serve(async (req) => {
               chunk_index: ci,
               chunk_text: chunks[ci],
               embedding: embedding,
-              source: paper.extracted_text ? 'full_text' : 'abstract',
+              source: textSource,
             });
 
           if (insertError) {

@@ -108,9 +108,18 @@ Deno.serve(async (req) => {
       return batch.map((p: any) => {
         const originalIdx = papers.findIndex((op: any) => op.id === p.id);
         const semanticContext = semanticContextMap.get(p.id);
-        const textContent = semanticContext
-          ? `Semantic chunks:\n${semanticContext}\n\nAbstract: ${p.abstract || 'No abstract available.'}`
-          : `Abstract: ${p.abstract || 'No abstract available.'}`;
+        
+        // Determine if we have full text content
+        const hasFullText = semanticContext && semanticContext.length > 2000;
+        
+        let textContent: string;
+        if (hasFullText) {
+          textContent = `[FULL TEXT AVAILABLE - Extract data directly]\n${semanticContext}`;
+        } else if (semanticContext) {
+          textContent = `Semantic chunks:\n${semanticContext}\n\nAbstract: ${p.abstract || 'No abstract available.'}`;
+        } else {
+          textContent = `Abstract: ${p.abstract || 'No abstract available.'}`;
+        }
         
         // Build rich metadata section
         const authorsList = Array.isArray(p.authors) ? p.authors.join(', ') : '';

@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.screen-papers]
 verify_jwt = false
+
+[functions.fetch-full-text]
+verify_jwt = false
