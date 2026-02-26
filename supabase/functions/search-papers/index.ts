@@ -495,19 +495,15 @@ Deno.serve(async (req) => {
 
     const query = await translateToEnglish(originalQuery);
 
-    console.log(`[search-papers] Query: "${query}", sources: ${sources.join(',')}, limit: ${limit}, filters: ${JSON.stringify(searchFilters || {})}`);
+    const validSources = sources.filter((s: string) => sourceMap[s]);
+    const sourceCount = Math.max(validSources.length, 1);
+    // Over-fetch per source to compensate deduplication and occasional source failures,
+    // then cap to the user-selected total below.
+    const perSourceLimit = Math.max(10, Math.ceil((limit * 2) / sourceCount));
 
-    const sourceMap: Record<string, (q: string, l: number, f?: SearchFilters) => Promise<Paper[]>> = {
-      semantic_scholar: searchSemanticScholar,
-      pubmed: searchPubMed,
-      openalex: searchOpenAlex,
-      clinical_trials: searchClinicalTrials,
-      europe_pmc: searchEuropePMC,
-    };
+    console.log(`[search-papers] Query: "${query}", sources: ${sources.join(',')}, total_limit: ${limit}, per_source_limit: ${perSourceLimit}, filters: ${JSON.stringify(searchFilters || {})}`);
 
-    const promises = sources
-      .filter((s: string) => sourceMap[s])
-      .map((s: string) => sourceMap[s](query, limit, searchFilters));
+    const promises = validSources.map((s: string) => sourceMap[s](query, perSourceLimit, searchFilters));
 
     const results = await Promise.all(promises);
     const papers = results.flat();
@@ -532,28 +528,31 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Cap to requested total after dedup
+    const capped = unique.slice(0, limit);
+
     // Count papers per source for stats
     const sourceCounts: Record<string, number> = {};
-    for (const p of unique) {
+    for (const p of capped) {
       sourceCounts[p.source] = (sourceCounts[p.source] || 0) + 1;
     }
 
     // Count study types for facets
     const studyTypeCounts: Record<string, number> = {};
-    for (const p of unique) {
+    for (const p of capped) {
       if (p.studyType) {
         studyTypeCounts[p.studyType] = (studyTypeCounts[p.studyType] || 0) + 1;
       }
     }
 
-    console.log(`[search-papers] After dedup: ${unique.length} unique papers`);
+    console.log(`[search-papers] After dedup: ${unique.length} unique papers (returning ${capped.length})`);
 
-    // Persist papers to database in background (fire-and-forget)
-    persistPapers(unique).catch(e => console.error('[search-papers] bg persist error:', e));
+    // Persist returned papers to database in background (fire-and-forget)
+    persistPapers(capped).catch(e => console.error('[search-papers] bg persist error:', e));
 
     return new Response(JSON.stringify({
-      papers: unique,
-      total: unique.length,
+      papers: capped,
+      total: capped.length,
       sources_queried: sources,
       source_counts: sourceCounts,
       study_type_counts: studyTypeCounts,
