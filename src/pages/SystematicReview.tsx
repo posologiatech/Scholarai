@@ -154,6 +154,10 @@ const SystematicReview = () => {
             includedPaperIds={includedPaperIds}
             totalPapers={papers.length}
             screenedCount={screenedCount}
+            criteria={criteria}
+            screeningResults={screeningResults}
+            extractionColumns={extractionColumns}
+            extractionResults={extractionResults}
             reportContent={reportContent}
             onReportChange={setReportContent}
             onPrev={() => setCurrentStep(3)}
