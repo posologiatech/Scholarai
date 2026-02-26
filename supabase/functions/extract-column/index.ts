@@ -45,8 +45,8 @@ Deno.serve(async (req) => {
           : `You are a precise scientific research assistant.\nYour task is to read paper text and generate a brief summary.\n\n[RULES]\n1. Base summary ONLY on provided text.\n2. Be concise (2-4 sentences per paper).\n3. If text is empty, return "No text available".\n4. Use citation_context for the most representative sentence.\n5. Respond ONLY using the provided function.\n\n${cp ? `USER INSTRUCTION: ${cp}` : ''}`;
       }
       return lc === 'pt'
-        ? `Você é um assistente de pesquisa científica altamente preciso e rigoroso.\nSua tarefa é ler o texto de artigos científicos e extrair uma informação específica solicitada.\n\n[REGRAS]\n1. Baseie sua resposta APENAS no texto fornecido.\n2. Seja extremamente conciso (1-3 frases por paper).\n3. Se a informação NÃO estiver no texto, retorne "Não mencionado".\n4. Extraia a frase EXATA que comprova a resposta no campo citation_context.\n5. Responda APENAS usando a função fornecida.\n\n${cp ? `INSTRUÇÃO ESPECÍFICA: ${cp}` : ''}`
-        : `You are a highly precise scientific research assistant.\nYour task is to extract specific information from paper text.\n\n[RULES]\n1. Base answer ONLY on provided text.\n2. Be extremely concise (1-3 sentences per paper).\n3. If info is NOT in text, return "Not mentioned".\n4. Extract the EXACT quote proving your answer in citation_context.\n5. Respond ONLY using the provided function.\n\n${cp ? `USER INSTRUCTION: ${cp}` : ''}`;
+        ? `Você é um assistente de pesquisa científica especializado em extração de dados.\nSua tarefa é ler o texto de artigos científicos e extrair a informação solicitada.\n\n[REGRAS]\n1. Use TODAS as informações disponíveis: texto completo, abstract, metadados (journal, autores, ano, DOI).\n2. Seja conciso (1-3 frases por paper).\n3. Quando a informação está EXPLÍCITA no texto, extraia diretamente.\n4. Quando a informação pode ser INFERIDA razoavelmente do contexto (ex: tipo de estudo inferido pela metodologia descrita, população inferida pelo contexto), forneça a inferência seguida de "(inferido do abstract)" ou "(inferido do contexto)".\n5. Use "Não mencionado" APENAS quando não há NENHUMA pista ou indicação no texto — nem direta nem indireta.\n6. Metadados como journal, autores e ano podem ajudar a inferir informações (ex: um artigo no "Journal of Clinical Trials" provavelmente é um ensaio clínico).\n7. Extraia a frase mais relevante no campo citation_context.\n8. Responda APENAS usando a função fornecida.\n\n${cp ? `INSTRUÇÃO ESPECÍFICA: ${cp}` : ''}`
+        : `You are a scientific research assistant specialized in data extraction.\nYour task is to read paper text and extract the requested information.\n\n[RULES]\n1. Use ALL available information: full text, abstract, metadata (journal, authors, year, DOI).\n2. Be concise (1-3 sentences per paper).\n3. When information is EXPLICIT in text, extract directly.\n4. When information can be REASONABLY INFERRED from context (e.g., study type from methodology, population from context), provide the inference followed by "(inferred from abstract)" or "(inferred from context)".\n5. Use "Not mentioned" ONLY when there is NO clue or indication in the text — neither direct nor indirect.\n6. Metadata like journal, authors, and year can help infer information (e.g., a paper in "Journal of Clinical Trials" is likely a clinical trial).\n7. Extract the most relevant sentence in citation_context.\n8. Respond ONLY using the provided function.\n\n${cp ? `USER INSTRUCTION: ${cp}` : ''}`;
     };
 
     const toolsDef = [{
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
           if (questionEmbedding) {
             const results = await Promise.allSettled(papersToSearch.map(async (paper: any) => {
               const { data: chunks } = await supabase.rpc('match_paper_chunks', {
-                query_embedding: questionEmbedding, match_threshold: 0.3, match_count: 3, filter_paper_id: paper.id,
+                query_embedding: questionEmbedding, match_threshold: 0.2, match_count: 5, filter_paper_id: paper.id,
               });
               if (chunks && chunks.length > 0) return { id: paper.id, text: chunks.map((c: any) => c.chunk_text).join('\n\n') };
               return null;
@@ -111,7 +111,17 @@ Deno.serve(async (req) => {
         const textContent = semanticContext
           ? `Semantic chunks:\n${semanticContext}\n\nAbstract: ${p.abstract || 'No abstract available.'}`
           : `Abstract: ${p.abstract || 'No abstract available.'}`;
-        return `Paper ${originalIdx}: "${p.title}" (${p.authors?.slice(0, 3).join(', ')}${p.authors?.length > 3 ? ' et al.' : ''}, ${p.year || 'n.d.'}). ${textContent}`;
+        
+        // Build rich metadata section
+        const authorsList = Array.isArray(p.authors) ? p.authors.join(', ') : '';
+        const metadataParts = [
+          authorsList ? `Authors: ${authorsList}` : null,
+          p.year ? `Year: ${p.year}` : null,
+          p.journal ? `Journal: ${p.journal}` : null,
+          p.doi ? `DOI: ${p.doi}` : null,
+        ].filter(Boolean).join(' | ');
+        
+        return `Paper ${originalIdx}: "${p.title}"\n${metadataParts ? `[${metadataParts}]` : ''}\n${textContent}`;
       }).join('\n\n');
     };
 

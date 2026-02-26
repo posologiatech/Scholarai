@@ -1,8 +1,9 @@
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, ArrowRight, Loader2, Sparkles, Table, Plus, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -19,6 +20,8 @@ interface Paper {
   authors?: string[];
   year?: number;
   abstract?: string;
+  journal?: string;
+  doi?: string;
 }
 
 interface StepExtractionProps {
@@ -49,10 +52,55 @@ const StepExtraction = ({
   const { locale } = useLanguage();
   const [generatingColumns, setGeneratingColumns] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [embedding, setEmbedding] = useState(false);
+  const [embedProgress, setEmbedProgress] = useState(0);
   const [newColName, setNewColName] = useState("");
   const [newColPrompt, setNewColPrompt] = useState("");
+  const embeddingDone = useRef(false);
 
   const includedPapers = papers.filter((p) => includedPaperIds.includes(p.id));
+
+  // Auto-embed papers on mount
+  useEffect(() => {
+    if (includedPapers.length > 0 && !embeddingDone.current) {
+      embedPapers();
+    }
+  }, []);
+
+  const embedPapers = async () => {
+    if (embeddingDone.current) return;
+    setEmbedding(true);
+    setEmbedProgress(0);
+    try {
+      const batchSize = 10;
+      const batches: Paper[][] = [];
+      for (let i = 0; i < includedPapers.length; i += batchSize) {
+        batches.push(includedPapers.slice(i, i + batchSize));
+      }
+
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        await supabase.functions.invoke("embed-papers", {
+          body: {
+            papers: batch.map((p) => ({
+              id: p.id,
+              title: p.title,
+              abstract: p.abstract || "",
+            })),
+          },
+        });
+        setEmbedProgress(Math.round(((i + 1) / batches.length) * 100));
+      }
+
+      embeddingDone.current = true;
+    } catch (err: any) {
+      console.error("Embedding error:", err);
+      // Non-blocking: extraction can still work with abstracts only
+    } finally {
+      setEmbedding(false);
+      setEmbedProgress(100);
+    }
+  };
 
   useEffect(() => {
     if (autoSuggestions && columns.length === 0 && !generatingColumns) {
@@ -106,6 +154,8 @@ const StepExtraction = ({
               authors: p.authors || [],
               year: p.year,
               abstract: p.abstract || "",
+              journal: (p as any).journal || "",
+              doi: (p as any).doi || "",
             })),
             column_name: col.name,
             custom_prompt: col.prompt,
@@ -228,9 +278,22 @@ const StepExtraction = ({
         </div>
       </div>
 
+      {/* Embedding progress */}
+      {embedding && (
+        <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            {locale === "pt" ? "Preparando artigos para extração..." : "Preparing papers for extraction..."}
+          </p>
+          <Progress value={embedProgress} className="h-2" />
+          <p className="text-xs text-muted-foreground">
+            {locale === "pt" ? "Indexando conteúdo para busca semântica" : "Indexing content for semantic search"}
+          </p>
+        </div>
+      )}
+
       {/* Run extraction */}
       <div className="flex items-center gap-3">
-        <Button onClick={runExtraction} disabled={extracting || enabledCols.length === 0} className="gap-2">
+        <Button onClick={runExtraction} disabled={extracting || embedding || enabledCols.length === 0} className="gap-2">
           {extracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Table className="h-4 w-4" />}
           {locale === "pt" ? "Executar Extração" : "Run Extraction"}
         </Button>
