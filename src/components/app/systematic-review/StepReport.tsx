@@ -1,9 +1,11 @@
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, FileText, Download } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, Download, FileDown } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface Paper {
   id: string;
@@ -107,7 +109,7 @@ const StepReport = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "systematic-review-report.md";
+    a.download = "revisao-sistematica.md";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -117,6 +119,341 @@ const StepReport = ({
     const lastName = paper.authors[0].split(" ").pop() || paper.authors[0];
     return paper.authors.length > 1 ? `${lastName} et al.` : lastName;
   };
+
+  const formatRefText = (paper: Paper) => {
+    const authorList = (paper.authors || ["Unknown"]).slice(0, 6).join(", ");
+    const more = (paper.authors?.length || 0) > 6 ? `, and ${(paper.authors?.length || 0) - 6} more` : "";
+    let ref = `${authorList}${more} (${paper.year || "n.d."}). ${paper.title}.`;
+    if (paper.journal) ref += ` ${paper.journal}.`;
+    if (paper.doi) ref += ` https://doi.org/${paper.doi}`;
+    return ref;
+  };
+
+  // ──────────────────────── PDF EXPORT ────────────────────────
+  const downloadPDF = () => {
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const marginL = 25;
+    const marginR = 25;
+    const marginTop = 30;
+    const marginBottom = 25;
+    const contentW = pageW - marginL - marginR;
+    let y = marginTop;
+
+    const addPageIfNeeded = (needed: number) => {
+      if (y + needed > pageH - marginBottom) {
+        pdf.addPage();
+        y = marginTop;
+        addPageNumber();
+      }
+    };
+
+    let pageCount = 0;
+    const addPageNumber = () => {
+      pageCount++;
+    };
+
+    const finalizePageNumbers = () => {
+      const total = pdf.getNumberOfPages();
+      for (let i = 1; i <= total; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(150);
+        pdf.text(`${i}`, pageW / 2, pageH - 12, { align: "center" });
+      }
+    };
+
+    // ─── Title Page ───
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(120);
+    const articleType = locale === "pt" ? "ARTIGO DE REVISÃO SISTEMÁTICA" : "SYSTEMATIC REVIEW ARTICLE";
+    pdf.text(articleType, pageW / 2, y, { align: "center" });
+    y += 15;
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(16);
+    pdf.setTextColor(30);
+    const titleLines = pdf.splitTextToSize(question, contentW);
+    pdf.text(titleLines, pageW / 2, y, { align: "center", maxWidth: contentW });
+    y += titleLines.length * 7 + 8;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(100);
+    const dateStr = locale === "pt"
+      ? `Revisão sistemática • ${includedPapers.length} estudos incluídos • ${new Date().toLocaleDateString("pt-BR")}`
+      : `Systematic review • ${includedPapers.length} studies included • ${new Date().toLocaleDateString()}`;
+    pdf.text(dateStr, pageW / 2, y, { align: "center" });
+    y += 6;
+
+    // Separator line
+    pdf.setDrawColor(200);
+    pdf.setLineWidth(0.5);
+    pdf.line(marginL, y, pageW - marginR, y);
+    y += 10;
+
+    // ─── Render report content ───
+    const renderMarkdownToPdf = (text: string) => {
+      const lines = text.split("\n");
+
+      for (const line of lines) {
+        if (line.trim() === "") {
+          y += 3;
+          continue;
+        }
+
+        if (line.startsWith("---")) {
+          addPageIfNeeded(8);
+          pdf.setDrawColor(200);
+          pdf.setLineWidth(0.3);
+          pdf.line(marginL, y, pageW - marginR, y);
+          y += 6;
+          continue;
+        }
+
+        // Strip markdown formatting for plain text
+        const stripMd = (t: string) => t.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1");
+
+        if (line.startsWith("## ")) {
+          const heading = stripMd(line.slice(3)).toUpperCase();
+          addPageIfNeeded(14);
+          y += 6;
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(11);
+          pdf.setTextColor(30);
+          pdf.text(heading, marginL, y);
+          y += 7;
+          continue;
+        }
+
+        if (line.startsWith("### ")) {
+          const heading = stripMd(line.slice(4));
+          addPageIfNeeded(12);
+          y += 4;
+          pdf.setFont("helvetica", "bolditalic");
+          pdf.setFontSize(10);
+          pdf.setTextColor(50);
+          pdf.text(heading, marginL, y);
+          y += 6;
+          continue;
+        }
+
+        if (line.startsWith("#### ")) {
+          const heading = stripMd(line.slice(5));
+          addPageIfNeeded(10);
+          y += 3;
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(9.5);
+          pdf.setTextColor(50);
+          pdf.text(heading, marginL, y);
+          y += 5.5;
+          continue;
+        }
+
+        if (line.startsWith("# ")) {
+          const heading = stripMd(line.slice(2));
+          addPageIfNeeded(16);
+          y += 8;
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(13);
+          pdf.setTextColor(20);
+          pdf.text(heading, marginL, y);
+          y += 8;
+          continue;
+        }
+
+        // Bullet points
+        if (line.match(/^\s*-\s/)) {
+          const content = stripMd(line.replace(/^\s*-\s/, ""));
+          const bulletLines = pdf.splitTextToSize(content, contentW - 8);
+          addPageIfNeeded(bulletLines.length * 4.5 + 1);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(9.5);
+          pdf.setTextColor(40);
+          pdf.text("•", marginL + 2, y);
+          pdf.text(bulletLines, marginL + 8, y);
+          y += bulletLines.length * 4.5 + 1;
+          continue;
+        }
+
+        // Numbered list
+        if (line.match(/^\s*(\d+)\.\s/)) {
+          const num = line.match(/^\s*(\d+)\./)?.[1] || "";
+          const content = stripMd(line.replace(/^\s*\d+\.\s/, ""));
+          const numLines = pdf.splitTextToSize(content, contentW - 10);
+          addPageIfNeeded(numLines.length * 4.5 + 1);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(9.5);
+          pdf.setTextColor(40);
+          pdf.text(`${num}.`, marginL + 2, y);
+          pdf.text(numLines, marginL + 10, y);
+          y += numLines.length * 4.5 + 1;
+          continue;
+        }
+
+        // Table rows (skip in plain text, handled separately)
+        if (line.trim().startsWith("|")) continue;
+
+        // Regular paragraph - handle bold/italic segments
+        const plainText = stripMd(line);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(9.5);
+        pdf.setTextColor(40);
+        const wrapped = pdf.splitTextToSize(plainText, contentW);
+        addPageIfNeeded(wrapped.length * 4.5);
+        pdf.text(wrapped, marginL, y, { align: "justify", maxWidth: contentW });
+        y += wrapped.length * 4.5 + 1.5;
+      }
+    };
+
+    renderMarkdownToPdf(reportContent);
+
+    // ─── PRISMA Flow Diagram ───
+    addPageIfNeeded(80);
+    y += 8;
+    pdf.setDrawColor(200);
+    pdf.line(marginL, y, pageW - marginR, y);
+    y += 8;
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(11);
+    pdf.setTextColor(30);
+    const prismaTitle = locale === "pt" ? "DIAGRAMA DE FLUXO PRISMA" : "PRISMA FLOW DIAGRAM";
+    pdf.text(prismaTitle, pageW / 2, y, { align: "center" });
+    y += 10;
+
+    const boxW = 60;
+    const boxH = 18;
+    const centerX = pageW / 2;
+
+    // Identified box
+    const drawBox = (x: number, yPos: number, w: number, h: number, label: string, value: string, color: [number, number, number] = [240, 240, 240]) => {
+      pdf.setFillColor(...color);
+      pdf.setDrawColor(180);
+      pdf.setLineWidth(0.4);
+      pdf.roundedRect(x - w / 2, yPos, w, h, 2, 2, "FD");
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(100);
+      pdf.text(label, x, yPos + 6, { align: "center" });
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(12);
+      pdf.setTextColor(30);
+      pdf.text(value, x, yPos + 13, { align: "center" });
+    };
+
+    const idLabel = locale === "pt" ? "Artigos identificados" : "Records identified";
+    drawBox(centerX, y, boxW, boxH, idLabel, `n = ${totalPapers}`);
+    y += boxH;
+    pdf.setDrawColor(180);
+    pdf.line(centerX, y, centerX, y + 6);
+    y += 6;
+
+    const scrLabel = locale === "pt" ? "Artigos triados" : "Records screened";
+    drawBox(centerX, y, boxW, boxH, scrLabel, `n = ${screenedCount}`);
+    y += boxH;
+    pdf.line(centerX, y, centerX, y + 6);
+    y += 6;
+
+    const smallBoxW = 50;
+    const inclLabel = locale === "pt" ? "Incluídos" : "Included";
+    const exclLabel = locale === "pt" ? "Excluídos" : "Excluded";
+    drawBox(centerX - 32, y, smallBoxW, boxH, inclLabel, `n = ${includedPaperIds.length}`, [235, 245, 255]);
+    drawBox(centerX + 32, y, smallBoxW, boxH, exclLabel, `n = ${excludedCount}`, [255, 240, 240]);
+    y += boxH + 4;
+
+    pdf.setFont("helvetica", "italic");
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(120);
+    const figCaption = locale === "pt"
+      ? "Figura 1. Diagrama de fluxo PRISMA da seleção dos estudos."
+      : "Figure 1. PRISMA flow diagram of study selection.";
+    pdf.text(figCaption, pageW / 2, y, { align: "center" });
+    y += 10;
+
+    // ─── Extraction table ───
+    if (enabledCols.length > 0 && Object.keys(extractionResults).length > 0) {
+      addPageIfNeeded(30);
+      pdf.setDrawColor(200);
+      pdf.line(marginL, y, pageW - marginR, y);
+      y += 6;
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11);
+      pdf.setTextColor(30);
+      const tableTitle = locale === "pt" ? "CARACTERÍSTICAS DOS ESTUDOS INCLUÍDOS" : "CHARACTERISTICS OF INCLUDED STUDIES";
+      pdf.text(tableTitle, marginL, y);
+      y += 4;
+      pdf.setFont("helvetica", "italic");
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(120);
+      const tableCaption = locale === "pt"
+        ? `Tabela 1. Dados extraídos dos ${includedPapers.length} estudos incluídos na revisão.`
+        : `Table 1. Data extracted from ${includedPapers.length} studies included in the review.`;
+      pdf.text(tableCaption, marginL, y);
+      y += 4;
+
+      const head = [[locale === "pt" ? "Estudo" : "Study", ...enabledCols.map((c) => c.name)]];
+      const body = includedPapers
+        .filter((p) => extractionResults[p.id])
+        .map((p) => [
+          `${formatAuthorShort(p)}, ${p.year || "n.d."}`,
+          ...enabledCols.map((c) => extractionResults[p.id]?.[c.id] || "-"),
+        ]);
+
+      autoTable(pdf, {
+        startY: y,
+        head,
+        body,
+        margin: { left: marginL, right: marginR },
+        styles: { fontSize: 7.5, cellPadding: 2, textColor: [40, 40, 40], lineColor: [200, 200, 200], lineWidth: 0.2 },
+        headStyles: { fillColor: [240, 240, 240], textColor: [30, 30, 30], fontStyle: "bold", fontSize: 7.5 },
+        alternateRowStyles: { fillColor: [248, 248, 248] },
+        theme: "grid",
+      });
+      y = (pdf as any).lastAutoTable?.finalY + 8 || y + 30;
+    }
+
+    // ─── References ───
+    addPageIfNeeded(20);
+    pdf.setDrawColor(200);
+    pdf.line(marginL, y, pageW - marginR, y);
+    y += 8;
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(11);
+    pdf.setTextColor(30);
+    const refTitle = locale === "pt" ? "REFERÊNCIAS" : "REFERENCES";
+    pdf.text(refTitle, marginL, y);
+    y += 7;
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    pdf.setTextColor(50);
+
+    includedPapers.forEach((paper, idx) => {
+      const refText = `[${idx + 1}] ${formatRefText(paper)}`;
+      const refLines = pdf.splitTextToSize(refText, contentW - 4);
+      addPageIfNeeded(refLines.length * 3.8 + 2);
+      // hanging indent: first line at marginL, continuation at marginL+6
+      refLines.forEach((rl: string, li: number) => {
+        pdf.text(rl, li === 0 ? marginL : marginL + 6, y);
+        y += 3.8;
+      });
+      y += 1.5;
+    });
+
+    // Page numbers
+    finalizePageNumbers();
+
+    pdf.save("revisao-sistematica.pdf");
+    toast.success(locale === "pt" ? "PDF exportado com sucesso!" : "PDF exported successfully!");
+  };
+
+  // ──────────────────────── UI Rendering ────────────────────────
 
   const formatReference = (paper: Paper, index: number) => {
     if (!paper.authors?.length) {
@@ -137,7 +474,6 @@ const StepReport = ({
     );
   };
 
-  // Render markdown content with academic styling
   const renderContent = (text: string) => {
     const lines = text.split("\n");
     const elements: JSX.Element[] = [];
@@ -147,7 +483,7 @@ const StepReport = ({
     const flushTable = () => {
       if (tableRows.length === 0) return;
       const headerRow = tableRows[0];
-      const dataRows = tableRows.slice(2); // skip separator
+      const dataRows = tableRows.slice(2);
       const headers = headerRow.split("|").filter(h => h.trim());
       elements.push(
         <div key={`table-${elements.length}`} className="overflow-x-auto my-4">
@@ -161,7 +497,6 @@ const StepReport = ({
             </thead>
             <tbody>
               {dataRows.map((row, ri) => {
-                const cells = row.split("|").filter(c => c.trim() !== "" || row.includes("||"));
                 const cellValues = row.split("|").slice(1, -1);
                 return (
                   <tr key={ri} className="border-b border-border/50">
@@ -182,7 +517,6 @@ const StepReport = ({
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      // Table detection
       if (line.includes("|") && line.trim().startsWith("|")) {
         inTable = true;
         tableRows.push(line);
@@ -192,51 +526,25 @@ const StepReport = ({
       }
 
       if (line.startsWith("# ")) {
-        elements.push(
-          <h1 key={i} className="text-xl font-bold text-foreground mt-10 mb-4 border-b border-border pb-2">
-            {line.slice(2)}
-          </h1>
-        );
+        elements.push(<h1 key={i} className="text-xl font-bold text-foreground mt-10 mb-4 border-b border-border pb-2">{line.slice(2)}</h1>);
       } else if (line.startsWith("## ")) {
-        elements.push(
-          <h2 key={i} className="text-base font-bold text-foreground mt-8 mb-3 uppercase tracking-wider">
-            {line.slice(3)}
-          </h2>
-        );
+        elements.push(<h2 key={i} className="text-base font-bold text-foreground mt-8 mb-3 uppercase tracking-wider">{line.slice(3)}</h2>);
       } else if (line.startsWith("### ")) {
-        elements.push(
-          <h3 key={i} className="text-sm font-bold text-foreground mt-5 mb-2 italic">
-            {line.slice(4)}
-          </h3>
-        );
+        elements.push(<h3 key={i} className="text-sm font-bold text-foreground mt-5 mb-2 italic">{line.slice(4)}</h3>);
       } else if (line.startsWith("#### ")) {
-        elements.push(
-          <h4 key={i} className="text-sm font-semibold text-foreground mt-4 mb-1">{line.slice(5)}</h4>
-        );
+        elements.push(<h4 key={i} className="text-sm font-semibold text-foreground mt-4 mb-1">{line.slice(5)}</h4>);
       } else if (line.startsWith("---")) {
         elements.push(<hr key={i} className="my-8 border-border" />);
       } else if (line.trim() === "") {
         elements.push(<div key={i} className="h-1" />);
       } else if (line.match(/^\s*-\s/)) {
         const content = line.replace(/^\s*-\s/, "");
-        elements.push(
-          <li key={i} className="text-[13px] text-foreground my-0.5 list-disc ml-6 leading-relaxed">
-            {renderInline(content)}
-          </li>
-        );
+        elements.push(<li key={i} className="text-[13px] text-foreground my-0.5 list-disc ml-6 leading-relaxed">{renderInline(content)}</li>);
       } else if (line.match(/^\s*\d+\.\s/)) {
         const content = line.replace(/^\s*\d+\.\s/, "");
-        elements.push(
-          <li key={i} className="text-[13px] text-foreground my-0.5 list-decimal ml-6 leading-relaxed">
-            {renderInline(content)}
-          </li>
-        );
+        elements.push(<li key={i} className="text-[13px] text-foreground my-0.5 list-decimal ml-6 leading-relaxed">{renderInline(content)}</li>);
       } else {
-        elements.push(
-          <p key={i} className="text-[13px] text-foreground my-2 leading-[1.8] text-justify">
-            {renderInline(line)}
-          </p>
-        );
+        elements.push(<p key={i} className="text-[13px] text-foreground my-2 leading-[1.8] text-justify">{renderInline(line)}</p>);
       }
     }
     if (inTable) flushTable();
@@ -244,11 +552,9 @@ const StepReport = ({
   };
 
   const renderInline = (text: string) => {
-    // Handle bold then italic
     const parts = text.split(/\*\*(.*?)\*\*/g);
     return parts.map((part, j) => {
       if (j % 2 === 1) return <strong key={j}>{part}</strong>;
-      // Handle italic
       const italicParts = part.split(/\*(.*?)\*/g);
       return italicParts.map((ip, k) => {
         if (k % 2 === 1) return <em key={`${j}-${k}`}>{ip}</em>;
@@ -273,22 +579,27 @@ const StepReport = ({
       </div>
 
       {/* Action buttons */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button onClick={generateReport} disabled={generating || includedPapers.length === 0} className="gap-2">
           {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
           {locale === "pt" ? "Gerar Relatório Completo" : "Generate Full Report"}
         </Button>
         {reportContent && (
-          <Button variant="outline" onClick={downloadMarkdown} className="gap-2">
-            <Download className="h-4 w-4" />
-            {locale === "pt" ? "Baixar Markdown" : "Download Markdown"}
-          </Button>
+          <>
+            <Button variant="outline" onClick={downloadPDF} className="gap-2">
+              <FileDown className="h-4 w-4" />
+              {locale === "pt" ? "Baixar PDF" : "Download PDF"}
+            </Button>
+            <Button variant="outline" onClick={downloadMarkdown} className="gap-2">
+              <Download className="h-4 w-4" />
+              {locale === "pt" ? "Baixar Markdown" : "Download Markdown"}
+            </Button>
+          </>
         )}
       </div>
 
       {reportContent ? (
         <div className="space-y-0">
-          {/* Main report - academic paper style */}
           <article className="bg-card border border-border rounded-xl p-8 md:p-12 shadow-sm">
             {/* Title block */}
             <header className="text-center mb-8 pb-6 border-b border-border">
@@ -316,7 +627,6 @@ const StepReport = ({
                 {locale === "pt" ? "Diagrama de Fluxo PRISMA" : "PRISMA Flow Diagram"}
               </h2>
               <div className="flex flex-col items-center gap-0">
-                {/* Identified */}
                 <div className="rounded-lg border-2 border-foreground/20 bg-muted/30 px-8 py-4 text-center min-w-[280px]">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     {locale === "pt" ? "Artigos identificados nas bases de dados" : "Records identified through database searching"}
@@ -324,8 +634,6 @@ const StepReport = ({
                   <p className="text-2xl font-bold text-foreground mt-1">n = {totalPapers}</p>
                 </div>
                 <div className="w-px h-8 bg-foreground/20" />
-
-                {/* Screened */}
                 <div className="rounded-lg border-2 border-foreground/20 bg-muted/30 px-8 py-4 text-center min-w-[280px]">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     {locale === "pt" ? "Artigos triados" : "Records screened"}
@@ -338,8 +646,6 @@ const StepReport = ({
                   )}
                 </div>
                 <div className="w-px h-8 bg-foreground/20" />
-
-                {/* Included / Excluded */}
                 <div className="flex gap-6 items-start">
                   <div className="rounded-lg border-2 border-primary/40 bg-primary/5 px-6 py-4 text-center min-w-[160px]">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
