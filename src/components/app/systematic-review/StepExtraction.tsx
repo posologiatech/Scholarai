@@ -88,30 +88,49 @@ const StepExtraction = ({
     setExtracting(true);
     try {
       const newResults = { ...extractionResults };
+
       for (const col of enabledCols) {
-        for (const paper of includedPapers) {
-          if (newResults[paper.id]?.[col.id]) continue; // skip already extracted
-          try {
-            const { data, error } = await supabase.functions.invoke("extract-column", {
-              body: {
-                paper_id: paper.id,
-                paper_title: paper.title,
-                abstract: paper.abstract || "",
-                column_name: col.name,
-                column_prompt: col.prompt,
-              },
-            });
-            if (error) continue;
+        // Filter papers that haven't been extracted for this column yet
+        const papersToExtract = includedPapers.filter(
+          (p) => !newResults[p.id]?.[col.id]
+        );
+        if (papersToExtract.length === 0) continue;
+
+        const { data, error } = await supabase.functions.invoke("extract-column", {
+          body: {
+            query: question,
+            papers: papersToExtract.map((p) => ({
+              id: p.id,
+              title: p.title,
+              authors: p.authors || [],
+              year: p.year,
+              abstract: p.abstract || "",
+            })),
+            column_name: col.name,
+            custom_prompt: col.prompt,
+            locale: locale,
+          },
+        });
+        if (error) {
+          console.error("Extraction error for column", col.name, error);
+          continue;
+        }
+
+        // Process extractions from response
+        const extractions = data?.extractions || [];
+        for (const ext of extractions) {
+          const paper = papersToExtract[ext.paper_index] || includedPapers[ext.paper_index];
+          if (paper?.id) {
             if (!newResults[paper.id]) newResults[paper.id] = {};
-            newResults[paper.id][col.id] = data?.value || "N/A";
-            onExtractionResultsChange({ ...newResults });
-          } catch {
-            // continue on individual failures
+            newResults[paper.id][col.id] = ext.value || "N/A";
           }
         }
+        onExtractionResultsChange({ ...newResults });
       }
+
       toast.success(locale === "pt" ? "Extração completa!" : "Extraction complete!");
     } catch (err: any) {
+      console.error("Extraction error:", err);
       toast.error(err.message || "Extraction failed");
     } finally {
       setExtracting(false);

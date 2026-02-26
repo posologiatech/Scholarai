@@ -319,7 +319,7 @@ const StepScreening = ({
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={screenSample} disabled={screening || screeningAll || criteria.filter((c) => c.enabled).length === 0} className="gap-2">
           {screening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4" />}
-          {locale === "pt" ? "Triar amostra (50)" : "Screen sample (50)"}
+          {locale === "pt" ? "Triar amostra (20)" : "Screen sample (20)"}
         </Button>
         <Button variant="outline" onClick={screenAllRemaining} disabled={screening || screeningAll || criteria.filter((c) => c.enabled).length === 0} className="gap-2">
           {screeningAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4" />}
