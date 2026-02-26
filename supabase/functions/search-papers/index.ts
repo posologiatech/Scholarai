@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { callAI } from '../_shared/ai-caller.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -274,7 +275,7 @@ async function searchOpenAlex(query: string, limit = 10, filters?: SearchFilters
 // ─── ClinicalTrials.gov ─────────────────────────────────────────────
 async function searchClinicalTrials(query: string, limit = 10, filters?: SearchFilters): Promise<Paper[]> {
   try {
-    let url = `https://clinicaltrials.gov/api/v2/studies?query.term=${encodeURIComponent(query)}&pageSize=${limit}&fields=NCTId,BriefTitle,OverallStatus,Condition,InterventionName,StartDate,BriefSummary,LeadSponsorName,StudyType&format=json`;
+    let url = `https://clinicaltrials.gov/api/v2/studies?query.term=${encodeURIComponent(query)}&pageSize=${Math.min(limit, 20)}&format=json`;
 
     if (filters?.yearMin || filters?.yearMax) {
       const minDate = `${filters.yearMin || 1900}-01-01`;
@@ -391,37 +392,31 @@ async function searchEuropePMC(query: string, limit = 10, filters?: SearchFilter
 
 // ─── Translate query to English ─────────────────────────────────────
 async function translateToEnglish(query: string): Promise<string> {
-  const nonEnglishPattern = /[àáâãéêíóôõúüç]|(\b(qual|quais|como|para|pode|causa|entre|sobre|efeito|tratamento|comparado|mulheres|homens|idosos|crianças|estudo|risco|aumenta|reduz|previne)\b)/i;
+  const nonEnglishPattern = /[àáâãéêíóôõúüç]|(\b(qual|quais|como|para|pode|causa|entre|sobre|efeito|tratamento|comparado|mulheres|homens|idosos|crianças|estudo|risco|aumenta|reduz|previne|segurança|eficácia|blocadores|diuréticos|grávidas)\b)/i;
   if (!nonEnglishPattern.test(query)) return query;
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) return query;
-
-    const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
-        messages: [
-          { role: 'system', content: 'Translate the following research question to English. Output ONLY the translated question, nothing else.' },
-          { role: 'user', content: query },
-        ],
-        max_tokens: 200,
-      }),
+    const resp = await callAI({
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        { role: 'system', content: 'Translate the following research question to English for academic database search. Output ONLY the translated question, nothing else.' },
+        { role: 'user', content: query },
+      ],
+      max_tokens: 300,
     });
-    if (!resp.ok) return query;
+    if (!resp.ok) {
+      console.error('[search-papers] Translation failed, status:', resp.status);
+      return query;
+    }
     const data = await resp.json();
     const translated = data.choices?.[0]?.message?.content?.trim();
-    if (translated) {
+    if (translated && translated.length > 5) {
       console.log(`[search-papers] Translated: "${query}" → "${translated}"`);
       return translated;
     }
     return query;
-  } catch {
+  } catch (e) {
+    console.error('[search-papers] Translation error:', e);
     return query;
   }
 }
