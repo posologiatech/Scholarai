@@ -30,6 +30,7 @@ import PaperReport from "./pages/PaperReport";
 import ReferenceCheck from "./pages/ReferenceCheck";
 import Illustrations from "./pages/Illustrations";
 import SystematicReview from "./pages/SystematicReview";
+import SystematicReviewList from "./pages/SystematicReviewList";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -69,7 +70,8 @@ const App = () => (
               <Route path="/paper/:id" element={<ProtectedRoute><PaperReport /></ProtectedRoute>} />
               <Route path="/reference-check" element={<ProtectedRoute><ReferenceCheck /></ProtectedRoute>} />
               <Route path="/illustrations" element={<ProtectedRoute><Illustrations /></ProtectedRoute>} />
-              <Route path="/systematic-review" element={<ProtectedRoute><SystematicReview /></ProtectedRoute>} />
+              <Route path="/systematic-review" element={<ProtectedRoute><SystematicReviewList /></ProtectedRoute>} />
+              <Route path="/systematic-review/new" element={<ProtectedRoute><SystematicReview /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

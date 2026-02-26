@@ -23,7 +23,7 @@ const Dashboard = () => {
     const updated = [q, ...recentSearches.filter((s) => s !== q)].slice(0, 8);
     localStorage.setItem("scholarai_recent", JSON.stringify(updated));
     if (systematicReview) {
-      navigate(`/systematic-review?q=${encodeURIComponent(q)}&auto=true`);
+      navigate(`/systematic-review/new?q=${encodeURIComponent(q)}&auto=true`);
     } else {
       const suggestedColumns = evaluation?.suggested_columns || [];
       navigate(`/search?q=${encodeURIComponent(q)}`, { state: { suggestedColumns } });
