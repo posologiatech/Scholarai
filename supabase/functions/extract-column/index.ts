@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { query, papers, column_name, custom_prompt, locale = 'en', stream = false } = await req.json();
+    const { query, papers, column_name, custom_prompt, locale = 'en', stream = false, full_texts = {} } = await req.json();
 
     if (!query || !papers || !Array.isArray(papers) || papers.length === 0 || !column_name) {
       return new Response(JSON.stringify({ error: 'query, papers, and column_name are required' }), {
@@ -77,46 +77,60 @@ Deno.serve(async (req) => {
       },
     }];
 
-    const getSemanticContext = async (papersToSearch: any[]): Promise<Map<string, string>> => {
-      const semanticContextMap = new Map<string, string>();
-      try {
-        const questionText = custom_prompt || column_name;
-        const embResponse = await callEmbeddings(questionText);
-        if (embResponse.ok) {
-          const embData = await embResponse.json();
-          const questionEmbedding = embData.data?.[0]?.embedding;
-          if (questionEmbedding) {
-            const results = await Promise.allSettled(papersToSearch.map(async (paper: any) => {
-              const { data: chunks } = await supabase.rpc('match_paper_chunks', {
-                query_embedding: questionEmbedding, match_threshold: 0.2, match_count: 5, filter_paper_id: paper.id,
-              });
-              if (chunks && chunks.length > 0) return { id: paper.id, text: chunks.map((c: any) => c.chunk_text).join('\n\n') };
-              return null;
-            }));
-            for (const r of results) {
-              if (r.status === 'fulfilled' && r.value) semanticContextMap.set(r.value.id, r.value.text);
+    const getContextForPapers = async (papersToSearch: any[]): Promise<Map<string, string>> => {
+      const contextMap = new Map<string, string>();
+      
+      // Use full_texts directly when available (bypasses broken embeddings)
+      for (const paper of papersToSearch) {
+        if (full_texts[paper.id]) {
+          // Truncate to ~15k chars per paper to fit in context window
+          contextMap.set(paper.id, full_texts[paper.id].slice(0, 15000));
+        }
+      }
+      
+      // For papers without full text, try semantic search (if embeddings exist)
+      const papersWithoutFullText = papersToSearch.filter((p: any) => !contextMap.has(p.id));
+      if (papersWithoutFullText.length > 0) {
+        try {
+          const questionText = custom_prompt || column_name;
+          const embResponse = await callEmbeddings(questionText);
+          if (embResponse.ok) {
+            const embData = await embResponse.json();
+            const questionEmbedding = embData.data?.[0]?.embedding;
+            if (questionEmbedding) {
+              const results = await Promise.allSettled(papersWithoutFullText.map(async (paper: any) => {
+                const { data: chunks } = await supabase.rpc('match_paper_chunks', {
+                  query_embedding: questionEmbedding, match_threshold: 0.2, match_count: 5, filter_paper_id: paper.id,
+                });
+                if (chunks && chunks.length > 0) return { id: paper.id, text: chunks.map((c: any) => c.chunk_text).join('\n\n') };
+                return null;
+              }));
+              for (const r of results) {
+                if (r.status === 'fulfilled' && r.value) contextMap.set(r.value.id, r.value.text);
+              }
             }
           }
+        } catch (err) {
+          console.error('Semantic search failed (non-blocking):', err);
         }
-      } catch (err) {
-        console.error('Semantic search failed:', err);
       }
-      return semanticContextMap;
+      
+      return contextMap;
     };
 
-    const buildPaperSummary = (batch: any[], semanticContextMap: Map<string, string>) => {
+    const buildPaperSummary = (batch: any[], contextMap: Map<string, string>) => {
       return batch.map((p: any) => {
         const originalIdx = papers.findIndex((op: any) => op.id === p.id);
-        const semanticContext = semanticContextMap.get(p.id);
+        const contextText = contextMap.get(p.id);
         
         // Determine if we have full text content
-        const hasFullText = semanticContext && semanticContext.length > 2000;
+        const hasFullText = contextText && contextText.length > 2000;
         
         let textContent: string;
         if (hasFullText) {
-          textContent = `[FULL TEXT AVAILABLE - Extract data directly]\n${semanticContext}`;
-        } else if (semanticContext) {
-          textContent = `Semantic chunks:\n${semanticContext}\n\nAbstract: ${p.abstract || 'No abstract available.'}`;
+          textContent = `[FULL TEXT AVAILABLE - Extract data directly]\n${contextText}`;
+        } else if (contextText) {
+          textContent = `Semantic chunks:\n${contextText}\n\nAbstract: ${p.abstract || 'No abstract available.'}`;
         } else {
           textContent = `Abstract: ${p.abstract || 'No abstract available.'}`;
         }
@@ -185,13 +199,13 @@ Deno.serve(async (req) => {
 
           const papersToExtract = papers.filter((p: any) => p.id && !cacheMap.has(p.id));
           if (papersToExtract.length > 0) {
-            const semanticContextMap = await getSemanticContext(papersToExtract);
+            const contextMap = await getContextForPapers(papersToExtract);
             const batchSize = 10;
             const batches: any[][] = [];
             for (let i = 0; i < papersToExtract.length; i += batchSize) batches.push(papersToExtract.slice(i, i + batchSize));
 
             const batchPromises = batches.map(async (batch) => {
-              const papersSummary = buildPaperSummary(batch, semanticContextMap);
+              const papersSummary = buildPaperSummary(batch, contextMap);
               try {
                 const result = await callLLM(papersSummary);
                 if (result) {
@@ -232,13 +246,13 @@ Deno.serve(async (req) => {
     });
 
     if (papersToExtract.length > 0) {
-      const semanticContextMap = await getSemanticContext(papersToExtract);
+      const contextMap = await getContextForPapers(papersToExtract);
       const batchSize = 10;
       const batches: any[][] = [];
       for (let i = 0; i < papersToExtract.length; i += batchSize) batches.push(papersToExtract.slice(i, i + batchSize));
 
       const batchResults = await Promise.all(batches.map(async (batch) => {
-        const papersSummary = buildPaperSummary(batch, semanticContextMap);
+        const papersSummary = buildPaperSummary(batch, contextMap);
         return callLLM(papersSummary);
       }));
 
