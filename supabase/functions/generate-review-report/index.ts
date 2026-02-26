@@ -26,10 +26,10 @@ Deno.serve(async (req) => {
     // Build criteria summary
     const criteriaList = (criteria || [])
       .filter((c: any) => c.enabled !== false)
-      .map((c: any) => `- **${c.name}**: ${c.description}`)
+      .map((c: any) => `- ${c.name}: ${c.description}`)
       .join("\n");
 
-    // Build extraction data summary
+    // Build extraction data summary per paper
     let extractionSummary = "";
     if (extractionColumns?.length > 0 && extractionResults) {
       const enabledCols = extractionColumns.filter((c: any) => c.enabled !== false);
@@ -38,83 +38,115 @@ Deno.serve(async (req) => {
         const results = extractionResults[paper.id];
         if (!results) continue;
         const authorStr = paper.authors?.length > 0
-          ? `${paper.authors[0].split(" ").pop() || paper.authors[0]} et al.`
+          ? `${paper.authors[0].split(" ").pop() || paper.authors[0]}${paper.authors.length > 1 ? " et al." : ""}`
           : "Unknown";
-        const colValues = enabledCols.map((col: any) => `${col.name}: ${results[col.id] || "N/A"}`).join("; ");
-        rows.push(`- ${authorStr}, ${paper.year || "n.d."}: ${colValues}`);
+        const colValues = enabledCols.map((col: any) => `  - ${col.name}: ${results[col.id] || "N/A"}`).join("\n");
+        rows.push(`${authorStr} (${paper.year || "n.d."}):\n${colValues}`);
       }
-      extractionSummary = rows.join("\n");
+      extractionSummary = rows.join("\n\n");
     }
 
-    // Build paper abstracts for synthesis
-    const papersSummary = includedPapers.slice(0, 30).map((p: any, i: number) => {
-      const authorStr = (p.authors || []).slice(0, 4).join(", ") + (p.authors?.length > 4 ? " et al." : "");
-      return `[${i + 1}] ${authorStr} (${p.year || "n.d."}). "${p.title}". ${p.abstract || "Sem resumo disponível."}`;
+    // Build detailed paper summaries
+    const papersSummary = includedPapers.map((p: any, i: number) => {
+      const authorStr = (p.authors || []).slice(0, 6).join(", ") + (p.authors?.length > 6 ? " et al." : "");
+      return `[${i + 1}] ${authorStr} (${p.year || "n.d."}). "${p.title}".${p.journal ? ` ${p.journal}.` : ""}${p.doi ? ` DOI: ${p.doi}` : ""}\nResumo: ${p.abstract || "Sem resumo disponível."}`;
     }).join("\n\n");
 
     const systemPrompt = locale === "pt"
-      ? `Você é um especialista em revisões sistemáticas. Gere um relatório COMPLETO e DETALHADO de revisão sistemática em português (pt-BR), seguindo rigorosamente a estrutura abaixo. O relatório deve ser extenso, acadêmico e com análise profunda.
+      ? `Você é um pesquisador acadêmico experiente especializado em revisões sistemáticas. Seu trabalho é redigir relatórios de revisão sistemática de alta qualidade acadêmica, no nível de publicação em periódicos científicos indexados.
 
-ESTRUTURA OBRIGATÓRIA:
+INSTRUÇÕES DE FORMATAÇÃO:
+- Escreva em português acadêmico formal (pt-BR)
+- Use markdown: ## para seções principais, ### para subseções
+- Cite os estudos no corpo do texto como (Sobrenome et al., Ano) ou (Sobrenome, Ano) para autor único
+- NÃO inclua seção de referências no texto - ela será gerada automaticamente pelo sistema
+- Seja extenso e detalhado - mínimo 3000 palavras
+- Use parágrafos longos e bem desenvolvidos, como em artigos científicos reais
+- Tabelas em markdown são permitidas quando relevantes
 
-1. **RESUMO** (Abstract): Um parágrafo completo resumindo o objetivo, métodos, principais achados e conclusões da revisão.
+ESTRUTURA OBRIGATÓRIA DO RELATÓRIO:
 
-2. **MÉTODOS**: 
-   - Descrição da busca (pergunta de pesquisa, bases consultadas, número de artigos identificados)
-   - Critérios de triagem utilizados
-   - Processo de seleção (quantos artigos triados, incluídos, excluídos)
-   - Campos de extração de dados
+## Resumo
+Parágrafo estruturado contendo: Introdução/Contexto, Objetivo, Métodos (bases consultadas, critérios, número de estudos), Resultados principais e Conclusão. Deve ter entre 200-300 palavras.
 
-3. **RESULTADOS**:
-   - **Características dos Estudos Incluídos**: Descreva os tipos de estudo, tamanhos amostrais, populações, etc. baseado nos dados de extração
-   - **Principais Achados**: Agrupe os resultados por subtemas relevantes. Para cada subtema, discuta os achados de múltiplos estudos, citando-os por autor e ano.
-   - Inclua análises quantitativas quando os dados permitirem (ranges, médias, etc.)
-   - Identifique padrões, concordâncias e discordâncias entre os estudos
+## Palavras-chave
+Liste 5-7 palavras-chave relevantes separadas por ponto e vírgula.
 
-4. **DISCUSSÃO**:
-   - Síntese dos achados principais
-   - Comparação com literatura prévia
-   - Limitações dos estudos e da revisão
-   - Implicações para prática e pesquisa futura
+## Introdução
+- Contextualize o tema com profundidade (estado da arte, relevância clínica/científica, lacunas no conhecimento)
+- Cite estudos relevantes da lista fornecida para embasar a contextualização
+- Apresente a justificativa para a revisão
+- Declare claramente o objetivo da revisão no último parágrafo
+- Mínimo 3 parágrafos longos
 
-5. **CONCLUSÃO**: Parágrafo conciso com as conclusões principais
+## Materiais e Métodos
+- Estratégia de busca: descreva as bases de dados consultadas, termos de busca, período
+- Critérios de elegibilidade: liste os critérios de inclusão e exclusão utilizados
+- Processo de seleção: descreva o fluxo PRISMA (identificados → triados → incluídos/excluídos)
+- Extração de dados: descreva os campos extraídos de cada estudo
+- Avaliação de qualidade: mencione como a qualidade foi avaliada
 
-6. **REFERÊNCIAS**: Liste TODAS as referências dos artigos incluídos no formato: Autores (Ano). Título. Journal.
+## Resultados
+### Seleção dos estudos
+Descreva o processo de seleção com números exatos.
+
+### Características dos estudos incluídos
+Descreva detalhadamente as características gerais dos estudos (tipos de estudo, populações, tamanhos amostrais, intervenções, durações). Use os dados de extração fornecidos.
+
+### Principais achados
+Organize os resultados por subtemas relevantes à pergunta de pesquisa. Para cada subtema:
+- Apresente os achados de cada estudo individual, citando autor e ano
+- Compare resultados entre estudos
+- Identifique padrões, concordâncias e discordâncias
+- Inclua dados quantitativos quando disponíveis (valores, intervalos, percentuais)
+- Mínimo 3 subtemas com 2+ parágrafos cada
+
+## Discussão
+- Sintetize os achados principais em relação à pergunta de pesquisa
+- Compare com a literatura prévia e diretrizes atuais
+- Discuta as implicações clínicas/práticas dos achados
+- Analise as limitações dos estudos incluídos (viés, heterogeneidade, tamanho amostral)
+- Discuta as limitações desta revisão
+- Sugira direções para pesquisas futuras
+- Mínimo 4 parágrafos longos
+
+## Conclusão
+Parágrafo conclusivo sintetizando os principais achados, suas implicações e recomendações. Deve ser conciso mas abrangente.
 
 IMPORTANTE:
-- Cite os estudos pelo nome do primeiro autor e ano ao longo do texto, ex: "Silva et al. (2023)"
-- Use marcadores * ao final de afirmações baseadas nos papers para indicar fonte
-- Seja DETALHADO e EXTENSO - mínimo 2000 palavras
-- Base tudo nos dados fornecidos, não invente informações`
-      : `You are a systematic review expert. Generate a COMPLETE and DETAILED systematic review report following this structure...`; // English version abbreviated for space
+- Base TUDO nos dados fornecidos - não invente informações
+- Se não houver dados suficientes sobre um aspecto, indique isso explicitamente
+- Mantenha tom acadêmico impessoal (terceira pessoa ou "nós")
+- Cada afirmação substantiva deve citar a fonte entre parênteses`
+      : `You are an expert academic researcher specialized in systematic reviews. Write a publication-quality systematic review report following standard academic structure with Abstract, Introduction, Methods, Results, Discussion, and Conclusion. Minimum 3000 words. Cite studies as (Author et al., Year). Do NOT include a References section - it will be auto-generated.`;
 
     const userPrompt = `Pergunta de pesquisa: "${question}"
 
-DADOS DO PRISMA:
-- Artigos identificados: ${totalPapers}
-- Artigos triados: ${screenedCount}
-- Artigos incluídos: ${includedPaperIds.length}
-- Artigos excluídos: ${excludedCount}
+DADOS DO FLUXO PRISMA:
+- Artigos identificados nas bases de dados: ${totalPapers}
+- Artigos triados por critérios de elegibilidade: ${screenedCount}
+- Artigos incluídos na síntese: ${includedPaperIds.length}
+- Artigos excluídos após triagem: ${excludedCount}
 
-CRITÉRIOS DE TRIAGEM:
-${criteriaList || "Não definidos"}
+CRITÉRIOS DE ELEGIBILIDADE UTILIZADOS:
+${criteriaList || "Não especificados"}
 
-DADOS DE EXTRAÇÃO:
-${extractionSummary || "Não disponíveis"}
+DADOS DE EXTRAÇÃO POR ESTUDO:
+${extractionSummary || "Dados de extração não disponíveis"}
 
-ARTIGOS INCLUÍDOS (${includedPapers.length} total):
+ARTIGOS INCLUÍDOS NA REVISÃO (${includedPapers.length} estudos):
 ${papersSummary}
 
-Gere o relatório completo de revisão sistemática.`;
+Com base nos dados acima, redija o relatório completo de revisão sistemática seguindo rigorosamente a estrutura solicitada. Seja detalhado, analítico e acadêmico.`;
 
     const response = await callAI({
-      model: "google/gemini-3-flash-preview",
+      model: "google/gemini-2.5-pro",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
       temperature: 0.3,
-      max_tokens: 8000,
+      max_tokens: 12000,
     });
 
     if (!response.ok) {

@@ -1,6 +1,6 @@
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, FileText, Download, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, Download } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ interface Paper {
   authors?: string[];
   year?: number;
   abstract?: string;
+  journal?: string;
+  doi?: string;
 }
 
 interface ScreeningCriterion {
@@ -58,7 +60,6 @@ const StepReport = ({
 }: StepReportProps) => {
   const { locale } = useLanguage();
   const [generating, setGenerating] = useState(false);
-  const [methodsExpanded, setMethodsExpanded] = useState(false);
 
   const includedPapers = papers.filter((p) => includedPaperIds.includes(p.id));
   const excludedCount = screenedCount - includedPaperIds.length;
@@ -77,6 +78,8 @@ const StepReport = ({
             authors: p.authors || [],
             year: p.year,
             abstract: p.abstract || "",
+            journal: p.journal || "",
+            doi: p.doi || "",
           })),
           includedPaperIds,
           totalPapers,
@@ -112,69 +115,151 @@ const StepReport = ({
   const formatAuthorShort = (paper: Paper) => {
     if (!paper.authors?.length) return "Unknown";
     const lastName = paper.authors[0].split(" ").pop() || paper.authors[0];
-    return paper.authors.length > 1
-      ? `${lastName} et al.`
-      : lastName;
+    return paper.authors.length > 1 ? `${lastName} et al.` : lastName;
   };
 
-  const formatAuthorFull = (paper: Paper) => {
-    if (!paper.authors?.length) return "Unknown";
-    const authors = paper.authors.slice(0, 6).join(", ");
-    return paper.authors.length > 6
-      ? `${authors}, and ${paper.authors.length - 6} more`
-      : authors;
+  const formatReference = (paper: Paper, index: number) => {
+    if (!paper.authors?.length) {
+      return (
+        <p key={paper.id} className="text-[13px] leading-relaxed text-foreground pl-8 -indent-8">
+          [{index + 1}] Unknown ({paper.year || "n.d."}). <em>{paper.title}</em>.
+        </p>
+      );
+    }
+    const authorList = paper.authors.slice(0, 6).join(", ");
+    const moreAuthors = paper.authors.length > 6 ? `, and ${paper.authors.length - 6} more` : "";
+    return (
+      <p key={paper.id} className="text-[13px] leading-relaxed text-foreground pl-8 -indent-8">
+        [{index + 1}] {authorList}{moreAuthors} ({paper.year || "n.d."}). <em>{paper.title}</em>.
+        {paper.journal && <> <span className="text-muted-foreground">{paper.journal}</span>.</>}
+        {paper.doi && <> <a href={`https://doi.org/${paper.doi}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">https://doi.org/{paper.doi}</a></>}
+      </p>
+    );
   };
 
-  // Render markdown-like content
+  // Render markdown content with academic styling
   const renderContent = (text: string) => {
-    return text.split("\n").map((line, i) => {
-      if (line.startsWith("# ")) return <h1 key={i} className="text-xl font-bold text-foreground mt-8 mb-3">{line.slice(2)}</h1>;
-      if (line.startsWith("## ")) return <h2 key={i} className="text-lg font-bold text-foreground mt-6 mb-2 uppercase tracking-wide text-primary">{line.slice(3)}</h2>;
-      if (line.startsWith("### ")) return <h3 key={i} className="text-base font-semibold text-foreground mt-4 mb-1">{line.slice(4)}</h3>;
-      if (line.startsWith("#### ")) return <h4 key={i} className="text-sm font-semibold text-foreground mt-3 mb-1">{line.slice(5)}</h4>;
-      if (line.startsWith("---")) return <hr key={i} className="my-6 border-border" />;
-      if (line.trim() === "") return <div key={i} className="h-2" />;
+    const lines = text.split("\n");
+    const elements: JSX.Element[] = [];
+    let inTable = false;
+    let tableRows: string[] = [];
 
-      // Bold text inline
-      const renderBold = (text: string) => {
-        const parts = text.split(/\*\*(.*?)\*\*/g);
-        return parts.map((part, j) => j % 2 === 1 ? <strong key={j}>{part}</strong> : part);
-      };
+    const flushTable = () => {
+      if (tableRows.length === 0) return;
+      const headerRow = tableRows[0];
+      const dataRows = tableRows.slice(2); // skip separator
+      const headers = headerRow.split("|").filter(h => h.trim());
+      elements.push(
+        <div key={`table-${elements.length}`} className="overflow-x-auto my-4">
+          <table className="w-full text-[13px] border-collapse">
+            <thead>
+              <tr className="border-b-2 border-foreground/20">
+                {headers.map((h, i) => (
+                  <th key={i} className="py-2 px-3 text-left font-semibold text-foreground">{h.trim()}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dataRows.map((row, ri) => {
+                const cells = row.split("|").filter(c => c.trim() !== "" || row.includes("||"));
+                const cellValues = row.split("|").slice(1, -1);
+                return (
+                  <tr key={ri} className="border-b border-border/50">
+                    {cellValues.map((c, ci) => (
+                      <td key={ci} className="py-1.5 px-3 text-foreground">{renderInline(c.trim())}</td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+      tableRows = [];
+      inTable = false;
+    };
 
-      // Italic
-      const renderInline = (text: string) => {
-        const parts = text.split(/\*(.*?)\*/g);
-        return parts.map((part, j) => {
-          if (j % 2 === 1) return <em key={j}>{part}</em>;
-          return renderBold(part);
-        });
-      };
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
 
-      if (line.match(/^\s*-\s/)) {
-        const indent = line.match(/^(\s*)/)?.[1]?.length || 0;
+      // Table detection
+      if (line.includes("|") && line.trim().startsWith("|")) {
+        inTable = true;
+        tableRows.push(line);
+        continue;
+      } else if (inTable) {
+        flushTable();
+      }
+
+      if (line.startsWith("# ")) {
+        elements.push(
+          <h1 key={i} className="text-xl font-bold text-foreground mt-10 mb-4 border-b border-border pb-2">
+            {line.slice(2)}
+          </h1>
+        );
+      } else if (line.startsWith("## ")) {
+        elements.push(
+          <h2 key={i} className="text-base font-bold text-foreground mt-8 mb-3 uppercase tracking-wider">
+            {line.slice(3)}
+          </h2>
+        );
+      } else if (line.startsWith("### ")) {
+        elements.push(
+          <h3 key={i} className="text-sm font-bold text-foreground mt-5 mb-2 italic">
+            {line.slice(4)}
+          </h3>
+        );
+      } else if (line.startsWith("#### ")) {
+        elements.push(
+          <h4 key={i} className="text-sm font-semibold text-foreground mt-4 mb-1">{line.slice(5)}</h4>
+        );
+      } else if (line.startsWith("---")) {
+        elements.push(<hr key={i} className="my-8 border-border" />);
+      } else if (line.trim() === "") {
+        elements.push(<div key={i} className="h-1" />);
+      } else if (line.match(/^\s*-\s/)) {
         const content = line.replace(/^\s*-\s/, "");
-        return (
-          <li key={i} className="text-sm text-foreground my-0.5 list-disc" style={{ marginLeft: `${Math.max(indent, 1) * 16}px` }}>
+        elements.push(
+          <li key={i} className="text-[13px] text-foreground my-0.5 list-disc ml-6 leading-relaxed">
             {renderInline(content)}
           </li>
         );
-      }
-
-      if (line.match(/^\s*\d+\.\s/)) {
+      } else if (line.match(/^\s*\d+\.\s/)) {
         const content = line.replace(/^\s*\d+\.\s/, "");
-        return (
-          <li key={i} className="text-sm text-foreground my-0.5 list-decimal ml-6">
+        elements.push(
+          <li key={i} className="text-[13px] text-foreground my-0.5 list-decimal ml-6 leading-relaxed">
             {renderInline(content)}
           </li>
         );
+      } else {
+        elements.push(
+          <p key={i} className="text-[13px] text-foreground my-2 leading-[1.8] text-justify">
+            {renderInline(line)}
+          </p>
+        );
       }
+    }
+    if (inTable) flushTable();
+    return elements;
+  };
 
-      return <p key={i} className="text-sm text-foreground my-1.5 leading-relaxed">{renderInline(line)}</p>;
+  const renderInline = (text: string) => {
+    // Handle bold then italic
+    const parts = text.split(/\*\*(.*?)\*\*/g);
+    return parts.map((part, j) => {
+      if (j % 2 === 1) return <strong key={j}>{part}</strong>;
+      // Handle italic
+      const italicParts = part.split(/\*(.*?)\*/g);
+      return italicParts.map((ip, k) => {
+        if (k % 2 === 1) return <em key={`${j}-${k}`}>{ip}</em>;
+        return ip;
+      });
     });
   };
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      {/* Header */}
       <div className="space-y-2 text-center">
         <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
           <FileText className="h-4 w-4" />
@@ -182,11 +267,12 @@ const StepReport = ({
         </div>
         <p className="text-sm text-muted-foreground">
           {locale === "pt"
-            ? "Gere um relatório completo de revisão sistemática com diagrama PRISMA, métodos, resultados e referências."
-            : "Generate a complete systematic review report with PRISMA diagram, methods, results, and references."}
+            ? "Gere um relatório completo de revisão sistemática no padrão acadêmico profissional."
+            : "Generate a complete systematic review report in professional academic format."}
         </p>
       </div>
 
+      {/* Action buttons */}
       <div className="flex items-center gap-3">
         <Button onClick={generateReport} disabled={generating || includedPapers.length === 0} className="gap-2">
           {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
@@ -201,182 +287,139 @@ const StepReport = ({
       </div>
 
       {reportContent ? (
-        <div className="space-y-6">
-          {/* PRISMA Flow Diagram */}
-          <div className="rounded-xl border border-border bg-card p-6">
-            <div className="flex flex-col md:flex-row gap-8">
-              {/* Visual PRISMA */}
-              <div className="flex-shrink-0">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="flex gap-4">
-                    <div className="rounded-lg border border-border bg-muted/50 p-3 text-center min-w-[140px]">
-                      <p className="text-xs text-muted-foreground">{locale === "pt" ? "Artigos identificados" : "Papers identified"}</p>
-                      <p className="text-lg font-bold text-foreground">n = {totalPapers}</p>
-                    </div>
-                  </div>
-                  <div className="h-6 w-px bg-border" />
-                  <div className="rounded-lg border border-border bg-muted/50 p-3 text-center min-w-[200px]">
-                    <p className="text-xs text-muted-foreground">
-                      {locale === "pt" ? "Artigos triados" : "Papers screened"}
-                      {enabledCriteria.length > 0 && (
-                        <span className="block text-[10px]">
-                          {enabledCriteria.map((c) => c.name).join(", ")}
-                        </span>
-                      )}
+        <div className="space-y-0">
+          {/* Main report - academic paper style */}
+          <article className="bg-card border border-border rounded-xl p-8 md:p-12 shadow-sm">
+            {/* Title block */}
+            <header className="text-center mb-8 pb-6 border-b border-border">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">
+                {locale === "pt" ? "Artigo de Revisão Sistemática" : "Systematic Review Article"}
+              </p>
+              <h1 className="text-lg md:text-xl font-bold text-foreground leading-tight mb-4">
+                {question}
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                {locale === "pt"
+                  ? `Revisão sistemática • ${includedPapers.length} estudos incluídos • Gerado em ${new Date().toLocaleDateString("pt-BR")}`
+                  : `Systematic review • ${includedPapers.length} studies included • Generated ${new Date().toLocaleDateString()}`}
+              </p>
+            </header>
+
+            {/* Report body */}
+            <div className="report-body">
+              {renderContent(reportContent)}
+            </div>
+
+            {/* PRISMA Flow Diagram */}
+            <section className="mt-10 pt-6 border-t border-border">
+              <h2 className="text-base font-bold text-foreground uppercase tracking-wider mb-6 text-center">
+                {locale === "pt" ? "Diagrama de Fluxo PRISMA" : "PRISMA Flow Diagram"}
+              </h2>
+              <div className="flex flex-col items-center gap-0">
+                {/* Identified */}
+                <div className="rounded-lg border-2 border-foreground/20 bg-muted/30 px-8 py-4 text-center min-w-[280px]">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {locale === "pt" ? "Artigos identificados nas bases de dados" : "Records identified through database searching"}
+                  </p>
+                  <p className="text-2xl font-bold text-foreground mt-1">n = {totalPapers}</p>
+                </div>
+                <div className="w-px h-8 bg-foreground/20" />
+
+                {/* Screened */}
+                <div className="rounded-lg border-2 border-foreground/20 bg-muted/30 px-8 py-4 text-center min-w-[280px]">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {locale === "pt" ? "Artigos triados" : "Records screened"}
+                  </p>
+                  <p className="text-2xl font-bold text-foreground mt-1">n = {screenedCount}</p>
+                  {enabledCriteria.length > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-1 max-w-xs">
+                      {enabledCriteria.map((c) => c.name).join(", ")}
                     </p>
-                    <p className="text-lg font-bold text-foreground">n = {screenedCount}</p>
+                  )}
+                </div>
+                <div className="w-px h-8 bg-foreground/20" />
+
+                {/* Included / Excluded */}
+                <div className="flex gap-6 items-start">
+                  <div className="rounded-lg border-2 border-primary/40 bg-primary/5 px-6 py-4 text-center min-w-[160px]">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      {locale === "pt" ? "Artigos incluídos" : "Studies included"}
+                    </p>
+                    <p className="text-2xl font-bold text-primary mt-1">n = {includedPaperIds.length}</p>
                   </div>
-                  <div className="h-6 w-px bg-border" />
-                  <div className="flex gap-4">
-                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-center min-w-[140px]">
-                      <p className="text-xs text-muted-foreground">{locale === "pt" ? "Artigos incluídos" : "Papers included"}</p>
-                      <p className="text-lg font-bold text-primary">n = {includedPaperIds.length}</p>
-                    </div>
-                    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-center min-w-[140px]">
-                      <p className="text-xs text-muted-foreground">{locale === "pt" ? "Artigos excluídos" : "Papers excluded"}</p>
-                      <p className="text-lg font-bold text-destructive">n = {excludedCount}</p>
-                    </div>
+                  <div className="rounded-lg border-2 border-destructive/30 bg-destructive/5 px-6 py-4 text-center min-w-[160px]">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      {locale === "pt" ? "Artigos excluídos" : "Records excluded"}
+                    </p>
+                    <p className="text-2xl font-bold text-destructive mt-1">n = {excludedCount}</p>
                   </div>
                 </div>
               </div>
+              <p className="text-[10px] text-muted-foreground text-center mt-4 italic">
+                {locale === "pt"
+                  ? "Figura 1. Diagrama de fluxo PRISMA da seleção dos estudos."
+                  : "Figure 1. PRISMA flow diagram of study selection."}
+              </p>
+            </section>
 
-              {/* Methods summary (collapsible) */}
-              <div className="flex-1 min-w-0">
-                <button
-                  onClick={() => setMethodsExpanded(!methodsExpanded)}
-                  className="flex items-center gap-2 text-sm font-semibold text-primary uppercase tracking-wide mb-2 hover:opacity-80"
-                >
-                  {locale === "pt" ? "MÉTODOS" : "METHODS"}
-                  {methodsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
-
-                {!methodsExpanded && (
-                  <p className="text-sm text-muted-foreground">
-                    {locale === "pt"
-                      ? `Analisamos ${includedPaperIds.length} artigos de um pool inicial de ${totalPapers}, utilizando ${enabledCriteria.length} critérios de triagem. Cada artigo foi avaliado para ${enabledCols.length} aspectos-chave relevantes à pergunta de pesquisa.`
-                      : `We analyzed ${includedPaperIds.length} papers from an initial pool of ${totalPapers}, using ${enabledCriteria.length} screening criteria. Each paper was reviewed for ${enabledCols.length} key aspects.`}
-                    <button onClick={() => setMethodsExpanded(true)} className="ml-1 text-primary hover:underline">
-                      {locale === "pt" ? "Mais sobre métodos" : "More on methods"}
-                    </button>
-                  </p>
-                )}
-
-                {methodsExpanded && (
-                  <div className="space-y-3 text-sm">
-                    <div>
-                      <h4 className="font-semibold text-foreground">{locale === "pt" ? "Busca de artigos" : "Paper search"}</h4>
-                      <p className="text-muted-foreground">
-                        {locale === "pt"
-                          ? `Usando a pergunta de pesquisa "${question}", buscamos em múltiplas bases acadêmicas (Semantic Scholar, PubMed, OpenAlex, Europe PMC, ClinicalTrials.gov). Recuperamos os ${totalPapers} artigos mais relevantes.`
-                          : `Using the research question "${question}", we searched across multiple academic databases. We retrieved the ${totalPapers} most relevant papers.`}
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-foreground">{locale === "pt" ? "Triagem" : "Screening"}</h4>
-                      <p className="text-muted-foreground mb-1">
-                        {locale === "pt" ? "Triamos os artigos com base nestes critérios:" : "We screened papers using these criteria:"}
-                      </p>
-                      <ul className="space-y-1 ml-4">
-                        {enabledCriteria.map((c) => (
-                          <li key={c.id} className="text-muted-foreground list-disc">
-                            <strong className="text-foreground">{c.name}</strong>: {c.description}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    {enabledCols.length > 0 && (
-                      <div>
-                        <h4 className="font-semibold text-foreground">{locale === "pt" ? "Extração de dados" : "Data extraction"}</h4>
-                        <p className="text-muted-foreground mb-1">
-                          {locale === "pt"
-                            ? "Extraímos os seguintes campos de cada artigo incluído:"
-                            : "We extracted the following fields from each included paper:"}
-                        </p>
-                        <ul className="space-y-1 ml-4">
-                          {enabledCols.map((col) => (
-                            <li key={col.id} className="text-muted-foreground list-disc">
-                              <strong className="text-foreground">{col.name}</strong>: {col.prompt}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Extraction results table */}
-          {enabledCols.length > 0 && Object.keys(extractionResults).length > 0 && (
-            <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <div className="p-4 border-b border-border">
-                <h3 className="text-sm font-semibold text-primary uppercase tracking-wide">
-                  {locale === "pt" ? "RESULTADOS" : "RESULTS"}
-                </h3>
-                <p className="text-base font-semibold text-foreground mt-1">
+            {/* Extraction results table */}
+            {enabledCols.length > 0 && Object.keys(extractionResults).length > 0 && (
+              <section className="mt-10 pt-6 border-t border-border">
+                <h2 className="text-base font-bold text-foreground uppercase tracking-wider mb-2">
                   {locale === "pt" ? "Características dos Estudos Incluídos" : "Characteristics of Included Studies"}
+                </h2>
+                <p className="text-[10px] text-muted-foreground italic mb-4">
+                  {locale === "pt"
+                    ? `Tabela 1. Dados extraídos dos ${includedPapers.length} estudos incluídos na revisão.`
+                    : `Table 1. Data extracted from ${includedPapers.length} studies included in the review.`}
                 </p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/30">
-                    <tr>
-                      <th className="p-3 text-left font-medium text-foreground border-r border-border min-w-[180px]">
-                        {locale === "pt" ? "Estudo" : "Study"}
-                      </th>
-                      {enabledCols.map((col) => (
-                        <th key={col.id} className="p-3 text-left font-medium text-foreground border-r border-border last:border-0 min-w-[150px]">
-                          {col.name}
+                <div className="overflow-x-auto border border-border rounded-lg">
+                  <table className="w-full text-[12px]">
+                    <thead>
+                      <tr className="border-b-2 border-foreground/20 bg-muted/40">
+                        <th className="py-2.5 px-3 text-left font-bold text-foreground min-w-[140px]">
+                          {locale === "pt" ? "Estudo" : "Study"}
                         </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {includedPapers.map((paper) => {
-                      const results = extractionResults[paper.id];
-                      if (!results) return null;
-                      return (
-                        <tr key={paper.id} className="border-t border-border hover:bg-muted/20">
-                          <td className="p-3 border-r border-border">
-                            <span className="font-medium text-foreground">
+                        {enabledCols.map((col) => (
+                          <th key={col.id} className="py-2.5 px-3 text-left font-bold text-foreground min-w-[120px]">
+                            {col.name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {includedPapers.map((paper, idx) => {
+                        const results = extractionResults[paper.id];
+                        if (!results) return null;
+                        return (
+                          <tr key={paper.id} className={`border-b border-border/50 ${idx % 2 === 0 ? "bg-transparent" : "bg-muted/20"}`}>
+                            <td className="py-2 px-3 font-medium text-foreground whitespace-nowrap">
                               {formatAuthorShort(paper)}, {paper.year || "n.d."}
-                            </span>
-                          </td>
-                          {enabledCols.map((col) => (
-                            <td key={col.id} className="p-3 border-r border-border last:border-0 text-foreground">
-                              {results[col.id] || "-"}
-                              <span className="text-muted-foreground ml-1">*</span>
                             </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            {enabledCols.map((col) => (
+                              <td key={col.id} className="py-2 px-3 text-foreground">
+                                {results[col.id] || "-"}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {/* References */}
+            <section className="mt-10 pt-6 border-t border-border">
+              <h2 className="text-base font-bold text-foreground uppercase tracking-wider mb-4">
+                {locale === "pt" ? "Referências" : "References"}
+              </h2>
+              <div className="space-y-2">
+                {includedPapers.map((paper, index) => formatReference(paper, index))}
               </div>
-            </div>
-          )}
-
-          {/* AI-generated report content */}
-          <div className="rounded-xl border border-border bg-card p-6">
-            {renderContent(reportContent)}
-          </div>
-
-          {/* References */}
-          <div className="rounded-xl border border-border bg-card p-6">
-            <h2 className="text-sm font-semibold text-primary uppercase tracking-wide mb-4">
-              {locale === "pt" ? "REFERÊNCIAS" : "REFERENCES"}
-            </h2>
-            <div className="space-y-3">
-              {includedPapers.map((paper) => (
-                <p key={paper.id} className="text-sm text-foreground leading-relaxed">
-                  {formatAuthorFull(paper)} ({paper.year || "n.d."}).{" "}
-                  <em>{paper.title}</em>.
-                </p>
-              ))}
-            </div>
-          </div>
+            </section>
+          </article>
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-border bg-muted/30 py-16 text-center">
@@ -389,18 +432,16 @@ const StepReport = ({
           <div className="mt-4 text-xs text-muted-foreground space-y-1">
             <p>{locale === "pt" ? `${includedPapers.length} artigos incluídos` : `${includedPapers.length} papers included`}</p>
             <p>{locale === "pt" ? `${enabledCols.length} campos de extração` : `${enabledCols.length} extraction fields`}</p>
-            <p>{locale === "pt" ? `${enabledCriteria.length} critérios de triagem` : `${enabledCriteria.length} screening criteria`}</p>
           </div>
         </div>
       )}
 
       {/* Navigation */}
-      <div className="flex justify-between">
+      <div className="flex justify-start pt-4">
         <Button variant="outline" onClick={onPrev} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
-          {locale === "pt" ? "Anterior" : "Previous"}
+          {locale === "pt" ? "Voltar para Extração" : "Back to Extraction"}
         </Button>
-        <div />
       </div>
     </div>
   );
