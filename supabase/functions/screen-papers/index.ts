@@ -22,9 +22,9 @@ Deno.serve(async (req) => {
 
     const results = [];
 
-    // Process papers in batches of 5 for efficiency
-    for (let i = 0; i < papers.length; i += 5) {
-      const batch = papers.slice(i, i + 5);
+    // Process papers in batches of 10 for efficiency
+    for (let i = 0; i < papers.length; i += 10) {
+      const batch = papers.slice(i, i + 10);
 
       const criteriaDesc = criteria
         .map((c: any) => `- ${c.id} (${c.name}): ${c.description}`)
