@@ -140,7 +140,7 @@ ${papersSummary}
 Com base nos dados acima, redija o relatório completo de revisão sistemática seguindo rigorosamente a estrutura solicitada. Seja detalhado, analítico e acadêmico.`;
 
     const response = await callAI({
-      model: "google/gemini-2.5-pro",
+      model: "google/gemini-3-flash-preview",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

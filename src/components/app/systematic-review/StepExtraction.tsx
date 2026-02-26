@@ -74,7 +74,7 @@ const StepExtraction = ({
   const fetchFullTextsAndEmbed = async () => {
     if (embeddingDone.current) return;
     
-    // Step 1: Fetch full texts
+    // Fetch full texts from open access sources
     setFetchingFullText(true);
     setFullTextTotal(includedPapers.length);
     setFullTextFound(0);
@@ -116,38 +116,7 @@ const StepExtraction = ({
       setFetchingFullText(false);
     }
 
-    // Step 2: Embed papers (with full text when available)
-    setEmbedding(true);
-    setEmbedProgress(0);
-    try {
-      const batchSize = 10;
-      const batches: Paper[][] = [];
-      for (let i = 0; i < includedPapers.length; i += batchSize) {
-        batches.push(includedPapers.slice(i, i + batchSize));
-      }
-
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-        await supabase.functions.invoke("embed-papers", {
-          body: {
-            papers: batch.map((p) => ({
-              id: p.id,
-              title: p.title,
-              abstract: p.abstract || "",
-              full_text: fullTextsRef.current[p.id] || undefined,
-            })),
-          },
-        });
-        setEmbedProgress(Math.round(((i + 1) / batches.length) * 100));
-      }
-
-      embeddingDone.current = true;
-    } catch (err: any) {
-      console.error("Embedding error:", err);
-    } finally {
-      setEmbedding(false);
-      setEmbedProgress(100);
-    }
+    embeddingDone.current = true;
   };
 
   useEffect(() => {
@@ -193,6 +162,14 @@ const StepExtraction = ({
         );
         if (papersToExtract.length === 0) continue;
 
+        // Build full_texts map for papers in this batch
+        const batchFullTexts: Record<string, string> = {};
+        for (const p of papersToExtract) {
+          if (fullTextsRef.current[p.id]) {
+            batchFullTexts[p.id] = fullTextsRef.current[p.id];
+          }
+        }
+
         const { data, error } = await supabase.functions.invoke("extract-column", {
           body: {
             query: question,
@@ -205,6 +182,7 @@ const StepExtraction = ({
               journal: (p as any).journal || "",
               doi: (p as any).doi || "",
             })),
+            full_texts: batchFullTexts,
             column_name: col.name,
             custom_prompt: col.prompt,
             locale: locale,
@@ -355,22 +333,9 @@ const StepExtraction = ({
         </div>
       )}
 
-      {/* Embedding progress */}
-      {embedding && (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-2">
-          <p className="text-sm font-medium text-foreground">
-            {locale === "pt" ? "Indexando conteúdo para extração..." : "Indexing content for extraction..."}
-          </p>
-          <Progress value={embedProgress} className="h-2" />
-          <p className="text-xs text-muted-foreground">
-            {locale === "pt" ? "Preparando busca semântica" : "Preparing semantic search"}
-          </p>
-        </div>
-      )}
-
       {/* Run extraction */}
       <div className="flex items-center gap-3">
-        <Button onClick={runExtraction} disabled={extracting || embedding || fetchingFullText || enabledCols.length === 0} className="gap-2">
+        <Button onClick={runExtraction} disabled={extracting || fetchingFullText || enabledCols.length === 0} className="gap-2">
           {extracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Table className="h-4 w-4" />}
           {locale === "pt" ? "Executar Extração" : "Run Extraction"}
         </Button>
