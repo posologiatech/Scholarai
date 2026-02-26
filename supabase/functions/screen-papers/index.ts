@@ -34,14 +34,21 @@ Deno.serve(async (req) => {
         .map((p: any, idx: number) => `Paper ${idx + 1} [ID: ${p.id}]:\nTitle: ${p.title}\nAbstract: ${p.abstract || "No abstract available"}`)
         .join("\n\n");
 
-      const systemPrompt = `You are a systematic review screening assistant. Evaluate each paper against the given screening criteria based on the research question.
+      const systemPrompt = `You are a systematic review screening assistant following the INCLUSIVE screening principle (sensitivity over specificity). Your goal is to KEEP papers unless they are CLEARLY irrelevant.
+
+CRITICAL RULES:
+1. When in doubt, INCLUDE the paper (answer "yes" or "maybe", NEVER "no")
+2. Papers with missing or empty abstracts ("No abstract available") should receive recommendation "maybe" with inclusionScore >= 0.5. Judge ONLY by the title.
+3. Only mark a criterion as "no" if the title/abstract EXPLICITLY contradicts it
+4. Lack of information is NOT a reason to exclude — assume relevance unless proven otherwise
+5. Only recommend "exclude" when the paper is OBVIOUSLY and COMPLETELY unrelated to the research question (e.g., a paper about astrophysics in a medical review)
 
 For each paper, provide:
 1. An assessment for each criterion: "yes", "no", or "maybe" with a brief explanation IN PORTUGUESE (pt-BR)
-2. An overall inclusion score from 0.0 to 1.0
-3. A recommendation: "include", "exclude", or "maybe"
+2. An overall inclusion score from 0.0 to 1.0 (bias toward higher scores — use 0.5+ for uncertain cases)
+3. A recommendation: "include" (score >= 0.7), "maybe" (score 0.3-0.7), or "exclude" (score < 0.3, only for clearly irrelevant papers)
 
-IMPORTANT: All explanations MUST be written in Portuguese (pt-BR). The answer field must remain "yes", "no", or "maybe" in English, but the explanation text must be in Portuguese.
+IMPORTANT: All explanations MUST be in Portuguese (pt-BR). The answer field must remain "yes", "no", or "maybe" in English.
 
 Return a JSON array where each element has:
 {

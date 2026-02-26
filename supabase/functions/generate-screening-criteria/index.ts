@@ -30,13 +30,16 @@ Deno.serve(async (req) => {
 
 Return JSON array of objects with keys: id, name, description.
 Focus on: study design, population characteristics, intervention/exposure details, outcome measures, key findings, sample size, and any domain-specific metrics.`
-      : `You are a systematic review expert. Given a research question, suggest 5-8 screening criteria (inclusion/exclusion) that should be used to determine which papers are relevant. Each criterion should have:
+      : `You are a systematic review expert. Given a research question, suggest 3-5 broad screening criteria (inclusion/exclusion) to determine paper relevance. Keep criteria BROAD and THEMATIC — they should capture general topical relevance, not narrow methodological requirements.
+
+Each criterion should have:
 - id: a unique short identifier (lowercase, no spaces)
 - name: a concise label for the criterion
 - description: detailed description of what the criterion evaluates
 
-Return JSON array of objects with keys: id, name, description.
-Focus on: population, intervention/exposure, outcome, study design, language, publication type.`;
+IMPORTANT: Generate only 3 to 5 criteria. Focus on broad thematic relevance (e.g., "Related to the topic area", "Addresses the population of interest"). Do NOT create overly specific criteria that would exclude papers prematurely. The goal of initial screening is to be INCLUSIVE.
+
+Return JSON array of objects with keys: id, name, description.`;
 
     const response = await callAI({
       model: "google/gemini-3-flash-preview",
