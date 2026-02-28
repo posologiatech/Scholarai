@@ -1,83 +1,131 @@
 
-# Buscar Texto Completo dos Artigos para Extração
 
-## Problema
-Atualmente, a extração de dados usa apenas o **abstract** dos artigos, que geralmente tem 200-300 palavras e não contém detalhes como tamanho da amostra, metodologia específica, resultados numéricos, etc. Por isso, a maioria dos campos retorna "Não mencionado".
+# DataMind - Plataforma de Análise de Dados por IA
 
-## Solução
-Criar um pipeline que busca o **texto completo** dos artigos em fontes de acesso aberto antes da extração, permitindo que a IA analise o conteúdo integral.
+## Visão Geral
+Criar uma nova funcionalidade "DataMind" no ScholarAI, inspirada no Julius.ai, para análise de dados com IA. Inclui chat estilo notebook, upload de arquivos CSV/Excel, geração e execução de código Python via E2B Sandbox, e visualização de gráficos.
 
-## Como vai funcionar
+## Pré-requisito: API Key E2B
+Antes de implementar, será necessário adicionar a chave de API do E2B como secret no Supabase. Você pode obter uma em [e2b.dev](https://e2b.dev).
+
+## Arquitetura
 
 ```text
-Artigos incluídos
-       |
-       v
-[Buscar texto completo]  <-- Nova etapa
-  - Europe PMC (XML gratuito para artigos OA)
-  - Unpaywall (encontra PDFs abertos via DOI)
-       |
-       v
-[Indexar conteúdo]  <-- embed-papers atualizado
-  - Usa texto completo quando disponível
-  - Fallback para abstract
-       |
-       v
-[Extrair dados]  <-- Já existente, agora com mais contexto
+[Upload CSV/Excel] --> [Supabase Storage]
+         |
+         v
+[Chat Input] --> [Edge Function: datamind-chat]
+                        |
+                        v
+                 [Lovable AI Gateway]
+                 (gera código Python)
+                        |
+                        v
+                 [Edge Function: datamind-execute]
+                        |
+                        v
+                 [E2B Sandbox]
+                 (executa Python)
+                        |
+                        v
+                 [Resultado: texto/imagem]
+                        |
+                        v
+                 [Chat: renderiza output]
 ```
 
-## Etapas de Implementação
+## Mudanças no Banco de Dados
 
-### 1. Criar edge function `fetch-full-text`
-Nova função que tenta obter o texto completo de cada artigo:
-- **Europe PMC**: API gratuita que retorna XML do texto completo para artigos de acesso aberto (`/fullTextXML`)
-- **Unpaywall**: API gratuita que encontra URLs de PDFs abertos via DOI
-- Converte XML/HTML para texto limpo
-- Retorna o texto completo ou indica que não está disponível
+### Novas tabelas
+1. **`datamind_conversations`**: id, user_id, title, created_at, updated_at
+2. **`datamind_messages`**: id, conversation_id, role (user/assistant), content, code_block, output_type (text/image/table), output_content, created_at
+3. **`datamind_files`**: id, conversation_id, user_id, file_name, file_path, file_size, schema_info (jsonb com colunas/tipos), created_at
 
-### 2. Atualizar `StepExtraction.tsx`
-- Adicionar nova etapa "Buscando texto completo..." antes do embedding
-- Mostrar progresso (ex: "12/25 artigos com texto completo encontrado")
-- Passar o texto completo para o embed-papers
+Todas com RLS para que usuários vejam apenas seus próprios dados.
 
-### 3. Atualizar `embed-papers`
-- Aceitar campo `full_text` opcional nos papers
-- Quando disponível, indexar o texto completo em vez do abstract
-- Gera chunks maiores e mais ricos para busca semântica
+## Implementação
 
-### 4. Atualizar `extract-column`
-- Quando há texto completo disponível via chunks semânticos, priorizar esse conteúdo
-- Ajustar o prompt para indicar que o texto completo está disponível
+### 1. Navegação e Rota
+- Adicionar "DataMind" no `AppHeader.tsx` com ícone `BrainCircuit`
+- Adicionar rota `/datamind` e `/datamind/:id` no `App.tsx`
+- Adicionar tradução para `nav.datamind`
 
-## Detalhes Técnicos
+### 2. Página Principal (`src/pages/DataMind.tsx`)
+Layout com duas áreas:
+- **Sidebar esquerda**: Lista de conversas, botão "Novo Chat", perfil
+- **Área central**: Chat estilo notebook
 
-### Nova Edge Function: `supabase/functions/fetch-full-text/index.ts`
-- Recebe array de papers com IDs, DOIs e source
-- Para papers do Europe PMC: chama `https://www.ebi.ac.uk/europepmc/webservices/rest/{source}/{id}/fullTextXML`
-- Para papers com DOI: chama Unpaywall `https://api.unpaywall.org/v2/{doi}?email=team@arca.research`
-- Se encontrar PDF URL via Unpaywall, usa Gemini Vision para extrair texto do PDF
-- Retorna mapa de paper_id -> full_text
-- Processa em lotes de 3-5 para evitar sobrecarga
+### 3. Componentes do Chat
+- **`DataMindSidebar.tsx`**: Histórico de conversas com busca
+- **`DataMindChat.tsx`**: Área principal de chat
+- **`DataMindMessage.tsx`**: Renderiza mensagens com suporte a:
+  - Markdown rico (react-markdown com suporte a tabelas)
+  - Blocos de código Python com syntax highlighting
+  - Imagens de gráficos
+  - Tabelas de preview de dados
+- **`DataMindInput.tsx`**: Input com botão de upload de arquivo e envio
+- **`DataMindFilePreview.tsx`**: Card mostrando preview do CSV (primeiras 5 linhas)
+- **`DataMindCodeOutput.tsx`**: Renderiza output de execução (texto, gráfico, tabela)
 
-### Modificações em `src/components/app/systematic-review/StepExtraction.tsx`
-- Adicionar estado `fetchingFullText` e `fullTextProgress`
-- Nova função `fetchFullTexts()` chamada antes de `embedPapers()`
-- Passa full_text para embed-papers quando disponível
-- UI mostra "Buscando texto completo dos artigos... (X/Y encontrados)"
+### 4. Edge Functions
 
-### Modificações em `supabase/functions/embed-papers/index.ts`
-- Aceitar campo `full_text` no objeto paper
-- Priorizar `full_text` sobre `abstract` para chunking
-- Marcar source como `full_text` nos chunks
+#### `datamind-chat` (gera código Python)
+- Recebe: mensagem do usuário, histórico, schema do arquivo
+- Envia para Lovable AI Gateway com system prompt especializado em análise de dados
+- Retorna: explicação + código Python
 
-### Modificações em `supabase/functions/extract-column/index.ts`
-- Quando semantic chunks vêm de `full_text`, informar a IA no prompt que o texto completo está disponível
-- Remover instrução de inferência quando texto completo está disponível (extração direta)
+#### `datamind-execute` (executa código Python)
+- Recebe: código Python, ID do arquivo
+- Baixa arquivo do Supabase Storage
+- Cria sandbox E2B, instala pandas/matplotlib/seaborn
+- Executa o código
+- Se houver imagem gerada, salva no Supabase Storage
+- Retorna: output texto + URL da imagem (se houver)
 
-### Config: `supabase/config.toml`
-- Adicionar entrada para a nova função `fetch-full-text` com `verify_jwt = false`
+#### `datamind-analyze-schema` (analisa esquema do arquivo)
+- Recebe: arquivo upado
+- Executa `df.info()` e `df.describe()` via E2B
+- Retorna: colunas, tipos, estatísticas básicas
 
-## Limitações
-- Nem todos os artigos têm texto completo aberto (muitos são pagos)
-- Para artigos sem texto completo, o sistema continuará usando abstract + inferência
-- O progresso mostrará quantos artigos tiveram texto completo encontrado vs. apenas abstract
+### 5. Upload de Arquivos
+- Aceita .csv e .xlsx
+- Salva no bucket `datamind-files` do Supabase Storage
+- Após upload, chama `datamind-analyze-schema` para extrair metadados
+- Exibe preview com primeiras 5 linhas em tabela shadcn/ui
+
+### 6. Visualização de Gráficos
+- Gráficos gerados pelo Python (matplotlib/seaborn) salvos como PNG no Storage
+- Renderizados inline no chat como imagens
+- Opção de gráficos interativos via Recharts quando apropriado
+
+### 7. Design Visual
+- Tema escuro elegante com acentos em azul/roxo
+- Fonte moderna, espaçamento generoso
+- Cards arredondados para mensagens
+- Transições suaves com framer-motion
+
+## Arquivos a Criar/Modificar
+
+### Novos arquivos:
+- `src/pages/DataMind.tsx` - Página principal
+- `src/components/datamind/DataMindSidebar.tsx` - Sidebar de conversas
+- `src/components/datamind/DataMindChat.tsx` - Área de chat
+- `src/components/datamind/DataMindMessage.tsx` - Componente de mensagem
+- `src/components/datamind/DataMindInput.tsx` - Input com upload
+- `src/components/datamind/DataMindFilePreview.tsx` - Preview de arquivo
+- `src/components/datamind/DataMindCodeOutput.tsx` - Output de execução
+- `supabase/functions/datamind-chat/index.ts` - Edge function de chat IA
+- `supabase/functions/datamind-execute/index.ts` - Edge function de execução Python
+- `supabase/functions/datamind-analyze-schema/index.ts` - Análise de schema
+
+### Arquivos a modificar:
+- `src/App.tsx` - Adicionar rotas
+- `src/components/app/AppHeader.tsx` - Adicionar link DataMind
+- `src/i18n/translations.ts` - Adicionar traduções
+- `supabase/config.toml` - Registrar novas edge functions
+
+### Migração SQL:
+- Criar tabelas `datamind_conversations`, `datamind_messages`, `datamind_files`
+- Criar bucket de storage `datamind-files`
+- Aplicar RLS policies
+
