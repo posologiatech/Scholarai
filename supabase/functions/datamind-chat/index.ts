@@ -1,5 +1,5 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callAI } from "../_shared/ai-caller.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +21,7 @@ Quando o usuário faz uma pergunta sobre dados, você deve:
 
 Regras para o código Python:
 - O arquivo CSV está disponível em '/tmp/data.csv' - use pd.read_csv('/tmp/data.csv')
+- Para arquivos Excel (.xlsx, .xls), use pd.read_excel('/tmp/data.csv') — o arquivo já estará convertido
 - Para gráficos, salve em '/tmp/chart.png' com plt.savefig('/tmp/chart.png', dpi=150, bbox_inches='tight')
 - Use plt.style.use('seaborn-v0_8-darkgrid') para estilo visual
 - Sempre inclua plt.close() após salvar
@@ -41,19 +42,10 @@ Responda sempre em português.`;
       { role: "user", content: message },
     ];
 
-    // Try Lovable AI Gateway
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    const response = await fetch("https://agentic.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages,
-        temperature: 0.3,
-      }),
+    const response = await callAI({
+      messages,
+      model: "gpt-4o-mini",
+      temperature: 0.3,
     });
 
     if (!response.ok) {

@@ -134,9 +134,10 @@ const DataMind = () => {
         return;
       }
 
-      // Parse CSV preview client-side
+      // Parse file preview client-side
       let previewData: unknown[] = [];
       let schemaInfo: Record<string, unknown> = {};
+      const isExcel = file.name.match(/\.xlsx?$/i);
       if (file.name.endsWith(".csv")) {
         try {
           const text = await file.text();
@@ -150,6 +151,9 @@ const DataMind = () => {
             return row;
           });
         } catch { /* ignore parse errors */ }
+      } else if (isExcel) {
+        // For Excel files, we can't parse client-side easily, but provide file info
+        schemaInfo = { file_type: "excel", file_name: file.name, file_size: file.size, note: "Excel file - schema will be detected by Python/pandas" };
       }
 
       const { data: fileData } = await supabase
