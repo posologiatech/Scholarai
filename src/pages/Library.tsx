@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import AppHeader from "@/components/app/AppHeader";
+// AppSidebar provided by ProtectedRoute
 import { useLanguage } from "@/i18n/LanguageContext";
 import { BookOpen, Trash2, ExternalLink, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,7 @@ const Library = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <AppHeader />
+      
       <main className="container max-w-4xl flex-1 py-12">
         <div className="mb-8">
           <h1 className="font-display text-3xl font-bold text-foreground">{t("library.title")}</h1>

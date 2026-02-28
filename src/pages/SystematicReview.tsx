@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import AppHeader from "@/components/app/AppHeader";
+// AppSidebar provided by ProtectedRoute
 import ReviewStepper from "@/components/app/systematic-review/ReviewStepper";
 import StepQuestion from "@/components/app/systematic-review/StepQuestion";
 import StepCollection from "@/components/app/systematic-review/StepCollection";
@@ -96,7 +96,7 @@ const SystematicReview = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <AppHeader />
+      
       <div className="border-b border-border bg-card px-4 py-3">
         <ReviewStepper currentStep={currentStep} onStepClick={setCurrentStep} />
       </div>

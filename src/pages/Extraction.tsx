@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import AppHeader from "@/components/app/AppHeader";
+// AppSidebar provided by ProtectedRoute
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -232,7 +232,6 @@ const Extraction = () => {
   if (!loading && papers.length === 0) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <AppHeader />
         <main className="flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center justify-center rounded-2xl py-20 px-8 max-w-lg text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -274,7 +273,7 @@ const Extraction = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <AppHeader />
+      
       <main className="container max-w-7xl flex-1 py-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
