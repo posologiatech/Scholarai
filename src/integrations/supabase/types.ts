@@ -95,6 +95,115 @@ export type Database = {
           },
         ]
       }
+      datamind_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      datamind_files: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          preview_data: Json | null
+          schema_info: Json | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          preview_data?: Json | null
+          schema_info?: Json | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          preview_data?: Json | null
+          schema_info?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datamind_files_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "datamind_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      datamind_messages: {
+        Row: {
+          code_block: string | null
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          output_content: string | null
+          output_type: string | null
+          role: string
+        }
+        Insert: {
+          code_block?: string | null
+          content?: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          output_content?: string | null
+          output_type?: string | null
+          role?: string
+        }
+        Update: {
+          code_block?: string | null
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          output_content?: string | null
+          output_type?: string | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datamind_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "datamind_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       extraction_cache: {
         Row: {
           citation_context: string | null
