@@ -1,12 +1,32 @@
 import { Message } from "@/pages/DataMind";
 import { BrainCircuit, User, Copy, Check } from "lucide-react";
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
 import DataMindCodeOutput from "./DataMindCodeOutput";
 
 interface Props {
   message: Message;
 }
+
+// Simple markdown-like renderer to avoid react-markdown ESM issues
+const SimpleMarkdown = ({ content }: { content: string }) => {
+  const lines = content.split("\n");
+  return (
+    <div className="space-y-1">
+      {lines.map((line, i) => {
+        // Bold
+        const processed = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // Inline code
+        const withCode = processed.replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-xs">$1</code>');
+        
+        if (line.startsWith("# ")) return <h3 key={i} className="font-bold text-base">{line.slice(2)}</h3>;
+        if (line.startsWith("## ")) return <h4 key={i} className="font-semibold text-sm">{line.slice(3)}</h4>;
+        if (line.startsWith("- ") || line.startsWith("* ")) return <li key={i} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: withCode.slice(2) }} />;
+        if (line.trim() === "") return <br key={i} />;
+        return <p key={i} dangerouslySetInnerHTML={{ __html: withCode }} />;
+      })}
+    </div>
+  );
+};
 
 const DataMindMessage = ({ message }: Props) => {
   const isUser = message.role === "user";
@@ -42,12 +62,11 @@ const DataMindMessage = ({ message }: Props) => {
               : "bg-card border border-border/60"
           }`}
         >
-          <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
-            <ReactMarkdown>{message.content}</ReactMarkdown>
+          <div className="text-sm">
+            <SimpleMarkdown content={message.content} />
           </div>
         </div>
 
-        {/* Code block */}
         {message.code_block && (
           <div className="mt-3 rounded-xl border border-border/60 bg-muted/50 overflow-hidden text-left">
             <div className="flex items-center justify-between px-4 py-2 border-b border-border/40 bg-muted/80">
@@ -62,7 +81,6 @@ const DataMindMessage = ({ message }: Props) => {
           </div>
         )}
 
-        {/* Output */}
         {message.output_type && message.output_content && (
           <div className="mt-3 text-left">
             <DataMindCodeOutput type={message.output_type} content={message.output_content} />
