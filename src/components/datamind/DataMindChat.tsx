@@ -3,6 +3,7 @@ import { Message, DataMindFile } from "@/pages/DataMind";
 import DataMindMessage from "./DataMindMessage";
 import DataMindInput from "./DataMindInput";
 import DataMindFilePreview from "./DataMindFilePreview";
+import DataMindSuggestions from "./DataMindSuggestions";
 import { BrainCircuit, Upload, BarChart3, Table } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -71,6 +72,11 @@ const DataMindChat = ({ messages, files, loading, onSend, hasConversation }: Pro
             {files.map((f) => (
               <DataMindFilePreview key={f.id} file={f} />
             ))}
+
+            {/* Suggestions after file upload, before first assistant message */}
+            {files.length > 0 && messages.filter(m => m.role === "assistant").length === 0 && (
+              <DataMindSuggestions files={files} onSelect={(q) => onSend(q)} loading={loading} />
+            )}
 
             {/* Messages */}
             {messages.map((msg) => (

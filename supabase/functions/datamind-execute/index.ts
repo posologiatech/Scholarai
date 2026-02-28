@@ -48,7 +48,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        template: "base",
+        templateID: "base",
         timeout: 60,
       }),
     });
