@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
-import AppHeader from "@/components/app/AppHeader";
+// AppSidebar provided by ProtectedRoute
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -168,7 +168,7 @@ const Admin = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <AppHeader />
+      
       <main className="container max-w-6xl flex-1 py-8">
         {/* Header */}
         <div className="mb-8 flex items-center gap-3">

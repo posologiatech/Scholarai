@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import AppHeader from "@/components/app/AppHeader";
+// AppSidebar provided by ProtectedRoute
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -112,7 +112,7 @@ const Illustrations = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <AppHeader />
+      
       <main className="container py-8 space-y-8">
         {/* Generator Section */}
         <section className="max-w-3xl mx-auto space-y-4">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import AppHeader from "@/components/app/AppHeader";
+// AppSidebar provided by ProtectedRoute
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -173,7 +173,7 @@ const Reports = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <AppHeader />
+      
       <main className="container max-w-5xl flex-1 py-12">
         <div className="mb-8">
           <h1 className="font-display text-3xl font-bold text-foreground">{t("reports.title")}</h1>

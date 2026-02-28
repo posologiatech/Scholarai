@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import AppHeader from "@/components/app/AppHeader";
+// AppSidebar provided by ProtectedRoute
 import DataMindSidebar from "@/components/datamind/DataMindSidebar";
 import DataMindChat from "@/components/datamind/DataMindChat";
 import { Button } from "@/components/ui/button";
@@ -291,7 +291,7 @@ const DataMind = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <AppHeader />
+      
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar toggle */}
         <div className="relative">

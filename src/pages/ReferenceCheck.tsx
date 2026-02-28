@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
-import AppHeader from "@/components/app/AppHeader";
+// AppSidebar provided by ProtectedRoute
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -127,7 +127,7 @@ const ReferenceCheck = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <AppHeader />
+      
       <main className="flex-1 overflow-y-auto">
         <div className="container max-w-4xl py-8 space-y-8">
           {/* Header */}

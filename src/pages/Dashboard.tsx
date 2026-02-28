@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
-import AppHeader from "@/components/app/AppHeader";
+// AppSidebar provided by ProtectedRoute
 import OnboardingDialog from "@/components/app/OnboardingDialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -42,9 +42,7 @@ const Dashboard = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <AppHeader />
       <OnboardingDialog />
-
       <main className="flex flex-1 flex-col items-center justify-center px-4 pb-20">
         <div className="w-full max-w-2xl space-y-8">
           {/* Welcome */}

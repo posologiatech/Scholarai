@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { GraduationCap, Clock, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import AppSidebar from "./AppSidebar";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, signOut } = useAuth();
@@ -106,7 +107,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  return <>{children}</>;
+  return <AppSidebar>{children}</AppSidebar>;
 };
 
 export default ProtectedRoute;

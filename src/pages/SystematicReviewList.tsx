@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import AppHeader from "@/components/app/AppHeader";
+// AppSidebar provided by ProtectedRoute
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,7 +69,7 @@ const SystematicReviewList = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <AppHeader />
+      
       <main className="flex-1 px-4 py-8">
         <div className="mx-auto max-w-4xl space-y-6">
           <div className="flex items-center justify-between">
