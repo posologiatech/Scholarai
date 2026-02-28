@@ -31,6 +31,7 @@ import ReferenceCheck from "./pages/ReferenceCheck";
 import Illustrations from "./pages/Illustrations";
 import SystematicReview from "./pages/SystematicReview";
 import SystematicReviewList from "./pages/SystematicReviewList";
+import DataMind from "./pages/DataMind";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -72,6 +73,8 @@ const App = () => (
               <Route path="/illustrations" element={<ProtectedRoute><Illustrations /></ProtectedRoute>} />
               <Route path="/systematic-review" element={<ProtectedRoute><SystematicReviewList /></ProtectedRoute>} />
               <Route path="/systematic-review/new" element={<ProtectedRoute><SystematicReview /></ProtectedRoute>} />
+              <Route path="/datamind" element={<ProtectedRoute><DataMind /></ProtectedRoute>} />
+              <Route path="/datamind/:id" element={<ProtectedRoute><DataMind /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

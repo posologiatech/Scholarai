@@ -3,7 +3,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Globe, LogOut, BookOpen, Table, FileText, LayoutDashboard, Shield, ShieldCheck, Palette } from "lucide-react";
+import { GraduationCap, Globe, LogOut, BookOpen, Table, FileText, LayoutDashboard, Shield, ShieldCheck, Palette, BrainCircuit } from "lucide-react";
 import MobileNav from "./MobileNav";
 
 const AppHeader = () => {
@@ -27,6 +27,7 @@ const AppHeader = () => {
     { label: t("nav.reports"), href: "/reports", icon: FileText },
     { label: locale === "pt" ? "Ref. Check" : "Ref. Check", href: "/reference-check", icon: ShieldCheck },
     { label: t("nav.illustrations"), href: "/illustrations", icon: Palette },
+    { label: "DataMind", href: "/datamind", icon: BrainCircuit },
     ...(isAdmin ? [{ label: t("nav.admin"), href: "/admin", icon: Shield }] : []),
   ];
 

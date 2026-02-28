@@ -41,3 +41,9 @@ verify_jwt = false
 
 [functions.fetch-full-text]
 verify_jwt = false
+
+[functions.datamind-chat]
+verify_jwt = false
+
+[functions.datamind-execute]
+verify_jwt = false
