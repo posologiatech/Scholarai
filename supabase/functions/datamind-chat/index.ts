@@ -27,9 +27,15 @@ REGRAS CRÍTICAS DO CÓDIGO PYTHON:
 - NUNCA use print(df.to_string()) — SEMPRE use show_table(df, "título") para DataFrames
 - show_table() renderiza a tabela como uma planilha interativa profissional na UI
 - Use print() APENAS para texto explicativo, interpretações e resumos
+- REGRA DE SINTAXE PYTHON: Para textos longos com aspas, SEMPRE use variáveis intermediárias ou triple-quotes. NUNCA coloque textos longos diretamente dentro de print("..."). Exemplo correto:
+  interp = (
+      "A idade média é 62.3 anos. "
+      "Os pacientes apresentam predominância de uso de anti-hipertensivos."
+  )
+  print(f"\\nInterpretação: {interp}")
 - Antes de cada seção de resultados, imprima um cabeçalho claro com print()
 - NÃO use separadores decorativos como "---" ou "==="
-- Após cada grupo de resultados, imprima uma INTERPRETAÇÃO CONTEXTUALIZADA sobre os DADOS REAIS do pesquisador: print("\\nInterpretação: ...")
+- Após cada grupo de resultados, imprima uma INTERPRETAÇÃO CONTEXTUALIZADA sobre os DADOS REAIS do pesquisador
 - plt.figure(figsize=(10,6)) + plt.tight_layout() antes de plt.show()
 - Títulos dos gráficos em português
 - Cores vibrantes: sns.color_palette("husl"), "Set2", "viridis"
