@@ -137,6 +137,8 @@ function parseBlocks(type: string, content: string): OutputBlock[] {
   }
 
   const blocks: OutputBlock[] = [];
+
+  // Split by image markers first
   const parts = content.split(/(\[IMG\].*?\[\/IMG\])/);
   let chartIdx = 0;
 
@@ -154,59 +156,99 @@ function parseBlocks(type: string, content: string): OutputBlock[] {
     const text = part.trim();
     if (!text) continue;
 
-    const lines = text.split("\n");
-    let buffer: string[] = [];
+    // Split by JSON datatable markers
+    const dtParts = text.split(/(__DATATABLE_START__[\s\S]*?__DATATABLE_END__)/);
 
-    const flushBuffer = () => {
-      if (buffer.length === 0) return;
-      const txt = buffer.join("\n").trim();
-      buffer = [];
-      if (isNoise(txt)) return;
+    for (const dtPart of dtParts) {
+      // Check if this is a JSON datatable block
+      const dtMatch = dtPart.match(/^__DATATABLE_START__([\s\S]*?)__DATATABLE_END__$/);
+      if (dtMatch) {
+        try {
+          const payload = JSON.parse(dtMatch[1]);
+          const columns: string[] = payload.columns || [];
+          const data: Record<string, unknown>[] = payload.data || [];
+          const title = payload.title || undefined;
 
-      const table = tryParseTable(txt);
-      if (table && table.rows.length >= 1) {
-        let title: string | undefined;
-        const prev = blocks[blocks.length - 1];
-        if (prev && prev.kind === "text") {
-          const lines = prev.content.trim().split("\n");
-          if (lines.length === 1 && lines[0].length <= 80) {
-            title = lines[0].trim();
-            blocks.pop();
+          const headers = columns;
+          const rows = data.map(record =>
+            columns.map(col => String(record[col] ?? ""))
+          );
+
+          blocks.push({
+            kind: "table",
+            content: dtPart,
+            headers,
+            rows,
+            label: `${headers.length} cols, ${rows.length} rows`,
+            title,
+          });
+        } catch {
+          // If JSON parse fails, treat as text
+          if (dtPart.trim() && !isNoise(dtPart.trim())) {
+            blocks.push({ kind: "text", content: dtPart.trim() });
           }
         }
-        blocks.push({
-          kind: "table",
-          content: txt,
-          headers: table.headers,
-          rows: table.rows,
-          label: `${table.headers.length} cols, ${table.rows.length} rows`,
-          title,
-        });
-      } else {
-        blocks.push({ kind: "text", content: txt });
-      }
-    };
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      if (line.trim() === "" && buffer.length > 0) {
-        const nextNonEmpty = lines.slice(i + 1).find(l => l.trim() !== "");
-        if (nextNonEmpty) {
-          const curIsTable = buffer.length >= 2 && tryParseTable(buffer.join("\n")) !== null;
-          const nextLooksLikeTable = (nextNonEmpty.trim().split(/\s{2,}/).length >= 2) && !nextNonEmpty.includes(". ");
-          if (curIsTable !== nextLooksLikeTable || curIsTable) {
-            flushBuffer();
-            continue;
-          }
-        }
-        buffer.push(line);
         continue;
       }
 
-      buffer.push(line);
+      // Regular text: try legacy text-table parsing
+      const segment = dtPart.trim();
+      if (!segment) continue;
+
+      const lines = segment.split("\n");
+      let buffer: string[] = [];
+
+      const flushBuffer = () => {
+        if (buffer.length === 0) return;
+        const txt = buffer.join("\n").trim();
+        buffer = [];
+        if (isNoise(txt)) return;
+
+        const table = tryParseTable(txt);
+        if (table && table.rows.length >= 1) {
+          let title: string | undefined;
+          const prev = blocks[blocks.length - 1];
+          if (prev && prev.kind === "text") {
+            const prevLines = prev.content.trim().split("\n");
+            if (prevLines.length === 1 && prevLines[0].length <= 80) {
+              title = prevLines[0].trim();
+              blocks.pop();
+            }
+          }
+          blocks.push({
+            kind: "table",
+            content: txt,
+            headers: table.headers,
+            rows: table.rows,
+            label: `${table.headers.length} cols, ${table.rows.length} rows`,
+            title,
+          });
+        } else {
+          blocks.push({ kind: "text", content: txt });
+        }
+      };
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        if (line.trim() === "" && buffer.length > 0) {
+          const nextNonEmpty = lines.slice(i + 1).find(l => l.trim() !== "");
+          if (nextNonEmpty) {
+            const curIsTable = buffer.length >= 2 && tryParseTable(buffer.join("\n")) !== null;
+            const nextLooksLikeTable = (nextNonEmpty.trim().split(/\s{2,}/).length >= 2) && !nextNonEmpty.includes(". ");
+            if (curIsTable !== nextLooksLikeTable || curIsTable) {
+              flushBuffer();
+              continue;
+            }
+          }
+          buffer.push(line);
+          continue;
+        }
+
+        buffer.push(line);
+      }
+      flushBuffer();
     }
-    flushBuffer();
   }
 
   return blocks;

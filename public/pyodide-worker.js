@@ -68,8 +68,9 @@ async function runCode(code, fileName) {
   let stdout = "";
   let images = [];
 
-  const bootstrapCode = `
-import sys, io, os, base64
+const bootstrapCode = `
+import sys, io, os, base64, json as _json
+
 os.chdir('/tmp')
 
 class _StdoutCapture:
@@ -108,6 +109,17 @@ def _capture_savefig(self_fig, *args, **kwargs):
 
 plt.show = _capture_show
 plt.Figure.savefig = _capture_savefig
+
+def show_table(dataframe, title=""):
+    """Render a DataFrame as a structured JSON table in the UI."""
+    import pandas as _pd
+    if not isinstance(dataframe, _pd.DataFrame):
+        print(str(dataframe))
+        return
+    data = _json.loads(dataframe.to_json(orient='records', force_ascii=False))
+    cols = list(dataframe.columns)
+    payload = _json.dumps({"title": title, "columns": cols, "data": data}, ensure_ascii=False)
+    print(f"__DATATABLE_START__{payload}__DATATABLE_END__")
 `;
 
   let dataBootstrap = "";
