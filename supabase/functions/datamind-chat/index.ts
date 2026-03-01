@@ -126,19 +126,47 @@ Responda sempre em português brasileiro.`;
     const data = await response.json();
     const text = data.choices?.[0]?.message?.content || "";
 
-    // Parse JSON response
+    // Parse JSON response - robust extraction
     let explanation = text;
     let code = null;
 
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+      // Strip markdown code fences if present
+      let cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+      
+      // Try to find JSON with "explanation" key
+      const jsonStart = cleaned.indexOf('{"explanation"');
+      if (jsonStart !== -1) {
+        cleaned = cleaned.slice(jsonStart);
+      }
+      
+      // Parse - handle nested code with braces by finding the matching structure
+      // First try direct parse
+      try {
+        const parsed = JSON.parse(cleaned);
         explanation = parsed.explanation || text;
         code = parsed.code || null;
+      } catch {
+        // Try extracting explanation and code separately with regex
+        const explMatch = cleaned.match(/"explanation"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+        const codeMatch = cleaned.match(/"code"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+        const codeNullMatch = cleaned.match(/"code"\s*:\s*null/);
+        
+        if (explMatch) {
+          explanation = explMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+        }
+        if (codeMatch) {
+          code = codeMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+        }
       }
     } catch {
-      // If JSON parse fails, treat entire response as explanation
+      // If all parsing fails, clean up raw text
+      explanation = text
+        .replace(/^```(?:json)?\s*\n?/gi, '')
+        .replace(/\n?```\s*$/gi, '')
+        .replace(/^\s*\{\s*"explanation"\s*:\s*"/i, '')
+        .replace(/"\s*,\s*"code"\s*:[\s\S]*$/i, '')
+        .trim();
     }
 
     return new Response(JSON.stringify({ explanation, code }), {

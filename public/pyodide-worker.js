@@ -22,6 +22,10 @@ async function initPyodide() {
   });
 
   self.postMessage({ type: "status", data: "ready" });
+  
+  // Pre-install packages immediately after init for faster first run
+  installPackages();
+  
   return pyodide;
 }
 

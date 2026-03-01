@@ -56,6 +56,13 @@ const DataMind = () => {
   const pyodide = usePyodide();
   const loadedFilesRef = useRef<Set<string>>(new Set());
 
+  // Auto-start sandbox on mount
+  useEffect(() => {
+    if (pyodide.status === "idle") {
+      pyodide.init();
+    }
+  }, []);
+
   // Load conversations
   useEffect(() => {
     if (!user) return;
