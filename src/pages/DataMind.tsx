@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 // AppSidebar provided by ProtectedRoute
 import DataMindSidebar from "@/components/datamind/DataMindSidebar";
 import DataMindChat from "@/components/datamind/DataMindChat";
+import DataMindModelSelector from "@/components/datamind/DataMindModelSelector";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +49,7 @@ const DataMind = () => {
   const [files, setFiles] = useState<DataMindFile[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<{ provider: string; model: string } | null>(null);
 
   // Load conversations
   useEffect(() => {
@@ -213,6 +215,8 @@ const DataMind = () => {
             history,
             schema: schemaContext,
             file_name: uploadedFile?.file_name || files[0]?.file_name || "",
+            provider: selectedModel?.provider || undefined,
+            model: selectedModel?.model || undefined,
           },
         }
       );
@@ -326,6 +330,9 @@ const DataMind = () => {
                 ? conversations.find((c) => c.id === conversationId)?.title || "Análise"
                 : "Nova Análise"}
             </span>
+            <div className="ml-auto">
+              <DataMindModelSelector value={selectedModel} onChange={setSelectedModel} />
+            </div>
           </div>
 
           <DataMindChat
