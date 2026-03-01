@@ -118,9 +118,47 @@ const DataMind = () => {
   };
 
   const deleteConversation = async (id: string) => {
+    await supabase.from("datamind_messages").delete().eq("conversation_id", id);
+    await supabase.from("datamind_files").delete().eq("conversation_id", id);
     await supabase.from("datamind_conversations").delete().eq("id", id);
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (conversationId === id) navigate("/datamind");
+  };
+
+  const exportConversation = async (id: string) => {
+    const conv = conversations.find((c) => c.id === id);
+    const { data: msgs } = await supabase
+      .from("datamind_messages")
+      .select("*")
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: true });
+
+    if (!msgs || msgs.length === 0) {
+      toast({ title: "Nenhuma mensagem para exportar", variant: "destructive" });
+      return;
+    }
+
+    const lines = [
+      `# ${conv?.title || "Conversa DataMind"}`,
+      `Data: ${new Date(conv?.created_at || "").toLocaleDateString("pt-BR")}`,
+      "",
+      ...msgs.map((m) => {
+        const role = m.role === "user" ? "👤 Você" : "🤖 DataMind";
+        let text = `## ${role}\n${m.content}`;
+        if (m.code_block) text += `\n\n\`\`\`python\n${m.code_block}\n\`\`\``;
+        if (m.output_content) text += `\n\n**Output:**\n${m.output_content}`;
+        return text;
+      }),
+    ];
+
+    const blob = new Blob([lines.join("\n\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(conv?.title || "conversa").replace(/[^a-zA-Z0-9]/g, "_")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Conversa exportada com sucesso!" });
   };
 
   const sendMessage = async (content: string, file?: File) => {
@@ -344,6 +382,7 @@ const DataMind = () => {
               onSelect={(id) => navigate(`/datamind/${id}`)}
               onNew={() => navigate("/datamind")}
               onDelete={deleteConversation}
+              onExport={exportConversation}
             />
           )}
         </div>

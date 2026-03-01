@@ -89,14 +89,20 @@ matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 
 _figures = []
-_orig_show = plt.show
-_orig_savefig = plt.Figure.savefig
+
+# Guard against re-patching on subsequent runs (causes infinite recursion)
+if not hasattr(plt, '_orig_show_backup'):
+    plt._orig_show_backup = plt.show
+    plt._orig_savefig_backup = plt.Figure.savefig
+
+_orig_show = plt._orig_show_backup
+_orig_savefig = plt._orig_savefig_backup
 
 def _capture_show(*args, **kwargs):
     for fig_num in plt.get_fignums():
         fig = plt.figure(fig_num)
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        _orig_savefig(fig, buf, format='png', dpi=150, bbox_inches='tight')
         buf.seek(0)
         _figures.append(base64.b64encode(buf.read()).decode('utf-8'))
         plt.close(fig)
@@ -142,7 +148,7 @@ _stdout_text = ''.join(_captured.data)
 for fig_num in plt.get_fignums():
     fig = plt.figure(fig_num)
     buf = io.BytesIO()
-    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    _orig_savefig(fig, buf, format='png', dpi=150, bbox_inches='tight')
     buf.seek(0)
     _figures.append(base64.b64encode(buf.read()).decode('utf-8'))
     plt.close(fig)
