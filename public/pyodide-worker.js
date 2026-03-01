@@ -32,8 +32,7 @@ async function installPackages() {
   await pyodide.loadPackage("micropip");
   const micropip = pyodide.pyimport("micropip");
   
-  // Install packages one by one with fallback
-  const packages = ["numpy", "pandas", "matplotlib", "scipy", "scikit-learn", "statsmodels", "openpyxl"];
+  const packages = ["numpy", "pandas", "matplotlib", "scipy", "scikit-learn", "statsmodels", "seaborn", "openpyxl"];
   
   for (const pkg of packages) {
     try {

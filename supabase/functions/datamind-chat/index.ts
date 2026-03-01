@@ -64,7 +64,13 @@ REGRAS CRÍTICAS:
 ${schema ? `Schema do arquivo "${file_name}": ${schema}` : "Nenhum arquivo enviado ainda."}
 
 Responda SEMPRE em formato JSON com dois campos:
-{"explanation": "explicação breve em markdown do que a análise vai fazer", "code": "código python completo ou null"}
+{"explanation": "markdown estruturado em seções", "code": "código python completo ou null"}
+
+Formato OBRIGATÓRIO do campo "explanation" (em português, bem organizado, estilo relatório):
+1) **Características do Dataset**
+2) **Análises Estatísticas Recomendadas** (com numeração por bloco: Descritiva, Associação, Comparativa, Temporal, Multivariada)
+3) **Observações Importantes**
+4) **Próximo Passo Recomendado** (uma sugestão sequencial baseada no que já foi analisado)
 
 Se não houver necessidade de código, retorne code como null.
 Responda sempre em português brasileiro.`;
