@@ -1,14 +1,9 @@
 import { Conversation } from "@/pages/DataMind";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, MessageSquare, Trash2, BrainCircuit, Download, MoreHorizontal } from "lucide-react";
+import { Plus, MessageSquare, Trash2, BrainCircuit, FileDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +29,7 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   return (
-    <>
+    <TooltipProvider delayDuration={300}>
       <div className="w-64 border-r border-border/40 bg-muted/30 flex flex-col h-full">
         <div className="p-3 border-b border-border/40">
           <div className="flex items-center gap-2 mb-3 px-1">
@@ -58,7 +53,7 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
               <div
                 key={conv.id}
                 className={cn(
-                  "group flex items-center gap-2 rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors",
+                  "group flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm cursor-pointer transition-colors",
                   activeId === conv.id
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -66,29 +61,34 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
                 onClick={() => onSelect(conv.id)}
               >
                 <MessageSquare className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate flex-1">{conv.title}</span>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <button className="p-0.5 rounded hover:bg-muted-foreground/10 shrink-0">
-                      <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
-                    {onExport && (
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onExport(conv.id); }}>
-                        <Download className="h-3.5 w-3.5 mr-2" />
-                        Exportar
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(conv.id); }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-2" />
-                      Apagar
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <span className="truncate flex-1 min-w-0">{conv.title}</span>
+
+                <div className="flex items-center gap-0.5 shrink-0">
+                  {onExport && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className="p-1 rounded hover:bg-primary/10 transition-colors"
+                          onClick={(e) => { e.stopPropagation(); onExport(conv.id); }}
+                        >
+                          <FileDown className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-xs">Exportar PDF</TooltipContent>
+                    </Tooltip>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="p-1 rounded hover:bg-destructive/10 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(conv.id); }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="text-xs">Apagar</TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
             ))}
           </div>
@@ -117,7 +117,7 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </TooltipProvider>
   );
 };
 
