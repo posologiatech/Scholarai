@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { Sandbox } from "npm:@e2b/code-interpreter@1.0.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,97 +41,64 @@ serve(async (req) => {
       );
     }
 
-    // Create E2B sandbox
-    const createRes = await fetch("https://api.e2b.dev/sandboxes", {
-      method: "POST",
-      headers: {
-        "X-API-Key": e2bApiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        templateID: "base",
-        timeout: 60,
-      }),
-    });
-
-    if (!createRes.ok) {
-      const err = await createRes.text();
-      console.error("E2B create error:", err);
-      return new Response(
-        JSON.stringify({ type: "text", output: "Erro ao criar sandbox E2B." }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const sandbox = await createRes.json();
-    const sandboxId = sandbox.sandboxId || sandbox.id;
+    // Create E2B sandbox using SDK
+    console.log("Creating E2B sandbox...");
+    const sandbox = await Sandbox.create({ apiKey: e2bApiKey });
+    console.log("Sandbox created:", sandbox.sandboxId);
 
     try {
       // Upload file to sandbox
       const fileBytes = new Uint8Array(await fileData.arrayBuffer());
-      const base64File = btoa(String.fromCharCode(...fileBytes));
+      const fileName = file_path.split("/").pop() || "data.csv";
+      const sandboxPath = `/tmp/${fileName}`;
 
-      await fetch(`https://api.e2b.dev/sandboxes/${sandboxId}/files`, {
-        method: "POST",
-        headers: {
-          "X-API-Key": e2bApiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          path: "/tmp/data.csv",
-          content: base64File,
-        }),
-      });
+      console.log(`Uploading file to sandbox: ${sandboxPath} (${fileBytes.length} bytes)`);
+      await sandbox.files.write(sandboxPath, fileBytes);
 
-      // Install dependencies and run code
+      // Prepare code: adjust file path reference and install deps
       const fullCode = `
 import subprocess
-subprocess.run(['pip', 'install', 'pandas', 'matplotlib', 'seaborn', 'openpyxl'], capture_output=True)
+subprocess.run(['pip', 'install', 'pandas', 'matplotlib', 'seaborn', 'openpyxl', 'scipy', 'scikit-learn', 'statsmodels'], capture_output=True, text=True)
+
+import matplotlib
+matplotlib.use('Agg')
+
+# Set default file path for user code
+import os
+os.chdir('/tmp')
 
 ${code}
 `;
 
-      const execRes = await fetch(`https://api.e2b.dev/sandboxes/${sandboxId}/code/execution`, {
-        method: "POST",
-        headers: {
-          "X-API-Key": e2bApiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          code: fullCode,
-          language: "python",
-        }),
-      });
+      console.log("Running Python code...");
+      const execution = await sandbox.runCode(fullCode);
 
-      if (!execRes.ok) {
-        const err = await execRes.text();
-        console.error("E2B exec error:", err);
-        return new Response(
-          JSON.stringify({ type: "text", output: "Erro ao executar código Python." }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      const stdout = execution.logs.stdout.join("\n");
+      const stderr = execution.logs.stderr.join("\n");
+
+      console.log("stdout length:", stdout.length);
+      console.log("stderr length:", stderr.length);
+      if (stderr) {
+        console.error("Python stderr:", stderr.substring(0, 500));
       }
 
-      const execResult = await execRes.json();
-      const stdout = execResult.stdout || "";
-      const stderr = execResult.stderr || "";
+      // Check if there are image results (charts generated inline)
+      const imageResult = execution.results.find((r: any) => r.png);
 
-      // Check if chart was generated
-      const chartRes = await fetch(`https://api.e2b.dev/sandboxes/${sandboxId}/files?path=/tmp/chart.png`, {
-        headers: { "X-API-Key": e2bApiKey },
-      });
+      if (imageResult && imageResult.png) {
+        console.log("Chart found in execution results, uploading...");
 
-      if (chartRes.ok) {
-        const chartData = await chartRes.arrayBuffer();
-        const chartBase64 = btoa(String.fromCharCode(...new Uint8Array(chartData)));
-
-        // Upload chart to Supabase Storage
+        // Decode base64 PNG
+        const chartBytes = Uint8Array.from(atob(imageResult.png), (c) => c.charCodeAt(0));
         const chartPath = `charts/${conversation_id}/${Date.now()}.png`;
-        const chartBytes = Uint8Array.from(atob(chartBase64), (c) => c.charCodeAt(0));
 
-        await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from("datamind-files")
           .upload(chartPath, chartBytes, { contentType: "image/png" });
+
+        if (uploadError) {
+          console.error("Chart upload error:", uploadError);
+        }
 
         const { data: urlData } = supabase.storage
           .from("datamind-files")
@@ -139,25 +107,61 @@ ${code}
         return new Response(
           JSON.stringify({
             type: "image",
-            output: stdout,
+            output: stdout || "Gráfico gerado com sucesso.",
             image_url: urlData.publicUrl,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
+      // Also check if chart.png was saved to filesystem
+      try {
+        const chartFileBytes = await sandbox.files.read("/tmp/chart.png");
+        if (chartFileBytes && chartFileBytes.length > 0) {
+          console.log("Chart file found on filesystem, uploading...");
+
+          const chartUint8 = chartFileBytes instanceof Uint8Array ? chartFileBytes : new Uint8Array(chartFileBytes);
+          const chartPath = `charts/${conversation_id}/${Date.now()}.png`;
+
+          await supabase.storage
+            .from("datamind-files")
+            .upload(chartPath, chartUint8, { contentType: "image/png" });
+
+          const { data: urlData } = supabase.storage
+            .from("datamind-files")
+            .getPublicUrl(chartPath);
+
+          return new Response(
+            JSON.stringify({
+              type: "image",
+              output: stdout || "Gráfico gerado com sucesso.",
+              image_url: urlData.publicUrl,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } catch {
+        // No chart file, that's fine
+      }
+
       // Text-only output
-      const output = stdout || stderr || "Código executado sem output.";
+      if (execution.error) {
+        console.error("Execution error:", execution.error.name, execution.error.value);
+        const errorOutput = `Erro na execução:\n${execution.error.name}: ${execution.error.value}\n\n${stderr}`;
+        return new Response(
+          JSON.stringify({ type: "text", output: errorOutput }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const output = stdout || "Código executado sem output.";
       return new Response(
         JSON.stringify({ type: "text", output }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } finally {
-      // Kill sandbox
-      await fetch(`https://api.e2b.dev/sandboxes/${sandboxId}`, {
-        method: "DELETE",
-        headers: { "X-API-Key": e2bApiKey },
-      }).catch(() => {});
+      console.log("Killing sandbox...");
+      await sandbox.kill().catch((e: any) => console.error("Kill error:", e));
     }
   } catch (error) {
     console.error("Error:", error);
