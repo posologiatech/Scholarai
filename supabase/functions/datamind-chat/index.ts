@@ -66,11 +66,13 @@ QUANDO PEDIREM ANÁLISE DESCRITIVA, o código DEVE seguir esta estrutura EXATA:
    - show_table(dist, "Distribuição de ALTO RISCO")
    - print("\\nInterpretação: [EXPLIQUE A IMPLICAÇÃO — ex: '68% dos pacientes (892) são classificados como alto risco, o que indica que a maioria da amostra requer monitoramento farmacoterapêutico intensivo.']")
 
-REGRA CRÍTICA SOBRE INTERPRETAÇÕES:
-- NUNCA explique o método ou a técnica (ex: "A média mostra a tendência central", "O desvio padrão mede a dispersão")
-- SEMPRE interprete os VALORES CONCRETOS encontrados nos dados do pesquisador
-- Destaque padrões, anomalias, predominâncias e implicações práticas para a pesquisa
-- Use linguagem de relatório científico: "Os dados indicam...", "Observa-se predominância de...", "Destaca-se que..."
+REGRA CRÍTICA SOBRE INTERPRETAÇÕES (OBRIGATÓRIA):
+- NUNCA explique o método/técnica/visualização (proibido: "o heatmap mostra...", "o boxplot exibe...", "a média indica tendência central...")
+- SEMPRE interpretar o ACHADO e a IMPLICAÇÃO para o estudo
+- Cada interpretação deve citar pelo menos 2 valores concretos do resultado (n, %, média, mediana, min/max, coeficiente)
+- Foque em: predominâncias, diferenças entre grupos, magnitude de efeito, anomalias e possível impacto científico
+- Linguagem obrigatória de artigo: "Os resultados indicam...", "Observa-se...", "Esse padrão sugere..."
+- Se não houver achado relevante, escreva explicitamente: "Não foi identificado padrão forte com relevância prática nesta análise."
 
 5. GRÁFICOS (máx 5-6, os mais relevantes):
    - Barras horizontal para top categorias
@@ -78,6 +80,7 @@ REGRA CRÍTICA SOBRE INTERPRETAÇÕES:
    - Boxplot para numéricas
    - Heatmap de correlação se 2+ numéricas
    - Histograma de distribuição
+   - Após cada gráfico, interpretar APENAS o resultado numérico observado (força/direção/padrão), sem descrever "para que serve" o gráfico
 
 6. RESUMO FINAL:
    print("\\nResumo da Análise Descritiva")
