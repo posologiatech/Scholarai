@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { Download, ChevronDown, ChevronUp, TableIcon, ImageIcon, FileText, Maximize2, FileSpreadsheet, Loader2, ExternalLink } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Download, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, TableIcon, ImageIcon, FileText, Maximize2, FileSpreadsheet, Loader2, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 interface Props {
   type: string;
@@ -21,7 +22,6 @@ interface OutputBlock {
 
 /* ── Helpers ── */
 
-/** Download a CSV string as file */
 function downloadCSV(headers: string[], rows: string[][], filename = "tabela.csv") {
   const csvContent = [
     headers.join(","),
@@ -36,7 +36,6 @@ function downloadCSV(headers: string[], rows: string[][], filename = "tabela.csv
   URL.revokeObjectURL(url);
 }
 
-/** Download as Excel (.xlsx) */
 function downloadExcel(headers: string[], rows: string[][], filename = "tabela.xlsx") {
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   const wb = XLSX.utils.book_new();
@@ -44,7 +43,6 @@ function downloadExcel(headers: string[], rows: string[][], filename = "tabela.x
   XLSX.writeFile(wb, filename);
 }
 
-/** Export to Google Sheets via edge function */
 async function exportToGoogleSheets(headers: string[], rows: string[][], title: string): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
   
@@ -75,7 +73,6 @@ async function exportToGoogleSheets(headers: string[], rows: string[][], title: 
   return data?.url || null;
 }
 
-/** Download a base64 image as PNG */
 function downloadImage(dataUrl: string, filename = "grafico.png") {
   const a = document.createElement("a");
   a.href = dataUrl;
@@ -83,7 +80,6 @@ function downloadImage(dataUrl: string, filename = "grafico.png") {
   a.click();
 }
 
-/** Try to parse a text block as a table (pandas .to_string() output) */
 function tryParseTable(text: string): { headers: string[]; rows: string[][] } | null {
   const lines = text.split("\n").filter(l => l.trim() !== "");
   if (lines.length < 2) return null;
@@ -115,7 +111,6 @@ function tryParseTable(text: string): { headers: string[]; rows: string[][] } | 
   if (validRows < 1) return null;
 
   let headers = headerCandidates;
-  let rows = dataRows;
 
   if (dataRows.length > 0 && dataRows[0].length === headers.length + 1) {
     headers = ["#", ...headers];
@@ -123,10 +118,9 @@ function tryParseTable(text: string): { headers: string[]; rows: string[][] } | 
     if (Math.abs(dataRows[0].length - headers.length) > 2) return null;
   }
 
-  return { headers, rows };
+  return { headers, rows: dataRows };
 }
 
-/** Check if text is just noise/separator */
 function isNoise(text: string): boolean {
   const t = text.trim();
   if (!t) return true;
@@ -137,7 +131,6 @@ function isNoise(text: string): boolean {
   return false;
 }
 
-/** Parse combined output into sequential blocks */
 function parseBlocks(type: string, content: string): OutputBlock[] {
   if (type === "image") {
     return [{ kind: "image", content }];
@@ -172,14 +165,13 @@ function parseBlocks(type: string, content: string): OutputBlock[] {
 
       const table = tryParseTable(txt);
       if (table && table.rows.length >= 1) {
-        // Check if previous block is a short single-line text — use as title
         let title: string | undefined;
         const prev = blocks[blocks.length - 1];
         if (prev && prev.kind === "text") {
           const lines = prev.content.trim().split("\n");
           if (lines.length === 1 && lines[0].length <= 80) {
             title = lines[0].trim();
-            blocks.pop(); // remove the text block, it becomes the table title
+            blocks.pop();
           }
         }
         blocks.push({
@@ -220,6 +212,69 @@ function parseBlocks(type: string, content: string): OutputBlock[] {
   return blocks;
 }
 
+/* ── Badge colors for known columns ── */
+const CLASSE_COLORS: Record<string, string> = {
+  "ANTIMICROBIANO": "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
+  "ANTIDEPRESSIVO": "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+  "ANTI-HIPERTENSIVO": "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+  "ANALGÉSICO": "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  "ANTIINFLAMATÓRIO": "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  "ANSIOLÍTICO": "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
+  "ANTICONVULSIVANTE": "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300",
+};
+
+const RISCO_COLORS: Record<string, string> = {
+  "MAV": "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  "ALTO": "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  "MÉDIO": "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  "MODERADO": "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  "BAIXO": "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+};
+
+function isNumericColumn(rows: string[][], colIndex: number): boolean {
+  let numCount = 0;
+  const sample = rows.slice(0, Math.min(10, rows.length));
+  for (const row of sample) {
+    const val = row[colIndex]?.trim();
+    if (val && !isNaN(Number(val.replace(/,/g, "")))) numCount++;
+  }
+  return numCount > sample.length * 0.5;
+}
+
+function formatCell(value: string, header: string, isNumeric: boolean) {
+  const trimmed = value?.trim() || "";
+  
+  // Treat 999 as missing
+  if (trimmed === "999" || trimmed === "999.0") {
+    return <span className="text-muted-foreground/40">—</span>;
+  }
+
+  const upperHeader = header.toUpperCase();
+  const upperVal = trimmed.toUpperCase();
+
+  // Badge for CLASSE column
+  if (upperHeader === "CLASSE" || upperHeader === "CATEGORY" || upperHeader === "CATEGORIA") {
+    const colorClass = CLASSE_COLORS[upperVal] || "bg-muted text-muted-foreground";
+    return (
+      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${colorClass}`}>
+        {trimmed}
+      </span>
+    );
+  }
+
+  // Badge for RISCO column
+  if (upperHeader === "RISCO" || upperHeader === "RISK" || upperHeader === "SEVERIDADE") {
+    const colorClass = RISCO_COLORS[upperVal] || "bg-muted text-muted-foreground";
+    return (
+      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${colorClass}`}>
+        {trimmed}
+      </span>
+    );
+  }
+
+  return trimmed;
+}
+
 /* ── Google Sheets Icon ── */
 const GoogleSheetsIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -231,16 +286,25 @@ const GoogleSheetsIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-/* ── Inline Table Component (Julius-style spreadsheet) ── */
+/* ── Inline Table Component (Professional Data Table) ── */
 const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) => {
-  const [expanded, setExpanded] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [sheetsLoading, setSheetsLoading] = useState(false);
-  const maxVisible = 10;
+  const [currentPage, setCurrentPage] = useState(0);
+  const pageSize = 10;
   const rows = block.rows || [];
   const headers = block.headers || [];
-  const visibleRows = expanded ? rows : rows.slice(0, maxVisible);
-  const hasMore = rows.length > maxVisible;
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const hasPagination = rows.length > pageSize;
+
+  const numericCols = useMemo(() => {
+    return headers.map((_, ci) => isNumericColumn(rows, ci));
+  }, [headers, rows]);
+
+  const paginatedRows = useMemo(() => {
+    if (!hasPagination) return rows;
+    return rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  }, [rows, currentPage, hasPagination]);
 
   const handleExportSheets = async () => {
     setSheetsLoading(true);
@@ -261,106 +325,143 @@ const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) =>
     }
   };
 
-  const tableContent = (isFullscreen = false) => {
-    const displayRows = isFullscreen ? rows : visibleRows;
-    return (
-      <div className={isFullscreen ? "overflow-auto max-h-[80vh]" : "overflow-x-auto max-h-[500px] overflow-y-auto"}>
-        <table className="w-full text-[13px] border-collapse">
-          <thead className="sticky top-0 z-10">
-            <tr className="bg-muted/30">
-              <th className="py-2.5 px-3 text-left text-muted-foreground/60 font-normal text-xs w-12 border-b border-border/40">
-                □
+  const renderTable = (displayRows: string[][], startIndex: number, isFullscreen = false) => (
+    <div className={isFullscreen ? "overflow-auto max-h-[80vh]" : "overflow-x-auto"}>
+      <table className="w-full text-[13px]">
+        <thead className="sticky top-0 z-10">
+          <tr className="bg-muted/50 border-b-2 border-border/50">
+            <th className="py-3 px-3 text-center text-muted-foreground/50 font-normal text-xs w-12">
+              #
+            </th>
+            {headers.map((h, i) => (
+              <th
+                key={i}
+                className={`py-3 px-4 font-semibold text-foreground/80 text-[13px] tracking-wide ${
+                  numericCols[i] ? "text-right" : "text-left"
+                }`}
+              >
+                {h}
               </th>
-              {headers.map((h, i) => (
-                <th key={i} className="text-left py-2.5 px-4 font-semibold text-foreground/80 text-[13px] border-b border-border/40">
-                  {h}
-                </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {displayRows.map((row, ri) => (
+            <tr
+              key={ri}
+              className={`
+                border-b border-border/15 transition-colors cursor-default
+                ${ri % 2 === 0 ? "bg-transparent" : "bg-muted/20"}
+                hover:bg-primary/5 dark:hover:bg-primary/10
+              `}
+            >
+              <td className="py-2.5 px-3 text-center text-muted-foreground/40 text-xs font-mono tabular-nums">
+                {startIndex + ri + 1}
+              </td>
+              {row.map((cell, ci) => (
+                <td
+                  key={ci}
+                  className={`py-2.5 px-4 text-foreground/90 text-[13px] whitespace-pre-wrap break-words ${
+                    numericCols[ci] ? "text-right font-mono tabular-nums" : "text-left"
+                  }`}
+                >
+                  {formatCell(cell, headers[ci] || "", numericCols[ci])}
+                </td>
               ))}
             </tr>
-          </thead>
-          <tbody>
-            {displayRows.map((row, ri) => (
-              <tr
-                key={ri}
-                className="border-b border-border/20 hover:bg-[hsl(210,80%,96%)] dark:hover:bg-primary/10 transition-colors"
-              >
-                <td className="py-2.5 px-3 text-muted-foreground/50 text-xs font-normal">
-                  {ri + 1}
-                </td>
-                {row.map((cell, ci) => (
-                  <td key={ci} className="py-2.5 px-4 text-foreground/90 text-[13px] whitespace-pre-wrap break-words">
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <>
-      <div className="my-1">
-        {/* Title above the table */}
-        {block.title && (
-          <h4 className="text-[15px] font-bold text-foreground mb-1 px-1">{block.title}</h4>
-        )}
-
-        {/* Subtitle row with metadata + action buttons */}
-        <div className="flex items-center justify-between mb-2 px-1">
-          <span className="text-xs text-muted-foreground">
-            {block.label || "Table"}
-          </span>
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={handleExportSheets}
-              disabled={sheetsLoading}
-              className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              title="Enviar para Google Sheets"
-            >
-              {sheetsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleSheetsIcon className="h-4 w-4" />}
-            </button>
-            <button
-              onClick={() => downloadExcel(headers, rows, `tabela_${index + 1}.xlsx`)}
-              className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-              title="Download Excel"
-            >
-              <Download className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setFullscreen(true)}
-              className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-              title="Tela cheia"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Spreadsheet table */}
-        <div className="rounded-lg border border-border/40 bg-card overflow-hidden">
-          {tableContent()}
-
-          {/* Show more/less */}
-          {hasMore && (
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="w-full py-2 flex items-center justify-center gap-1 text-xs text-primary hover:bg-muted/20 transition-colors border-t border-border/30"
-            >
-              {expanded ? (
-                <>
-                  <ChevronUp className="h-3.5 w-3.5" />
-                  Mostrar menos
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="h-3.5 w-3.5" />
-                  {rows.length - maxVisible} mais linhas
-                </>
+      <div className="my-2">
+        {/* Card container */}
+        <div className="rounded-xl border border-border/40 bg-card shadow-sm overflow-hidden">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-muted/20">
+            <div className="flex flex-col gap-0.5">
+              {block.title && (
+                <h4 className="text-sm font-semibold text-foreground">{block.title}</h4>
               )}
-            </button>
+              <span className="text-xs text-muted-foreground">
+                {block.label || "Table"} {hasPagination && `· Página ${currentPage + 1} de ${totalPages}`}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleExportSheets}
+                disabled={sheetsLoading}
+                className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                title="Google Sheets"
+              >
+                {sheetsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleSheetsIcon className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={() => downloadCSV(headers, rows, `tabela_${index + 1}.csv`)}
+                className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors"
+                title="Download CSV"
+              >
+                <Download className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setFullscreen(true)}
+                className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors"
+                title="Tela cheia"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Table */}
+          {renderTable(paginatedRows, currentPage * pageSize)}
+
+          {/* Pagination */}
+          {hasPagination && (
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-border/30 bg-muted/10">
+              <span className="text-xs text-muted-foreground">
+                {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, rows.length)} de {rows.length} linhas
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                  disabled={currentPage === 0}
+                  className="p-1 rounded hover:bg-muted/50 text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  let page = i;
+                  if (totalPages > 5) {
+                    const start = Math.min(Math.max(currentPage - 2, 0), totalPages - 5);
+                    page = start + i;
+                  }
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
+                        page === currentPage
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      {page + 1}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={currentPage >= totalPages - 1}
+                  className="p-1 rounded hover:bg-muted/50 text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -379,13 +480,13 @@ const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) =>
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-card rounded-xl border border-border shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden"
+              className="bg-card rounded-xl border border-border shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/20">
                 <div>
-                  {block.title && <h3 className="text-base font-bold text-foreground">{block.title}</h3>}
-                  <span className="text-xs text-muted-foreground">{block.label}</span>
+                  {block.title && <h3 className="text-base font-semibold text-foreground">{block.title}</h3>}
+                  <span className="text-xs text-muted-foreground">{block.label} · {rows.length} linhas</span>
                 </div>
                 <button
                   onClick={() => setFullscreen(false)}
@@ -394,7 +495,7 @@ const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) =>
                   ✕
                 </button>
               </div>
-              {tableContent(true)}
+              {renderTable(rows, 0, true)}
             </motion.div>
           </motion.div>
         )}
