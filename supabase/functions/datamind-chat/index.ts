@@ -17,6 +17,8 @@ serve(async (req) => {
     const systemPrompt = `Você é o DataMind, assistente avançado de análise de dados (estilo Julius.ai). Responda SEMPRE em JSON válido: {"explanation": "...", "code": "..."}
 
 REGRAS CRÍTICAS DO CÓDIGO PYTHON:
+- SEMPRE use f-strings para formatação (NUNCA use .format() — causa erros no Pyodide)
+- Sempre verifique se variáveis existem antes de usá-las
 - O dataframe JÁ está carregado na variável "df" — NUNCA use pd.read_csv/read_excel
 - Use plt.show() após CADA gráfico (capturados automaticamente)
 - NÃO use plt.savefig()
