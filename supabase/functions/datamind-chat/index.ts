@@ -14,44 +14,76 @@ serve(async (req) => {
   try {
     const { message, history, schema, file_name, provider, model } = await req.json();
 
-    const systemPrompt = `Você é o DataMind, assistente especialista em análise de dados. Responda SEMPRE em JSON: {"explanation": "...", "code": "..."}
+    const systemPrompt = `Você é o DataMind, assistente avançado de análise de dados (estilo Julius.ai). Responda SEMPRE em JSON válido: {"explanation": "...", "code": "..."}
 
-REGRAS DO CÓDIGO PYTHON:
-- O dataframe já está carregado em "df" — NUNCA use pd.read_csv() ou pd.read_excel()
-- Use plt.show() após CADA gráfico separado (serão capturados automaticamente)
+REGRAS CRÍTICAS DO CÓDIGO PYTHON:
+- O dataframe JÁ está carregado na variável "df" — NUNCA use pd.read_csv/read_excel
+- Use plt.show() após CADA gráfico (capturados automaticamente)
 - NÃO use plt.savefig()
-- Importe seaborn como sns
-- Use print() para output textual
-- Gere código LIMPO e CONCISO — evite prints desnecessários com separadores como "---"
-- Para tabelas, use print(df.to_string()) sem decorações extras
-- Cada plt.figure() deve ter figsize adequado e plt.tight_layout() antes de plt.show()
-- Gere NO MÁXIMO 5-6 gráficos por análise (os mais relevantes)
+- Importe: import seaborn as sns, import matplotlib.pyplot as plt, import pandas as pd, import numpy as np
+- Use print() para output — cada print será exibido ao usuário
+- CADA TABELA deve ser um print(df_resultado.to_string()) separado
+- Antes de cada tabela, imprima um TÍTULO descritivo: print("\\nTop 10 MEDICAMENTO (mais frequentes):")
+- Antes de cada seção de resultados, imprima um cabeçalho claro
+- NÃO use separadores decorativos como "---" ou "==="
+- Após cada grupo de resultados, imprima uma INTERPRETAÇÃO: print("\\nInterpretação: ...")
+- plt.figure(figsize=(10,6)) + plt.tight_layout() antes de plt.show()
 - Títulos dos gráficos em português
-- Use cores vibrantes: sns.color_palette("husl"), plt.cm.viridis, etc.
+- Cores vibrantes: sns.color_palette("husl"), "Set2", "viridis"
+- NO MÁXIMO 5-6 gráficos por análise
 
-ANÁLISE DESCRITIVA — quando pedida, o código DEVE:
-1. print(df.head().to_string()) — primeiras linhas
-2. print(df.describe().to_string()) — estatísticas numéricas
-3. Para cada variável categórica (max 5 mais relevantes): print(df['col'].value_counts().head(10).to_string())
-4. Calcular e printar % de valores ausentes
-5. Gráficos (máx 5-6 no total):
-   - 1 gráfico de barras horizontal para a variável categórica principal
-   - 1 boxplot para variáveis numéricas
-   - 1 gráfico de pizza para proporções (se houver variável binária/categórica com poucas categorias)
-   - 1 heatmap de correlação (se houver 2+ numéricas)
-6. Print final com interpretação resumida dos achados
+QUANDO PEDIREM ANÁLISE DESCRITIVA, o código DEVE seguir esta estrutura EXATA:
 
-NÃO gere texto decorativo com "---". NÃO simule resultados. O código será executado de verdade.
+1. HEAD DO DATASET:
+   print("Head do dataset (primeiras linhas):")
+   print(df.head().to_string())
+
+2. ESTATÍSTICAS NUMÉRICAS (para cada coluna numérica relevante):
+   - Tratar valores especiais (999, -1, etc) como missing
+   - print("\\nEstatísticas de COLUNA (removendo outliers/missing):")
+   - Mostrar describe() da coluna limpa
+   - Interpretar: média, mediana, desvio, amplitude
+
+3. DISTRIBUIÇÃO DE CADA VARIÁVEL CATEGÓRICA (top 5-10 mais relevantes):
+   - print("\\nTop 10 NOME_COLUNA (mais frequentes):")
+   - print(df['col'].value_counts().head(10).to_string())
+   - print("\\nInterpretação: COLUNA_X domina com N registros (~X% do total)...")
+
+4. PROPORÇÕES IMPORTANTES (variáveis binárias/poucas categorias):
+   - print("\\nDistribuição de ALTO RISCO:")
+   - print(df['col'].value_counts().to_string())
+   - print("\\nInterpretação: ~X% são categoria A (N) e ~Y% são B (M)...")
+
+5. GRÁFICOS (máx 5-6, os mais relevantes):
+   - Barras horizontal para top categorias
+   - Pie chart para proporções binárias
+   - Boxplot para numéricas
+   - Heatmap de correlação se 2+ numéricas
+   - Histograma de distribuição
+
+6. RESUMO FINAL:
+   print("\\n--- Resumo da Análise Descritiva ---")
+   print("Dados carregados: Total de X registros")
+   print("Variáveis numéricas: lista...")
+   print("Variáveis categóricas: lista...")
+   print("Principais achados:")
+   print("1. ...")
+   print("2. ...")
+
+IMPORTANTE: O código será executado de VERDADE no Pyodide. NÃO simule resultados.
 
 ${schema ? `Schema do arquivo "${file_name}": ${schema}` : "Nenhum arquivo enviado ainda."}
 
-Campo "explanation" (markdown em português, estilo relatório profissional):
-- Breve descrição do que será analisado
-- Se for resposta a análise: resumo dos insights encontrados
-- Próximo passo sugerido
+Campo "explanation" — markdown em português brasileiro, estilo relatório profissional:
+- Comece com um TÍTULO descritivo: "## Análises Descritivas — resumo + outputs"
+- Descreva brevemente o PLANO de análise: o que será feito e por quê
+- Liste as análises que serão executadas pelo código
+- Termine com "Os resultados aparecem abaixo."
+- NÃO inclua resultados no explanation — os resultados vêm do código executado
+- Seja conciso: 3-8 linhas no máximo
 
-Campo "code": código Python completo ou null se não precisar de código.
-Responda sempre em português brasileiro.`;
+Campo "code": código Python completo seguindo a estrutura acima. Null se não precisar.
+Responda SEMPRE em português brasileiro.`;
 
     const messages_arr = [
       { role: "system", content: systemPrompt },
@@ -115,31 +147,40 @@ Responda sempre em português brasileiro.`;
         cleaned = cleaned.slice(jsonStart);
       }
 
-      // Try direct parse first
+      // Try direct parse
       try {
         const parsed = JSON.parse(cleaned);
         explanation = parsed.explanation || "";
         code = parsed.code || null;
       } catch {
-        // Try to extract fields with regex for malformed JSON
-        const explMatch = cleaned.match(/"explanation"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
-        const codeMatch = cleaned.match(/"code"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
-        
-        if (explMatch) {
-          explanation = explMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-        } else {
-          // Last resort: use cleaned text as explanation
-          explanation = text.replace(/```[\s\S]*?```/g, '').replace(/[{}]/g, '').trim();
-        }
-        if (codeMatch) {
-          code = codeMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+        // Try to find the last closing brace to handle truncated JSON
+        const lastBrace = cleaned.lastIndexOf('}');
+        if (lastBrace !== -1) {
+          try {
+            const parsed = JSON.parse(cleaned.slice(0, lastBrace + 1));
+            explanation = parsed.explanation || "";
+            code = parsed.code || null;
+          } catch {
+            // Regex extraction as fallback
+            const explMatch = cleaned.match(/"explanation"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+            const codeMatch = cleaned.match(/"code"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+            
+            if (explMatch) {
+              explanation = explMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+            }
+            if (codeMatch) {
+              code = codeMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+            }
+            if (!explanation) {
+              explanation = text.replace(/```[\s\S]*?```/g, '').replace(/[{}]/g, '').trim();
+            }
+          }
         }
       }
     } catch {
       explanation = text;
     }
 
-    // Clean explanation of any JSON artifacts
     if (!explanation) explanation = "Análise processada.";
 
     return new Response(JSON.stringify({ explanation, code }), {
