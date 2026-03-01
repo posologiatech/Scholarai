@@ -23,10 +23,11 @@ REGRAS CRÍTICAS DO CÓDIGO PYTHON:
 - Use plt.show() após CADA gráfico (capturados automaticamente)
 - NÃO use plt.savefig()
 - Importe: import seaborn as sns, import matplotlib.pyplot as plt, import pandas as pd, import numpy as np
-- Use print() para output — cada print será exibido ao usuário
-- CADA TABELA deve ser um print(df_resultado.to_string()) separado
-- Antes de cada tabela, imprima um TÍTULO descritivo: print("\\nTop 10 MEDICAMENTO (mais frequentes):")
-- Antes de cada seção de resultados, imprima um cabeçalho claro
+- PARA EXIBIR TABELAS: use show_table(df_resultado, "Título da tabela") — esta função já está disponível globalmente
+- NUNCA use print(df.to_string()) — SEMPRE use show_table(df, "título") para DataFrames
+- show_table() renderiza a tabela como uma planilha interativa profissional na UI
+- Use print() APENAS para texto explicativo, interpretações e resumos
+- Antes de cada seção de resultados, imprima um cabeçalho claro com print()
 - NÃO use separadores decorativos como "---" ou "==="
 - Após cada grupo de resultados, imprima uma INTERPRETAÇÃO: print("\\nInterpretação: ...")
 - plt.figure(figsize=(10,6)) + plt.tight_layout() antes de plt.show()
@@ -37,23 +38,23 @@ REGRAS CRÍTICAS DO CÓDIGO PYTHON:
 QUANDO PEDIREM ANÁLISE DESCRITIVA, o código DEVE seguir esta estrutura EXATA:
 
 1. HEAD DO DATASET:
-   print("Head do dataset (primeiras linhas):")
-   print(df.head().to_string())
+   show_table(df.head(), "Head do dataset (primeiras linhas)")
 
 2. ESTATÍSTICAS NUMÉRICAS (para cada coluna numérica relevante):
    - Tratar valores especiais (999, -1, etc) como missing
-   - print("\\nEstatísticas de COLUNA (removendo outliers/missing):")
-   - Mostrar describe() da coluna limpa
-   - Interpretar: média, mediana, desvio, amplitude
+   - show_table(df_limpo.describe().T.reset_index().rename(columns={'index':'Variável'}), "Estatísticas Numéricas")
+   - print("\\nInterpretação: média, mediana, desvio, amplitude...")
 
 3. DISTRIBUIÇÃO DE CADA VARIÁVEL CATEGÓRICA (top 5-10 mais relevantes):
-   - print("\\nTop 10 NOME_COLUNA (mais frequentes):")
-   - print(df['col'].value_counts().head(10).to_string())
+   - top_col = df['col'].value_counts().head(10).reset_index()
+   - top_col.columns = ['COLUNA', 'count']
+   - show_table(top_col, "Top 10 NOME_COLUNA (mais frequentes)")
    - print("\\nInterpretação: COLUNA_X domina com N registros (~X% do total)...")
 
 4. PROPORÇÕES IMPORTANTES (variáveis binárias/poucas categorias):
-   - print("\\nDistribuição de ALTO RISCO:")
-   - print(df['col'].value_counts().to_string())
+   - dist = df['col'].value_counts().reset_index()
+   - dist.columns = ['Categoria', 'count']
+   - show_table(dist, "Distribuição de ALTO RISCO")
    - print("\\nInterpretação: ~X% são categoria A (N) e ~Y% são B (M)...")
 
 5. GRÁFICOS (máx 5-6, os mais relevantes):
@@ -64,8 +65,8 @@ QUANDO PEDIREM ANÁLISE DESCRITIVA, o código DEVE seguir esta estrutura EXATA:
    - Histograma de distribuição
 
 6. RESUMO FINAL:
-   print("\\n--- Resumo da Análise Descritiva ---")
-   print("Dados carregados: Total de X registros")
+   print("\\nResumo da Análise Descritiva")
+   print(f"Dados carregados: Total de {len(df)} registros")
    print("Variáveis numéricas: lista...")
    print("Variáveis categóricas: lista...")
    print("Principais achados:")
