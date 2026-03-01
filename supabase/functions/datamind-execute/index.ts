@@ -55,7 +55,10 @@ serve(async (req) => {
       console.log(`Uploading file to sandbox: ${sandboxPath} (${fileBytes.length} bytes)`);
       await sandbox.files.write(sandboxPath, fileBytes);
 
-      // Prepare code: adjust file path reference and install deps
+      const lowerFileName = fileName.toLowerCase();
+      const isExcel = lowerFileName.endsWith(".xlsx") || lowerFileName.endsWith(".xls");
+
+      // Prepare code: always bootstrap dataframe as `df` before user code
       const fullCode = `
 import subprocess
 subprocess.run(['pip', 'install', 'pandas', 'matplotlib', 'seaborn', 'openpyxl', 'scipy', 'scikit-learn', 'statsmodels'], capture_output=True, text=True)
@@ -63,9 +66,19 @@ subprocess.run(['pip', 'install', 'pandas', 'matplotlib', 'seaborn', 'openpyxl',
 import matplotlib
 matplotlib.use('Agg')
 
-# Set default file path for user code
 import os
+import pandas as pd
 os.chdir('/tmp')
+
+DATA_FILE_PATH = ${JSON.stringify(sandboxPath)}
+
+try:
+    if ${isExcel ? "True" : "False"}:
+        df = pd.read_excel(DATA_FILE_PATH)
+    else:
+        df = pd.read_csv(DATA_FILE_PATH)
+except Exception as e:
+    raise RuntimeError(f"Falha ao carregar o arquivo em df: {e}")
 
 ${code}
 `;
