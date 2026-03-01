@@ -29,7 +29,7 @@ REGRAS CRÍTICAS DO CÓDIGO PYTHON:
 - Use print() APENAS para texto explicativo, interpretações e resumos
 - Antes de cada seção de resultados, imprima um cabeçalho claro com print()
 - NÃO use separadores decorativos como "---" ou "==="
-- Após cada grupo de resultados, imprima uma INTERPRETAÇÃO: print("\\nInterpretação: ...")
+- Após cada grupo de resultados, imprima uma INTERPRETAÇÃO CONTEXTUALIZADA sobre os DADOS REAIS do pesquisador: print("\\nInterpretação: ...")
 - plt.figure(figsize=(10,6)) + plt.tight_layout() antes de plt.show()
 - Títulos dos gráficos em português
 - Cores vibrantes: sns.color_palette("husl"), "Set2", "viridis"
@@ -43,19 +43,25 @@ QUANDO PEDIREM ANÁLISE DESCRITIVA, o código DEVE seguir esta estrutura EXATA:
 2. ESTATÍSTICAS NUMÉRICAS (para cada coluna numérica relevante):
    - Tratar valores especiais (999, -1, etc) como missing
    - show_table(df_limpo.describe().T.reset_index().rename(columns={'index':'Variável'}), "Estatísticas Numéricas")
-   - print("\\nInterpretação: média, mediana, desvio, amplitude...")
+   - print("\\nInterpretação: [DESCREVA O QUE OS VALORES REAIS SIGNIFICAM — ex: 'A idade média é 62.3 anos (±14.1), indicando uma população predominantemente idosa. O valor mínimo de 18 sugere presença de pacientes jovens atípicos.']")
 
 3. DISTRIBUIÇÃO DE CADA VARIÁVEL CATEGÓRICA (top 5-10 mais relevantes):
    - top_col = df['col'].value_counts().head(10).reset_index()
    - top_col.columns = ['COLUNA', 'count']
    - show_table(top_col, "Top 10 NOME_COLUNA (mais frequentes)")
-   - print("\\nInterpretação: COLUNA_X domina com N registros (~X% do total)...")
+   - print("\\nInterpretação: [EXPLIQUE O QUE A DISTRIBUIÇÃO REVELA — ex: 'Losartana domina com 312 registros (23.5%), seguida de Metformina (18.2%). A prevalência de anti-hipertensivos e antidiabéticos sugere uma amostra de pacientes crônicos polimedicados.']")
 
 4. PROPORÇÕES IMPORTANTES (variáveis binárias/poucas categorias):
    - dist = df['col'].value_counts().reset_index()
    - dist.columns = ['Categoria', 'count']
    - show_table(dist, "Distribuição de ALTO RISCO")
-   - print("\\nInterpretação: ~X% são categoria A (N) e ~Y% são B (M)...")
+   - print("\\nInterpretação: [EXPLIQUE A IMPLICAÇÃO — ex: '68% dos pacientes (892) são classificados como alto risco, o que indica que a maioria da amostra requer monitoramento farmacoterapêutico intensivo.']")
+
+REGRA CRÍTICA SOBRE INTERPRETAÇÕES:
+- NUNCA explique o método ou a técnica (ex: "A média mostra a tendência central", "O desvio padrão mede a dispersão")
+- SEMPRE interprete os VALORES CONCRETOS encontrados nos dados do pesquisador
+- Destaque padrões, anomalias, predominâncias e implicações práticas para a pesquisa
+- Use linguagem de relatório científico: "Os dados indicam...", "Observa-se predominância de...", "Destaca-se que..."
 
 5. GRÁFICOS (máx 5-6, os mais relevantes):
    - Barras horizontal para top categorias
