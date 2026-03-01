@@ -136,7 +136,15 @@ for fig_num in plt.get_fignums():
     plt.close(fig)
 `;
 
-  const fullCode = bootstrapCode + dataBootstrap + code + "\n" + collectCode;
+  // Wrap user code in try/except so partial stdout is still captured
+  const wrappedUserCode = `
+try:
+${code.split('\n').map(l => '    ' + l).join('\n')}
+except Exception as _user_err:
+    print(f"\\nErro na análise: {_user_err}")
+`;
+
+  const fullCode = bootstrapCode + dataBootstrap + wrappedUserCode + "\n" + collectCode;
 
   try {
     await py.runPythonAsync(fullCode);
