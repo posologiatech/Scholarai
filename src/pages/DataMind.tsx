@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import DataMindSidebar from "@/components/datamind/DataMindSidebar";
 import DataMindChat from "@/components/datamind/DataMindChat";
 import DataMindModelSelector from "@/components/datamind/DataMindModelSelector";
+import DataMindSandboxPanel from "@/components/datamind/DataMindSandboxPanel";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +51,7 @@ const DataMind = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<{ provider: string; model: string } | null>(null);
+  const [codeLanguage, setCodeLanguage] = useState("python");
 
   // Load conversations
   useEffect(() => {
@@ -330,8 +332,9 @@ const DataMind = () => {
                 ? conversations.find((c) => c.id === conversationId)?.title || "Análise"
                 : "Nova Análise"}
             </span>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-1">
               <DataMindModelSelector value={selectedModel} onChange={setSelectedModel} />
+              <DataMindSandboxPanel codeLanguage={codeLanguage} onLanguageChange={setCodeLanguage} />
             </div>
           </div>
 
@@ -341,6 +344,7 @@ const DataMind = () => {
             loading={loading}
             onSend={sendMessage}
             hasConversation={!!conversationId}
+            existingFiles={files}
           />
         </div>
       </div>

@@ -1,26 +1,27 @@
 import { Message } from "@/pages/DataMind";
-import { BrainCircuit, User, Copy, Check } from "lucide-react";
+import { BrainCircuit, User, Copy, Check, ChevronDown, ChevronUp, Code2 } from "lucide-react";
 import { useState } from "react";
 import DataMindCodeOutput from "./DataMindCodeOutput";
 
 interface Props {
   message: Message;
+  onSuggestionClick?: (q: string) => void;
 }
 
-// Simple markdown-like renderer to avoid react-markdown ESM issues
 const SimpleMarkdown = ({ content }: { content: string }) => {
   const lines = content.split("\n");
   return (
     <div className="space-y-1">
       {lines.map((line, i) => {
-        // Bold
         const processed = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        // Inline code
         const withCode = processed.replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-xs">$1</code>');
-        
-        if (line.startsWith("# ")) return <h3 key={i} className="font-bold text-base">{line.slice(2)}</h3>;
-        if (line.startsWith("## ")) return <h4 key={i} className="font-semibold text-sm">{line.slice(3)}</h4>;
+
+        if (line.startsWith("### ")) return <h4 key={i} className="font-semibold text-sm mt-3 mb-1">{line.slice(4)}</h4>;
+        if (line.startsWith("## ")) return <h3 key={i} className="font-bold text-base mt-4 mb-2">{line.slice(3)}</h3>;
+        if (line.startsWith("# ")) return <h2 key={i} className="font-bold text-lg mt-4 mb-2">{line.slice(2)}</h2>;
+        if (line.match(/^\d+\.\s/)) return <li key={i} className="ml-4 list-decimal" dangerouslySetInnerHTML={{ __html: withCode.replace(/^\d+\.\s/, '') }} />;
         if (line.startsWith("- ") || line.startsWith("* ")) return <li key={i} className="ml-4 list-disc" dangerouslySetInnerHTML={{ __html: withCode.slice(2) }} />;
+        if (line.startsWith("  - ") || line.startsWith("  * ")) return <li key={i} className="ml-8 list-disc text-muted-foreground" dangerouslySetInnerHTML={{ __html: withCode.slice(4) }} />;
         if (line.trim() === "") return <br key={i} />;
         return <p key={i} dangerouslySetInnerHTML={{ __html: withCode }} />;
       })}
@@ -28,9 +29,10 @@ const SimpleMarkdown = ({ content }: { content: string }) => {
   );
 };
 
-const DataMindMessage = ({ message }: Props) => {
+const DataMindMessage = ({ message, onSuggestionClick }: Props) => {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
+  const [codeExpanded, setCodeExpanded] = useState(false);
 
   const copyCode = () => {
     if (message.code_block) {
@@ -38,6 +40,22 @@ const DataMindMessage = ({ message }: Props) => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  // Extract suggestions from content (lines starting with specific patterns)
+  const extractSuggestions = (content: string): string[] => {
+    // Look for questions at the end of the message
+    const lines = content.split("\n");
+    const suggestions: string[] = [];
+    let foundSuggestionSection = false;
+
+    for (const line of lines) {
+      if (line.toLowerCase().includes("gostaria que eu") || line.toLowerCase().includes("deseja que eu") || line.toLowerCase().includes("sugestões")) {
+        foundSuggestionSection = true;
+      }
+    }
+
+    return suggestions;
   };
 
   return (
@@ -62,22 +80,46 @@ const DataMindMessage = ({ message }: Props) => {
               : "bg-card border border-border/60"
           }`}
         >
-          <div className="text-sm">
+          <div className="text-sm leading-relaxed">
             <SimpleMarkdown content={message.content} />
           </div>
         </div>
 
+        {/* Collapsible code block - Julius style */}
         {message.code_block && (
-          <div className="mt-3 rounded-xl border border-border/60 bg-muted/50 overflow-hidden text-left">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-border/40 bg-muted/80">
-              <span className="text-xs font-mono text-muted-foreground">Python</span>
-              <button onClick={copyCode} className="text-muted-foreground hover:text-foreground transition-colors">
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-            <pre className="p-4 overflow-x-auto text-xs font-mono text-foreground/90">
-              <code>{message.code_block}</code>
-            </pre>
+          <div className="mt-3 rounded-xl border border-border/60 bg-card overflow-hidden text-left">
+            <button
+              onClick={() => setCodeExpanded(!codeExpanded)}
+              className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/30 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Code2 className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-foreground">
+                  {message.output_content ? "Code" : "Generating Code"}
+                </span>
+              </div>
+              {codeExpanded ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+
+            {codeExpanded && (
+              <div className="border-t border-border/40">
+                <div className="flex items-center justify-between px-4 py-1.5 bg-muted/30">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    🐍 <span className="font-medium">Python</span>
+                  </span>
+                  <button onClick={copyCode} className="text-muted-foreground hover:text-foreground transition-colors">
+                    {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+                <pre className="p-4 overflow-x-auto text-xs font-mono text-foreground/90 bg-muted/20">
+                  <code>{message.code_block}</code>
+                </pre>
+              </div>
+            )}
           </div>
         )}
 
