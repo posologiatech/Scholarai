@@ -143,25 +143,35 @@ function transformAnthropicResponse(data: any): any {
 
 export async function callAI(options: ChatCompletionOptions): Promise<Response> {
   const activeKeys = await getActiveApiKeys();
+  const forceProvider = (options as any)._forceProvider;
+  
+  // Clean internal fields
+  const cleanOptions = { ...options };
+  delete (cleanOptions as any)._forceProvider;
 
-  // Try each configured external provider first
-  for (const keyRecord of activeKeys) {
+  // If a specific provider is forced, try only that one
+  const keysToTry = forceProvider 
+    ? activeKeys.filter(k => k.provider === forceProvider)
+    : activeKeys;
+
+  // Try each configured external provider
+  for (const keyRecord of keysToTry) {
     const providerConfig = PROVIDERS.find((p) => p.id === keyRecord.provider);
     if (!providerConfig) continue;
 
     // Skip Anthropic for streaming (complex SSE format differences)
     if (!providerConfig.isOpenAICompatible && options.stream) continue;
 
-    const model = providerConfig.modelMap[options.model || ""] || providerConfig.defaultModel;
+    const model = forceProvider ? (cleanOptions.model || providerConfig.defaultModel) : (providerConfig.modelMap[cleanOptions.model || ""] || providerConfig.defaultModel);
 
     let requestBody: any;
     if (providerConfig.transformRequest) {
       requestBody = providerConfig.transformRequest({
-        ...options,
+        ...cleanOptions,
         model,
       });
     } else {
-      requestBody = { ...options, model };
+      requestBody = { ...cleanOptions, model };
     }
 
     // Remove internal fields
@@ -212,7 +222,7 @@ export async function callAI(options: ChatCompletionOptions): Promise<Response> 
       Authorization: `Bearer ${LOVABLE_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(options),
+    body: JSON.stringify(cleanOptions),
   });
 
   return response;

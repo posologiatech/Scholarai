@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { message, history, schema, file_name } = await req.json();
+    const { message, history, schema, file_name, provider, model } = await req.json();
 
     const systemPrompt = `Você é o DataMind, um assistente especialista em análise de dados.
 Quando o usuário faz uma pergunta sobre dados, você deve:
@@ -42,11 +42,41 @@ Responda sempre em português.`;
       { role: "user", content: message },
     ];
 
-    const response = await callAI({
-      messages,
-      model: "gpt-4o-mini",
-      temperature: 0.3,
-    });
+    // If a specific provider is requested, use it; otherwise let callAI auto-select
+    let response: Response;
+
+    if (provider === "lovable") {
+      // Direct call to Lovable AI with specific model
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
+      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages,
+          model: model || "google/gemini-3-flash-preview",
+          temperature: 0.3,
+        }),
+      });
+    } else if (provider && model) {
+      // Use callAI but override with explicit model
+      response = await callAI({
+        messages,
+        model: model,
+        temperature: 0.3,
+        _forceProvider: provider,
+      } as any);
+    } else {
+      response = await callAI({
+        messages,
+        model: "gpt-4o-mini",
+        temperature: 0.3,
+      });
+    }
 
     if (!response.ok) {
       const errText = await response.text();
