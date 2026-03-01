@@ -18,6 +18,9 @@ serve(async (req) => {
 
 REGRAS CRÍTICAS DO CÓDIGO PYTHON:
 - SEMPRE use f-strings para formatação (NUNCA use .format() — causa erros no Pyodide)
+- NUNCA assuma nomes de colunas — SEMPRE use df.columns para descobrir os nomes reais antes de referenciá-los
+- No INÍCIO de todo código, imprima as colunas: print(f"Colunas: {list(df.columns)}")
+- Use df.select_dtypes() para separar numéricas e categóricas em vez de adivinhar nomes
 - Sempre verifique se variáveis existem antes de usá-las
 - O dataframe JÁ está carregado na variável "df" — NUNCA use pd.read_csv/read_excel
 - Use plt.show() após CADA gráfico (capturados automaticamente)
