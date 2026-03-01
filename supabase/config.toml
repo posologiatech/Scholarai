@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.datamind-execute]
 verify_jwt = false
+
+[functions.export-to-sheets]
+verify_jwt = false
