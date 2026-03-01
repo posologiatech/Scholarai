@@ -256,20 +256,21 @@ const DataMind = () => {
             outputType = "text";
             outputContent = `Erro na execução:\n${result.error}`;
           } else {
+            // Build combined output: text + images
+            const parts: string[] = [];
+            if (result.stdout?.trim()) {
+              parts.push(result.stdout.trim());
+            }
             if (result.images.length > 0) {
-              outputType = "image";
-              outputContent = `data:image/png;base64,${result.images[0]}`;
+              // Encode images as special markers for the renderer
+              result.images.forEach((img) => {
+                parts.push(`[IMG]data:image/png;base64,${img}[/IMG]`);
+              });
             }
-            if (result.stdout) {
-              if (outputType === "image") {
-                // If we have both image and text, show image (text goes to stdout)
-                outputContent = `data:image/png;base64,${result.images[0]}`;
-              } else {
-                outputType = "text";
-                outputContent = result.stdout;
-              }
-            }
-            if (!outputType) {
+            if (parts.length > 0) {
+              outputType = result.images.length > 0 ? "mixed" : "text";
+              outputContent = parts.join("\n");
+            } else {
               outputType = "text";
               outputContent = "Código executado com sucesso (sem output).";
             }
