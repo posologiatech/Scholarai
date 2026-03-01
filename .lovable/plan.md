@@ -1,91 +1,60 @@
 
-# Integracão Google Sheets + Download Excel no DataMind
 
-## Visao Geral
-Adicionar dois botoes de exportacao em cada tabela e grafico gerado pelo DataMind:
-1. **Download Excel (.xlsx)** - gera o arquivo localmente no navegador
-2. **Enviar para Google Sheets** - cria uma planilha no Google Drive do usuario
+# Tabelas estilo planilha incorporada (Julius-style)
 
----
+## Objetivo
+Transformar a renderizacao das tabelas no DataMind para parecerem planilhas incorporadas, como no Julius (imagem de referencia), em vez de simples tabelas HTML.
 
-## Parte 1: Download como Excel (.xlsx)
+## Mudancas visuais
 
-**Abordagem:** Usar a biblioteca `xlsx` (SheetJS) para gerar arquivos .xlsx diretamente no navegador, sem necessidade de servidor.
+A tabela atual ja tem estrutura basica (row numbers, headers, zebra-striping), mas precisa de ajustes para parecer uma planilha real:
 
-- Instalar dependencia `xlsx`
-- Adicionar botao "Download Excel" ao lado do botao CSV existente em cada tabela (`DataMindCodeOutput.tsx`)
-- Para graficos, manter o download PNG existente
+### 1. Header da tabela (`InlineTable`)
+- Titulo em negrito acima da tabela (ex: "Top 10 PRM (problemas)") extraido do contexto
+- Subtitulo cinza com metadata: "2 cols, 10 rows returned"
+- Botoes de exportacao (Google Sheets, download, fullscreen) alinhados a direita no header
 
----
+### 2. Estilo de planilha
+- Coluna de indice com fundo cinza claro e borda direita, simulando a coluna de numeros de uma planilha
+- Headers com fundo branco, borda inferior mais grossa, fonte semibold
+- Celulas com bordas visiveis (grid completo, nao so linhas horizontais)
+- Hover na linha inteira com destaque sutil
+- Remover truncamento: celulas devem expandir para mostrar conteudo completo
+- Borda externa arredondada e sombra sutil para dar efeito "flutuante"
 
-## Parte 2: Enviar para Google Sheets
+### 3. Fullscreen para tabelas
+- Adicionar botao de expandir (icone de maximize) como no Julius
+- Ao clicar, tabela abre em overlay fullscreen com scroll
 
-**Abordagem:** Usar Google OAuth (login com Google via Supabase Auth) + Edge Function que chama a Google Sheets API com o token do usuario.
+## Arquivo a modificar
 
-### Passo 1 - Configuracao Google OAuth no Supabase
-- O usuario precisa configurar o Google OAuth Provider no dashboard do Supabase (Authentication > Providers > Google)
-- Adicionar o scope `https://www.googleapis.com/auth/spreadsheets` para permitir criacao de planilhas
-- Adicionar o scope `https://www.googleapis.com/auth/drive.file` para salvar no Drive
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/components/datamind/DataMindCodeOutput.tsx` | Redesign do componente `InlineTable` para estilo spreadsheet |
 
-### Passo 2 - Edge Function `export-to-sheets`
-- Criar `supabase/functions/export-to-sheets/index.ts`
-- Recebe: dados da tabela (headers + rows) ou URL da imagem do grafico
-- Usa o token OAuth do Google do usuario (extraido do provider_token do Supabase Auth)
-- Chama a Google Sheets API para:
-  - Criar nova planilha
-  - Popular com os dados
-  - Para graficos: insere a imagem na planilha
-- Retorna o link da planilha criada
+## Detalhes tecnicos
 
-### Passo 3 - Botao na interface
-- Adicionar botao com icone do Google Sheets em cada tabela e grafico no `DataMindCodeOutput.tsx`
-- Ao clicar:
-  - Verifica se o usuario esta logado com Google (tem provider_token)
-  - Se nao, mostra toast pedindo para fazer login com Google
-  - Se sim, chama a edge function e mostra o link da planilha criada
-- Feedback visual: loading spinner durante envio, toast com link ao concluir
-
----
-
-## Arquivos a criar/modificar
-
-| Arquivo | Acao |
-|---------|------|
-| `package.json` | Adicionar dependencia `xlsx` |
-| `src/components/datamind/DataMindCodeOutput.tsx` | Adicionar botoes Excel e Google Sheets |
-| `supabase/functions/export-to-sheets/index.ts` | Nova edge function para Google Sheets API |
-| `supabase/config.toml` | Registrar nova edge function |
-
----
-
-## Pre-requisitos do usuario
-
-Para o Google Sheets funcionar, o usuario precisara:
-1. Configurar Google OAuth no Supabase Dashboard (criar credenciais no Google Cloud Console)
-2. Adicionar os scopes de Sheets e Drive
-3. Fazer login na aplicacao usando conta Google
-
-O download Excel funcionara imediatamente sem nenhuma configuracao.
-
----
-
-## Secao Tecnica
-
-### Geracao Excel (client-side)
-```typescript
-import * as XLSX from 'xlsx';
-
-function downloadExcel(headers: string[], rows: string[][], filename: string) {
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Dados");
-  XLSX.writeFile(wb, filename);
-}
+### Estrutura visual do header
+```text
++--------------------------------------------------+
+| Top 10 PRM (problemas)                           |
+| 2 cols, 10 rows returned    [Sheets] [DL] [Max]  |
++--------------------------------------------------+
+|    | PRM                              | count     |
+|----|----------------------------------|-----------|
+| 1  | Necessario renovar o controle... | 509       |
+| 2  | Falta do controle...             | 211       |
++--------------------------------------------------+
 ```
 
-### Edge Function (export-to-sheets)
-- Recebe `{ headers, rows, title }` no body
-- Extrai `provider_token` do header Authorization via Supabase Auth
-- POST para `https://sheets.googleapis.com/v4/spreadsheets` para criar planilha
-- PUT para popular os dados
-- Retorna `{ url: "https://docs.google.com/spreadsheets/d/..." }`
+### Mudancas CSS no InlineTable
+- Grid com `border-collapse` e bordas em todas as celulas
+- Coluna `#` com `bg-muted/40` e `border-r`
+- Headers com `sticky top-0` para scroll interno
+- Container com `max-h-[500px] overflow-y-auto` para tabelas grandes
+- Sombra `shadow-sm` no container externo
+
+### Label da tabela
+- Atualmente o label e generico ("2 cols, 10 rows"). Manter isso como subtitulo
+- Adicionar logica para extrair titulo do bloco de texto que precede a tabela (o titulo como "Top 10 PRM" vem do `print()` no Python). A funcao `parseBlocks` sera ajustada para detectar quando um bloco de texto de uma unica linha curta precede imediatamente uma tabela e usa-lo como titulo da tabela
+
