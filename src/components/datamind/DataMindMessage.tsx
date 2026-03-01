@@ -32,7 +32,7 @@ const SimpleMarkdown = ({ content }: { content: string }) => {
 const DataMindMessage = ({ message, onSuggestionClick }: Props) => {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
-  const [codeExpanded, setCodeExpanded] = useState(true);
+  const [codeExpanded, setCodeExpanded] = useState(false);
 
   const copyCode = () => {
     if (message.code_block) {

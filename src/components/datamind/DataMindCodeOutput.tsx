@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ImageIcon, FileText, Table as TableIcon, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ImageIcon, FileText, Table as TableIcon, X, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {
@@ -11,9 +11,20 @@ interface OutputCard {
   kind: "table" | "image" | "text";
   title: string;
   content: string;
-  /** For tables: parsed rows */
   rows?: string[][];
   headers?: string[];
+}
+
+/** Check if a text line is just a separator/header with no real data */
+function isSeparatorOrEmpty(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return true;
+  // Lines like "--- Title ---" or just dashes
+  if (/^-{2,}\s*.*\s*-{2,}$/.test(trimmed)) return true;
+  if (/^-{3,}$/.test(trimmed)) return true;
+  // Lines like "[5 rows x 7 columns]"
+  if (/^\[\d+\s+rows?\s+x\s+\d+\s+columns?\]$/i.test(trimmed)) return true;
+  return false;
 }
 
 /** Parse stdout + image markers into structured cards */
@@ -26,37 +37,39 @@ function parseOutputCards(type: string, content: string): OutputCard[] {
   }
 
   const parts = content.split(/(\[IMG\].*?\[\/IMG\])/);
-  let tableIndex = 0;
   let chartIndex = 0;
 
   for (const part of parts) {
     const imgMatch = part.match(/^\[IMG\](.*?)\[\/IMG\]$/);
     if (imgMatch) {
-      chartIndex++;
-      cards.push({ kind: "image", title: `Gráfico ${chartIndex}`, content: imgMatch[1] });
+      const imgData = imgMatch[1];
+      // Skip empty/tiny base64 images
+      if (imgData && imgData.length > 100) {
+        chartIndex++;
+        cards.push({ kind: "image", title: `Gráfico ${chartIndex}`, content: imgData });
+      }
       continue;
     }
 
     const text = part.trim();
     if (!text) continue;
 
-    // Try to detect tables in stdout (lines with consistent separators)
     const lines = text.split("\n");
     let currentText: string[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      // Detect pandas-style table output (has consistent spacing or separators)
-      // A simple heuristic: if we see 2+ consecutive lines with 2+ columns aligned
+      // Skip pure separator lines
+      if (isSeparatorOrEmpty(line)) continue;
+
+      // Detect pandas-style table output
       const isTableLine = (l: string) => {
         const trimmed = l.trim();
-        // Pandas prints columns separated by spaces, often with index
         return (trimmed.split(/\s{2,}/).length >= 2) && !trimmed.startsWith("Aviso") && !trimmed.startsWith("Erro");
       };
 
       if (isTableLine(line)) {
-        // Look ahead to see if this is a table block
         let tableEnd = i;
         while (tableEnd < lines.length && (isTableLine(lines[tableEnd]) || lines[tableEnd].trim() === "")) {
           tableEnd++;
@@ -66,18 +79,17 @@ function parseOutputCards(type: string, content: string): OutputCard[] {
           // Flush current text
           if (currentText.length > 0) {
             const txt = currentText.join("\n").trim();
-            if (txt) cards.push({ kind: "text", title: "Resultado", content: txt });
+            if (txt && !isSeparatorOrEmpty(txt)) {
+              cards.push({ kind: "text", title: extractTitle(txt), content: txt });
+            }
             currentText = [];
           }
 
-          // Parse table
           const tableLines = lines.slice(i, tableEnd).filter(l => l.trim() !== "");
           if (tableLines.length >= 1) {
             const headerParts = tableLines[0].trim().split(/\s{2,}/);
             const rows = tableLines.slice(1).map(l => l.trim().split(/\s{2,}/));
-            tableIndex++;
 
-            // Generate a title from header columns
             const title = headerParts.length <= 3
               ? headerParts.join(", ")
               : `${headerParts.slice(0, 2).join(", ")}... (${headerParts.length} cols)`;
@@ -101,11 +113,40 @@ function parseOutputCards(type: string, content: string): OutputCard[] {
 
     if (currentText.length > 0) {
       const txt = currentText.join("\n").trim();
-      if (txt) cards.push({ kind: "text", title: "Resultado", content: txt });
+      if (txt && !isSeparatorOrEmpty(txt)) {
+        cards.push({ kind: "text", title: extractTitle(txt), content: txt });
+      }
     }
   }
 
-  return cards;
+  // Merge consecutive small text cards into one "Interpretação" card
+  const merged: OutputCard[] = [];
+  let textBuffer: string[] = [];
+
+  for (const card of cards) {
+    if (card.kind === "text" && card.content.length < 200) {
+      textBuffer.push(card.content);
+    } else {
+      if (textBuffer.length > 0) {
+        merged.push({ kind: "text", title: "Interpretação", content: textBuffer.join("\n\n") });
+        textBuffer = [];
+      }
+      merged.push(card);
+    }
+  }
+  if (textBuffer.length > 0) {
+    merged.push({ kind: "text", title: "Interpretação", content: textBuffer.join("\n\n") });
+  }
+
+  return merged;
+}
+
+/** Extract a meaningful title from text content */
+function extractTitle(text: string): string {
+  const firstLine = text.split("\n")[0].trim();
+  // If it looks like a header/title line
+  if (firstLine.length < 60 && firstLine.length > 0) return firstLine;
+  return "Interpretação";
 }
 
 /** Side panel for detailed view */
@@ -120,7 +161,6 @@ const DetailPanel = ({
   onClose: () => void;
   onNavigate: (card: OutputCard) => void;
 }) => {
-  // Tabs for navigating between table cards
   const tableCards = allCards.filter(c => c.kind === "table");
   const isTable = card.kind === "table";
 
@@ -132,7 +172,6 @@ const DetailPanel = ({
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
       className="fixed right-0 top-0 h-full w-full sm:w-[480px] bg-background border-l border-border/60 shadow-2xl z-50 flex flex-col"
     >
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/40 bg-card">
         <div className="flex items-center gap-2">
           {card.kind === "table" ? (
@@ -149,7 +188,6 @@ const DetailPanel = ({
         </button>
       </div>
 
-      {/* Variable tabs for table cards */}
       {isTable && tableCards.length > 1 && (
         <div className="flex items-center gap-1 px-4 py-2 border-b border-border/40 overflow-x-auto bg-muted/30">
           {tableCards.map((tc, i) => (
@@ -168,24 +206,23 @@ const DetailPanel = ({
         </div>
       )}
 
-      {/* Content */}
       <div className="flex-1 overflow-auto p-4">
         {card.kind === "image" && (
-          <img src={card.content} alt={card.title} className="w-full rounded-lg" />
+          <img src={card.content} alt={card.title} className="w-full rounded-lg" onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none';
+          }} />
         )}
         {card.kind === "table" && card.headers && (
           <div className="overflow-x-auto">
             <div className="text-xs text-muted-foreground mb-2">
-              {card.headers.length} cols, {card.rows?.length || 0} rows returned
+              {card.headers.length} cols, {card.rows?.length || 0} rows
             </div>
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="border-b border-border/60">
                   <th className="text-left py-2 px-3 text-muted-foreground font-medium w-8">#</th>
                   {card.headers.map((h, i) => (
-                    <th key={i} className="text-left py-2 px-3 font-semibold text-foreground whitespace-nowrap">
-                      {h}
-                    </th>
+                    <th key={i} className="text-left py-2 px-3 font-semibold text-foreground whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -194,9 +231,7 @@ const DetailPanel = ({
                   <tr key={ri} className="border-b border-border/20 hover:bg-muted/30">
                     <td className="py-2 px-3 text-muted-foreground">{ri + 1}</td>
                     {row.map((cell, ci) => (
-                      <td key={ci} className="py-2 px-3 text-foreground whitespace-nowrap">
-                        {cell}
-                      </td>
+                      <td key={ci} className="py-2 px-3 text-foreground whitespace-nowrap">{cell}</td>
                     ))}
                   </tr>
                 ))}
@@ -205,7 +240,7 @@ const DetailPanel = ({
           </div>
         )}
         {card.kind === "text" && (
-          <pre className="text-xs font-mono text-foreground/90 whitespace-pre-wrap">{card.content}</pre>
+          <pre className="text-sm font-mono text-foreground/90 whitespace-pre-wrap leading-relaxed">{card.content}</pre>
         )}
       </div>
     </motion.div>
@@ -230,7 +265,7 @@ const DataMindCodeOutput = ({ type, content }: Props) => {
     );
   }
 
-  // Single card — render inline
+  // Single text card — render inline without card grid
   if (cards.length === 1 && cards[0].kind === "text") {
     return (
       <div className="rounded-xl border border-border/60 bg-muted/50 overflow-hidden">
@@ -247,7 +282,6 @@ const DataMindCodeOutput = ({ type, content }: Props) => {
 
   return (
     <>
-      {/* Clickable card grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {cards.map((card, i) => (
           <motion.button
@@ -272,10 +306,14 @@ const DataMindCodeOutput = ({ type, content }: Props) => {
             </div>
             <p className="text-xs font-medium text-foreground truncate">{card.title}</p>
 
-            {/* Mini preview */}
             {card.kind === "image" && (
-              <div className="mt-2 rounded-md overflow-hidden h-16 bg-muted/30">
-                <img src={card.content} alt={card.title} className="w-full h-full object-cover object-top" />
+              <div className="mt-2 rounded-md overflow-hidden h-20 bg-muted/30">
+                <img
+                  src={card.content}
+                  alt={card.title}
+                  className="w-full h-full object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).closest('.rounded-xl')?.classList.add('hidden'); }}
+                />
               </div>
             )}
             {card.kind === "table" && card.rows && (
@@ -287,11 +325,9 @@ const DataMindCodeOutput = ({ type, content }: Props) => {
         ))}
       </div>
 
-      {/* Side panel */}
       <AnimatePresence>
         {selectedCard && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.3 }}
