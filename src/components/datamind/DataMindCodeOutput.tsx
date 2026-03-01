@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { Download, ChevronDown, ChevronUp, TableIcon, ImageIcon, FileText, Maximize2 } from "lucide-react";
+import { Download, ChevronDown, ChevronUp, TableIcon, ImageIcon, FileText, Maximize2, FileSpreadsheet, Loader2, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import * as XLSX from "xlsx";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 interface Props {
   type: string;
@@ -32,6 +35,45 @@ function downloadCSV(headers: string[], rows: string[][], filename = "tabela.csv
   URL.revokeObjectURL(url);
 }
 
+/** Download as Excel (.xlsx) */
+function downloadExcel(headers: string[], rows: string[][], filename = "tabela.xlsx") {
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Dados");
+  XLSX.writeFile(wb, filename);
+}
+
+/** Export to Google Sheets via edge function */
+async function exportToGoogleSheets(headers: string[], rows: string[][], title: string): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    toast({ title: "Login necessário", description: "Faça login para exportar para Google Sheets.", variant: "destructive" });
+    return null;
+  }
+
+  const providerToken = session.provider_token;
+  if (!providerToken) {
+    toast({
+      title: "Login com Google necessário",
+      description: "Para exportar para Google Sheets, faça login usando sua conta Google com as permissões necessárias.",
+      variant: "destructive",
+    });
+    return null;
+  }
+
+  const { data, error } = await supabase.functions.invoke("export-to-sheets", {
+    body: { headers, rows, title, provider_token: providerToken },
+  });
+
+  if (error) {
+    toast({ title: "Erro ao exportar", description: error.message || "Falha ao criar planilha no Google Sheets.", variant: "destructive" });
+    return null;
+  }
+
+  return data?.url || null;
+}
+
 /** Download a base64 image as PNG */
 function downloadImage(dataUrl: string, filename = "grafico.png") {
   const a = document.createElement("a");
@@ -45,15 +87,11 @@ function tryParseTable(text: string): { headers: string[]; rows: string[][] } | 
   const lines = text.split("\n").filter(l => l.trim() !== "");
   if (lines.length < 2) return null;
 
-  // Detect pandas to_string format: first line is headers, rest is data
-  // Common patterns: columns separated by 2+ spaces, or fixed-width
   const firstLine = lines[0];
   
-  // Skip if it looks like prose (sentences with periods, long text)
   if (firstLine.includes(". ") && firstLine.length > 100) return null;
   if (/^(Aviso|Erro|Resumo|Interpretação|Análise)/i.test(firstLine)) return null;
 
-  // Try splitting by 2+ spaces
   const headerCandidates = firstLine.trim().split(/\s{2,}/);
   if (headerCandidates.length < 2) return null;
 
@@ -63,14 +101,11 @@ function tryParseTable(text: string): { headers: string[]; rows: string[][] } | 
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
-    // Skip pandas footer like "[1452 rows x 6 columns]"
     if (/^\[.*rows?\s*x\s*\d+\s*columns?\]$/i.test(line)) continue;
-    // Skip separator lines
     if (/^[-=]{3,}$/.test(line)) continue;
 
     const cells = line.split(/\s{2,}/);
     if (cells.length >= 2) {
-      // If first cell is a numeric index, include it; otherwise keep all
       dataRows.push(cells);
       validRows++;
     }
@@ -78,15 +113,12 @@ function tryParseTable(text: string): { headers: string[]; rows: string[][] } | 
 
   if (validRows < 1) return null;
 
-  // Align columns: if rows have one more column than headers, first col is index
   let headers = headerCandidates;
   let rows = dataRows;
 
   if (dataRows.length > 0 && dataRows[0].length === headers.length + 1) {
-    // First column in rows is the index
     headers = ["#", ...headers];
   } else if (dataRows.length > 0 && dataRows[0].length !== headers.length) {
-    // Misaligned - not a table
     if (Math.abs(dataRows[0].length - headers.length) > 2) return null;
   }
 
@@ -111,7 +143,6 @@ function parseBlocks(type: string, content: string): OutputBlock[] {
   }
 
   const blocks: OutputBlock[] = [];
-  // Split on image markers
   const parts = content.split(/(\[IMG\].*?\[\/IMG\])/);
   let chartIdx = 0;
 
@@ -129,7 +160,6 @@ function parseBlocks(type: string, content: string): OutputBlock[] {
     const text = part.trim();
     if (!text) continue;
 
-    // Split text into potential table sections and text sections
     const lines = text.split("\n");
     let buffer: string[] = [];
 
@@ -139,7 +169,6 @@ function parseBlocks(type: string, content: string): OutputBlock[] {
       buffer = [];
       if (isNoise(txt)) return;
 
-      // Try to parse as table
       const table = tryParseTable(txt);
       if (table && table.rows.length >= 1) {
         blocks.push({
@@ -150,19 +179,14 @@ function parseBlocks(type: string, content: string): OutputBlock[] {
           label: `${table.headers.length} cols, ${table.rows.length} rows`,
         });
       } else {
-        // It's text — could be interpretation or heading
         blocks.push({ kind: "text", content: txt });
       }
     };
 
-    // Heuristic: detect boundaries between tables and text
-    // A blank line usually separates sections
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      // Blank line = section boundary
       if (line.trim() === "" && buffer.length > 0) {
-        // Check if next non-empty line starts a new section type
         const nextNonEmpty = lines.slice(i + 1).find(l => l.trim() !== "");
         if (nextNonEmpty) {
           const curIsTable = buffer.length >= 2 && tryParseTable(buffer.join("\n")) !== null;
@@ -184,14 +208,45 @@ function parseBlocks(type: string, content: string): OutputBlock[] {
   return blocks;
 }
 
+/* ── Google Sheets Icon ── */
+const GoogleSheetsIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="#0F9D58"/>
+    <path d="M14 2V8H20L14 2Z" fill="#87CEAB"/>
+    <rect x="7" y="12" width="10" height="1.5" rx="0.2" fill="white"/>
+    <rect x="7" y="15" width="10" height="1.5" rx="0.2" fill="white"/>
+    <rect x="11.5" y="10" width="1.5" height="8" rx="0.2" fill="white"/>
+  </svg>
+);
+
 /* ── Inline Table Component ── */
 const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) => {
   const [expanded, setExpanded] = useState(false);
+  const [sheetsLoading, setSheetsLoading] = useState(false);
   const maxVisible = 10;
   const rows = block.rows || [];
   const headers = block.headers || [];
   const visibleRows = expanded ? rows : rows.slice(0, maxVisible);
   const hasMore = rows.length > maxVisible;
+
+  const handleExportSheets = async () => {
+    setSheetsLoading(true);
+    try {
+      const url = await exportToGoogleSheets(headers, rows, `DataMind - Tabela ${index + 1}`);
+      if (url) {
+        toast({
+          title: "Planilha criada!",
+          description: (
+            <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 underline text-primary">
+              Abrir no Google Sheets <ExternalLink className="h-3 w-3" />
+            </a>
+          ),
+        });
+      }
+    } finally {
+      setSheetsLoading(false);
+    }
+  };
 
   return (
     <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
@@ -210,6 +265,21 @@ const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) =>
             title="Download CSV"
           >
             <Download className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => downloadExcel(headers, rows, `tabela_${index + 1}.xlsx`)}
+            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+            title="Download Excel"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={handleExportSheets}
+            disabled={sheetsLoading}
+            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            title="Enviar para Google Sheets"
+          >
+            {sheetsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GoogleSheetsIcon className="h-3.5 w-3.5" />}
           </button>
         </div>
       </div>
@@ -336,11 +406,9 @@ const InlineText = ({ block }: { block: OutputBlock }) => {
   const content = block.content.trim();
   if (!content) return null;
 
-  // Render text with basic markdown-like formatting
   return (
     <div className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
       {content.split("\n").map((line, i) => {
-        // Bold sections
         const processed = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         if (line.trim() === "") return <br key={i} />;
         return <p key={i} dangerouslySetInnerHTML={{ __html: processed }} className="mb-0.5" />;
