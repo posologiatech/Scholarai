@@ -1,16 +1,25 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Paperclip, Send, X, FileSpreadsheet } from "lucide-react";
+import { Paperclip, Send, X, FileSpreadsheet, Upload, FolderOpen, Clock, Search } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { DataMindFile } from "@/pages/DataMind";
 
 interface Props {
   onSend: (content: string, file?: File) => void;
   loading: boolean;
+  existingFiles?: DataMindFile[];
 }
 
-const DataMindInput = ({ onSend, loading }: Props) => {
+const DataMindInput = ({ onSend, loading, existingFiles = [] }: Props) => {
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleSend = () => {
@@ -26,6 +35,10 @@ const DataMindInput = ({ onSend, loading }: Props) => {
       handleSend();
     }
   };
+
+  const filteredFiles = existingFiles.filter((f) =>
+    f.file_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="border-t border-border/40 bg-background p-4">
@@ -51,17 +64,82 @@ const DataMindInput = ({ onSend, loading }: Props) => {
               const f = e.target.files?.[0];
               if (f) setFile(f);
               e.target.value = "";
+              setAttachOpen(false);
             }}
           />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 shrink-0"
-            onClick={() => fileRef.current?.click()}
-            disabled={loading}
-          >
-            <Paperclip className="h-4 w-4" />
-          </Button>
+
+          {/* Attachment popover */}
+          <Popover open={attachOpen} onOpenChange={setAttachOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                disabled={loading}
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0" align="start" sideOffset={8}>
+              {/* Search */}
+              <div className="p-2 border-b border-border/40">
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/50">
+                  <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search files..."
+                    className="bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none flex-1"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Upload */}
+              <button
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                onClick={() => {
+                  fileRef.current?.click();
+                }}
+              >
+                <Upload className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-foreground">Upload File</span>
+              </button>
+
+              {/* Existing files */}
+              {existingFiles.length > 0 && (
+                <>
+                  <button className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-foreground">Files ({existingFiles.length})</span>
+                    </div>
+                  </button>
+                </>
+              )}
+
+              {/* Recent files */}
+              {filteredFiles.length > 0 && (
+                <div className="border-t border-border/40">
+                  <div className="px-3 py-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Recent</span>
+                  </div>
+                  {filteredFiles.slice(0, 5).map((f) => (
+                    <div
+                      key={f.id}
+                      className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 transition-colors cursor-default"
+                    >
+                      <FileSpreadsheet className="h-4 w-4 text-primary" />
+                      <span className="text-xs text-foreground truncate flex-1">{f.file_name}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(f.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
 
           <Textarea
             value={text}

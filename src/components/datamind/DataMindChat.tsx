@@ -13,9 +13,10 @@ interface Props {
   loading: boolean;
   onSend: (content: string, file?: File) => void;
   hasConversation: boolean;
+  existingFiles?: DataMindFile[];
 }
 
-const DataMindChat = ({ messages, files, loading, onSend, hasConversation }: Props) => {
+const DataMindChat = ({ messages, files, loading, onSend, hasConversation, existingFiles }: Props) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -83,6 +84,11 @@ const DataMindChat = ({ messages, files, loading, onSend, hasConversation }: Pro
               <DataMindMessage key={msg.id} message={msg} />
             ))}
 
+            {/* Suggestions after last AI message */}
+            {!loading && files.length > 0 && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
+              <DataMindSuggestions files={files} onSelect={(q) => onSend(q)} loading={loading} />
+            )}
+
             {loading && (
               <div className="flex items-start gap-3 py-4">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -104,7 +110,7 @@ const DataMindChat = ({ messages, files, loading, onSend, hasConversation }: Pro
         )}
       </div>
 
-      <DataMindInput onSend={onSend} loading={loading} />
+      <DataMindInput onSend={onSend} loading={loading} existingFiles={existingFiles} />
     </div>
   );
 };
