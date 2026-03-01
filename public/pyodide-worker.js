@@ -8,7 +8,12 @@ const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 async function initPyodide() {
   if (pyodide) return pyodide;
 
-  importScripts(PYODIDE_CDN + "pyodide.js");
+  try {
+    importScripts(PYODIDE_CDN + "pyodide.js");
+  } catch (e) {
+    self.postMessage({ type: "error", data: "Falha ao carregar Pyodide CDN: " + e.message });
+    throw e;
+  }
 
   pyodide = await loadPyodide({
     indexURL: PYODIDE_CDN,
@@ -23,17 +28,24 @@ async function initPyodide() {
 async function installPackages() {
   if (packagesInstalled) return;
   
-  // Load core packages that are built-in to Pyodide
-  const corePackages = ["pandas", "numpy", "matplotlib", "scipy", "scikit-learn", "statsmodels"];
-  await pyodide.loadPackage(corePackages);
-  
-  // Install openpyxl via micropip (it's a pure Python package)
+  // Load micropip first
   await pyodide.loadPackage("micropip");
   const micropip = pyodide.pyimport("micropip");
-  try {
-    await micropip.install("openpyxl");
-  } catch (e) {
-    console.warn("Could not install openpyxl:", e);
+  
+  // Install packages one by one with fallback
+  const packages = ["numpy", "pandas", "matplotlib", "scipy", "scikit-learn", "statsmodels", "openpyxl"];
+  
+  for (const pkg of packages) {
+    try {
+      await pyodide.loadPackage(pkg);
+    } catch (e1) {
+      console.warn(`loadPackage('${pkg}') failed, trying micropip...`, e1);
+      try {
+        await micropip.install(pkg);
+      } catch (e2) {
+        console.warn(`micropip.install('${pkg}') also failed:`, e2);
+      }
+    }
   }
   
   packagesInstalled = true;

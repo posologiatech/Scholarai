@@ -49,9 +49,15 @@ export function usePyodide() {
     worker.onerror = (err) => {
       console.error("Pyodide worker error:", err);
       setStatus("error");
-      resolveRef.current?.({ stdout: "", images: [], error: err.message });
+      const msg = err?.message || (typeof err === "string" ? err : "Worker initialization failed");
+      resolveRef.current?.({ stdout: "", images: [], error: msg });
       resolveRef.current = null;
     };
+
+    worker.addEventListener("messageerror", (err) => {
+      console.error("Pyodide worker message error:", err);
+      setStatus("error");
+    });
 
     workerRef.current = worker;
     worker.postMessage({ action: "init" });
