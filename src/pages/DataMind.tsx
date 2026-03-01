@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { usePyodide, PyodideStatus } from "@/hooks/usePyodide";
 // AppSidebar provided by ProtectedRoute
 import DataMindSidebar from "@/components/datamind/DataMindSidebar";
 import DataMindChat from "@/components/datamind/DataMindChat";
@@ -52,6 +53,8 @@ const DataMind = () => {
   const [loading, setLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<{ provider: string; model: string } | null>(null);
   const [codeLanguage, setCodeLanguage] = useState("python");
+  const pyodide = usePyodide();
+  const loadedFilesRef = useRef<Set<string>>(new Set());
 
   // Load conversations
   useEffect(() => {
@@ -235,25 +238,46 @@ const DataMind = () => {
       if (codeBlock && (uploadedFile || files.length > 0)) {
         const targetFile = uploadedFile || files[0];
         try {
-          const { data: execResult, error: execError } = await supabase.functions.invoke(
-            "datamind-execute",
-            {
-              body: {
-                code: codeBlock,
-                file_path: targetFile.file_path,
-                conversation_id: activeConvId,
-              },
+          // Load file into Pyodide if not already loaded
+          if (!loadedFilesRef.current.has(targetFile.file_path)) {
+            const { data: fileBlob } = await supabase.storage
+              .from("datamind-files")
+              .download(targetFile.file_path);
+            if (fileBlob) {
+              const arrayBuf = await fileBlob.arrayBuffer();
+              await pyodide.writeFile(targetFile.file_name, arrayBuf);
+              loadedFilesRef.current.add(targetFile.file_path);
             }
-          );
+          }
 
-          if (!execError && execResult) {
-            outputType = execResult.type || "text";
-            outputContent = execResult.output || execResult.image_url || "";
+          const result = await pyodide.runPython(codeBlock, targetFile.file_name);
+
+          if (result.error) {
+            outputType = "text";
+            outputContent = `Erro na execução:\n${result.error}`;
+          } else {
+            if (result.images.length > 0) {
+              outputType = "image";
+              outputContent = `data:image/png;base64,${result.images[0]}`;
+            }
+            if (result.stdout) {
+              if (outputType === "image") {
+                // If we have both image and text, show image (text goes to stdout)
+                outputContent = `data:image/png;base64,${result.images[0]}`;
+              } else {
+                outputType = "text";
+                outputContent = result.stdout;
+              }
+            }
+            if (!outputType) {
+              outputType = "text";
+              outputContent = "Código executado com sucesso (sem output).";
+            }
           }
         } catch (e) {
           console.error("Execution error:", e);
           outputType = "text";
-          outputContent = "Erro ao executar o código. Verifique se a E2B API key está configurada.";
+          outputContent = "Erro ao executar o código no navegador.";
         }
       }
 
@@ -334,7 +358,7 @@ const DataMind = () => {
             </span>
             <div className="ml-auto flex items-center gap-1">
               <DataMindModelSelector value={selectedModel} onChange={setSelectedModel} />
-              <DataMindSandboxPanel codeLanguage={codeLanguage} onLanguageChange={setCodeLanguage} />
+              <DataMindSandboxPanel codeLanguage={codeLanguage} onLanguageChange={setCodeLanguage} pyodideStatus={pyodide.status} onReset={pyodide.reset} onInit={pyodide.init} />
             </div>
           </div>
 
