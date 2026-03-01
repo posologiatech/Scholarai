@@ -1,68 +1,91 @@
 
+# Integracão Google Sheets + Download Excel no DataMind
 
-## Substituir E2B por Pyodide (Python gratis no navegador)
+## Visao Geral
+Adicionar dois botoes de exportacao em cada tabela e grafico gerado pelo DataMind:
+1. **Download Excel (.xlsx)** - gera o arquivo localmente no navegador
+2. **Enviar para Google Sheets** - cria uma planilha no Google Drive do usuario
 
-### Problema
-O E2B cobra por minuto de sandbox (~$0.10/min), o que se torna caro com uso frequente. O Google Colab nao tem API publica oficial para execucao programatica.
+---
 
-### Solucao: Pyodide
-**Pyodide** e um runtime Python compilado para WebAssembly que roda **100% no navegador do usuario**, sem nenhum custo de servidor. Suporta as principais bibliotecas de analise de dados:
-- pandas, numpy, scipy, statsmodels, scikit-learn
-- matplotlib (renderiza graficos como imagens base64 diretamente)
-- openpyxl (leitura de Excel)
+## Parte 1: Download como Excel (.xlsx)
 
-**Custo: R$ 0,00** -- todo o processamento acontece no dispositivo do usuario.
+**Abordagem:** Usar a biblioteca `xlsx` (SheetJS) para gerar arquivos .xlsx diretamente no navegador, sem necessidade de servidor.
 
-### Limitacoes do Pyodide vs E2B
-- Arquivos muito grandes (>50MB) podem ser lentos no navegador
-- Algumas bibliotecas C nativas nao estao disponiveis (ex: TensorFlow)
-- Depende do hardware do usuario
+- Instalar dependencia `xlsx`
+- Adicionar botao "Download Excel" ao lado do botao CSV existente em cada tabela (`DataMindCodeOutput.tsx`)
+- Para graficos, manter o download PNG existente
 
-### Plano de alteracoes
+---
 
-**1. Criar hook `src/hooks/usePyodide.ts`**
-- Carrega o Pyodide via CDN (lazy, apenas quando necessario)
-- Gerencia o estado do runtime (loading, ready, error)
-- Expoe funcao `runPython(code, files)` que retorna stdout + imagens
-- Instala micropip + pacotes necessarios na primeira execucao
-- Mantem a instancia entre mensagens (persistencia de variaveis)
+## Parte 2: Enviar para Google Sheets
 
-**2. Criar worker `public/pyodide-worker.js`**
-- Web Worker para executar Python sem bloquear a UI
-- Comunicacao via postMessage
-- Carrega arquivos no filesystem virtual do Pyodide (MEMFS)
-- Captura stdout/stderr e imagens matplotlib via base64
+**Abordagem:** Usar Google OAuth (login com Google via Supabase Auth) + Edge Function que chama a Google Sheets API com o token do usuario.
 
-**3. Atualizar `src/pages/DataMind.tsx`**
-- Substituir chamada a edge function `datamind-execute` pelo hook `usePyodide`
-- Manter o fluxo: arquivo vai para Supabase Storage e tambem e carregado no Pyodide
-- Graficos gerados ficam em base64 (sem necessidade de upload ao Storage)
+### Passo 1 - Configuracao Google OAuth no Supabase
+- O usuario precisa configurar o Google OAuth Provider no dashboard do Supabase (Authentication > Providers > Google)
+- Adicionar o scope `https://www.googleapis.com/auth/spreadsheets` para permitir criacao de planilhas
+- Adicionar o scope `https://www.googleapis.com/auth/drive.file` para salvar no Drive
 
-**4. Atualizar `src/components/datamind/DataMindSandboxPanel.tsx`**
-- Mostrar status real do Pyodide (Carregando / Pronto / Erro)
-- Exibir uso de memoria estimado do navegador
-- Reset real: recriar instancia do Pyodide
+### Passo 2 - Edge Function `export-to-sheets`
+- Criar `supabase/functions/export-to-sheets/index.ts`
+- Recebe: dados da tabela (headers + rows) ou URL da imagem do grafico
+- Usa o token OAuth do Google do usuario (extraido do provider_token do Supabase Auth)
+- Chama a Google Sheets API para:
+  - Criar nova planilha
+  - Popular com os dados
+  - Para graficos: insere a imagem na planilha
+- Retorna o link da planilha criada
 
-**5. Manter a edge function como fallback (opcional)**
-- A edge function `datamind-execute` pode ser mantida para casos de arquivos muito grandes
-- Adicionar toggle na UI: "Executar no navegador" vs "Executar na nuvem (E2B)"
+### Passo 3 - Botao na interface
+- Adicionar botao com icone do Google Sheets em cada tabela e grafico no `DataMindCodeOutput.tsx`
+- Ao clicar:
+  - Verifica se o usuario esta logado com Google (tem provider_token)
+  - Se nao, mostra toast pedindo para fazer login com Google
+  - Se sim, chama a edge function e mostra o link da planilha criada
+- Feedback visual: loading spinner durante envio, toast com link ao concluir
 
-### Fluxo tecnico
+---
 
-```text
-1. Usuario envia arquivo + pergunta
-2. IA gera codigo Python (via datamind-chat, sem mudanca)
-3. Frontend recebe o codigo
-4. usePyodide.runPython(code):
-   a. Carrega arquivo no filesystem virtual (pyodide.FS)
-   b. Injeta bootstrap (import pandas, df = pd.read_csv(...))
-   c. Executa codigo no Web Worker
-   d. Captura stdout + imagens matplotlib (base64)
-5. Resultado exibido no chat (texto + graficos inline)
+## Arquivos a criar/modificar
+
+| Arquivo | Acao |
+|---------|------|
+| `package.json` | Adicionar dependencia `xlsx` |
+| `src/components/datamind/DataMindCodeOutput.tsx` | Adicionar botoes Excel e Google Sheets |
+| `supabase/functions/export-to-sheets/index.ts` | Nova edge function para Google Sheets API |
+| `supabase/config.toml` | Registrar nova edge function |
+
+---
+
+## Pre-requisitos do usuario
+
+Para o Google Sheets funcionar, o usuario precisara:
+1. Configurar Google OAuth no Supabase Dashboard (criar credenciais no Google Cloud Console)
+2. Adicionar os scopes de Sheets e Drive
+3. Fazer login na aplicacao usando conta Google
+
+O download Excel funcionara imediatamente sem nenhuma configuracao.
+
+---
+
+## Secao Tecnica
+
+### Geracao Excel (client-side)
+```typescript
+import * as XLSX from 'xlsx';
+
+function downloadExcel(headers: string[], rows: string[][], filename: string) {
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Dados");
+  XLSX.writeFile(wb, filename);
+}
 ```
 
-### Dependencias
-- Pyodide CDN (nenhum pacote npm necessario, carregado via script)
-- Nenhuma nova edge function necessaria
-- Nenhuma alteracao no banco de dados
-
+### Edge Function (export-to-sheets)
+- Recebe `{ headers, rows, title }` no body
+- Extrai `provider_token` do header Authorization via Supabase Auth
+- POST para `https://sheets.googleapis.com/v4/spreadsheets` para criar planilha
+- PUT para popular os dados
+- Retorna `{ url: "https://docs.google.com/spreadsheets/d/..." }`
