@@ -1,0 +1,171 @@
+/* Pyodide Web Worker — executes Python in browser via WebAssembly */
+
+let pyodide = null;
+let packagesInstalled = false;
+
+const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
+
+async function initPyodide() {
+  if (pyodide) return pyodide;
+
+  importScripts(PYODIDE_CDN + "pyodide.js");
+
+  pyodide = await loadPyodide({
+    indexURL: PYODIDE_CDN,
+    stdout: (text) => self.postMessage({ type: "stdout", data: text }),
+    stderr: (text) => self.postMessage({ type: "stderr", data: text }),
+  });
+
+  self.postMessage({ type: "status", data: "ready" });
+  return pyodide;
+}
+
+async function installPackages() {
+  if (packagesInstalled) return;
+  await pyodide.loadPackage("micropip");
+  const micropip = pyodide.pyimport("micropip");
+  // These are built-in Pyodide packages (no download needed for most)
+  await pyodide.loadPackage(["pandas", "numpy", "matplotlib", "scipy", "scikit-learn", "statsmodels", "openpyxl"]);
+  packagesInstalled = true;
+  self.postMessage({ type: "status", data: "packages_ready" });
+}
+
+async function writeFile(fileName, data) {
+  const py = await initPyodide();
+  // Write the file bytes to Pyodide's virtual filesystem
+  const uint8 = new Uint8Array(data);
+  py.FS.writeFile("/tmp/" + fileName, uint8);
+}
+
+async function runCode(code, fileName) {
+  const py = await initPyodide();
+  await installPackages();
+
+  // Capture stdout
+  let stdout = "";
+  let images = [];
+
+  // Set up matplotlib to save figures as base64
+  const bootstrapCode = `
+import sys, io, os, base64
+os.chdir('/tmp')
+
+# Capture stdout
+class _StdoutCapture:
+    def __init__(self):
+        self.data = []
+    def write(self, s):
+        self.data.append(s)
+    def flush(self):
+        pass
+
+_captured = _StdoutCapture()
+sys.stdout = _captured
+
+import matplotlib
+matplotlib.use('AGG')
+import matplotlib.pyplot as plt
+
+# Override plt.show to capture figures as base64
+_figures = []
+_orig_show = plt.show
+def _capture_show(*args, **kwargs):
+    for fig_num in plt.get_fignums():
+        fig = plt.figure(fig_num)
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        buf.seek(0)
+        _figures.append(base64.b64encode(buf.read()).decode('utf-8'))
+        plt.close(fig)
+plt.show = _capture_show
+`;
+
+  // Auto-load data file if present
+  let dataBootstrap = "";
+  if (fileName) {
+    const lowerName = fileName.toLowerCase();
+    const isExcel = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
+    const filePath = `/tmp/${fileName}`;
+    dataBootstrap = `
+import pandas as pd
+try:
+    df = pd.read_${ isExcel ? "excel" : "csv" }(${JSON.stringify("/tmp/" + fileName)})
+except Exception as e:
+    print(f"Aviso: falha ao carregar arquivo: {e}")
+`;
+  }
+
+  // Collect results after execution
+  const collectCode = `
+# Flush captured output
+sys.stdout = sys.__stdout__
+_stdout_text = ''.join(_captured.data)
+
+# Capture any remaining open figures
+for fig_num in plt.get_fignums():
+    fig = plt.figure(fig_num)
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    buf.seek(0)
+    _figures.append(base64.b64encode(buf.read()).decode('utf-8'))
+    plt.close(fig)
+`;
+
+  const fullCode = bootstrapCode + dataBootstrap + code + "\n" + collectCode;
+
+  try {
+    await py.runPythonAsync(fullCode);
+
+    stdout = py.globals.get("_stdout_text") || "";
+    const figList = py.globals.get("_figures");
+    if (figList) {
+      const len = figList.length;
+      for (let i = 0; i < len; i++) {
+        images.push(figList.get(i));
+      }
+    }
+
+    self.postMessage({
+      type: "result",
+      data: { stdout, images, error: null },
+    });
+  } catch (err) {
+    self.postMessage({
+      type: "result",
+      data: { stdout: "", images: [], error: err.message || String(err) },
+    });
+  }
+}
+
+async function resetRuntime() {
+  pyodide = null;
+  packagesInstalled = false;
+  self.postMessage({ type: "status", data: "reset" });
+}
+
+// Message handler
+self.onmessage = async (e) => {
+  const { action, payload } = e.data;
+
+  try {
+    switch (action) {
+      case "init":
+        await initPyodide();
+        break;
+      case "writeFile":
+        await writeFile(payload.fileName, payload.data);
+        self.postMessage({ type: "fileWritten", data: payload.fileName });
+        break;
+      case "run":
+        await runCode(payload.code, payload.fileName);
+        break;
+      case "reset":
+        await resetRuntime();
+        break;
+      default:
+        self.postMessage({ type: "error", data: `Unknown action: ${action}` });
+    }
+  } catch (err) {
+    self.postMessage({ type: "error", data: err.message || String(err) });
+  }
+};
