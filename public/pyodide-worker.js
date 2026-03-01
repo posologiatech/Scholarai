@@ -66,9 +66,11 @@ import matplotlib
 matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 
-# Override plt.show to capture figures as base64
+# Override plt.show AND plt.savefig to capture figures as base64
 _figures = []
 _orig_show = plt.show
+_orig_savefig = plt.Figure.savefig
+
 def _capture_show(*args, **kwargs):
     for fig_num in plt.get_fignums():
         fig = plt.figure(fig_num)
@@ -77,7 +79,15 @@ def _capture_show(*args, **kwargs):
         buf.seek(0)
         _figures.append(base64.b64encode(buf.read()).decode('utf-8'))
         plt.close(fig)
+
+def _capture_savefig(self_fig, *args, **kwargs):
+    buf = io.BytesIO()
+    _orig_savefig(self_fig, buf, format='png', dpi=150, bbox_inches='tight')
+    buf.seek(0)
+    _figures.append(base64.b64encode(buf.read()).decode('utf-8'))
+
 plt.show = _capture_show
+plt.Figure.savefig = _capture_savefig
 `;
 
   // Auto-load data file if present
