@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, MessageSquare, Trash2, BrainCircuit, FileDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,7 +28,7 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   return (
-    <TooltipProvider delayDuration={300}>
+    <>
       <div className="w-64 border-r border-border/40 bg-muted/30 flex flex-col h-full">
         <div className="p-3 border-b border-border/40">
           <div className="flex items-center gap-2 mb-3 px-1">
@@ -43,7 +42,7 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-2 space-y-0.5">
+          <div className="p-2 space-y-1.5">
             {conversations.length === 0 && (
               <p className="text-xs text-muted-foreground text-center py-8 px-4">
                 Nenhuma conversa ainda. Comece uma nova análise!
@@ -53,41 +52,50 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
               <div
                 key={conv.id}
                 className={cn(
-                  "group flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm cursor-pointer transition-colors",
-                  activeId === conv.id
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  "rounded-lg border border-border/40 bg-background/60 px-2 py-2 transition-colors",
+                  activeId === conv.id ? "ring-1 ring-primary/30" : "hover:bg-muted/70"
                 )}
-                onClick={() => onSelect(conv.id)}
               >
-                <MessageSquare className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate flex-1 min-w-0">{conv.title}</span>
-
-                <div className="flex items-center gap-0.5 shrink-0">
-                  {onExport && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          className="p-1 rounded hover:bg-primary/10 transition-colors"
-                          onClick={(e) => { e.stopPropagation(); onExport(conv.id); }}
-                        >
-                          <FileDown className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-xs">Exportar PDF</TooltipContent>
-                    </Tooltip>
+                <button
+                  className={cn(
+                    "w-full flex items-center gap-2 text-left rounded-md px-1 py-1.5",
+                    activeId === conv.id ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   )}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        className="p-1 rounded hover:bg-destructive/10 transition-colors"
-                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(conv.id); }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="text-xs">Apagar</TooltipContent>
-                  </Tooltip>
+                  onClick={() => onSelect(conv.id)}
+                >
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate flex-1 min-w-0 text-sm">{conv.title}</span>
+                </button>
+
+                <div className="mt-1 flex items-center gap-1.5 px-1">
+                  {onExport && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onExport(conv.id);
+                      }}
+                    >
+                      <FileDown className="h-3.5 w-3.5 mr-1" />
+                      Exportar PDF
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget(conv.id);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Apagar
+                  </Button>
                 </div>
               </div>
             ))}
@@ -117,7 +125,7 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </TooltipProvider>
+    </>
   );
 };
 
