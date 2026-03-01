@@ -69,7 +69,7 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
                 <span className="truncate flex-1">{conv.title}</span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <button className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted-foreground/10">
+                    <button className="p-0.5 rounded hover:bg-muted-foreground/10 shrink-0">
                       <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
                     </button>
                   </DropdownMenuTrigger>
