@@ -265,14 +265,14 @@ const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) =>
     const displayRows = isFullscreen ? rows : visibleRows;
     return (
       <div className={isFullscreen ? "overflow-auto max-h-[80vh]" : "overflow-x-auto max-h-[500px] overflow-y-auto"}>
-        <table className="w-full text-sm border-collapse">
+        <table className="w-full text-[13px] border-collapse">
           <thead className="sticky top-0 z-10">
-            <tr className="bg-card">
-              <th className="py-2.5 px-3 text-center text-muted-foreground font-medium text-xs w-12 bg-muted/40 border-r border-b-2 border-border/60">
-                #
+            <tr className="bg-muted/30">
+              <th className="py-2.5 px-3 text-left text-muted-foreground/60 font-normal text-xs w-12 border-b border-border/40">
+                □
               </th>
               {headers.map((h, i) => (
-                <th key={i} className="text-left py-2.5 px-4 font-semibold text-foreground text-xs border-b-2 border-border/60 bg-card">
+                <th key={i} className="text-left py-2.5 px-4 font-semibold text-foreground/80 text-[13px] border-b border-border/40">
                   {h}
                 </th>
               ))}
@@ -282,13 +282,13 @@ const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) =>
             {displayRows.map((row, ri) => (
               <tr
                 key={ri}
-                className="hover:bg-primary/5 transition-colors group"
+                className="border-b border-border/20 hover:bg-[hsl(210,80%,96%)] dark:hover:bg-primary/10 transition-colors"
               >
-                <td className="py-2 px-3 text-center text-muted-foreground text-xs bg-muted/40 border-r border-b border-border/30 font-mono">
-                  {expanded || isFullscreen ? ri + 1 : ri + 1}
+                <td className="py-2.5 px-3 text-muted-foreground/50 text-xs font-normal">
+                  {ri + 1}
                 </td>
                 {row.map((cell, ci) => (
-                  <td key={ci} className="py-2 px-4 text-foreground text-xs border-b border-r border-border/30 whitespace-pre-wrap break-words">
+                  <td key={ci} className="py-2.5 px-4 text-foreground/90 text-[13px] whitespace-pre-wrap break-words">
                     {cell}
                   </td>
                 ))}
@@ -302,75 +302,67 @@ const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) =>
 
   return (
     <>
-      <div className="rounded-lg border border-border/60 bg-card overflow-hidden shadow-sm">
-        {/* Header with title + metadata + actions */}
-        <div className="px-4 py-3 border-b border-border/40">
-          {block.title && (
-            <h4 className="text-sm font-bold text-foreground mb-0.5">{block.title}</h4>
-          )}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TableIcon className="h-3.5 w-3.5 text-primary" />
-              <span className="text-xs text-muted-foreground">
-                {block.label || "Table"}
-              </span>
-            </div>
-            <div className="flex items-center gap-0.5">
-              <button
-                onClick={() => downloadCSV(headers, rows, `tabela_${index + 1}.csv`)}
-                className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-                title="Download CSV"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => downloadExcel(headers, rows, `tabela_${index + 1}.xlsx`)}
-                className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-                title="Download Excel"
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={handleExportSheets}
-                disabled={sheetsLoading}
-                className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                title="Enviar para Google Sheets"
-              >
-                {sheetsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GoogleSheetsIcon className="h-3.5 w-3.5" />}
-              </button>
-              <button
-                onClick={() => setFullscreen(true)}
-                className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-                title="Tela cheia"
-              >
-                <Maximize2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
+      <div className="my-1">
+        {/* Title above the table */}
+        {block.title && (
+          <h4 className="text-[15px] font-bold text-foreground mb-1 px-1">{block.title}</h4>
+        )}
+
+        {/* Subtitle row with metadata + action buttons */}
+        <div className="flex items-center justify-between mb-2 px-1">
+          <span className="text-xs text-muted-foreground">
+            {block.label || "Table"}
+          </span>
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={handleExportSheets}
+              disabled={sheetsLoading}
+              className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              title="Enviar para Google Sheets"
+            >
+              {sheetsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleSheetsIcon className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={() => downloadExcel(headers, rows, `tabela_${index + 1}.xlsx`)}
+              className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+              title="Download Excel"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setFullscreen(true)}
+              className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+              title="Tela cheia"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
-        {/* Spreadsheet grid */}
-        {tableContent()}
+        {/* Spreadsheet table */}
+        <div className="rounded-lg border border-border/40 bg-card overflow-hidden">
+          {tableContent()}
 
-        {/* Show more/less */}
-        {hasMore && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="w-full py-2 flex items-center justify-center gap-1 text-xs text-primary hover:bg-muted/20 transition-colors border-t border-border/40"
-          >
-            {expanded ? (
-              <>
-                <ChevronUp className="h-3.5 w-3.5" />
-                Mostrar menos
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-3.5 w-3.5" />
-                {rows.length - maxVisible} mais linhas
-              </>
-            )}
-          </button>
-        )}
+          {/* Show more/less */}
+          {hasMore && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="w-full py-2 flex items-center justify-center gap-1 text-xs text-primary hover:bg-muted/20 transition-colors border-t border-border/30"
+            >
+              {expanded ? (
+                <>
+                  <ChevronUp className="h-3.5 w-3.5" />
+                  Mostrar menos
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  {rows.length - maxVisible} mais linhas
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Fullscreen overlay */}
