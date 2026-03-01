@@ -1,131 +1,46 @@
 
 
-# DataMind - Plataforma de Análise de Dados por IA
+## Corrigir execucao de codigo Python no DataMind
 
-## Visão Geral
-Criar uma nova funcionalidade "DataMind" no ScholarAI, inspirada no Julius.ai, para análise de dados com IA. Inclui chat estilo notebook, upload de arquivos CSV/Excel, geração e execução de código Python via E2B Sandbox, e visualização de gráficos.
+### Problema
+O erro "Erro ao executar codigo Python" ocorre porque a edge function `datamind-execute` usa endpoints REST da E2B que nao existem:
+- URL base errada: `api.e2b.dev` (correto: `api.e2b.app`)
+- Endpoint `/code/execution` nao existe na API REST da E2B
+- Endpoint `/files` com JSON body nao e o formato correto para upload
 
-## Pré-requisito: API Key E2B
-Antes de implementar, será necessário adicionar a chave de API do E2B como secret no Supabase. Você pode obter uma em [e2b.dev](https://e2b.dev).
+A E2B requer o uso do SDK `@e2b/code-interpreter` para execucao de codigo e manipulacao de arquivos.
 
-## Arquitetura
+### Solucao
+Reescrever a edge function `datamind-execute` usando o SDK oficial `@e2b/code-interpreter` via `npm:` specifier do Deno.
+
+### Alteracoes
+
+**1. Reescrever `supabase/functions/datamind-execute/index.ts`**
+- Importar `Sandbox` de `npm:@e2b/code-interpreter`
+- Usar `Sandbox.create()` para criar sandbox
+- Usar `sandbox.files.write()` para upload do arquivo
+- Usar `sandbox.runCode()` para executar Python
+- Capturar resultados (stdout, stderr, charts/images)
+- Manter logica de upload de graficos para Supabase Storage
 
 ```text
-[Upload CSV/Excel] --> [Supabase Storage]
-         |
-         v
-[Chat Input] --> [Edge Function: datamind-chat]
-                        |
-                        v
-                 [Lovable AI Gateway]
-                 (gera código Python)
-                        |
-                        v
-                 [Edge Function: datamind-execute]
-                        |
-                        v
-                 [E2B Sandbox]
-                 (executa Python)
-                        |
-                        v
-                 [Resultado: texto/imagem]
-                        |
-                        v
-                 [Chat: renderiza output]
+Fluxo corrigido:
+1. Download arquivo do Supabase Storage
+2. Sandbox.create() com apiKey
+3. sandbox.files.write('/tmp/data.csv', fileBytes)
+4. sandbox.runCode(pythonCode)
+5. Se houver chart.png -> sandbox.files.read('/tmp/chart.png')
+6. Upload chart para Supabase Storage
+7. Retornar resultado (stdout + image_url)
+8. sandbox.kill()
 ```
 
-## Mudanças no Banco de Dados
+**2. Ajustar tratamento de erros**
+- Adicionar logs detalhados do stderr para debugging
+- Retornar mensagens de erro mais informativas ao usuario
+- Incluir stderr no output quando houver falha
 
-### Novas tabelas
-1. **`datamind_conversations`**: id, user_id, title, created_at, updated_at
-2. **`datamind_messages`**: id, conversation_id, role (user/assistant), content, code_block, output_type (text/image/table), output_content, created_at
-3. **`datamind_files`**: id, conversation_id, user_id, file_name, file_path, file_size, schema_info (jsonb com colunas/tipos), created_at
+### Detalhes tecnicos
 
-Todas com RLS para que usuários vejam apenas seus próprios dados.
-
-## Implementação
-
-### 1. Navegação e Rota
-- Adicionar "DataMind" no `AppHeader.tsx` com ícone `BrainCircuit`
-- Adicionar rota `/datamind` e `/datamind/:id` no `App.tsx`
-- Adicionar tradução para `nav.datamind`
-
-### 2. Página Principal (`src/pages/DataMind.tsx`)
-Layout com duas áreas:
-- **Sidebar esquerda**: Lista de conversas, botão "Novo Chat", perfil
-- **Área central**: Chat estilo notebook
-
-### 3. Componentes do Chat
-- **`DataMindSidebar.tsx`**: Histórico de conversas com busca
-- **`DataMindChat.tsx`**: Área principal de chat
-- **`DataMindMessage.tsx`**: Renderiza mensagens com suporte a:
-  - Markdown rico (react-markdown com suporte a tabelas)
-  - Blocos de código Python com syntax highlighting
-  - Imagens de gráficos
-  - Tabelas de preview de dados
-- **`DataMindInput.tsx`**: Input com botão de upload de arquivo e envio
-- **`DataMindFilePreview.tsx`**: Card mostrando preview do CSV (primeiras 5 linhas)
-- **`DataMindCodeOutput.tsx`**: Renderiza output de execução (texto, gráfico, tabela)
-
-### 4. Edge Functions
-
-#### `datamind-chat` (gera código Python)
-- Recebe: mensagem do usuário, histórico, schema do arquivo
-- Envia para Lovable AI Gateway com system prompt especializado em análise de dados
-- Retorna: explicação + código Python
-
-#### `datamind-execute` (executa código Python)
-- Recebe: código Python, ID do arquivo
-- Baixa arquivo do Supabase Storage
-- Cria sandbox E2B, instala pandas/matplotlib/seaborn
-- Executa o código
-- Se houver imagem gerada, salva no Supabase Storage
-- Retorna: output texto + URL da imagem (se houver)
-
-#### `datamind-analyze-schema` (analisa esquema do arquivo)
-- Recebe: arquivo upado
-- Executa `df.info()` e `df.describe()` via E2B
-- Retorna: colunas, tipos, estatísticas básicas
-
-### 5. Upload de Arquivos
-- Aceita .csv e .xlsx
-- Salva no bucket `datamind-files` do Supabase Storage
-- Após upload, chama `datamind-analyze-schema` para extrair metadados
-- Exibe preview com primeiras 5 linhas em tabela shadcn/ui
-
-### 6. Visualização de Gráficos
-- Gráficos gerados pelo Python (matplotlib/seaborn) salvos como PNG no Storage
-- Renderizados inline no chat como imagens
-- Opção de gráficos interativos via Recharts quando apropriado
-
-### 7. Design Visual
-- Tema escuro elegante com acentos em azul/roxo
-- Fonte moderna, espaçamento generoso
-- Cards arredondados para mensagens
-- Transições suaves com framer-motion
-
-## Arquivos a Criar/Modificar
-
-### Novos arquivos:
-- `src/pages/DataMind.tsx` - Página principal
-- `src/components/datamind/DataMindSidebar.tsx` - Sidebar de conversas
-- `src/components/datamind/DataMindChat.tsx` - Área de chat
-- `src/components/datamind/DataMindMessage.tsx` - Componente de mensagem
-- `src/components/datamind/DataMindInput.tsx` - Input com upload
-- `src/components/datamind/DataMindFilePreview.tsx` - Preview de arquivo
-- `src/components/datamind/DataMindCodeOutput.tsx` - Output de execução
-- `supabase/functions/datamind-chat/index.ts` - Edge function de chat IA
-- `supabase/functions/datamind-execute/index.ts` - Edge function de execução Python
-- `supabase/functions/datamind-analyze-schema/index.ts` - Análise de schema
-
-### Arquivos a modificar:
-- `src/App.tsx` - Adicionar rotas
-- `src/components/app/AppHeader.tsx` - Adicionar link DataMind
-- `src/i18n/translations.ts` - Adicionar traduções
-- `supabase/config.toml` - Registrar novas edge functions
-
-### Migração SQL:
-- Criar tabelas `datamind_conversations`, `datamind_messages`, `datamind_files`
-- Criar bucket de storage `datamind-files`
-- Aplicar RLS policies
+O SDK `@e2b/code-interpreter` e compativel com Deno via `npm:@e2b/code-interpreter`. A funcao `runCode()` retorna um objeto `Execution` com `logs.stdout`, `logs.stderr`, e `results` (que podem conter imagens base64). Isso elimina a necessidade de chamar endpoints REST manualmente.
 
