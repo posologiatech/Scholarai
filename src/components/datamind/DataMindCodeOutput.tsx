@@ -16,6 +16,7 @@ interface OutputBlock {
   headers?: string[];
   rows?: string[][];
   label?: string;
+  title?: string;
 }
 
 /* ── Helpers ── */
@@ -171,12 +172,23 @@ function parseBlocks(type: string, content: string): OutputBlock[] {
 
       const table = tryParseTable(txt);
       if (table && table.rows.length >= 1) {
+        // Check if previous block is a short single-line text — use as title
+        let title: string | undefined;
+        const prev = blocks[blocks.length - 1];
+        if (prev && prev.kind === "text") {
+          const lines = prev.content.trim().split("\n");
+          if (lines.length === 1 && lines[0].length <= 80) {
+            title = lines[0].trim();
+            blocks.pop(); // remove the text block, it becomes the table title
+          }
+        }
         blocks.push({
           kind: "table",
           content: txt,
           headers: table.headers,
           rows: table.rows,
           label: `${table.headers.length} cols, ${table.rows.length} rows`,
+          title,
         });
       } else {
         blocks.push({ kind: "text", content: txt });
@@ -219,9 +231,10 @@ const GoogleSheetsIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-/* ── Inline Table Component ── */
+/* ── Inline Table Component (Julius-style spreadsheet) ── */
 const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) => {
   const [expanded, setExpanded] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [sheetsLoading, setSheetsLoading] = useState(false);
   const maxVisible = 10;
   const rows = block.rows || [];
@@ -232,7 +245,7 @@ const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) =>
   const handleExportSheets = async () => {
     setSheetsLoading(true);
     try {
-      const url = await exportToGoogleSheets(headers, rows, `DataMind - Tabela ${index + 1}`);
+      const url = await exportToGoogleSheets(headers, rows, block.title || `DataMind - Tabela ${index + 1}`);
       if (url) {
         toast({
           title: "Planilha criada!",
@@ -248,66 +261,34 @@ const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) =>
     }
   };
 
-  return (
-    <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-b border-border/40">
-        <div className="flex items-center gap-2">
-          <TableIcon className="h-3.5 w-3.5 text-primary" />
-          <span className="text-xs font-medium text-muted-foreground">
-            {block.label || "Table"}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => downloadCSV(headers, rows, `tabela_${index + 1}.csv`)}
-            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-            title="Download CSV"
-          >
-            <Download className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => downloadExcel(headers, rows, `tabela_${index + 1}.xlsx`)}
-            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-            title="Download Excel"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={handleExportSheets}
-            disabled={sheetsLoading}
-            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-            title="Enviar para Google Sheets"
-          >
-            {sheetsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GoogleSheetsIcon className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border/60">
-              <th className="text-left py-2.5 px-4 text-muted-foreground font-medium text-xs w-10">#</th>
+  const tableContent = (isFullscreen = false) => {
+    const displayRows = isFullscreen ? rows : visibleRows;
+    return (
+      <div className={isFullscreen ? "overflow-auto max-h-[80vh]" : "overflow-x-auto max-h-[500px] overflow-y-auto"}>
+        <table className="w-full text-sm border-collapse">
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-card">
+              <th className="py-2.5 px-3 text-center text-muted-foreground font-medium text-xs w-12 bg-muted/40 border-r border-b-2 border-border/60">
+                #
+              </th>
               {headers.map((h, i) => (
-                <th key={i} className="text-left py-2.5 px-4 font-semibold text-foreground text-xs whitespace-nowrap">
+                <th key={i} className="text-left py-2.5 px-4 font-semibold text-foreground text-xs border-b-2 border-border/60 bg-card">
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {visibleRows.map((row, ri) => (
+            {displayRows.map((row, ri) => (
               <tr
                 key={ri}
-                className={`border-b border-border/20 hover:bg-muted/20 transition-colors ${
-                  ri % 2 === 0 ? "bg-background" : "bg-muted/10"
-                }`}
+                className="hover:bg-primary/5 transition-colors group"
               >
-                <td className="py-2 px-4 text-muted-foreground text-xs">{ri + 1}</td>
+                <td className="py-2 px-3 text-center text-muted-foreground text-xs bg-muted/40 border-r border-b border-border/30 font-mono">
+                  {expanded || isFullscreen ? ri + 1 : ri + 1}
+                </td>
                 {row.map((cell, ci) => (
-                  <td key={ci} className="py-2 px-4 text-foreground text-xs whitespace-nowrap max-w-[250px] truncate" title={cell}>
+                  <td key={ci} className="py-2 px-4 text-foreground text-xs border-b border-r border-border/30 whitespace-pre-wrap break-words">
                     {cell}
                   </td>
                 ))}
@@ -316,27 +297,117 @@ const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) =>
           </tbody>
         </table>
       </div>
+    );
+  };
 
-      {/* Show more/less */}
-      {hasMore && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="w-full py-2 flex items-center justify-center gap-1 text-xs text-primary hover:bg-muted/20 transition-colors border-t border-border/40"
-        >
-          {expanded ? (
-            <>
-              <ChevronUp className="h-3.5 w-3.5" />
-              Mostrar menos
-            </>
-          ) : (
-            <>
-              <ChevronDown className="h-3.5 w-3.5" />
-              {rows.length - maxVisible} mais linhas
-            </>
+  return (
+    <>
+      <div className="rounded-lg border border-border/60 bg-card overflow-hidden shadow-sm">
+        {/* Header with title + metadata + actions */}
+        <div className="px-4 py-3 border-b border-border/40">
+          {block.title && (
+            <h4 className="text-sm font-bold text-foreground mb-0.5">{block.title}</h4>
           )}
-        </button>
-      )}
-    </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TableIcon className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs text-muted-foreground">
+                {block.label || "Table"}
+              </span>
+            </div>
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => downloadCSV(headers, rows, `tabela_${index + 1}.csv`)}
+                className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                title="Download CSV"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => downloadExcel(headers, rows, `tabela_${index + 1}.xlsx`)}
+                className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                title="Download Excel"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={handleExportSheets}
+                disabled={sheetsLoading}
+                className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                title="Enviar para Google Sheets"
+              >
+                {sheetsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GoogleSheetsIcon className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                onClick={() => setFullscreen(true)}
+                className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                title="Tela cheia"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Spreadsheet grid */}
+        {tableContent()}
+
+        {/* Show more/less */}
+        {hasMore && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="w-full py-2 flex items-center justify-center gap-1 text-xs text-primary hover:bg-muted/20 transition-colors border-t border-border/40"
+          >
+            {expanded ? (
+              <>
+                <ChevronUp className="h-3.5 w-3.5" />
+                Mostrar menos
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3.5 w-3.5" />
+                {rows.length - maxVisible} mais linhas
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Fullscreen overlay */}
+      <AnimatePresence>
+        {fullscreen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-6"
+            onClick={() => setFullscreen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-card rounded-xl border border-border shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                <div>
+                  {block.title && <h3 className="text-base font-bold text-foreground">{block.title}</h3>}
+                  <span className="text-xs text-muted-foreground">{block.label}</span>
+                </div>
+                <button
+                  onClick={() => setFullscreen(false)}
+                  className="p-2 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+              {tableContent(true)}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 
