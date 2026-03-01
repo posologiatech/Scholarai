@@ -1,46 +1,68 @@
 
 
-## Corrigir execucao de codigo Python no DataMind
+## Substituir E2B por Pyodide (Python gratis no navegador)
 
 ### Problema
-O erro "Erro ao executar codigo Python" ocorre porque a edge function `datamind-execute` usa endpoints REST da E2B que nao existem:
-- URL base errada: `api.e2b.dev` (correto: `api.e2b.app`)
-- Endpoint `/code/execution` nao existe na API REST da E2B
-- Endpoint `/files` com JSON body nao e o formato correto para upload
+O E2B cobra por minuto de sandbox (~$0.10/min), o que se torna caro com uso frequente. O Google Colab nao tem API publica oficial para execucao programatica.
 
-A E2B requer o uso do SDK `@e2b/code-interpreter` para execucao de codigo e manipulacao de arquivos.
+### Solucao: Pyodide
+**Pyodide** e um runtime Python compilado para WebAssembly que roda **100% no navegador do usuario**, sem nenhum custo de servidor. Suporta as principais bibliotecas de analise de dados:
+- pandas, numpy, scipy, statsmodels, scikit-learn
+- matplotlib (renderiza graficos como imagens base64 diretamente)
+- openpyxl (leitura de Excel)
 
-### Solucao
-Reescrever a edge function `datamind-execute` usando o SDK oficial `@e2b/code-interpreter` via `npm:` specifier do Deno.
+**Custo: R$ 0,00** -- todo o processamento acontece no dispositivo do usuario.
 
-### Alteracoes
+### Limitacoes do Pyodide vs E2B
+- Arquivos muito grandes (>50MB) podem ser lentos no navegador
+- Algumas bibliotecas C nativas nao estao disponiveis (ex: TensorFlow)
+- Depende do hardware do usuario
 
-**1. Reescrever `supabase/functions/datamind-execute/index.ts`**
-- Importar `Sandbox` de `npm:@e2b/code-interpreter`
-- Usar `Sandbox.create()` para criar sandbox
-- Usar `sandbox.files.write()` para upload do arquivo
-- Usar `sandbox.runCode()` para executar Python
-- Capturar resultados (stdout, stderr, charts/images)
-- Manter logica de upload de graficos para Supabase Storage
+### Plano de alteracoes
+
+**1. Criar hook `src/hooks/usePyodide.ts`**
+- Carrega o Pyodide via CDN (lazy, apenas quando necessario)
+- Gerencia o estado do runtime (loading, ready, error)
+- Expoe funcao `runPython(code, files)` que retorna stdout + imagens
+- Instala micropip + pacotes necessarios na primeira execucao
+- Mantem a instancia entre mensagens (persistencia de variaveis)
+
+**2. Criar worker `public/pyodide-worker.js`**
+- Web Worker para executar Python sem bloquear a UI
+- Comunicacao via postMessage
+- Carrega arquivos no filesystem virtual do Pyodide (MEMFS)
+- Captura stdout/stderr e imagens matplotlib via base64
+
+**3. Atualizar `src/pages/DataMind.tsx`**
+- Substituir chamada a edge function `datamind-execute` pelo hook `usePyodide`
+- Manter o fluxo: arquivo vai para Supabase Storage e tambem e carregado no Pyodide
+- Graficos gerados ficam em base64 (sem necessidade de upload ao Storage)
+
+**4. Atualizar `src/components/datamind/DataMindSandboxPanel.tsx`**
+- Mostrar status real do Pyodide (Carregando / Pronto / Erro)
+- Exibir uso de memoria estimado do navegador
+- Reset real: recriar instancia do Pyodide
+
+**5. Manter a edge function como fallback (opcional)**
+- A edge function `datamind-execute` pode ser mantida para casos de arquivos muito grandes
+- Adicionar toggle na UI: "Executar no navegador" vs "Executar na nuvem (E2B)"
+
+### Fluxo tecnico
 
 ```text
-Fluxo corrigido:
-1. Download arquivo do Supabase Storage
-2. Sandbox.create() com apiKey
-3. sandbox.files.write('/tmp/data.csv', fileBytes)
-4. sandbox.runCode(pythonCode)
-5. Se houver chart.png -> sandbox.files.read('/tmp/chart.png')
-6. Upload chart para Supabase Storage
-7. Retornar resultado (stdout + image_url)
-8. sandbox.kill()
+1. Usuario envia arquivo + pergunta
+2. IA gera codigo Python (via datamind-chat, sem mudanca)
+3. Frontend recebe o codigo
+4. usePyodide.runPython(code):
+   a. Carrega arquivo no filesystem virtual (pyodide.FS)
+   b. Injeta bootstrap (import pandas, df = pd.read_csv(...))
+   c. Executa codigo no Web Worker
+   d. Captura stdout + imagens matplotlib (base64)
+5. Resultado exibido no chat (texto + graficos inline)
 ```
 
-**2. Ajustar tratamento de erros**
-- Adicionar logs detalhados do stderr para debugging
-- Retornar mensagens de erro mais informativas ao usuario
-- Incluir stderr no output quando houver falha
-
-### Detalhes tecnicos
-
-O SDK `@e2b/code-interpreter` e compativel com Deno via `npm:@e2b/code-interpreter`. A funcao `runCode()` retorna um objeto `Execution` com `logs.stdout`, `logs.stderr`, e `results` (que podem conter imagens base64). Isso elimina a necessidade de chamar endpoints REST manualmente.
+### Dependencias
+- Pyodide CDN (nenhum pacote npm necessario, carregado via script)
+- Nenhuma nova edge function necessaria
+- Nenhuma alteracao no banco de dados
 
