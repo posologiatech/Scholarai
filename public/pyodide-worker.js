@@ -22,17 +22,26 @@ async function initPyodide() {
 
 async function installPackages() {
   if (packagesInstalled) return;
+  
+  // Load core packages that are built-in to Pyodide
+  const corePackages = ["pandas", "numpy", "matplotlib", "scipy", "scikit-learn", "statsmodels"];
+  await pyodide.loadPackage(corePackages);
+  
+  // Install openpyxl via micropip (it's a pure Python package)
   await pyodide.loadPackage("micropip");
   const micropip = pyodide.pyimport("micropip");
-  // These are built-in Pyodide packages (no download needed for most)
-  await pyodide.loadPackage(["pandas", "numpy", "matplotlib", "scipy", "scikit-learn", "statsmodels", "openpyxl"]);
+  try {
+    await micropip.install("openpyxl");
+  } catch (e) {
+    console.warn("Could not install openpyxl:", e);
+  }
+  
   packagesInstalled = true;
   self.postMessage({ type: "status", data: "packages_ready" });
 }
 
 async function writeFile(fileName, data) {
   const py = await initPyodide();
-  // Write the file bytes to Pyodide's virtual filesystem
   const uint8 = new Uint8Array(data);
   py.FS.writeFile("/tmp/" + fileName, uint8);
 }
@@ -41,16 +50,13 @@ async function runCode(code, fileName) {
   const py = await initPyodide();
   await installPackages();
 
-  // Capture stdout
   let stdout = "";
   let images = [];
 
-  // Set up matplotlib to save figures as base64
   const bootstrapCode = `
 import sys, io, os, base64
 os.chdir('/tmp')
 
-# Capture stdout
 class _StdoutCapture:
     def __init__(self):
         self.data = []
@@ -66,7 +72,6 @@ import matplotlib
 matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 
-# Override plt.show AND plt.savefig to capture figures as base64
 _figures = []
 _orig_show = plt.show
 _orig_savefig = plt.Figure.savefig
@@ -90,12 +95,10 @@ plt.show = _capture_show
 plt.Figure.savefig = _capture_savefig
 `;
 
-  // Auto-load data file if present
   let dataBootstrap = "";
   if (fileName) {
     const lowerName = fileName.toLowerCase();
     const isExcel = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
-    const filePath = `/tmp/${fileName}`;
     dataBootstrap = `
 import pandas as pd
 try:
@@ -105,13 +108,10 @@ except Exception as e:
 `;
   }
 
-  // Collect results after execution
   const collectCode = `
-# Flush captured output
 sys.stdout = sys.__stdout__
 _stdout_text = ''.join(_captured.data)
 
-# Capture any remaining open figures
 for fig_num in plt.get_fignums():
     fig = plt.figure(fig_num)
     buf = io.BytesIO()
@@ -153,7 +153,6 @@ async function resetRuntime() {
   self.postMessage({ type: "status", data: "reset" });
 }
 
-// Message handler
 self.onmessage = async (e) => {
   const { action, payload } = e.data;
 

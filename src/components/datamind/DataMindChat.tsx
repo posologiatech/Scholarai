@@ -76,7 +76,7 @@ const DataMindChat = ({ messages, files, loading, onSend, hasConversation, exist
 
             {/* Suggestions after file upload, before first assistant message */}
             {files.length > 0 && messages.filter(m => m.role === "assistant").length === 0 && (
-              <DataMindSuggestions files={files} onSelect={(q) => onSend(q)} loading={loading} />
+              <DataMindSuggestions files={files} messages={[]} onSelect={(q) => onSend(q)} loading={loading} />
             )}
 
             {/* Messages */}
@@ -84,9 +84,9 @@ const DataMindChat = ({ messages, files, loading, onSend, hasConversation, exist
               <DataMindMessage key={msg.id} message={msg} />
             ))}
 
-            {/* Suggestions after last AI message */}
+            {/* Suggestions after last AI message — contextual */}
             {!loading && files.length > 0 && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
-              <DataMindSuggestions files={files} onSelect={(q) => onSend(q)} loading={loading} />
+              <DataMindSuggestions files={files} messages={messages} onSelect={(q) => onSend(q)} loading={loading} />
             )}
 
             {loading && (
