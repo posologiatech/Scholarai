@@ -67,34 +67,34 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
                   <span className="truncate flex-1 min-w-0 text-sm">{conv.title}</span>
                 </button>
 
-                <div className="mt-1 flex items-center gap-1.5 px-1">
+                <div className="mt-1 flex items-center gap-1 px-1">
                   {onExport && (
                     <Button
                       type="button"
                       variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
+                      size="icon"
+                      className="h-7 w-7"
+                      title="Exportar PDF"
                       onClick={(e) => {
                         e.stopPropagation();
                         onExport(conv.id);
                       }}
                     >
-                      <FileDown className="h-3.5 w-3.5 mr-1" />
-                      Exportar PDF
+                      <FileDown className="h-3.5 w-3.5" />
                     </Button>
                   )}
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                    size="icon"
+                    className="h-7 w-7 text-destructive hover:text-destructive"
+                    title="Apagar"
                     onClick={(e) => {
                       e.stopPropagation();
                       setDeleteTarget(conv.id);
                     }}
                   >
-                    <Trash2 className="h-3.5 w-3.5 mr-1" />
-                    Apagar
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
