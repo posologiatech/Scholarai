@@ -1,7 +1,7 @@
 import { Conversation } from "@/pages/DataMind";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, MessageSquare, Trash2, BrainCircuit, FileDown } from "lucide-react";
+import { Plus, MessageSquare, Trash2, BrainCircuit, FileDown, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -13,6 +13,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 
 interface Props {
@@ -29,76 +35,98 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
 
   return (
     <>
-      <div className="w-64 border-r border-border/40 bg-muted/30 flex flex-col h-full">
-        <div className="p-3 border-b border-border/40">
-          <div className="flex items-center gap-2 mb-3 px-1">
-            <BrainCircuit className="h-5 w-5 text-primary" />
-            <span className="font-display font-bold text-sm">DataMind</span>
+      <div className="w-64 border-r border-border/30 bg-sidebar-background flex flex-col h-full">
+        {/* Header */}
+        <div className="p-4 pb-3">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <BrainCircuit className="h-4.5 w-4.5 text-primary" />
+            </div>
+            <span className="font-display font-semibold text-base tracking-tight text-foreground">DataMind</span>
           </div>
-          <Button onClick={onNew} className="w-full gap-2" size="sm">
+          <Button onClick={onNew} className="w-full gap-2 rounded-lg shadow-sm" size="sm">
             <Plus className="h-4 w-4" />
             Novo Chat
           </Button>
         </div>
 
-        <ScrollArea className="flex-1">
-          <div className="p-2 space-y-1.5">
+        {/* Divider */}
+        <div className="mx-4 border-t border-border/40" />
+
+        {/* Conversations */}
+        <ScrollArea className="flex-1 px-2 pt-3">
+          <div className="space-y-0.5">
             {conversations.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-8 px-4">
-                Nenhuma conversa ainda. Comece uma nova análise!
-              </p>
+              <div className="text-center py-12 px-4">
+                <MessageSquare className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-xs text-muted-foreground/70 leading-relaxed">
+                  Nenhuma conversa ainda.<br />Comece uma nova análise!
+                </p>
+              </div>
             )}
-            {conversations.map((conv) => (
-              <div
-                key={conv.id}
-                className={cn(
-                  "rounded-lg border border-border/40 bg-background/60 px-2 py-2 transition-colors",
-                  activeId === conv.id ? "ring-1 ring-primary/30" : "hover:bg-muted/70"
-                )}
-              >
-                <button
+            {conversations.map((conv) => {
+              const isActive = activeId === conv.id;
+              return (
+                <div
+                  key={conv.id}
                   className={cn(
-                    "w-full flex items-center gap-2 text-left rounded-md px-1 py-1.5",
-                    activeId === conv.id ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                    "group relative flex items-center gap-2 rounded-lg px-3 py-2.5 cursor-pointer transition-all duration-150",
+                    isActive
+                      ? "bg-primary/8 text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                   )}
                   onClick={() => onSelect(conv.id)}
                 >
-                  <MessageSquare className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate flex-1 min-w-0 text-sm">{conv.title}</span>
-                </button>
-
-                <div className="mt-1 flex items-center gap-1 px-1">
-                  {onExport && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      title="Exportar PDF"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onExport(conv.id);
-                      }}
-                    >
-                      <FileDown className="h-3.5 w-3.5" />
-                    </Button>
+                  {/* Active indicator */}
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-primary" />
                   )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive hover:text-destructive"
-                    title="Apagar"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteTarget(conv.id);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+
+                  <MessageSquare className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "")} />
+                  <span className="truncate flex-1 min-w-0 text-sm font-medium">{conv.title}</span>
+
+                  {/* Actions dropdown — visible on hover or when active */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className={cn(
+                          "shrink-0 h-6 w-6 rounded-md flex items-center justify-center transition-opacity",
+                          "opacity-0 group-hover:opacity-100 focus:opacity-100",
+                          isActive && "opacity-60 group-hover:opacity-100",
+                          "hover:bg-muted text-muted-foreground hover:text-foreground"
+                        )}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      {onExport && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onExport(conv.id);
+                          }}
+                        >
+                          <FileDown className="h-4 w-4 mr-2" />
+                          Exportar PDF
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(conv.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Apagar
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </ScrollArea>
       </div>
