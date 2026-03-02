@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePyodide, PyodideStatus } from "@/hooks/usePyodide";
-// AppSidebar provided by ProtectedRoute
 import DataMindSidebar from "@/components/datamind/DataMindSidebar";
 import DataMindChat from "@/components/datamind/DataMindChat";
 import DataMindModelSelector from "@/components/datamind/DataMindModelSelector";
@@ -11,6 +10,7 @@ import DataMindSandboxPanel from "@/components/datamind/DataMindSandboxPanel";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import * as XLSX from "xlsx";
 
 export interface Conversation {
   id: string;
@@ -41,6 +41,18 @@ export interface Message {
   created_at: string;
 }
 
+export interface SpreadsheetData {
+  columns: string[];
+  rows: Record<string, string>[];
+}
+
+export interface SelectedContext {
+  data: Record<string, string>[];
+  summary: string;
+}
+
+const MAX_ROWS = 50000;
+
 const DataMind = () => {
   const { id: conversationId } = useParams();
   const navigate = useNavigate();
@@ -55,6 +67,10 @@ const DataMind = () => {
   const [codeLanguage, setCodeLanguage] = useState("python");
   const pyodide = usePyodide();
   const loadedFilesRef = useRef<Set<string>>(new Set());
+
+  // Full spreadsheet data (client-side only, not persisted)
+  const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
+  const [selectedContext, setSelectedContext] = useState<SelectedContext | null>(null);
 
   // Auto-start sandbox on mount
   useEffect(() => {
@@ -76,11 +92,13 @@ const DataMind = () => {
     load();
   }, [user]);
 
-  // Load messages when conversation changes
+  // Load messages when conversation changes — reset spreadsheet data
   useEffect(() => {
     if (!conversationId) {
       setMessages([]);
       setFiles([]);
+      setSpreadsheetData(null);
+      setSelectedContext(null);
       return;
     }
     const loadMessages = async () => {
@@ -96,10 +114,70 @@ const DataMind = () => {
           .eq("conversation_id", conversationId),
       ]);
       if (msgRes.data) setMessages(msgRes.data);
-      if (fileRes.data) setFiles(fileRes.data as unknown as DataMindFile[]);
+      if (fileRes.data) {
+        const loadedFiles = fileRes.data as unknown as DataMindFile[];
+        setFiles(loadedFiles);
+        // Re-parse the first file for spreadsheet if available
+        if (loadedFiles.length > 0) {
+          reParseFileFromStorage(loadedFiles[0]);
+        }
+      }
     };
     loadMessages();
   }, [conversationId]);
+
+  // Re-download and parse file from storage for interactive grid
+  const reParseFileFromStorage = async (file: DataMindFile) => {
+    try {
+      const { data: blob } = await supabase.storage
+        .from("datamind-files")
+        .download(file.file_path);
+      if (!blob) return;
+
+      if (file.file_name.endsWith(".csv")) {
+        const text = await blob.text();
+        parseCSVFull(text);
+      } else if (file.file_name.match(/\.xlsx?$/i)) {
+        const buffer = await blob.arrayBuffer();
+        parseExcelFull(buffer);
+      }
+    } catch (e) {
+      console.error("Failed to re-parse file for spreadsheet:", e);
+    }
+  };
+
+  const parseCSVFull = (text: string) => {
+    const lines = text.split("\n").filter(Boolean);
+    if (lines.length < 2) return;
+    const headers = lines[0].split(",").map((h) => h.trim().replace(/"/g, ""));
+    const rows = lines.slice(1, MAX_ROWS + 1).map((line) => {
+      const vals = line.split(",").map((v) => v.trim().replace(/"/g, ""));
+      const row: Record<string, string> = {};
+      headers.forEach((h, i) => (row[h] = vals[i] || ""));
+      return row;
+    });
+    setSpreadsheetData({ columns: headers, rows });
+  };
+
+  const parseExcelFull = (buffer: ArrayBuffer) => {
+    try {
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      if (jsonData.length === 0) return;
+
+      const headers = Object.keys(jsonData[0]);
+      const rows = jsonData.slice(0, MAX_ROWS).map((row) => {
+        const r: Record<string, string> = {};
+        headers.forEach((h) => (r[h] = String(row[h] ?? "")));
+        return r;
+      });
+      setSpreadsheetData({ columns: headers, rows });
+    } catch (e) {
+      console.error("Excel parse error:", e);
+    }
+  };
 
   const createConversation = async (title?: string) => {
     if (!user) return null;
@@ -202,10 +280,30 @@ const DataMind = () => {
             headers.forEach((h, i) => (row[h] = vals[i] || ""));
             return row;
           });
+          // Full parse for spreadsheet
+          parseCSVFull(text);
         } catch { /* ignore parse errors */ }
       } else if (isExcel) {
-        // For Excel files, we can't parse client-side easily, but provide file info
-        schemaInfo = { file_type: "excel", file_name: file.name, file_size: file.size, note: "Excel file - schema will be detected by Python/pandas" };
+        try {
+          const buffer = await file.arrayBuffer();
+          const workbook = XLSX.read(buffer, { type: "array" });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+          if (jsonData.length > 0) {
+            const headers = Object.keys(jsonData[0]);
+            schemaInfo = { columns: headers, rows: jsonData.length };
+            previewData = jsonData.slice(0, 5).map((row) => {
+              const r: Record<string, string> = {};
+              headers.forEach((h) => (r[h] = String(row[h] ?? "")));
+              return r;
+            });
+            // Full parse for spreadsheet
+            parseExcelFull(buffer);
+          }
+        } catch {
+          schemaInfo = { file_type: "excel", file_name: file.name, file_size: file.size, note: "Excel file - schema will be detected by Python/pandas" };
+        }
       }
 
       const { data: fileData } = await supabase
@@ -227,6 +325,27 @@ const DataMind = () => {
       }
     }
 
+    // Build content with selected context
+    let fullContent = content;
+    if (selectedContext && selectedContext.data.length > 0) {
+      if (selectedContext.data.length > 1000) {
+        toast({
+          title: "Seleção muito grande",
+          description: "Mais de 1000 linhas selecionadas. Use Python/Pandas para analisar o arquivo inteiro.",
+          variant: "destructive",
+        });
+      }
+      // Convert selected data to CSV string
+      const headers = Object.keys(selectedContext.data[0]);
+      const csvLines = [
+        headers.join(","),
+        ...selectedContext.data.slice(0, 1000).map((row) =>
+          headers.map((h) => row[h] ?? "").join(",")
+        ),
+      ];
+      fullContent = `${content}\n\n[Contexto selecionado da planilha (${selectedContext.summary})]\n\`\`\`csv\n${csvLines.join("\n")}\n\`\`\``;
+    }
+
     // Save user message
     const userMsgContent = file
       ? `${content}\n\n📎 Arquivo: **${file.name}**`
@@ -243,6 +362,9 @@ const DataMind = () => {
       .single();
 
     if (userMsg) setMessages((prev) => [...prev, userMsg]);
+
+    // Clear selection after send
+    setSelectedContext(null);
 
     // Call AI
     try {
@@ -261,7 +383,7 @@ const DataMind = () => {
         "datamind-chat",
         {
           body: {
-            message: content,
+            message: fullContent,
             history,
             schema: schemaContext,
             file_name: uploadedFile?.file_name || files[0]?.file_name || "",
@@ -283,7 +405,6 @@ const DataMind = () => {
       if (codeBlock && (uploadedFile || files.length > 0)) {
         const targetFile = uploadedFile || files[0];
         try {
-          // Load file into Pyodide if not already loaded
           if (!loadedFilesRef.current.has(targetFile.file_path)) {
             const { data: fileBlob } = await supabase.storage
               .from("datamind-files")
@@ -301,13 +422,11 @@ const DataMind = () => {
             outputType = "text";
             outputContent = `Erro na execução:\n${result.error}`;
           } else {
-            // Build combined output: text + images
             const parts: string[] = [];
             if (result.stdout?.trim()) {
               parts.push(result.stdout.trim());
             }
             if (result.images.length > 0) {
-              // Encode images as special markers for the renderer
               result.images.forEach((img) => {
                 parts.push(`[IMG]data:image/png;base64,${img}[/IMG]`);
               });
@@ -416,6 +535,9 @@ const DataMind = () => {
             onSend={sendMessage}
             hasConversation={!!conversationId}
             existingFiles={files}
+            spreadsheetData={spreadsheetData}
+            selectedContext={selectedContext}
+            onSelectionChange={setSelectedContext}
           />
         </div>
       </div>

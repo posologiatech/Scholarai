@@ -1,8 +1,9 @@
 import { useRef, useEffect } from "react";
-import { Message, DataMindFile } from "@/pages/DataMind";
+import { Message, DataMindFile, SpreadsheetData, SelectedContext } from "@/pages/DataMind";
 import DataMindMessage from "./DataMindMessage";
 import DataMindInput from "./DataMindInput";
 import DataMindFilePreview from "./DataMindFilePreview";
+import DataMindSpreadsheet from "./DataMindSpreadsheet";
 import DataMindSuggestions from "./DataMindSuggestions";
 import { BrainCircuit, Upload, BarChart3, Table } from "lucide-react";
 import { motion } from "framer-motion";
@@ -14,9 +15,12 @@ interface Props {
   onSend: (content: string, file?: File) => void;
   hasConversation: boolean;
   existingFiles?: DataMindFile[];
+  spreadsheetData?: SpreadsheetData | null;
+  selectedContext?: SelectedContext | null;
+  onSelectionChange?: (ctx: SelectedContext | null) => void;
 }
 
-const DataMindChat = ({ messages, files, loading, onSend, hasConversation, existingFiles }: Props) => {
+const DataMindChat = ({ messages, files, loading, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange }: Props) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,10 +73,20 @@ const DataMindChat = ({ messages, files, loading, onSend, hasConversation, exist
           </div>
         ) : (
           <div className="max-w-4xl mx-auto px-4 py-6 space-y-1">
-            {/* File previews */}
-            {files.map((f) => (
-              <DataMindFilePreview key={f.id} file={f} />
-            ))}
+            {/* Interactive spreadsheet or fallback file preview */}
+            {files.map((f) =>
+              spreadsheetData && spreadsheetData.columns.length > 0 ? (
+                <DataMindSpreadsheet
+                  key={f.id}
+                  fileName={f.file_name}
+                  data={spreadsheetData.rows}
+                  columns={spreadsheetData.columns}
+                  onSelectionChange={onSelectionChange}
+                />
+              ) : (
+                <DataMindFilePreview key={f.id} file={f} />
+              )
+            )}
 
             {/* Suggestions after file upload, before first assistant message */}
             {files.length > 0 && messages.filter(m => m.role === "assistant").length === 0 && (
@@ -110,7 +124,13 @@ const DataMindChat = ({ messages, files, loading, onSend, hasConversation, exist
         )}
       </div>
 
-      <DataMindInput onSend={onSend} loading={loading} existingFiles={existingFiles} />
+      <DataMindInput
+        onSend={onSend}
+        loading={loading}
+        existingFiles={existingFiles}
+        selectedContext={selectedContext}
+        onClearSelection={() => onSelectionChange?.(null)}
+      />
     </div>
   );
 };
