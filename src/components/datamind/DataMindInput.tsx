@@ -1,21 +1,24 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Paperclip, Send, X, FileSpreadsheet, Upload, FolderOpen, Clock, Search } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Paperclip, Send, X, FileSpreadsheet, Upload, FolderOpen, Search, Grid3X3 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { DataMindFile } from "@/pages/DataMind";
+import { DataMindFile, SelectedContext } from "@/pages/DataMind";
 
 interface Props {
   onSend: (content: string, file?: File) => void;
   loading: boolean;
   existingFiles?: DataMindFile[];
+  selectedContext?: SelectedContext | null;
+  onClearSelection?: () => void;
 }
 
-const DataMindInput = ({ onSend, loading, existingFiles = [] }: Props) => {
+const DataMindInput = ({ onSend, loading, existingFiles = [], selectedContext, onClearSelection }: Props) => {
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -43,12 +46,27 @@ const DataMindInput = ({ onSend, loading, existingFiles = [] }: Props) => {
   return (
     <div className="border-t border-border/40 bg-background p-4">
       <div className="max-w-4xl mx-auto">
+        {/* File attachment badge */}
         {file && (
           <div className="mb-2 flex items-center gap-2 rounded-lg bg-muted/50 border border-border/60 px-3 py-2 text-sm">
             <FileSpreadsheet className="h-4 w-4 text-primary" />
             <span className="truncate flex-1 text-foreground">{file.name}</span>
             <span className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</span>
             <button onClick={() => setFile(null)}>
+              <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+            </button>
+          </div>
+        )}
+
+        {/* Selection context badge */}
+        {selectedContext && selectedContext.data.length > 0 && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 text-sm">
+            <Grid3X3 className="h-4 w-4 text-primary" />
+            <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-xs">
+              {selectedContext.summary}
+            </Badge>
+            <span className="text-xs text-muted-foreground">serão enviadas como contexto</span>
+            <button onClick={onClearSelection} className="ml-auto">
               <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
             </button>
           </div>
@@ -108,14 +126,12 @@ const DataMindInput = ({ onSend, loading, existingFiles = [] }: Props) => {
 
               {/* Existing files */}
               {existingFiles.length > 0 && (
-                <>
-                  <button className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm text-foreground">Files ({existingFiles.length})</span>
-                    </div>
-                  </button>
-                </>
+                <button className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-foreground">Files ({existingFiles.length})</span>
+                  </div>
+                </button>
               )}
 
               {/* Recent files */}
