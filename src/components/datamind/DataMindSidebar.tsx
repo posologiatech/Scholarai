@@ -85,45 +85,31 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
                   <MessageSquare className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "")} />
                   <span className="truncate flex-1 min-w-0 text-sm font-medium">{conv.title}</span>
 
-                  {/* Actions dropdown — visible on hover or when active */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                  {/* Action buttons — always visible, centered vertically */}
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {onExport && (
                       <button
-                        className={cn(
-                          "shrink-0 h-6 w-6 rounded-md flex items-center justify-center transition-opacity",
-                          "opacity-0 group-hover:opacity-100 focus:opacity-100",
-                          isActive && "opacity-60 group-hover:opacity-100",
-                          "hover:bg-muted text-muted-foreground hover:text-foreground"
-                        )}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" side="right" className="w-40 z-50">
-                      {onExport && (
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onExport(conv.id);
-                          }}
-                        >
-                          <FileDown className="h-4 w-4 mr-2" />
-                          Exportar PDF
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
+                        className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setDeleteTarget(conv.id);
+                          onExport(conv.id);
                         }}
+                        title="Exportar PDF"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Apagar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        <FileDown className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button
+                      className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget(conv.id);
+                      }}
+                      title="Apagar"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
