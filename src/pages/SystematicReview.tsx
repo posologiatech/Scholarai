@@ -30,6 +30,7 @@ const SystematicReview = () => {
   const [extractionColumns, setExtractionColumns] = useState<any[]>([]);
   const [extractionResults, setExtractionResults] = useState<Record<string, Record<string, string>>>({});
   const [reportContent, setReportContent] = useState("");
+  const [duplicatesRemoved, setDuplicatesRemoved] = useState(0);
 
   // Load existing review if id is provided
   useEffect(() => {
@@ -116,6 +117,8 @@ const SystematicReview = () => {
             onPapersChange={setPapers}
             onNext={() => setCurrentStep(2)}
             onPrev={() => setCurrentStep(0)}
+            duplicatesRemoved={duplicatesRemoved}
+            onDuplicatesRemovedChange={setDuplicatesRemoved}
           />
         )}
         {currentStep === 2 && (
@@ -161,6 +164,7 @@ const SystematicReview = () => {
             reportContent={reportContent}
             onReportChange={setReportContent}
             onPrev={() => setCurrentStep(3)}
+            duplicatesRemoved={duplicatesRemoved}
           />
         )}
       </main>
