@@ -9,6 +9,8 @@ import DataMindModelSelector from "@/components/datamind/DataMindModelSelector";
 import DataMindSandboxPanel from "@/components/datamind/DataMindSandboxPanel";
 import SavePipelineDialog from "@/components/datamind/SavePipelineDialog";
 import ApplyPipelineDialog from "@/components/datamind/ApplyPipelineDialog";
+import DataMindDbConnections from "@/components/datamind/DataMindDbConnections";
+import DataMindDbQuery from "@/components/datamind/DataMindDbQuery";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeft, GitBranch } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -71,6 +73,7 @@ const DataMind = () => {
   const pyodide = usePyodide();
   const loadedFilesRef = useRef<Set<string>>(new Set());
   const [applyPipelineOpen, setApplyPipelineOpen] = useState(false);
+  const [activeDbConnection, setActiveDbConnection] = useState<any>(null);
 
   // Full spreadsheet data (client-side only, not persisted)
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
@@ -520,14 +523,22 @@ const DataMind = () => {
         {/* Sidebar toggle */}
         <div className="relative">
           {sidebarOpen && (
-            <DataMindSidebar
-              conversations={conversations}
-              activeId={conversationId}
-              onSelect={(id) => navigate(`/datamind/${id}`)}
-              onNew={() => navigate("/datamind")}
-              onDelete={deleteConversation}
-              onExport={exportConversation}
-            />
+            <div className="flex flex-col h-full">
+              <DataMindSidebar
+                conversations={conversations}
+                activeId={conversationId}
+                onSelect={(id) => navigate(`/datamind/${id}`)}
+                onNew={() => navigate("/datamind")}
+                onDelete={deleteConversation}
+                onExport={exportConversation}
+              />
+              <div className="w-64 border-r border-border/30 bg-sidebar-background px-3 pb-3">
+                <DataMindDbConnections
+                  selectedId={activeDbConnection?.id}
+                  onSelect={setActiveDbConnection}
+                />
+              </div>
+            </div>
           )}
         </div>
 
@@ -569,6 +580,21 @@ const DataMind = () => {
               <DataMindSandboxPanel codeLanguage={codeLanguage} onLanguageChange={setCodeLanguage} pyodideStatus={pyodide.status} onReset={pyodide.reset} onInit={pyodide.init} />
             </div>
           </div>
+
+          {/* DB Query widget */}
+          {activeDbConnection && (
+            <div className="px-4 py-3 border-b border-border/30">
+              <DataMindDbQuery
+                connection={activeDbConnection}
+                onResultToChat={(question, sql, result) => {
+                  const csvHeader = result.columns.join(",");
+                  const csvRows = result.rows.slice(0, 200).map(r => r.join(",")).join("\n");
+                  const msg = `Consultei o banco "${activeDbConnection.name}" com a pergunta: "${question}"\n\nSQL gerado:\n\`\`\`sql\n${sql}\n\`\`\`\n\nResultado (${result.rowCount} linhas, mostrando até 200):\n\`\`\`csv\n${csvHeader}\n${csvRows}\n\`\`\`\n\nAnalise estes dados.`;
+                  sendMessage(msg);
+                }}
+              />
+            </div>
+          )}
 
           <DataMindChat
             messages={messages}

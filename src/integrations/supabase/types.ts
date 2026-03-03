@@ -252,6 +252,60 @@ export type Database = {
         }
         Relationships: []
       }
+      datamind_db_connections: {
+        Row: {
+          created_at: string
+          database_name: string
+          db_type: string
+          host: string
+          id: string
+          is_active: boolean
+          last_connected_at: string | null
+          name: string
+          password_encrypted: string
+          port: number
+          schema_cache: Json | null
+          ssl_mode: string
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          database_name: string
+          db_type?: string
+          host: string
+          id?: string
+          is_active?: boolean
+          last_connected_at?: string | null
+          name: string
+          password_encrypted: string
+          port?: number
+          schema_cache?: Json | null
+          ssl_mode?: string
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          database_name?: string
+          db_type?: string
+          host?: string
+          id?: string
+          is_active?: boolean
+          last_connected_at?: string | null
+          name?: string
+          password_encrypted?: string
+          port?: number
+          schema_cache?: Json | null
+          ssl_mode?: string
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
       datamind_files: {
         Row: {
           conversation_id: string | null

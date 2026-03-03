@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.risk-of-bias]
 verify_jwt = false
+
+[functions.datamind-db]
+verify_jwt = false
