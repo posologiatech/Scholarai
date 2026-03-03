@@ -392,7 +392,7 @@ const StepExtraction = ({
           {locale === "pt" ? "Anterior" : "Previous"}
         </Button>
         <Button onClick={onNext} className="gap-2">
-          {locale === "pt" ? "Próximo: Relatório" : "Next: Report"}
+          {locale === "pt" ? "Próximo: Qualidade" : "Next: Quality"}
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>

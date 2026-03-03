@@ -68,3 +68,9 @@ verify_jwt = false
 
 [functions.datamind-db]
 verify_jwt = false
+
+[functions.active-learning-screen]
+verify_jwt = false
+
+[functions.quality-assessment]
+verify_jwt = false

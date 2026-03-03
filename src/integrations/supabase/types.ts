@@ -936,6 +936,53 @@ export type Database = {
         }
         Relationships: []
       }
+      screening_decisions: {
+        Row: {
+          created_at: string
+          criteria_results: Json
+          decision: string
+          id: string
+          inclusion_score: number | null
+          notes: string | null
+          paper_id: string
+          review_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          criteria_results?: Json
+          decision?: string
+          id?: string
+          inclusion_score?: number | null
+          notes?: string | null
+          paper_id: string
+          review_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          criteria_results?: Json
+          decision?: string
+          id?: string
+          inclusion_score?: number | null
+          notes?: string | null
+          paper_id?: string
+          review_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "screening_decisions_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "systematic_reviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       systematic_reviews: {
         Row: {
           auto_suggestions: boolean

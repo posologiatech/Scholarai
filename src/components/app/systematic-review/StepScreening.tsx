@@ -14,6 +14,9 @@ import {
   Edit2,
   Trash2,
   Plus,
+  Users,
+  Brain,
+  AlertTriangle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +36,9 @@ interface PaperScreeningResult {
   recommendation: "include" | "exclude" | "maybe";
   overridden?: boolean;
   overriddenTo?: "include" | "exclude";
+  aiPriority?: number;
+  aiPrediction?: string;
+  aiReasoning?: string;
 }
 
 interface Paper {
@@ -71,15 +77,17 @@ const StepScreening = ({
   onPrev,
 }: StepScreeningProps) => {
   const { locale } = useLanguage();
+  const pt = locale === "pt";
   const [generatingCriteria, setGeneratingCriteria] = useState(false);
   const [screening, setScreening] = useState(false);
   const [screeningAll, setScreeningAll] = useState(false);
   const [expandedPaper, setExpandedPaper] = useState<string | null>(null);
-  const [editingCriterion, setEditingCriterion] = useState<string | null>(null);
   const [newCriterionName, setNewCriterionName] = useState("");
   const [newCriterionDesc, setNewCriterionDesc] = useState("");
+  const [activeLearning, setActiveLearning] = useState(false);
+  const [showConflicts, setShowConflicts] = useState(false);
+  const [viewMode, setViewMode] = useState<"all" | "conflicts" | "ai_priority">("all");
 
-  // Auto-generate criteria on first load if autoSuggestions is on and no criteria exist
   useEffect(() => {
     if (autoSuggestions && criteria.length === 0 && !generatingCriteria) {
       generateCriteria();
@@ -100,7 +108,7 @@ const StepScreening = ({
         enabled: true,
       }));
       onCriteriaChange(generated);
-      toast.success(locale === "pt" ? "Critérios gerados com sucesso!" : "Criteria generated successfully!");
+      toast.success(pt ? "Critérios gerados com sucesso!" : "Criteria generated successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to generate criteria");
     } finally {
@@ -111,19 +119,17 @@ const StepScreening = ({
   const screenSample = async () => {
     const enabledCriteria = criteria.filter((c) => c.enabled);
     if (enabledCriteria.length === 0) {
-      toast.error(locale === "pt" ? "Ative pelo menos um critério" : "Enable at least one criterion");
+      toast.error(pt ? "Ative pelo menos um critério" : "Enable at least one criterion");
       return;
     }
     setScreening(true);
     try {
-      // Screen a sample of papers (first 20 unscreened)
       const unscreened = papers.filter((p) => !screeningResults[p.id]).slice(0, 20);
       if (unscreened.length === 0) {
-        toast.info(locale === "pt" ? "Todos os artigos já foram triados" : "All papers already screened");
+        toast.info(pt ? "Todos os artigos já foram triados" : "All papers already screened");
         setScreening(false);
         return;
       }
-
       const { data, error } = await supabase.functions.invoke("screen-papers", {
         body: {
           question,
@@ -132,27 +138,14 @@ const StepScreening = ({
         },
       });
       if (error) throw error;
-
       const newResults = { ...screeningResults };
       for (const result of data?.results || []) {
-        if (result.paperId) {
-          newResults[result.paperId] = result;
-        }
+        if (result.paperId) newResults[result.paperId] = result;
       }
       onScreeningResultsChange(newResults);
-
-      // Auto-update included papers
-      const included = Object.entries(newResults)
-        .filter(([_, r]) => (r.overridden ? r.overriddenTo === "include" : r.recommendation === "include" || r.recommendation === "maybe"))
-        .map(([id]) => id);
-      onIncludedPaperIdsChange(included);
-
+      updateIncluded(newResults);
       const screenedNow = (data?.results || []).filter((r: any) => r.paperId).length;
-      toast.success(
-        locale === "pt"
-          ? `${screenedNow} artigos triados`
-          : `${screenedNow} papers screened`
-      );
+      toast.success(pt ? `${screenedNow} artigos triados` : `${screenedNow} papers screened`);
     } catch (err: any) {
       console.error("Screening error:", err);
       toast.error(err.message || "Screening failed");
@@ -163,16 +156,14 @@ const StepScreening = ({
 
   const screenAllRemaining = async () => {
     setScreeningAll(true);
-    // Same as screenSample but all remaining
     const enabledCriteria = criteria.filter((c) => c.enabled);
     try {
       const unscreened = papers.filter((p) => !screeningResults[p.id]);
       if (unscreened.length === 0) {
-        toast.info(locale === "pt" ? "Todos triados" : "All screened");
+        toast.info(pt ? "Todos triados" : "All screened");
         setScreeningAll(false);
         return;
       }
-      // Process in batches of 20
       const newResults = { ...screeningResults };
       for (let i = 0; i < unscreened.length; i += 20) {
         const batch = unscreened.slice(i, i + 20);
@@ -189,11 +180,8 @@ const StepScreening = ({
         }
         onScreeningResultsChange({ ...newResults });
       }
-      const included = Object.entries(newResults)
-        .filter(([_, r]) => (r.overridden ? r.overriddenTo === "include" : r.recommendation === "include" || r.recommendation === "maybe"))
-        .map(([id]) => id);
-      onIncludedPaperIdsChange(included);
-      toast.success(locale === "pt" ? "Triagem completa!" : "Screening complete!");
+      updateIncluded(newResults);
+      toast.success(pt ? "Triagem completa!" : "Screening complete!");
     } catch (err: any) {
       toast.error(err.message || "Screening failed");
     } finally {
@@ -201,15 +189,105 @@ const StepScreening = ({
     }
   };
 
+  // Active Learning: re-rank remaining papers
+  const runActiveLearning = async () => {
+    setActiveLearning(true);
+    try {
+      const manualDecisions = Object.entries(screeningResults)
+        .filter(([_, r]) => r.overridden)
+        .map(([id, r]) => {
+          const paper = papers.find((p) => p.id === id);
+          return {
+            id,
+            title: paper?.title || "",
+            abstract: paper?.abstract || "",
+            decision: r.overriddenTo || r.recommendation,
+          };
+        });
+
+      // Also include non-overridden decisions
+      const allDecisions = Object.entries(screeningResults).map(([id, r]) => {
+        const paper = papers.find((p) => p.id === id);
+        return {
+          id,
+          title: paper?.title || "",
+          abstract: paper?.abstract || "",
+          decision: r.overridden ? r.overriddenTo : r.recommendation,
+        };
+      });
+
+      const remaining = papers
+        .filter((p) => !screeningResults[p.id])
+        .map((p) => ({ id: p.id, title: p.title, abstract: p.abstract || "" }));
+
+      if (remaining.length === 0) {
+        toast.info(pt ? "Nenhum artigo restante para priorizar" : "No remaining papers to prioritize");
+        setActiveLearning(false);
+        return;
+      }
+
+      if (allDecisions.length < 10) {
+        toast.error(pt
+          ? `Trie pelo menos 10 artigos antes de usar Active Learning (${allDecisions.length}/10)`
+          : `Screen at least 10 papers before using Active Learning (${allDecisions.length}/10)`);
+        setActiveLearning(false);
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("active-learning-screen", {
+        body: {
+          question,
+          criteria: criteria.filter((c) => c.enabled),
+          manualDecisions: allDecisions,
+          remainingPapers: remaining,
+        },
+      });
+      if (error) throw error;
+
+      // Update remaining papers with AI priority
+      const newResults = { ...screeningResults };
+      for (const result of data?.results || []) {
+        if (result.paperId) {
+          newResults[result.paperId] = {
+            paperId: result.paperId,
+            criteria: {},
+            inclusionScore: result.priorityScore || 0.5,
+            recommendation: result.prediction || "maybe",
+            aiPriority: result.priorityScore,
+            aiPrediction: result.prediction,
+            aiReasoning: result.reasoning,
+          };
+        }
+      }
+      onScreeningResultsChange(newResults);
+      updateIncluded(newResults);
+
+      setViewMode("ai_priority");
+      toast.success(pt
+        ? `${data?.results?.length || 0} artigos re-ranqueados por prioridade AI`
+        : `${data?.results?.length || 0} papers re-ranked by AI priority`);
+    } catch (err: any) {
+      console.error("Active learning error:", err);
+      toast.error(err.message || "Active learning failed");
+    } finally {
+      setActiveLearning(false);
+    }
+  };
+
+  const updateIncluded = (results: Record<string, PaperScreeningResult>) => {
+    const included = Object.entries(results)
+      .filter(([_, r]) => (r.overridden ? r.overriddenTo === "include" : r.recommendation === "include" || r.recommendation === "maybe"))
+      .map(([id]) => id);
+    onIncludedPaperIdsChange(included);
+  };
+
   const toggleOverride = (paperId: string) => {
     const result = screeningResults[paperId];
     if (!result) return;
     const newResults = { ...screeningResults };
     if (result.overridden) {
-      // Remove override
       newResults[paperId] = { ...result, overridden: false, overriddenTo: undefined };
     } else {
-      // Override to opposite
       const currentRecommendation = result.recommendation;
       newResults[paperId] = {
         ...result,
@@ -218,10 +296,7 @@ const StepScreening = ({
       };
     }
     onScreeningResultsChange(newResults);
-    const included = Object.entries(newResults)
-      .filter(([_, r]) => (r.overridden ? r.overriddenTo === "include" : r.recommendation === "include" || r.recommendation === "maybe"))
-      .map(([id]) => id);
-    onIncludedPaperIdsChange(included);
+    updateIncluded(newResults);
   };
 
   const addCriterion = () => {
@@ -239,11 +314,20 @@ const StepScreening = ({
 
   const screenedCount = Object.keys(screeningResults).length;
   const includedCount = includedPaperIds.length;
+  const manualCount = Object.values(screeningResults).filter((r) => r.overridden).length;
+  const aiPriorityCount = Object.values(screeningResults).filter((r) => r.aiPriority !== undefined).length;
 
-  // Sort papers by inclusion score (highest first)
+  // Sort papers based on view mode
   const sortedPapers = [...papers].sort((a, b) => {
-    const scoreA = screeningResults[a.id]?.inclusionScore ?? -1;
-    const scoreB = screeningResults[b.id]?.inclusionScore ?? -1;
+    const resultA = screeningResults[a.id];
+    const resultB = screeningResults[b.id];
+    if (viewMode === "ai_priority") {
+      const priorityA = resultA?.aiPriority ?? -1;
+      const priorityB = resultB?.aiPriority ?? -1;
+      return priorityB - priorityA;
+    }
+    const scoreA = resultA?.inclusionScore ?? -1;
+    const scoreB = resultB?.inclusionScore ?? -1;
     return scoreB - scoreA;
   });
 
@@ -254,17 +338,39 @@ const StepScreening = ({
     return <HelpCircle className="h-4 w-4 text-yellow-500" />;
   };
 
+  // Cohen's Kappa calculation (AI vs manual overrides)
+  const calculateKappa = () => {
+    const both = Object.entries(screeningResults).filter(([_, r]) => r.overridden && r.recommendation);
+    if (both.length < 5) return null;
+    let agree = 0;
+    let aiInclude = 0, aiExclude = 0, manInclude = 0, manExclude = 0;
+    for (const [_, r] of both) {
+      const aiDec = r.recommendation === "include" || r.recommendation === "maybe" ? "include" : "exclude";
+      const manDec = r.overriddenTo || "include";
+      if (aiDec === manDec) agree++;
+      if (aiDec === "include") aiInclude++; else aiExclude++;
+      if (manDec === "include") manInclude++; else manExclude++;
+    }
+    const n = both.length;
+    const po = agree / n;
+    const pe = ((aiInclude * manInclude) + (aiExclude * manExclude)) / (n * n);
+    if (pe === 1) return 1;
+    return (po - pe) / (1 - pe);
+  };
+
+  const kappa = calculateKappa();
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="space-y-2 text-center">
         <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
           <Filter className="h-4 w-4" />
-          {locale === "pt" ? "Etapa 3: Critérios de Triagem" : "Step 3: Screening Criteria"}
+          {pt ? "Etapa 3: Triagem" : "Step 3: Screening"}
         </div>
         <p className="text-sm text-muted-foreground">
-          {locale === "pt"
-            ? "Defina critérios de inclusão/exclusão e aplique aos artigos coletados."
-            : "Define inclusion/exclusion criteria and apply to collected articles."}
+          {pt
+            ? "Defina critérios de inclusão/exclusão, aplique triagem AI, e use Active Learning para priorizar."
+            : "Define inclusion/exclusion criteria, apply AI screening, and use Active Learning to prioritize."}
         </p>
       </div>
 
@@ -272,14 +378,13 @@ const StepScreening = ({
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">
-            {locale === "pt" ? "Critérios de Triagem" : "Screening Criteria"}
+            {pt ? "Critérios de Triagem" : "Screening Criteria"}
           </h3>
           <Button variant="outline" size="sm" onClick={generateCriteria} disabled={generatingCriteria} className="gap-2">
             {generatingCriteria ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-            {locale === "pt" ? "Gerar com IA" : "Generate with AI"}
+            {pt ? "Gerar com IA" : "Generate with AI"}
           </Button>
         </div>
-
         {criteria.map((c) => (
           <div key={c.id} className="flex items-start gap-3 rounded-lg border border-border p-3">
             <Switch checked={c.enabled} onCheckedChange={(checked) => {
@@ -294,21 +399,9 @@ const StepScreening = ({
             </button>
           </div>
         ))}
-
-        {/* Add custom criterion */}
         <div className="flex gap-2">
-          <input
-            value={newCriterionName}
-            onChange={(e) => setNewCriterionName(e.target.value)}
-            placeholder={locale === "pt" ? "Nome do critério" : "Criterion name"}
-            className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm"
-          />
-          <input
-            value={newCriterionDesc}
-            onChange={(e) => setNewCriterionDesc(e.target.value)}
-            placeholder={locale === "pt" ? "Descrição" : "Description"}
-            className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm"
-          />
+          <input value={newCriterionName} onChange={(e) => setNewCriterionName(e.target.value)} placeholder={pt ? "Nome do critério" : "Criterion name"} className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm" />
+          <input value={newCriterionDesc} onChange={(e) => setNewCriterionDesc(e.target.value)} placeholder={pt ? "Descrição" : "Description"} className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm" />
           <Button size="sm" variant="outline" onClick={addCriterion} disabled={!newCriterionName.trim()}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
@@ -317,20 +410,58 @@ const StepScreening = ({
 
       {/* Screening actions */}
       <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={screenSample} disabled={screening || screeningAll || criteria.filter((c) => c.enabled).length === 0} className="gap-2">
+        <Button onClick={screenSample} disabled={screening || screeningAll || activeLearning || criteria.filter((c) => c.enabled).length === 0} className="gap-2">
           {screening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4" />}
-          {locale === "pt" ? "Triar amostra (20)" : "Screen sample (20)"}
+          {pt ? "Triar amostra (20)" : "Screen sample (20)"}
         </Button>
-        <Button variant="outline" onClick={screenAllRemaining} disabled={screening || screeningAll || criteria.filter((c) => c.enabled).length === 0} className="gap-2">
+        <Button variant="outline" onClick={screenAllRemaining} disabled={screening || screeningAll || activeLearning || criteria.filter((c) => c.enabled).length === 0} className="gap-2">
           {screeningAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4" />}
-          {locale === "pt" ? "Avaliar todos" : "Screen all"}
+          {pt ? "Avaliar todos" : "Screen all"}
         </Button>
-        <div className="ml-auto text-sm text-muted-foreground">
-          {locale === "pt"
-            ? `${screenedCount}/${papers.length} triados · ${includedCount} incluídos`
-            : `${screenedCount}/${papers.length} screened · ${includedCount} included`}
-        </div>
+        <Button
+          variant="secondary"
+          onClick={runActiveLearning}
+          disabled={screening || screeningAll || activeLearning || screenedCount < 10}
+          className="gap-2"
+          title={screenedCount < 10 ? (pt ? "Trie pelo menos 10 artigos primeiro" : "Screen at least 10 papers first") : ""}
+        >
+          {activeLearning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+          {pt ? "Active Learning" : "Active Learning"}
+        </Button>
       </div>
+
+      {/* Stats bar */}
+      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        <span>{screenedCount}/{papers.length} {pt ? "triados" : "screened"}</span>
+        <span>· {includedCount} {pt ? "incluídos" : "included"}</span>
+        {manualCount > 0 && <span>· {manualCount} {pt ? "decisões manuais" : "manual decisions"}</span>}
+        {aiPriorityCount > 0 && (
+          <Badge variant="secondary" className="gap-1 text-xs">
+            <Brain className="h-3 w-3" /> {aiPriorityCount} AI Priority
+          </Badge>
+        )}
+        {kappa !== null && (
+          <Badge variant="outline" className="gap-1 text-xs ml-auto">
+            <Users className="h-3 w-3" />
+            κ = {kappa.toFixed(2)}
+            {kappa >= 0.8 ? " ✅" : kappa >= 0.6 ? " ⚠️" : " ❌"}
+          </Badge>
+        )}
+      </div>
+
+      {/* View mode tabs */}
+      {screenedCount > 0 && (
+        <div className="flex gap-2">
+          <Button size="sm" variant={viewMode === "all" ? "default" : "ghost"} onClick={() => setViewMode("all")} className="text-xs h-7">
+            {pt ? "Todos" : "All"}
+          </Button>
+          {aiPriorityCount > 0 && (
+            <Button size="sm" variant={viewMode === "ai_priority" ? "default" : "ghost"} onClick={() => setViewMode("ai_priority")} className="text-xs h-7 gap-1">
+              <Brain className="h-3 w-3" /> {pt ? "Prioridade AI" : "AI Priority"}
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Results table */}
       {screenedCount > 0 && (
@@ -352,15 +483,26 @@ const StepScreening = ({
                     <p className="text-sm font-medium text-foreground truncate">{paper.title}</p>
                     <p className="text-xs text-muted-foreground">
                       {paper.year && `(${paper.year})`} · Score: {Math.round(result.inclusionScore * 100)}%
+                      {result.aiPriority !== undefined && (
+                        <span className="ml-2 text-primary">
+                          🧠 AI: {Math.round(result.aiPriority * 100)}%
+                        </span>
+                      )}
                     </p>
                   </div>
+                  {result.aiPriority !== undefined && (
+                    <Badge variant="outline" className="text-[10px] gap-0.5 border-primary/30 text-primary">
+                      <Brain className="h-2.5 w-2.5" />
+                      AI
+                    </Badge>
+                  )}
                   <Badge variant={effective === "include" ? "default" : effective === "exclude" ? "destructive" : "secondary"} className="text-xs">
                     {result.overridden && "⚡ "}
                     {effective === "include"
-                      ? locale === "pt" ? "Incluir" : "Include"
+                      ? pt ? "Incluir" : "Include"
                       : effective === "exclude"
-                        ? locale === "pt" ? "Excluir" : "Exclude"
-                        : locale === "pt" ? "Talvez" : "Maybe"}
+                        ? pt ? "Excluir" : "Exclude"
+                        : pt ? "Talvez" : "Maybe"}
                   </Badge>
                   <Button
                     size="sm"
@@ -371,13 +513,19 @@ const StepScreening = ({
                     }}
                     className="text-xs"
                   >
-                    {locale === "pt" ? "Alterar" : "Override"}
+                    {pt ? "Alterar" : "Override"}
                   </Button>
                 </div>
                 {isExpanded && (
                   <div className="border-t border-border bg-muted/20 p-3 space-y-2">
                     {paper.abstract && (
                       <p className="text-xs text-muted-foreground line-clamp-3">{paper.abstract}</p>
+                    )}
+                    {result.aiReasoning && (
+                      <div className="flex items-start gap-2 text-xs rounded-lg bg-primary/5 p-2">
+                        <Brain className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                        <span className="text-foreground">{result.aiReasoning}</span>
+                      </div>
                     )}
                     {criteria.filter((c) => c.enabled).map((c) => {
                       const cr = result.criteria[c.id];
@@ -410,10 +558,10 @@ const StepScreening = ({
       <div className="flex justify-between">
         <Button variant="outline" onClick={onPrev} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
-          {locale === "pt" ? "Anterior" : "Previous"}
+          {pt ? "Anterior" : "Previous"}
         </Button>
         <Button onClick={onNext} disabled={includedCount === 0} className="gap-2">
-          {locale === "pt" ? "Próximo: Extração" : "Next: Extraction"}
+          {pt ? "Próximo: Extração" : "Next: Extraction"}
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
