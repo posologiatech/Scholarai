@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.writing-assist]
 verify_jwt = false
+
+[functions.meta-analysis]
+verify_jwt = false
