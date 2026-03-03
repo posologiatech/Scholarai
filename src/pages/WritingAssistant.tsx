@@ -222,12 +222,7 @@ const WritingAssistant = () => {
 
         if (insertError) throw insertError;
 
-        // 3. Extract text from PDF
-        const buffer = await file.arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-        );
-
+        // 3. Extract text from PDF via edge function (sends paper_id, function downloads from storage)
         const extractResp = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-pdf`,
           {
@@ -236,14 +231,23 @@ const WritingAssistant = () => {
               "Content-Type": "application/json",
               Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
             },
-            body: JSON.stringify({ pdf_base64: base64, file_name: file.name }),
+            body: JSON.stringify({ paper_id: record.id }),
           }
         );
 
         let extractedText = "";
         if (extractResp.ok) {
           const extractData = await extractResp.json();
-          extractedText = extractData.text || extractData.extracted_text || "";
+          extractedText = extractData.extracted_text || "";
+          // Re-fetch the updated record to get full extracted text
+          const { data: updated } = await supabase
+            .from("uploaded_papers")
+            .select("extracted_text")
+            .eq("id", record.id)
+            .single();
+          if (updated?.extracted_text) {
+            extractedText = updated.extracted_text;
+          }
         }
 
         // 4. Update record with extracted text
