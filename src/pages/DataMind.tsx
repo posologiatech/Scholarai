@@ -18,8 +18,18 @@ import DataMindProfiler from "@/components/datamind/DataMindProfiler";
 import DataMindVersioning from "@/components/datamind/DataMindVersioning";
 import { useWebR } from "@/hooks/useWebR";
 import { Button } from "@/components/ui/button";
-import { PanelLeftClose, PanelLeft, GitBranch, Sparkles, Activity } from "lucide-react";
+import { PanelLeftClose, PanelLeft, GitBranch, Sparkles, Activity, Trash2, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import * as XLSX from "xlsx";
 
 export interface Conversation {
@@ -88,6 +98,45 @@ const DataMind = () => {
   // Full spreadsheet data (client-side only, not persisted)
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
   const [selectedContext, setSelectedContext] = useState<SelectedContext | null>(null);
+
+  // Bulk selection state
+  const [selectedConvIds, setSelectedConvIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  const toggleSelectConv = (id: string) => {
+    setSelectedConvIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectionMode = () => {
+    setSelectionMode((prev) => !prev);
+    setSelectedConvIds(new Set());
+  };
+
+  const bulkDelete = async () => {
+    for (const id of selectedConvIds) {
+      await deleteConversation(id);
+    }
+    setSelectedConvIds(new Set());
+    setSelectionMode(false);
+    toast({ title: `${selectedConvIds.size} conversa(s) apagada(s)` });
+  };
+
+  const bulkShare = async () => {
+    const selected = conversations.filter((c) => selectedConvIds.has(c.id));
+    const lines = selected.map((c) => `• ${c.title}`).join("\n");
+    const text = `Conversas DataMind compartilhadas:\n${lines}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Links copiados!", description: `${selectedConvIds.size} conversa(s) copiadas para a área de transferência.` });
+    } catch {
+      toast({ title: "Erro ao copiar", variant: "destructive" });
+    }
+  };
 
   // Auto-start sandbox on mount
   useEffect(() => {
@@ -557,6 +606,10 @@ const DataMind = () => {
                 onNew={() => navigate("/datamind")}
                 onDelete={deleteConversation}
                 onExport={exportConversation}
+                selectedIds={selectedConvIds}
+                onToggleSelect={toggleSelectConv}
+                selectionMode={selectionMode}
+                onToggleSelectionMode={toggleSelectionMode}
               />
               <div className="w-64 border-r border-border/30 bg-sidebar-background px-3 pb-3">
                 <DataMindDbConnections
@@ -585,6 +638,30 @@ const DataMind = () => {
                 : "Nova Análise"}
             </span>
             <div className="ml-auto flex items-center gap-1">
+              {/* Bulk actions */}
+              {selectionMode && selectedConvIds.size > 0 && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-xs h-7"
+                    onClick={bulkShare}
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                    Compartilhar ({selectedConvIds.size})
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-xs h-7 text-destructive hover:text-destructive"
+                    onClick={() => setBulkDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Excluir ({selectedConvIds.size})
+                  </Button>
+                  <div className="w-px h-5 bg-border/50 mx-1" />
+                </>
+              )}
               {messages.length > 0 && (
                 <DataMindAutoReport
                   messages={messages}
@@ -709,6 +786,29 @@ const DataMind = () => {
         onOpenChange={setApplyPipelineOpen}
         onApply={applyPipelineSteps}
       />
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar {selectedConvIds.size} conversa(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação não pode ser desfeita. Todas as mensagens e arquivos das conversas selecionadas serão permanentemente removidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                bulkDelete();
+                setBulkDeleteOpen(false);
+              }}
+            >
+              Apagar tudo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
