@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import AppSidebar from "@/components/app/AppSidebar";
+
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -231,7 +231,6 @@ const WritingAssistant = () => {
   };
 
   return (
-    <AppSidebar>
       <div className="flex h-screen overflow-hidden">
         {/* Left sidebar: Paper & DataMind selection */}
         <div className="w-72 border-r border-border/40 flex flex-col bg-background">
@@ -494,7 +493,6 @@ const WritingAssistant = () => {
           </div>
         </div>
       </div>
-    </AppSidebar>
   );
 };
 

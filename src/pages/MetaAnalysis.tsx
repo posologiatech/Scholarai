@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import AppSidebar from "@/components/app/AppSidebar";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -218,7 +218,6 @@ const MetaAnalysis = () => {
   const isContinuous = effectType === "cohens_d";
 
   return (
-    <AppSidebar>
       <div className="flex flex-col h-screen overflow-hidden">
         {/* Header */}
         <div className="border-b border-border/40 bg-background px-6 py-4">
@@ -553,7 +552,6 @@ const MetaAnalysis = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </AppSidebar>
   );
 };
 
