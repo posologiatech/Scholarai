@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.export-to-sheets]
 verify_jwt = false
+
+[functions.generate-knowledge-graph]
+verify_jwt = false
