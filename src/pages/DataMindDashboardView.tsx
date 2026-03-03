@@ -4,7 +4,7 @@ import { ArrowLeft, Share2, Globe, Lock, Trash2, Loader2, GripVertical, ImageIco
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
-import AppSidebar from "@/components/app/AppSidebar";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -155,14 +155,12 @@ const DataMindDashboardView = () => {
 
   if (loading) {
     return (
-      <AppSidebar>
-        <div className="flex justify-center items-center h-96"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-      </AppSidebar>
+      <div className="flex justify-center items-center h-96"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
     );
   }
 
   return (
-    <AppSidebar>
+    <>
       <div className="p-6 max-w-7xl mx-auto">
         {/* Toolbar */}
         <div className="flex items-center justify-between mb-6">
@@ -227,7 +225,7 @@ const DataMindDashboardView = () => {
           </div>
         )}
       </div>
-    </AppSidebar>
+    </>
   );
 };
 
