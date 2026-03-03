@@ -2,24 +2,25 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import AnimatedSection from "./AnimatedSection";
 
 const SocialProofSection = () => {
-  const { t } = useLanguage();
+  const { locale } = useLanguage();
+  const pt = locale === "pt";
 
   const institutions = [
-    "USP", "UNICAMP", "UFRJ", "Harvard", "MIT", "Stanford", "Oxford", "FIOCRUZ"
+    "USP", "UNICAMP", "UFRJ", "UFRN", "Harvard", "MIT", "Stanford", "Oxford", "FIOCRUZ", "UFMG"
   ];
 
   return (
-    <section className="py-14">
+    <section className="py-12 border-t border-border/20">
       <AnimatedSection>
-        <div className="container mx-auto">
-          <p className="mb-8 text-center text-xs font-medium uppercase tracking-widest text-muted-foreground/60">
-            {t("social.trusted")}
+        <div className="container mx-auto px-4">
+          <p className="mb-6 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/50">
+            {pt ? "Usado por pesquisadores em" : "Trusted by researchers at"}
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
             {institutions.map((name) => (
               <span
                 key={name}
-                className="font-display text-base font-semibold text-muted-foreground/30 transition-colors hover:text-muted-foreground/50"
+                className="font-display text-sm font-semibold text-muted-foreground/25 transition-colors hover:text-muted-foreground/45"
               >
                 {name}
               </span>
