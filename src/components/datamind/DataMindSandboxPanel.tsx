@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { ChevronRight, RotateCcw, Settings, Terminal, Code2, Check, Play } from "lucide-react";
+import { ChevronRight, RotateCcw, Terminal, Code2, Check, Play } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { PyodideStatus } from "@/hooks/usePyodide";
+import { WebRStatus } from "@/hooks/useWebR";
 
 interface Props {
   codeLanguage: string;
@@ -13,9 +14,12 @@ interface Props {
   pyodideStatus: PyodideStatus;
   onReset: () => void;
   onInit: () => void;
+  webRStatus?: WebRStatus;
+  onWebRInit?: () => void;
+  onWebRReset?: () => void;
 }
 
-const statusLabels: Record<PyodideStatus, { label: string; color: string }> = {
+const statusLabels: Record<string, { label: string; color: string }> = {
   idle: { label: "Offline", color: "text-muted-foreground" },
   loading: { label: "Carregando...", color: "text-amber-500" },
   installing: { label: "Instalando pacotes...", color: "text-amber-500" },
@@ -24,16 +28,30 @@ const statusLabels: Record<PyodideStatus, { label: string; color: string }> = {
   error: { label: "Erro", color: "text-destructive" },
 };
 
-const DataMindSandboxPanel = ({ codeLanguage, onLanguageChange, pyodideStatus, onReset, onInit }: Props) => {
+const DataMindSandboxPanel = ({ codeLanguage, onLanguageChange, pyodideStatus, onReset, onInit, webRStatus, onWebRInit, onWebRReset }: Props) => {
   const [open, setOpen] = useState(false);
   const [subMenu, setSubMenu] = useState<string | null>(null);
 
-  const statusInfo = statusLabels[pyodideStatus];
+  const isPython = codeLanguage === "python";
+  const activeStatus = isPython ? pyodideStatus : (webRStatus || "idle");
+  const statusInfo = statusLabels[activeStatus] || statusLabels.idle;
 
   const languages = [
-    { id: "python", label: "Python", icon: "🐍" },
-    { id: "r", label: "R", icon: "📊" },
+    { id: "python", label: "Python", icon: "🐍", status: statusLabels[pyodideStatus]?.label || "Offline" },
+    { id: "r", label: "R (WebR)", icon: "📊", status: statusLabels[webRStatus || "idle"]?.label || "Offline" },
   ];
+
+  const handleInit = () => {
+    if (isPython) onInit();
+    else onWebRInit?.();
+    setOpen(false);
+  };
+
+  const handleReset = () => {
+    if (isPython) onReset();
+    else onWebRReset?.();
+    setOpen(false);
+  };
 
   return (
     <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSubMenu(null); }}>
@@ -51,19 +69,23 @@ const DataMindSandboxPanel = ({ codeLanguage, onLanguageChange, pyodideStatus, o
             {/* Sandbox status */}
             <div className="px-3 py-2.5 border-b border-border/40">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-foreground">Pyodide (Browser)</span>
+                <span className="text-xs font-medium text-foreground">
+                  {isPython ? "Pyodide (Python)" : "WebR (R)"} · Browser
+                </span>
                 <span className={`text-xs font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Python roda no seu navegador — sem custo de servidor.
+                {isPython
+                  ? "Python roda no seu navegador — sem custo de servidor."
+                  : "R roda no seu navegador via WebAssembly."}
               </p>
             </div>
 
             {/* Init button when idle */}
-            {pyodideStatus === "idle" && (
+            {activeStatus === "idle" && (
               <button
                 className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-muted/50 transition-colors border-b border-border/40"
-                onClick={() => { onInit(); setOpen(false); }}
+                onClick={handleInit}
               >
                 <Play className="h-4 w-4 text-primary" />
                 <span className="text-sm text-foreground">Iniciar Sandbox</span>
@@ -88,8 +110,8 @@ const DataMindSandboxPanel = ({ codeLanguage, onLanguageChange, pyodideStatus, o
             {/* Reset */}
             <button
               className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-muted/50 transition-colors border-t border-border/40"
-              onClick={() => { onReset(); setOpen(false); }}
-              disabled={pyodideStatus === "idle"}
+              onClick={handleReset}
+              disabled={activeStatus === "idle"}
             >
               <RotateCcw className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-foreground">Reset Sandbox</span>
@@ -118,7 +140,10 @@ const DataMindSandboxPanel = ({ codeLanguage, onLanguageChange, pyodideStatus, o
                 }}
               >
                 <span className="text-sm">{lang.icon}</span>
-                <span className="text-sm text-foreground">{lang.label}</span>
+                <div className="flex-1 text-left">
+                  <span className="text-sm text-foreground">{lang.label}</span>
+                  <span className="text-[10px] text-muted-foreground ml-2">{lang.status}</span>
+                </div>
                 {codeLanguage === lang.id && <Check className="h-4 w-4 text-primary ml-auto" />}
               </button>
             ))}

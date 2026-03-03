@@ -14,8 +14,11 @@ import DataMindDbQuery from "@/components/datamind/DataMindDbQuery";
 import DataMindAutoReport from "@/components/datamind/DataMindAutoReport";
 import DataMindCollaboration from "@/components/datamind/DataMindCollaboration";
 import DataCleaningPanel from "@/components/datamind/DataCleaningPanel";
+import DataMindProfiler from "@/components/datamind/DataMindProfiler";
+import DataMindVersioning from "@/components/datamind/DataMindVersioning";
+import { useWebR } from "@/hooks/useWebR";
 import { Button } from "@/components/ui/button";
-import { PanelLeftClose, PanelLeft, GitBranch, Sparkles } from "lucide-react";
+import { PanelLeftClose, PanelLeft, GitBranch, Sparkles, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
 
@@ -74,10 +77,13 @@ const DataMind = () => {
   const [selectedModel, setSelectedModel] = useState<{ provider: string; model: string } | null>(null);
   const [codeLanguage, setCodeLanguage] = useState("python");
   const pyodide = usePyodide();
+  const webR = useWebR();
   const loadedFilesRef = useRef<Set<string>>(new Set());
   const [applyPipelineOpen, setApplyPipelineOpen] = useState(false);
   const [activeDbConnection, setActiveDbConnection] = useState<any>(null);
   const [cleaningOpen, setCleaningOpen] = useState(false);
+  const [showProfiler, setShowProfiler] = useState(false);
+  const [profilingDone, setProfilingDone] = useState(false);
 
   // Full spreadsheet data (client-side only, not persisted)
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
@@ -110,6 +116,8 @@ const DataMind = () => {
       setFiles([]);
       setSpreadsheetData(null);
       setSelectedContext(null);
+      setShowProfiler(false);
+      setProfilingDone(false);
       return;
     }
     const loadMessages = async () => {
@@ -333,6 +341,11 @@ const DataMind = () => {
       if (fileData) {
         uploadedFile = fileData as unknown as DataMindFile;
         setFiles((prev) => [...prev, uploadedFile!]);
+        // Auto-show profiler on upload
+        if (!profilingDone) {
+          setShowProfiler(true);
+          setProfilingDone(true);
+        }
       }
     }
 
@@ -416,18 +429,27 @@ const DataMind = () => {
       if (codeBlock && (uploadedFile || files.length > 0)) {
         const targetFile = uploadedFile || files[0];
         try {
-          if (!loadedFilesRef.current.has(targetFile.file_path)) {
+          const isRCode = codeLanguage === "r";
+          const runtime = isRCode ? webR : pyodide;
+          
+          if (!loadedFilesRef.current.has(targetFile.file_path + (isRCode ? "_r" : "_py"))) {
             const { data: fileBlob } = await supabase.storage
               .from("datamind-files")
               .download(targetFile.file_path);
             if (fileBlob) {
               const arrayBuf = await fileBlob.arrayBuffer();
-              await pyodide.writeFile(targetFile.file_name, arrayBuf);
-              loadedFilesRef.current.add(targetFile.file_path);
+              if (isRCode) {
+                await webR.writeFile(targetFile.file_name, arrayBuf);
+              } else {
+                await pyodide.writeFile(targetFile.file_name, arrayBuf);
+              }
+              loadedFilesRef.current.add(targetFile.file_path + (isRCode ? "_r" : "_py"));
             }
           }
 
-          const result = await pyodide.runPython(codeBlock, targetFile.file_name);
+          const result = isRCode
+            ? await webR.runR(codeBlock, targetFile.file_name)
+            : await pyodide.runPython(codeBlock, targetFile.file_name);
 
           if (result.error) {
             outputType = "text";
@@ -573,16 +595,34 @@ const DataMind = () => {
               {conversationId && (
                 <DataMindCollaboration conversationId={conversationId} />
               )}
+              {conversationId && messages.length > 0 && (
+                <DataMindVersioning
+                  conversationId={conversationId}
+                  messages={messages}
+                  onRestore={(restored) => setMessages(restored)}
+                />
+              )}
               {spreadsheetData && spreadsheetData.columns.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5 text-xs h-7"
-                  onClick={() => setCleaningOpen(!cleaningOpen)}
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Limpeza
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-xs h-7"
+                    onClick={() => setShowProfiler(!showProfiler)}
+                  >
+                    <Activity className="h-3.5 w-3.5" />
+                    Perfil
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-xs h-7"
+                    onClick={() => setCleaningOpen(!cleaningOpen)}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Limpeza
+                  </Button>
+                </>
               )}
               {messages.length > 0 && (
                 <SavePipelineDialog
@@ -602,7 +642,7 @@ const DataMind = () => {
                 </Button>
               )}
               <DataMindModelSelector value={selectedModel} onChange={setSelectedModel} />
-              <DataMindSandboxPanel codeLanguage={codeLanguage} onLanguageChange={setCodeLanguage} pyodideStatus={pyodide.status} onReset={pyodide.reset} onInit={pyodide.init} />
+              <DataMindSandboxPanel codeLanguage={codeLanguage} onLanguageChange={setCodeLanguage} pyodideStatus={pyodide.status} onReset={pyodide.reset} onInit={pyodide.init} webRStatus={webR.status} onWebRInit={webR.init} onWebRReset={webR.reset} />
             </div>
           </div>
 
@@ -633,6 +673,18 @@ const DataMind = () => {
                   setCleaningOpen(false);
                 }}
                 onClose={() => setCleaningOpen(false)}
+              />
+            </div>
+          )}
+
+          {/* Smart Data Profiler */}
+          {showProfiler && spreadsheetData && spreadsheetData.columns.length > 0 && (
+            <div className="px-4 py-3 border-b border-border/30">
+              <DataMindProfiler
+                data={spreadsheetData}
+                fileName={files[0]?.file_name || "dataset"}
+                onClose={() => setShowProfiler(false)}
+                onSendToChat={(msg) => { setShowProfiler(false); sendMessage(msg); }}
               />
             </div>
           )}

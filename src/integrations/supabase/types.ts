@@ -148,6 +148,63 @@ export type Database = {
           },
         ]
       }
+      datamind_checkpoints: {
+        Row: {
+          branch_name: string | null
+          conversation_id: string
+          created_at: string
+          description: string | null
+          files_snapshot: Json
+          id: string
+          label: string
+          messages_snapshot: Json
+          parent_checkpoint_id: string | null
+          spreadsheet_snapshot: Json | null
+          user_id: string
+        }
+        Insert: {
+          branch_name?: string | null
+          conversation_id: string
+          created_at?: string
+          description?: string | null
+          files_snapshot?: Json
+          id?: string
+          label?: string
+          messages_snapshot?: Json
+          parent_checkpoint_id?: string | null
+          spreadsheet_snapshot?: Json | null
+          user_id: string
+        }
+        Update: {
+          branch_name?: string | null
+          conversation_id?: string
+          created_at?: string
+          description?: string | null
+          files_snapshot?: Json
+          id?: string
+          label?: string
+          messages_snapshot?: Json
+          parent_checkpoint_id?: string | null
+          spreadsheet_snapshot?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datamind_checkpoints_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "datamind_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "datamind_checkpoints_parent_checkpoint_id_fkey"
+            columns: ["parent_checkpoint_id"]
+            isOneToOne: false
+            referencedRelation: "datamind_checkpoints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       datamind_cleaning_profiles: {
         Row: {
           conversation_id: string | null
