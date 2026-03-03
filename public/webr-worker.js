@@ -3,41 +3,31 @@
 let webRInstance = null;
 let initialized = false;
 
-const WEBR_VERSION = "0.4.2";
-const WEBR_BASE = `https://webr.r-wasm.org/v${WEBR_VERSION}/`;
-
-async function loadWebRModule() {
-  // Dynamic import of the WebR ESM module from CDN
-  const { WebR } = await import(`${WEBR_BASE}webr.mjs`);
-  return WebR;
-}
-
 async function initWebR() {
   if (webRInstance && initialized) return webRInstance;
 
   try {
     self.postMessage({ type: "status", data: "loading" });
 
-    const WebR = await loadWebRModule();
+    // Import WebR and ChannelType from CDN
+    const { WebR, ChannelType } = await import("https://webr.r-wasm.org/latest/webr.mjs");
+
     webRInstance = new WebR({
-      baseUrl: WEBR_BASE,
-      // Use PostMessage channel for communication (works in workers)
-      channelType: 1, // ChannelType.PostMessage — numeric because we import from CDN
+      channelType: ChannelType.PostMessage,
     });
 
     await webRInstance.init();
     initialized = true;
     self.postMessage({ type: "status", data: "ready" });
 
-    // Install commonly used packages (best-effort, don't block on failure)
+    // Install basic packages (best-effort)
     try {
       self.postMessage({ type: "status", data: "installing_packages" });
       await webRInstance.installPackages(["jsonlite"], { quiet: true });
-      self.postMessage({ type: "status", data: "packages_ready" });
     } catch (e) {
-      console.warn("Some R packages failed to install:", e);
-      self.postMessage({ type: "status", data: "packages_ready" });
+      console.warn("R package install warning:", e);
     }
+    self.postMessage({ type: "status", data: "packages_ready" });
 
     return webRInstance;
   } catch (err) {
@@ -49,8 +39,7 @@ async function initWebR() {
 async function writeFile(fileName, data) {
   const r = await initWebR();
   const uint8 = new Uint8Array(data);
-  const path = "/tmp/" + fileName;
-  await r.FS.writeFile(path, uint8);
+  await r.FS.writeFile("/tmp/" + fileName, uint8);
   self.postMessage({ type: "fileWritten", data: fileName });
 }
 
@@ -62,37 +51,31 @@ async function runCode(code, fileName) {
   if (fileName) {
     const lowerName = fileName.toLowerCase();
     if (lowerName.endsWith(".csv")) {
-      fullCode += `df <- tryCatch(read.csv("/tmp/${fileName}", stringsAsFactors=FALSE), error=function(e) { cat("Aviso: falha ao carregar arquivo:", e$message, "\\n"); NULL })\n`;
+      fullCode += 'df <- tryCatch(read.csv("/tmp/' + fileName + '", stringsAsFactors=FALSE), error=function(e) { cat("Aviso:", e$message, "\\n"); NULL })\n';
     }
   }
 
   fullCode += code;
 
   try {
-    // Use evalR for simpler, more reliable execution
-    const result = await r.evalR(`
-      .output <- tryCatch({
-        capture.output({
-          ${fullCode.replace(/`/g, "\\`")}
-        }, type = "output")
-      }, error = function(e) {
-        paste0("ERRO: ", e$message)
-      })
-      paste(.output, collapse = "\\n")
-    `);
+    // Wrap code in capture.output for clean text output
+    const wrappedCode = 'paste(capture.output({ ' + fullCode + ' }), collapse = "\\n")';
+    const result = await r.evalR(wrappedCode);
 
     let stdout = "";
     try {
-      const jsResult = await result.toJs();
-      stdout = typeof jsResult === "object" && jsResult.values
-        ? jsResult.values.join("\n")
-        : String(jsResult);
-    } catch (convErr) {
-      stdout = String(await result.toString());
+      const jsVal = await result.toJs();
+      if (jsVal && typeof jsVal === "object" && jsVal.values) {
+        stdout = jsVal.values.join("\n");
+      } else {
+        stdout = String(jsVal);
+      }
+    } catch (_) {
+      stdout = "";
     }
 
-    // Clean up R object
-    try { await r.destroy(result); } catch (_) { /* ignore */ }
+    // Destroy the R proxy object
+    try { await webRInstance.destroy(result); } catch (_) {}
 
     self.postMessage({
       type: "result",
@@ -108,7 +91,7 @@ async function runCode(code, fileName) {
 
 async function resetRuntime() {
   if (webRInstance) {
-    try { await webRInstance.close(); } catch (_) { /* ignore */ }
+    try { await webRInstance.close(); } catch (_) {}
   }
   webRInstance = null;
   initialized = false;
@@ -117,7 +100,6 @@ async function resetRuntime() {
 
 self.onmessage = async (e) => {
   const { action, payload } = e.data;
-
   try {
     switch (action) {
       case "init":
@@ -133,7 +115,7 @@ self.onmessage = async (e) => {
         await resetRuntime();
         break;
       default:
-        self.postMessage({ type: "error", data: `Unknown action: ${action}` });
+        self.postMessage({ type: "error", data: "Unknown action: " + action });
     }
   } catch (err) {
     self.postMessage({ type: "error", data: err.message || String(err) });
