@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.check-alerts]
 verify_jwt = false
+
+[functions.risk-of-bias]
+verify_jwt = false
