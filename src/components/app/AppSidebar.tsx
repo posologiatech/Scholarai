@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   GraduationCap, Globe, LogOut, BookOpen, Table, FileText,
   LayoutDashboard, Shield, ShieldCheck, Palette, BrainCircuit,
-  PanelLeftClose, PanelLeft, Network, Users, PenLine,
+  PanelLeftClose, PanelLeft, Network, Users, PenLine, BarChart3,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -38,6 +38,7 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
     { label: locale === "pt" ? "Mapa de Conhecimento" : "Knowledge Map", href: "/knowledge-graph", icon: Network },
     { label: "Workspaces", href: "/workspaces", icon: Users },
     { label: locale === "pt" ? "Escrita Científica" : "Writing Assistant", href: "/writing", icon: PenLine },
+    { label: locale === "pt" ? "Meta-análise" : "Meta-Analysis", href: "/meta-analysis", icon: BarChart3 },
     ...(isAdmin ? [{ label: t("nav.admin"), href: "/admin", icon: Shield }] : []),
   ];
 

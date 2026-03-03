@@ -35,6 +35,7 @@ import DataMind from "./pages/DataMind";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import Workspaces from "./pages/Workspaces";
 import WritingAssistant from "./pages/WritingAssistant";
+import MetaAnalysis from "./pages/MetaAnalysis";
 import WorkspaceDetail from "./pages/WorkspaceDetail";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import NotFound from "./pages/NotFound";
@@ -83,6 +84,7 @@ const App = () => (
               <Route path="/workspaces" element={<ProtectedRoute><Workspaces /></ProtectedRoute>} />
               <Route path="/writing" element={<ProtectedRoute><WritingAssistant /></ProtectedRoute>} />
               <Route path="/workspaces/:id" element={<ProtectedRoute><WorkspaceDetail /></ProtectedRoute>} />
+              <Route path="/meta-analysis" element={<ProtectedRoute><MetaAnalysis /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
