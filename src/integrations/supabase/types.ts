@@ -337,6 +337,80 @@ export type Database = {
           },
         ]
       }
+      datamind_pipeline_steps: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          pipeline_id: string
+          prompt: string
+          step_order: number
+        }
+        Insert: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          pipeline_id: string
+          prompt?: string
+          step_order?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          pipeline_id?: string
+          prompt?: string
+          step_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datamind_pipeline_steps_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "datamind_pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      datamind_pipelines: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_public: boolean
+          tags: string[]
+          title: string
+          updated_at: string
+          usage_count: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          usage_count?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          usage_count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       extraction_cache: {
         Row: {
           citation_context: string | null

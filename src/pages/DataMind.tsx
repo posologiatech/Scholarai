@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePyodide, PyodideStatus } from "@/hooks/usePyodide";
@@ -7,8 +7,10 @@ import DataMindSidebar from "@/components/datamind/DataMindSidebar";
 import DataMindChat from "@/components/datamind/DataMindChat";
 import DataMindModelSelector from "@/components/datamind/DataMindModelSelector";
 import DataMindSandboxPanel from "@/components/datamind/DataMindSandboxPanel";
+import SavePipelineDialog from "@/components/datamind/SavePipelineDialog";
+import ApplyPipelineDialog from "@/components/datamind/ApplyPipelineDialog";
 import { Button } from "@/components/ui/button";
-import { PanelLeftClose, PanelLeft } from "lucide-react";
+import { PanelLeftClose, PanelLeft, GitBranch } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
 
@@ -55,6 +57,7 @@ const MAX_ROWS = 50000;
 
 const DataMind = () => {
   const { id: conversationId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -67,6 +70,7 @@ const DataMind = () => {
   const [codeLanguage, setCodeLanguage] = useState("python");
   const pyodide = usePyodide();
   const loadedFilesRef = useRef<Set<string>>(new Set());
+  const [applyPipelineOpen, setApplyPipelineOpen] = useState(false);
 
   // Full spreadsheet data (client-side only, not persisted)
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
@@ -488,6 +492,27 @@ const DataMind = () => {
     setLoading(false);
   };
 
+  // Apply pipeline: sequentially send each step's prompt
+  const applyPipelineSteps = async (steps: { prompt: string; code: string }[]) => {
+    for (const step of steps) {
+      if (step.prompt) {
+        await sendMessage(step.prompt);
+        // Small delay between steps for readability
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    }
+    toast({ title: "Pipeline aplicado!", description: `${steps.length} etapas executadas.` });
+  };
+
+  // Auto-open apply dialog if pipeline param
+  useEffect(() => {
+    const pipelineId = searchParams.get("pipeline");
+    if (pipelineId) {
+      setApplyPipelineOpen(true);
+      setSearchParams({});
+    }
+  }, [searchParams]);
+
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       
@@ -523,6 +548,23 @@ const DataMind = () => {
                 : "Nova Análise"}
             </span>
             <div className="ml-auto flex items-center gap-1">
+              {messages.length > 0 && (
+                <SavePipelineDialog
+                  messages={messages}
+                  conversationTitle={conversations.find((c) => c.id === conversationId)?.title}
+                />
+              )}
+              {files.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7"
+                  onClick={() => setApplyPipelineOpen(true)}
+                >
+                  <GitBranch className="h-3.5 w-3.5" />
+                  Aplicar Pipeline
+                </Button>
+              )}
               <DataMindModelSelector value={selectedModel} onChange={setSelectedModel} />
               <DataMindSandboxPanel codeLanguage={codeLanguage} onLanguageChange={setCodeLanguage} pyodideStatus={pyodide.status} onReset={pyodide.reset} onInit={pyodide.init} />
             </div>
@@ -541,6 +583,12 @@ const DataMind = () => {
           />
         </div>
       </div>
+
+      <ApplyPipelineDialog
+        open={applyPipelineOpen}
+        onOpenChange={setApplyPipelineOpen}
+        onApply={applyPipelineSteps}
+      />
     </div>
   );
 };

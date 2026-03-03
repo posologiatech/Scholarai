@@ -42,6 +42,7 @@ import WorkspaceDetail from "./pages/WorkspaceDetail";
 import DataMindDashboards from "./pages/DataMindDashboards";
 import DataMindDashboardView from "./pages/DataMindDashboardView";
 import SharedDashboard from "./pages/SharedDashboard";
+import DataMindPipelines from "./pages/DataMindPipelines";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -95,6 +96,7 @@ const App = () => (
               <Route path="/datamind/dashboards" element={<ProtectedRoute><DataMindDashboards /></ProtectedRoute>} />
               <Route path="/datamind/dashboard/:id" element={<ProtectedRoute><DataMindDashboardView /></ProtectedRoute>} />
               <Route path="/shared/dashboard/:token" element={<SharedDashboard />} />
+              <Route path="/datamind/pipelines" element={<ProtectedRoute><DataMindPipelines /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
