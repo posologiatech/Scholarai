@@ -128,6 +128,11 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
+          {!collapsed && (
+            <p className="px-3 py-1 text-[10px] text-muted-foreground/60 leading-tight">
+              Desenvolvido por Sérgio Araújo. Posologia Produções
+            </p>
+          )}
         </div>
       </aside>
 
