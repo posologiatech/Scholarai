@@ -1,23 +1,17 @@
 import { useRef, useCallback, useState, useEffect, useMemo } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  ZoomIn, ZoomOut, Maximize2, Filter, Eye, EyeOff, Info, X,
-} from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 
 export interface GraphNode {
   id: string;
-  type: "paper" | "author" | "concept" | "method";
   label: string;
   year?: number;
   citationCount?: number;
-  cluster?: string;
   paperIndex?: number;
-  paperCount?: number;
+  similarity?: number;
+  tldr?: string;
+  isOrigin?: boolean;
   // Force-graph internal
   x?: number;
   y?: number;
@@ -28,197 +22,146 @@ export interface GraphNode {
 export interface GraphEdge {
   source: string | GraphNode;
   target: string | GraphNode;
-  type: "cites" | "authored" | "discusses" | "uses_method" | "related";
-}
-
-export interface GraphCluster {
-  id: string;
-  label: string;
-  conceptCount?: number;
+  weight?: number;
 }
 
 interface Props {
   nodes: GraphNode[];
   edges: GraphEdge[];
-  clusters: GraphCluster[];
+  selectedNodeId?: string | null;
+  highlightPath?: Set<string>;
   onNodeClick?: (node: GraphNode) => void;
+  onNodeHover?: (node: GraphNode | null) => void;
   width?: number;
   height?: number;
+  yearRange?: [number, number];
 }
 
-const CLUSTER_COLORS: Record<string, string> = {
-  blue: "#3b82f6",
-  green: "#22c55e",
-  purple: "#a855f7",
-  orange: "#f97316",
-  red: "#ef4444",
-  cyan: "#06b6d4",
-  pink: "#ec4899",
-  yellow: "#eab308",
-};
+// Color gradient: light beige (old) → dark green (recent) — Connected Papers style
+function yearToColor(year: number | undefined, minYear: number, maxYear: number): string {
+  if (!year || minYear === maxYear) return "#8fbc8f";
+  const t = (year - minYear) / (maxYear - minYear);
+  // beige → olive → dark green
+  const r = Math.round(210 - t * 170);
+  const g = Math.round(190 - t * 60);
+  const b = Math.round(140 - t * 110);
+  return `rgb(${r},${g},${b})`;
+}
 
-const TYPE_SHAPES: Record<string, string> = {
-  paper: "circle",
-  author: "diamond",
-  concept: "hexagon",
-  method: "square",
-};
-
-const TYPE_COLORS: Record<string, string> = {
-  paper: "#3b82f6",
-  author: "#8b5cf6",
-  concept: "#f59e0b",
-  method: "#10b981",
-};
-
-const TYPE_SIZES: Record<string, number> = {
-  paper: 6,
-  author: 7,
-  concept: 10,
-  method: 8,
-};
-
-const EDGE_COLORS: Record<string, string> = {
-  cites: "#94a3b8",
-  authored: "#c084fc",
-  discusses: "#fbbf24",
-  uses_method: "#34d399",
-  related: "#fb923c",
-};
+function citationToSize(count: number | undefined): number {
+  if (!count || count <= 0) return 5;
+  return Math.min(4 + Math.log2(count + 1) * 2.5, 20);
+}
 
 const KnowledgeGraphView = ({
   nodes,
   edges,
-  clusters,
+  selectedNodeId,
+  highlightPath,
   onNodeClick,
+  onNodeHover,
   width = 800,
   height = 600,
+  yearRange,
 }: Props) => {
   const fgRef = useRef<ForceGraphMethods | undefined>();
-  const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
-  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
-  const [visibleTypes, setVisibleTypes] = useState<Set<string>>(
-    new Set(["paper", "author", "concept", "method"])
-  );
-  const [visibleEdgeTypes, setVisibleEdgeTypes] = useState<Set<string>>(
-    new Set(["cites", "authored", "discusses", "uses_method", "related"])
-  );
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // Filter nodes and edges
-  const filteredNodes = useMemo(
-    () => nodes.filter((n) => visibleTypes.has(n.type)),
-    [nodes, visibleTypes]
-  );
-  const filteredNodeIds = useMemo(
-    () => new Set(filteredNodes.map((n) => n.id)),
-    [filteredNodes]
-  );
-  const filteredEdges = useMemo(
-    () =>
-      edges.filter((e) => {
-        const sid = typeof e.source === "string" ? e.source : e.source.id;
-        const tid = typeof e.target === "string" ? e.target : e.target.id;
-        return (
-          visibleEdgeTypes.has(e.type) &&
-          filteredNodeIds.has(sid) &&
-          filteredNodeIds.has(tid)
-        );
-      }),
-    [edges, visibleEdgeTypes, filteredNodeIds]
-  );
+  const [minYear, maxYear] = useMemo(() => {
+    if (yearRange) return yearRange;
+    const years = nodes.map(n => n.year).filter(Boolean) as number[];
+    if (years.length === 0) return [2000, 2025];
+    return [Math.min(...years), Math.max(...years)];
+  }, [nodes, yearRange]);
 
   const graphData = useMemo(
-    () => ({ nodes: filteredNodes, links: filteredEdges }),
-    [filteredNodes, filteredEdges]
+    () => ({ nodes: [...nodes], links: [...edges] }),
+    [nodes, edges]
   );
 
-  // Zoom controls
+  // Zoom
   const handleZoomIn = () => fgRef.current?.zoom(fgRef.current.zoom() * 1.3, 300);
   const handleZoomOut = () => fgRef.current?.zoom(fgRef.current.zoom() / 1.3, 300);
   const handleFitView = () => fgRef.current?.zoomToFit(400, 40);
 
   useEffect(() => {
-    // Fit view after initial render
-    const timer = setTimeout(() => fgRef.current?.zoomToFit(400, 60), 500);
+    const timer = setTimeout(() => fgRef.current?.zoomToFit(400, 60), 600);
     return () => clearTimeout(timer);
-  }, []);
+  }, [nodes]);
 
-  const handleNodeClick = useCallback(
-    (node: any) => {
-      setSelectedNode(node as GraphNode);
-      onNodeClick?.(node as GraphNode);
-      // Center on node
-      fgRef.current?.centerAt(node.x, node.y, 300);
-      fgRef.current?.zoom(3, 300);
-    },
-    [onNodeClick]
-  );
+  // Center on selected node
+  useEffect(() => {
+    if (selectedNodeId) {
+      const node = nodes.find(n => n.id === selectedNodeId);
+      if (node?.x !== undefined && node?.y !== undefined) {
+        fgRef.current?.centerAt(node.x, node.y, 400);
+      }
+    }
+  }, [selectedNodeId, nodes]);
 
-  // Custom node rendering
+  const handleClick = useCallback((node: any) => {
+    onNodeClick?.(node as GraphNode);
+  }, [onNodeClick]);
+
+  const handleHover = useCallback((node: any) => {
+    setHoveredId(node ? (node as GraphNode).id : null);
+    onNodeHover?.(node as GraphNode | null);
+  }, [onNodeHover]);
+
   const paintNode = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const n = node as GraphNode;
-      const size = TYPE_SIZES[n.type] || 6;
-      const color = n.cluster
-        ? CLUSTER_COLORS[n.cluster] || TYPE_COLORS[n.type]
-        : TYPE_COLORS[n.type];
-      const isHovered = hoveredNode?.id === n.id;
-      const isSelected = selectedNode?.id === n.id;
-      const radius = size * (isHovered || isSelected ? 1.4 : 1);
+      const size = citationToSize(n.citationCount);
+      const color = yearToColor(n.year, minYear, maxYear);
+      const isHovered = hoveredId === n.id;
+      const isSelected = selectedNodeId === n.id;
+      const isOrigin = n.isOrigin;
+      const isInPath = highlightPath?.has(n.id);
+      const radius = size * (isHovered || isSelected ? 1.3 : 1);
 
-      ctx.beginPath();
-
-      if (n.type === "concept") {
-        // Hexagon
-        for (let i = 0; i < 6; i++) {
-          const angle = (Math.PI / 3) * i - Math.PI / 6;
-          const x = node.x + radius * Math.cos(angle);
-          const y = node.y + radius * Math.sin(angle);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.closePath();
-      } else if (n.type === "method") {
-        // Square
-        ctx.rect(node.x - radius, node.y - radius, radius * 2, radius * 2);
-      } else if (n.type === "author") {
-        // Diamond
-        ctx.moveTo(node.x, node.y - radius * 1.2);
-        ctx.lineTo(node.x + radius, node.y);
-        ctx.lineTo(node.x, node.y + radius * 1.2);
-        ctx.lineTo(node.x - radius, node.y);
-        ctx.closePath();
-      } else {
-        // Circle for papers
-        ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
+      // Glow for path highlight
+      if (isInPath) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, radius + 3, 0, 2 * Math.PI);
+        ctx.fillStyle = "rgba(168, 85, 247, 0.2)";
+        ctx.fill();
       }
 
+      // Main circle
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
       ctx.fillStyle = color;
-      ctx.globalAlpha = isHovered || isSelected ? 1 : 0.85;
+      ctx.globalAlpha = isHovered || isSelected || isInPath ? 1 : 0.85;
       ctx.fill();
 
-      if (isSelected) {
+      // Origin border (purple)
+      if (isOrigin) {
+        ctx.strokeStyle = "#a855f7";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      } else if (isSelected) {
         ctx.strokeStyle = "#fff";
         ctx.lineWidth = 2;
+        ctx.stroke();
+      } else if (isInPath) {
+        ctx.strokeStyle = "#c084fc";
+        ctx.lineWidth = 1.5;
         ctx.stroke();
       }
 
       ctx.globalAlpha = 1;
 
-      // Label
-      if (globalScale > 1.2 || isHovered || isSelected) {
-        const label = n.label.length > 30 ? n.label.slice(0, 28) + "…" : n.label;
+      // Label on zoom or hover
+      if (globalScale > 1.5 || isHovered || isSelected) {
+        const label = n.label.length > 35 ? n.label.slice(0, 33) + "…" : n.label;
         const fontSize = Math.max(10 / globalScale, 2.5);
         ctx.font = `${isHovered || isSelected ? "bold " : ""}${fontSize}px sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        ctx.fillStyle = isHovered || isSelected ? "#fff" : "rgba(255,255,255,0.9)";
 
-        // Background for text
         const textWidth = ctx.measureText(label).width;
         const bgPad = 2 / globalScale;
-        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
         ctx.fillRect(
           node.x - textWidth / 2 - bgPad,
           node.y + radius + 2 / globalScale,
@@ -230,165 +173,70 @@ const KnowledgeGraphView = ({
         ctx.fillText(label, node.x, node.y + radius + 2 / globalScale + bgPad);
       }
     },
-    [hoveredNode, selectedNode]
+    [hoveredId, selectedNodeId, highlightPath, minYear, maxYear]
   );
 
-  const toggleType = (type: string) => {
-    setVisibleTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-      return next;
-    });
-  };
+  const paintLink = useCallback(
+    (link: any, ctx: CanvasRenderingContext2D) => {
+      const sourceId = typeof link.source === "string" ? link.source : link.source?.id;
+      const targetId = typeof link.target === "string" ? link.target : link.target?.id;
+      const inPath = highlightPath?.has(sourceId) && highlightPath?.has(targetId);
 
-  const toggleEdgeType = (type: string) => {
-    setVisibleEdgeTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-      return next;
+      ctx.beginPath();
+      ctx.moveTo(link.source.x, link.source.y);
+      ctx.lineTo(link.target.x, link.target.y);
+      ctx.strokeStyle = inPath ? "rgba(168, 85, 247, 0.6)" : "rgba(148, 163, 184, 0.25)";
+      ctx.lineWidth = inPath ? 2 : Math.max(0.5, (link.weight || 30) / 60);
+      ctx.stroke();
+    },
+    [highlightPath]
+  );
+
+  // Timeline bar
+  const timelineYears = useMemo(() => {
+    const years: Record<number, number> = {};
+    nodes.forEach(n => {
+      if (n.year) years[n.year] = (years[n.year] || 0) + 1;
     });
-  };
+    return Object.entries(years)
+      .map(([y, c]) => ({ year: Number(y), count: c }))
+      .sort((a, b) => a.year - b.year);
+  }, [nodes]);
+
+  const maxCount = Math.max(1, ...timelineYears.map(t => t.count));
 
   return (
-    <div className="relative w-full rounded-xl border border-border/60 bg-card overflow-hidden">
-      {/* Toolbar */}
+    <div className="relative w-full h-full bg-card overflow-hidden">
+      {/* Zoom controls */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
-        <Button size="icon" variant="secondary" className="h-8 w-8 bg-card/90 backdrop-blur-sm shadow-md" onClick={handleZoomIn}>
-          <ZoomIn className="h-4 w-4" />
+        <Button size="icon" variant="secondary" className="h-7 w-7 bg-card/90 backdrop-blur-sm shadow-md" onClick={handleZoomIn}>
+          <ZoomIn className="h-3.5 w-3.5" />
         </Button>
-        <Button size="icon" variant="secondary" className="h-8 w-8 bg-card/90 backdrop-blur-sm shadow-md" onClick={handleZoomOut}>
-          <ZoomOut className="h-4 w-4" />
+        <Button size="icon" variant="secondary" className="h-7 w-7 bg-card/90 backdrop-blur-sm shadow-md" onClick={handleZoomOut}>
+          <ZoomOut className="h-3.5 w-3.5" />
         </Button>
-        <Button size="icon" variant="secondary" className="h-8 w-8 bg-card/90 backdrop-blur-sm shadow-md" onClick={handleFitView}>
-          <Maximize2 className="h-4 w-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant={showFilters ? "default" : "secondary"}
-          className="h-8 w-8 bg-card/90 backdrop-blur-sm shadow-md"
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          <Filter className="h-4 w-4" />
+        <Button size="icon" variant="secondary" className="h-7 w-7 bg-card/90 backdrop-blur-sm shadow-md" onClick={handleFitView}>
+          <Maximize2 className="h-3.5 w-3.5" />
         </Button>
       </div>
 
-      {/* Filter panel */}
-      {showFilters && (
-        <div className="absolute top-3 left-14 z-10 w-56 bg-card/95 backdrop-blur-sm border border-border/60 rounded-lg shadow-lg p-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-foreground">Filtros</span>
-            <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setShowFilters(false)}>
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-          <div className="space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tipos de nó</p>
-            {(["paper", "author", "concept", "method"] as const).map((type) => (
-              <label key={type} className="flex items-center gap-2 text-xs cursor-pointer">
-                <Checkbox
-                  checked={visibleTypes.has(type)}
-                  onCheckedChange={() => toggleType(type)}
-                  className="h-3.5 w-3.5"
-                />
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: TYPE_COLORS[type] }}
-                />
-                <span className="capitalize">{type === "paper" ? "Papers" : type === "author" ? "Autores" : type === "concept" ? "Conceitos" : "Métodos"}</span>
-              </label>
-            ))}
-
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mt-3">Tipos de conexão</p>
-            {(["cites", "authored", "discusses", "uses_method", "related"] as const).map((type) => (
-              <label key={type} className="flex items-center gap-2 text-xs cursor-pointer">
-                <Checkbox
-                  checked={visibleEdgeTypes.has(type)}
-                  onCheckedChange={() => toggleEdgeType(type)}
-                  className="h-3.5 w-3.5"
-                />
-                <span
-                  className="inline-block h-2 w-4 rounded-sm"
-                  style={{ backgroundColor: EDGE_COLORS[type] }}
-                />
-                <span className="capitalize">{type.replace("_", " ")}</span>
-              </label>
-            ))}
-          </div>
+      {/* Year color legend */}
+      <div className="absolute top-3 right-3 z-10 bg-card/90 backdrop-blur-sm border border-border/60 rounded-lg shadow-md px-3 py-2">
+        <p className="text-[10px] font-medium text-muted-foreground mb-1">Ano de publicação</p>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-muted-foreground">{minYear}</span>
+          <div
+            className="h-2.5 w-20 rounded-full"
+            style={{
+              background: `linear-gradient(to right, ${yearToColor(minYear, minYear, maxYear)}, ${yearToColor(maxYear, minYear, maxYear)})`,
+            }}
+          />
+          <span className="text-[10px] text-muted-foreground">{maxYear}</span>
         </div>
-      )}
-
-      {/* Cluster legend */}
-      {clusters.length > 0 && (
-        <div className="absolute top-3 right-3 z-10 bg-card/90 backdrop-blur-sm border border-border/60 rounded-lg shadow-md p-2.5 max-w-48">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Clusters</p>
-          <div className="space-y-1">
-            {clusters.map((c) => (
-              <div key={c.id} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: CLUSTER_COLORS[c.id] || "#888" }}
-                />
-                <span className="text-[11px] text-foreground truncate">{c.label}</span>
-              </div>
-            ))}
-          </div>
+        <div className="flex items-center gap-1.5 mt-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full border-2 border-purple-500 bg-transparent" />
+          <span className="text-[10px] text-muted-foreground">Origin paper</span>
         </div>
-      )}
-
-      {/* Node detail panel */}
-      {selectedNode && (
-        <div className="absolute bottom-3 right-3 z-10 bg-card/95 backdrop-blur-sm border border-border/60 rounded-lg shadow-lg p-3 w-64">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <Badge
-                variant="secondary"
-                className="text-[10px] mb-1"
-                style={{
-                  backgroundColor: TYPE_COLORS[selectedNode.type] + "20",
-                  color: TYPE_COLORS[selectedNode.type],
-                }}
-              >
-                {selectedNode.type}
-              </Badge>
-              <p className="text-sm font-medium text-foreground leading-tight truncate">
-                {selectedNode.label}
-              </p>
-              {selectedNode.year && (
-                <p className="text-xs text-muted-foreground mt-0.5">{selectedNode.year}</p>
-              )}
-              {selectedNode.citationCount !== undefined && (
-                <p className="text-xs text-muted-foreground">
-                  {selectedNode.citationCount} citações
-                </p>
-              )}
-              {selectedNode.paperCount !== undefined && (
-                <p className="text-xs text-muted-foreground">
-                  {selectedNode.paperCount} papers
-                </p>
-              )}
-            </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-5 w-5 shrink-0"
-              onClick={() => setSelectedNode(null)}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Stats bar */}
-      <div className="absolute bottom-3 left-3 z-10 flex gap-1.5">
-        <Badge variant="secondary" className="text-[10px] bg-card/90 backdrop-blur-sm shadow-sm">
-          {filteredNodes.length} nós
-        </Badge>
-        <Badge variant="secondary" className="text-[10px] bg-card/90 backdrop-blur-sm shadow-sm">
-          {filteredEdges.length} conexões
-        </Badge>
       </div>
 
       {/* Graph */}
@@ -396,28 +244,45 @@ const KnowledgeGraphView = ({
         ref={fgRef}
         graphData={graphData}
         width={width}
-        height={height}
+        height={height - 40}
         backgroundColor="transparent"
         nodeCanvasObject={paintNode}
         nodePointerAreaPaint={(node: any, color, ctx) => {
-          const size = TYPE_SIZES[(node as GraphNode).type] || 6;
+          const size = citationToSize((node as GraphNode).citationCount);
           ctx.fillStyle = color;
           ctx.beginPath();
           ctx.arc(node.x, node.y, size * 1.5, 0, 2 * Math.PI);
           ctx.fill();
         }}
-        onNodeClick={handleNodeClick}
-        onNodeHover={(node) => setHoveredNode(node as GraphNode | null)}
-        linkColor={(link: any) => EDGE_COLORS[link.type] || "#555"}
-        linkWidth={(link: any) => (link.type === "related" ? 1.5 : 1)}
-        linkDirectionalArrowLength={3.5}
-        linkDirectionalArrowRelPos={1}
-        linkCurvature={0.15}
+        linkCanvasObject={paintLink}
+        onNodeClick={handleClick}
+        onNodeHover={handleHover}
         d3AlphaDecay={0.03}
         d3VelocityDecay={0.3}
         warmupTicks={50}
         cooldownTicks={100}
       />
+
+      {/* Timeline bar */}
+      {timelineYears.length > 1 && (
+        <div className="absolute bottom-0 left-0 right-0 h-10 bg-card/90 backdrop-blur-sm border-t border-border/40 flex items-end px-4 gap-px">
+          {timelineYears.map(({ year, count }) => (
+            <div key={year} className="flex flex-col items-center flex-1 min-w-0">
+              <div
+                className="w-full max-w-3 rounded-t-sm"
+                style={{
+                  height: `${Math.max(4, (count / maxCount) * 24)}px`,
+                  backgroundColor: yearToColor(year, minYear, maxYear),
+                  opacity: 0.8,
+                }}
+              />
+              <span className="text-[8px] text-muted-foreground truncate leading-none mt-0.5">
+                {year.toString().slice(-2)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

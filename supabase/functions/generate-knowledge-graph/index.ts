@@ -30,57 +30,46 @@ serve(async (req) => {
       });
     }
 
-    // Build a summary of papers for the AI
-    const papersSummary = papers.slice(0, 30).map((p: Paper, i: number) => 
+    const papersSummary = papers.slice(0, 30).map((p: Paper, i: number) =>
       `[${i}] "${p.title}" by ${(p.authors || []).slice(0, 3).join(", ")}${(p.authors || []).length > 3 ? " et al." : ""} (${p.year || "n.d."})${p.journal ? ` — ${p.journal}` : ""}${p.citationCount ? ` [${p.citationCount} citations]` : ""}\nAbstract: ${(p.abstract || "").slice(0, 300)}...`
     ).join("\n\n");
 
-    const systemPrompt = `You are a knowledge graph generator for academic research. Analyze the given papers and extract a structured knowledge graph with nodes and edges.
+    const systemPrompt = `You are a Connected Papers-style graph generator. Given a set of academic papers from a search query, you must:
 
-Node types:
-- "paper": A research paper (use paper index as id prefix: "p0", "p1", etc.)
-- "author": A key author (use "a_" + normalized name: "a_john_smith")
-- "concept": A key concept/topic extracted from the papers (use "c_" + slug: "c_machine_learning")
-- "method": A methodology used (use "m_" + slug: "m_meta_analysis")
-
-Edge types:
-- "cites": paper -> paper (when one paper likely references another based on topic overlap)
-- "authored": author -> paper
-- "discusses": paper -> concept
-- "uses_method": paper -> method
-- "related": concept -> concept (when concepts are related)
+1. Treat paper [0] as the ORIGIN paper (seed paper).
+2. Generate ONLY paper nodes — no authors, concepts, or methods as separate nodes.
+3. For each paper node, assign a similarity score (0-100) relative to the origin paper based on:
+   - Topic overlap from abstracts
+   - Likely co-citation patterns  
+   - Bibliographic coupling (shared references)
+4. Generate edges between papers that are similar (similarity > 30). Edge weight = similarity score.
+5. Identify "Prior Works" — older foundational papers that the corpus builds upon.
+6. Identify "Derivative Works" — newer papers that extend or survey the corpus.
 
 Rules:
-- Extract 5-10 key concepts from the corpus
-- Extract 3-6 key methods/methodologies
-- Identify the top 5-8 most prominent authors
-- Create edges showing relationships
-- For each concept node, add a "cluster" field grouping related concepts (use a color name: "blue", "green", "purple", "orange", "red", "cyan")
-- For paper nodes, assign them to the cluster of their primary concept
-- Each node needs: id, type, label, and optional metadata (year, citationCount, cluster)
-- Keep it focused and meaningful — quality over quantity`;
+- All nodes are papers. Use "p0", "p1", etc. as IDs matching paper indices.
+- Each node must have: id, label (short title ≤60 chars), year, citationCount, paperIndex, similarity (to origin).
+- Each edge must have: source, target, weight (similarity 0-100).
+- Origin paper (p0) has similarity: 100.
+- Prior works: papers published BEFORE the origin that are highly cited/foundational. List their paperIndex values.
+- Derivative works: papers published AFTER the origin that cite or build upon the corpus. List their paperIndex values.
+- Generate a TL;DR summary (1-2 sentences) for each paper based on its abstract.`;
 
     const userPrompt = `Research query: "${query}"
 
 Papers:
 ${papersSummary}
 
-Generate the knowledge graph. Return ONLY valid JSON with this structure:
+Generate the Connected Papers-style graph. Return ONLY valid JSON:
 {
   "nodes": [
-    { "id": "p0", "type": "paper", "label": "Short title", "year": 2023, "citationCount": 45, "cluster": "blue", "paperIndex": 0 },
-    { "id": "a_john_smith", "type": "author", "label": "John Smith", "paperCount": 3 },
-    { "id": "c_machine_learning", "type": "concept", "label": "Machine Learning", "cluster": "blue" },
-    { "id": "m_rct", "type": "method", "label": "Randomized Controlled Trial", "cluster": "green" }
+    { "id": "p0", "label": "Short Title", "year": 2023, "citationCount": 45, "paperIndex": 0, "similarity": 100, "tldr": "One sentence summary." }
   ],
   "edges": [
-    { "source": "p0", "target": "c_machine_learning", "type": "discusses" },
-    { "source": "a_john_smith", "target": "p0", "type": "authored" },
-    { "source": "p0", "target": "m_rct", "type": "uses_method" }
+    { "source": "p0", "target": "p1", "weight": 75 }
   ],
-  "clusters": [
-    { "id": "blue", "label": "Cluster Theme Name", "conceptCount": 3 }
-  ]
+  "priorWorks": [1, 5, 8],
+  "derivativeWorks": [3, 7, 12]
 }`;
 
     const aiResponse = await callAI({
@@ -93,8 +82,8 @@ Generate the knowledge graph. Return ONLY valid JSON with this structure:
         {
           type: "function",
           function: {
-            name: "build_knowledge_graph",
-            description: "Build a knowledge graph from academic papers",
+            name: "build_connected_graph",
+            description: "Build a Connected Papers-style similarity graph from academic papers",
             parameters: {
               type: "object",
               properties: {
@@ -104,15 +93,14 @@ Generate the knowledge graph. Return ONLY valid JSON with this structure:
                     type: "object",
                     properties: {
                       id: { type: "string" },
-                      type: { type: "string", enum: ["paper", "author", "concept", "method"] },
                       label: { type: "string" },
                       year: { type: "number" },
                       citationCount: { type: "number" },
-                      cluster: { type: "string" },
                       paperIndex: { type: "number" },
-                      paperCount: { type: "number" },
+                      similarity: { type: "number" },
+                      tldr: { type: "string" },
                     },
-                    required: ["id", "type", "label"],
+                    required: ["id", "label", "paperIndex", "similarity"],
                   },
                 },
                 edges: {
@@ -122,30 +110,26 @@ Generate the knowledge graph. Return ONLY valid JSON with this structure:
                     properties: {
                       source: { type: "string" },
                       target: { type: "string" },
-                      type: { type: "string", enum: ["cites", "authored", "discusses", "uses_method", "related"] },
+                      weight: { type: "number" },
                     },
-                    required: ["source", "target", "type"],
+                    required: ["source", "target", "weight"],
                   },
                 },
-                clusters: {
+                priorWorks: {
                   type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      id: { type: "string" },
-                      label: { type: "string" },
-                      conceptCount: { type: "number" },
-                    },
-                    required: ["id", "label"],
-                  },
+                  items: { type: "number" },
+                },
+                derivativeWorks: {
+                  type: "array",
+                  items: { type: "number" },
                 },
               },
-              required: ["nodes", "edges", "clusters"],
+              required: ["nodes", "edges", "priorWorks", "derivativeWorks"],
             },
           },
         },
       ],
-      tool_choice: { type: "function", function: { name: "build_knowledge_graph" } },
+      tool_choice: { type: "function", function: { name: "build_connected_graph" } },
     });
 
     if (!aiResponse.ok) {
@@ -158,13 +142,12 @@ Generate the knowledge graph. Return ONLY valid JSON with this structure:
     }
 
     const aiData = await aiResponse.json();
-    
+
     let graphData;
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
     if (toolCall) {
       graphData = JSON.parse(toolCall.function.arguments);
     } else {
-      // Fallback: try to extract JSON from content
       const content = aiData.choices?.[0]?.message?.content || "";
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
