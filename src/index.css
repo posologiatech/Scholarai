@@ -109,3 +109,92 @@
     font-family: 'Space Grotesk', sans-serif;
   }
 }
+
+/* react-data-grid styles */
+.rdg {
+  --rdg-color: hsl(var(--foreground));
+  --rdg-border-color: hsl(var(--border));
+  --rdg-summary-border-color: hsl(var(--border));
+  --rdg-background-color: hsl(var(--card));
+  --rdg-header-background-color: hsl(var(--muted));
+  --rdg-header-draggable-background-color: hsl(var(--muted));
+  --rdg-row-hover-background-color: hsl(var(--accent));
+  --rdg-row-selected-background-color: hsl(var(--primary) / 0.08);
+  --rdg-row-selected-hover-background-color: hsl(var(--primary) / 0.12);
+  --rdg-checkbox-color: hsl(var(--primary));
+  --rdg-checkbox-focus-color: hsl(var(--ring));
+  --rdg-checkbox-disabled-border-color: hsl(var(--muted-foreground));
+  --rdg-selection-color: hsl(var(--primary));
+  --rdg-font-size: 13px;
+  block-size: 100%;
+  border: 1px solid var(--rdg-border-color);
+  contain: strict;
+  content-visibility: auto;
+  display: grid;
+  font-size: var(--rdg-font-size);
+  color: var(--rdg-color);
+  background-color: var(--rdg-background-color);
+  overflow: auto;
+}
+
+.rdg *,
+.rdg *::before,
+.rdg *::after {
+  box-sizing: border-box;
+}
+
+.rdg-cell {
+  padding-block: 0;
+  padding-inline: 8px;
+  border-inline-end: 1px solid var(--rdg-border-color);
+  border-block-end: 1px solid var(--rdg-border-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  contain: style;
+  display: flex;
+  align-items: center;
+}
+
+.rdg-header-row .rdg-cell {
+  background-color: var(--rdg-header-background-color);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: hsl(var(--muted-foreground));
+}
+
+.rdg-row {
+  display: contents;
+}
+
+.rdg-row:hover .rdg-cell {
+  background-color: var(--rdg-row-hover-background-color);
+}
+
+.rdg-row[aria-selected="true"] .rdg-cell {
+  background-color: var(--rdg-row-selected-background-color);
+}
+
+.rdg-row[aria-selected="true"]:hover .rdg-cell {
+  background-color: var(--rdg-row-selected-hover-background-color);
+}
+
+.rdg-checkbox-input {
+  accent-color: var(--rdg-checkbox-color);
+}
+
+.rdg-sort-arrow {
+  fill: currentColor;
+}
+
+.rdg-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.fill-grid {
+  block-size: 100%;
+  inline-size: 100%;
+}
