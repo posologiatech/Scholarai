@@ -41,6 +41,59 @@ export type Database = {
         }
         Relationships: []
       }
+      alert_results: {
+        Row: {
+          alert_id: string
+          found_at: string
+          id: string
+          is_read: boolean
+          paper_abstract: string | null
+          paper_authors: Json | null
+          paper_doi: string | null
+          paper_source: string | null
+          paper_title: string
+          paper_url: string | null
+          paper_year: number | null
+          user_id: string
+        }
+        Insert: {
+          alert_id: string
+          found_at?: string
+          id?: string
+          is_read?: boolean
+          paper_abstract?: string | null
+          paper_authors?: Json | null
+          paper_doi?: string | null
+          paper_source?: string | null
+          paper_title: string
+          paper_url?: string | null
+          paper_year?: number | null
+          user_id: string
+        }
+        Update: {
+          alert_id?: string
+          found_at?: string
+          id?: string
+          is_read?: boolean
+          paper_abstract?: string | null
+          paper_authors?: Json | null
+          paper_doi?: string | null
+          paper_source?: string | null
+          paper_title?: string
+          paper_url?: string | null
+          paper_year?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_results_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "literature_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       citation_classifications: {
         Row: {
           citation_context: string | null
@@ -258,6 +311,42 @@ export type Database = {
         }
         Relationships: []
       }
+      literature_alerts: {
+        Row: {
+          created_at: string
+          filters: Json
+          frequency: string
+          id: string
+          is_active: boolean
+          last_checked_at: string | null
+          query: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          filters?: Json
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_checked_at?: string | null
+          query: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          filters?: Json
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_checked_at?: string | null
+          query?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       paper_chunks: {
         Row: {
           chunk_index: number
@@ -385,6 +474,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      retraction_watches: {
+        Row: {
+          created_at: string
+          id: string
+          last_checked_at: string | null
+          paper_authors: Json | null
+          paper_doi: string
+          paper_title: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_checked_at?: string | null
+          paper_authors?: Json | null
+          paper_doi: string
+          paper_title: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_checked_at?: string | null
+          paper_authors?: Json | null
+          paper_doi?: string
+          paper_title?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       saved_searches: {
         Row: {
