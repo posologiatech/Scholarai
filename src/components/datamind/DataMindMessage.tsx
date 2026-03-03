@@ -2,9 +2,11 @@ import { Message } from "@/pages/DataMind";
 import { BrainCircuit, User, Copy, Check, ChevronDown, ChevronUp, Code2 } from "lucide-react";
 import { useState } from "react";
 import DataMindCodeOutput from "./DataMindCodeOutput";
+import DataMindComments from "./DataMindComments";
 
 interface Props {
   message: Message;
+  conversationId?: string;
   onSuggestionClick?: (q: string) => void;
 }
 
@@ -29,7 +31,7 @@ const SimpleMarkdown = ({ content }: { content: string }) => {
   );
 };
 
-const DataMindMessage = ({ message, onSuggestionClick }: Props) => {
+const DataMindMessage = ({ message, conversationId, onSuggestionClick }: Props) => {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [codeExpanded, setCodeExpanded] = useState(false);
@@ -126,6 +128,13 @@ const DataMindMessage = ({ message, onSuggestionClick }: Props) => {
         {message.output_type && message.output_content && (
           <div className="mt-3 text-left">
             <DataMindCodeOutput type={message.output_type} content={message.output_content} />
+          </div>
+        )}
+
+        {/* Comments button for assistant messages */}
+        {!isUser && conversationId && (
+          <div className="mt-1 flex items-center gap-1 text-left">
+            <DataMindComments conversationId={conversationId} messageId={message.id} />
           </div>
         )}
       </div>

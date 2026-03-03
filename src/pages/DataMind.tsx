@@ -11,8 +11,11 @@ import SavePipelineDialog from "@/components/datamind/SavePipelineDialog";
 import ApplyPipelineDialog from "@/components/datamind/ApplyPipelineDialog";
 import DataMindDbConnections from "@/components/datamind/DataMindDbConnections";
 import DataMindDbQuery from "@/components/datamind/DataMindDbQuery";
+import DataMindAutoReport from "@/components/datamind/DataMindAutoReport";
+import DataMindCollaboration from "@/components/datamind/DataMindCollaboration";
+import DataCleaningPanel from "@/components/datamind/DataCleaningPanel";
 import { Button } from "@/components/ui/button";
-import { PanelLeftClose, PanelLeft, GitBranch } from "lucide-react";
+import { PanelLeftClose, PanelLeft, GitBranch, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
 
@@ -74,6 +77,7 @@ const DataMind = () => {
   const loadedFilesRef = useRef<Set<string>>(new Set());
   const [applyPipelineOpen, setApplyPipelineOpen] = useState(false);
   const [activeDbConnection, setActiveDbConnection] = useState<any>(null);
+  const [cleaningOpen, setCleaningOpen] = useState(false);
 
   // Full spreadsheet data (client-side only, not persisted)
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
@@ -560,6 +564,27 @@ const DataMind = () => {
             </span>
             <div className="ml-auto flex items-center gap-1">
               {messages.length > 0 && (
+                <DataMindAutoReport
+                  messages={messages}
+                  files={files}
+                  conversationTitle={conversations.find((c) => c.id === conversationId)?.title}
+                />
+              )}
+              {conversationId && (
+                <DataMindCollaboration conversationId={conversationId} />
+              )}
+              {spreadsheetData && spreadsheetData.columns.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7"
+                  onClick={() => setCleaningOpen(!cleaningOpen)}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Limpeza
+                </Button>
+              )}
+              {messages.length > 0 && (
                 <SavePipelineDialog
                   messages={messages}
                   conversationTitle={conversations.find((c) => c.id === conversationId)?.title}
@@ -596,10 +621,27 @@ const DataMind = () => {
             </div>
           )}
 
+          {/* Data Cleaning Panel */}
+          {cleaningOpen && spreadsheetData && (
+            <div className="px-4 py-3 border-b border-border/30">
+              <DataCleaningPanel
+                data={spreadsheetData}
+                conversationId={conversationId}
+                fileId={files[0]?.id}
+                onApply={(cleaned) => {
+                  setSpreadsheetData(cleaned);
+                  setCleaningOpen(false);
+                }}
+                onClose={() => setCleaningOpen(false)}
+              />
+            </div>
+          )}
+
           <DataMindChat
             messages={messages}
             files={files}
             loading={loading}
+            conversationId={conversationId}
             onSend={sendMessage}
             hasConversation={!!conversationId}
             existingFiles={files}

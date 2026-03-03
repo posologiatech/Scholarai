@@ -148,6 +148,139 @@ export type Database = {
           },
         ]
       }
+      datamind_cleaning_profiles: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          file_id: string | null
+          id: string
+          issues: Json
+          status: string
+          title: string
+          transformations: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          issues?: Json
+          status?: string
+          title?: string
+          transformations?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          issues?: Json
+          status?: string
+          title?: string
+          transformations?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datamind_cleaning_profiles_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "datamind_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "datamind_cleaning_profiles_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "datamind_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      datamind_comments: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          message_id: string
+          updated_at: string
+          user_email: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          message_id: string
+          updated_at?: string
+          user_email?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          message_id?: string
+          updated_at?: string
+          user_email?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datamind_comments_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "datamind_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      datamind_conversation_shares: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          owner_id: string
+          permission: string
+          shared_with_email: string
+          shared_with_user_id: string | null
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          owner_id: string
+          permission?: string
+          shared_with_email: string
+          shared_with_user_id?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          owner_id?: string
+          permission?: string
+          shared_with_email?: string
+          shared_with_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datamind_conversation_shares_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "datamind_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       datamind_conversations: {
         Row: {
           created_at: string
