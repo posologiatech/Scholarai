@@ -107,18 +107,21 @@ const Workspaces = () => {
     setCreating(true);
     try {
       const { data, error } = await supabase
-        .from("workspaces")
-        .insert({ name: newName.trim(), description: newDesc.trim() || null, owner_id: user.id })
-        .select()
-        .single();
+        .rpc("create_workspace", {
+          _name: newName.trim(),
+          _description: newDesc.trim() || null,
+        });
 
       if (error) throw error;
+
+      const workspace = Array.isArray(data) ? data[0] : data;
+      if (!workspace?.id) throw new Error(pt ? "Falha ao criar workspace" : "Failed to create workspace");
 
       toast.success(pt ? "Workspace criado!" : "Workspace created!");
       setDialogOpen(false);
       setNewName("");
       setNewDesc("");
-      navigate(`/workspaces/${data.id}`);
+      navigate(`/workspaces/${workspace.id}`);
     } catch (err: any) {
       console.error("Error creating workspace:", err);
       toast.error(err.message || "Error");
