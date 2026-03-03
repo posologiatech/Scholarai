@@ -11,7 +11,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { action, content, papers, section, citationStyle, datamindAnalyses, language } = await req.json();
+    const { action, content, papers, section, citationStyle, datamindAnalyses, uploadedPDFs, language } = await req.json();
     const lang = language || "pt";
 
     const paperContext = (papers || []).map((p: any, i: number) => {
@@ -21,6 +21,10 @@ serve(async (req) => {
 
     const datamindContext = (datamindAnalyses || []).length > 0
       ? `\n\n--- ANÁLISES DATAMIND DISPONÍVEIS ---\n${datamindAnalyses.map((a: any, i: number) => `Análise ${i + 1}: ${a.title || "Sem título"}\n${a.content}`).join("\n\n")}`
+      : "";
+
+    const uploadedPDFContext = (uploadedPDFs || []).length > 0
+      ? `\n\n--- DOCUMENTOS PDF DO PESQUISADOR ---\n${uploadedPDFs.map((p: any, i: number) => `Documento ${i + 1}: ${p.title || "Sem título"}\n${(p.content || "").slice(0, 15000)}`).join("\n\n")}`
       : "";
 
     const citationFormats: Record<string, string> = {
@@ -40,6 +44,7 @@ You write in ${lang === "pt" ? "Brazilian Portuguese" : "English"}.
 Citation style: ${styleGuide}
 You MUST cite the provided papers inline using the correct citation format.
 When using DataMind analyses, integrate statistics naturally into the text.
+When the researcher provides their own PDF documents, use the content as additional reference material and cite the findings appropriately.
 Write in formal academic tone with clear, precise language.`;
 
         userPrompt = `Generate a draft for the "${section}" section of a scientific paper.
@@ -47,10 +52,11 @@ Write in formal academic tone with clear, precise language.`;
 Available papers for citation:
 ${paperContext}
 ${datamindContext}
+${uploadedPDFContext}
 
 ${content ? `Additional context/instructions from the author:\n${content}` : ""}
 
-Write a complete, well-structured "${section}" section. Include inline citations from the provided papers. If DataMind analyses are available, incorporate relevant statistics and findings.`;
+Write a complete, well-structured "${section}" section. Include inline citations from the provided papers. If DataMind analyses are available, incorporate relevant statistics and findings. If researcher PDF documents are provided, use their content as reference material.`;
         break;
       }
 
@@ -89,7 +95,8 @@ Text to review:
 
 Available papers for verification:
 ${paperContext}
-${datamindContext}`;
+${datamindContext}
+${uploadedPDFContext}`;
         break;
       }
 
@@ -105,7 +112,8 @@ Current text:
 
 Available papers:
 ${paperContext}
-${datamindContext}`;
+${datamindContext}
+${uploadedPDFContext}`;
         break;
       }
 

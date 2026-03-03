@@ -12,10 +12,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
   FileText, Plus, Trash2, ChevronRight, Database, Copy, Check, ArrowRight,
+  Upload, File, X,
 } from "lucide-react";
 
 interface Paper {
@@ -31,6 +33,16 @@ interface DataMindAnalysis {
   id: string;
   title: string;
   content: string;
+}
+
+interface UploadedPDF {
+  id: string;
+  file_name: string;
+  title: string | null;
+  extracted_text: string | null;
+  file_path: string;
+  status: string | null;
+  created_at: string | null;
 }
 
 const SECTIONS = [
@@ -64,6 +76,14 @@ const WritingAssistant = () => {
   const [datamindAnalyses, setDatamindAnalyses] = useState<DataMindAnalysis[]>([]);
   const [selectedAnalyses, setSelectedAnalyses] = useState<DataMindAnalysis[]>([]);
   const [loadingAnalyses, setLoadingAnalyses] = useState(false);
+
+  // Uploaded PDFs (researcher's own files)
+  const [uploadedPDFs, setUploadedPDFs] = useState<UploadedPDF[]>([]);
+  const [selectedPDFs, setSelectedPDFs] = useState<UploadedPDF[]>([]);
+  const [loadingPDFs, setLoadingPDFs] = useState(false);
+  const [uploadingPDF, setUploadingPDF] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
@@ -117,6 +137,22 @@ const WritingAssistant = () => {
     loadAnalyses();
   }, [user]);
 
+  // Load uploaded PDFs
+  useEffect(() => {
+    if (!user) return;
+    const loadPDFs = async () => {
+      setLoadingPDFs(true);
+      const { data } = await supabase
+        .from("uploaded_papers")
+        .select("id, file_name, title, extracted_text, file_path, status, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      setUploadedPDFs((data || []) as UploadedPDF[]);
+      setLoadingPDFs(false);
+    };
+    loadPDFs();
+  }, [user]);
+
   const filteredPapers = papers.filter(p =>
     p.title.toLowerCase().includes(paperSearch.toLowerCase())
   );
@@ -137,9 +173,126 @@ const WritingAssistant = () => {
     );
   };
 
+  const togglePDF = (pdf: UploadedPDF) => {
+    setSelectedPDFs(prev =>
+      prev.find(p => p.id === pdf.id)
+        ? prev.filter(p => p.id !== pdf.id)
+        : [...prev, pdf]
+    );
+  };
+
+  const handlePDFUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
+
+    setUploadingPDF(true);
+    setUploadProgress(0);
+
+    const totalFiles = files.length;
+    let completed = 0;
+
+    for (const file of Array.from(files)) {
+      if (!file.name.toLowerCase().endsWith(".pdf")) {
+        toast.error(`${file.name}: ${pt ? "Apenas arquivos PDF são aceitos" : "Only PDF files are accepted"}`);
+        continue;
+      }
+
+      try {
+        // 1. Upload to storage
+        const filePath = `${user.id}/writing/${Date.now()}_${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("papers")
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        // 2. Create record in uploaded_papers
+        const { data: record, error: insertError } = await supabase
+          .from("uploaded_papers")
+          .insert({
+            user_id: user.id,
+            file_name: file.name,
+            file_path: filePath,
+            file_size: file.size,
+            title: file.name.replace(/\.pdf$/i, ""),
+            status: "processing",
+          })
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+
+        // 3. Extract text from PDF
+        const buffer = await file.arrayBuffer();
+        const base64 = btoa(
+          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+        );
+
+        const extractResp = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-pdf`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({ pdf_base64: base64, file_name: file.name }),
+          }
+        );
+
+        let extractedText = "";
+        if (extractResp.ok) {
+          const extractData = await extractResp.json();
+          extractedText = extractData.text || extractData.extracted_text || "";
+        }
+
+        // 4. Update record with extracted text
+        await supabase
+          .from("uploaded_papers")
+          .update({
+            extracted_text: extractedText.slice(0, 100000), // limit storage
+            status: extractedText ? "processed" : "error",
+          })
+          .eq("id", record.id);
+
+        // 5. Add to local state
+        const updatedRecord: UploadedPDF = {
+          ...record,
+          extracted_text: extractedText.slice(0, 100000),
+          status: extractedText ? "processed" : "error",
+        };
+        setUploadedPDFs(prev => [updatedRecord, ...prev]);
+
+        completed++;
+        setUploadProgress(Math.round((completed / totalFiles) * 100));
+      } catch (err: any) {
+        console.error("PDF upload error:", err);
+        toast.error(`${file.name}: ${err.message}`);
+      }
+    }
+
+    setUploadingPDF(false);
+    setUploadProgress(0);
+    if (pdfInputRef.current) pdfInputRef.current.value = "";
+    if (completed > 0) {
+      toast.success(pt
+        ? `${completed} arquivo(s) processado(s) com sucesso`
+        : `${completed} file(s) processed successfully`
+      );
+    }
+  };
+
+  const deletePDF = async (pdf: UploadedPDF) => {
+    await supabase.storage.from("papers").remove([pdf.file_path]);
+    await supabase.from("uploaded_papers").delete().eq("id", pdf.id);
+    setUploadedPDFs(prev => prev.filter(p => p.id !== pdf.id));
+    setSelectedPDFs(prev => prev.filter(p => p.id !== pdf.id));
+    toast.success(pt ? "Arquivo removido" : "File removed");
+  };
+
   const streamAI = useCallback(async (action: string, extraContent?: string) => {
-    if (selectedPapers.length === 0 && action !== "rephrase") {
-      toast.error(pt ? "Selecione pelo menos um paper" : "Select at least one paper");
+    if (selectedPapers.length === 0 && selectedPDFs.length === 0 && action !== "rephrase") {
+      toast.error(pt ? "Selecione pelo menos um paper ou PDF" : "Select at least one paper or PDF");
       return;
     }
 
@@ -160,6 +313,10 @@ const WritingAssistant = () => {
         section: SECTIONS.find(s => s.id === selectedSection)?.label[pt ? "pt" : "en"] || selectedSection,
         citationStyle,
         datamindAnalyses: selectedAnalyses.map(a => ({ title: a.title, content: a.content })),
+        uploadedPDFs: selectedPDFs.map(p => ({
+          title: p.title || p.file_name,
+          content: (p.extracted_text || "").slice(0, 15000),
+        })),
         language: locale,
       };
 
@@ -211,7 +368,7 @@ const WritingAssistant = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [selectedPapers, selectedAnalyses, editorContent, selectedSection, citationStyle, locale, pt]);
+  }, [selectedPapers, selectedPDFs, selectedAnalyses, editorContent, selectedSection, citationStyle, locale, pt]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(aiOutput);
@@ -232,7 +389,7 @@ const WritingAssistant = () => {
 
   return (
       <div className="flex h-screen overflow-hidden">
-        {/* Left sidebar: Paper & DataMind selection */}
+        {/* Left sidebar: Paper, DataMind & PDF selection */}
         <div className="w-72 border-r border-border/40 flex flex-col bg-background">
           <div className="p-4 border-b border-border/40">
             <h2 className="font-semibold text-sm text-foreground flex items-center gap-2">
@@ -240,19 +397,23 @@ const WritingAssistant = () => {
               {pt ? "Fontes" : "Sources"}
             </h2>
             <p className="text-xs text-muted-foreground mt-1">
-              {pt ? "Selecione papers e análises" : "Select papers and analyses"}
+              {pt ? "Selecione papers, análises e PDFs" : "Select papers, analyses and PDFs"}
             </p>
           </div>
 
           <Tabs defaultValue="papers" className="flex-1 flex flex-col">
-            <TabsList className="mx-4 mt-2 grid grid-cols-2">
-              <TabsTrigger value="papers" className="text-xs">
-                <FileText className="h-3 w-3 mr-1" />
+            <TabsList className="mx-3 mt-2 grid grid-cols-3">
+              <TabsTrigger value="papers" className="text-[10px] px-1">
+                <FileText className="h-3 w-3 mr-0.5" />
                 Papers ({selectedPapers.length})
               </TabsTrigger>
-              <TabsTrigger value="datamind" className="text-xs">
-                <Database className="h-3 w-3 mr-1" />
+              <TabsTrigger value="datamind" className="text-[10px] px-1">
+                <Database className="h-3 w-3 mr-0.5" />
                 DataMind ({selectedAnalyses.length})
+              </TabsTrigger>
+              <TabsTrigger value="mypdfs" className="text-[10px] px-1">
+                <Upload className="h-3 w-3 mr-0.5" />
+                {pt ? "Meus PDFs" : "My PDFs"} ({selectedPDFs.length})
               </TabsTrigger>
             </TabsList>
 
@@ -331,6 +492,112 @@ const WritingAssistant = () => {
                 </div>
               </ScrollArea>
             </TabsContent>
+
+            <TabsContent value="mypdfs" className="flex-1 flex flex-col px-3 pb-3 mt-2">
+              {/* Upload area */}
+              <div className="mb-2">
+                <label className="block">
+                  <div className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${
+                    uploadingPDF ? "border-primary/50 bg-primary/5" : "border-border/60 hover:border-primary/40 hover:bg-muted/30"
+                  }`}>
+                    {uploadingPDF ? (
+                      <div className="space-y-2">
+                        <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />
+                        <p className="text-xs text-muted-foreground">{pt ? "Processando..." : "Processing..."}</p>
+                        <Progress value={uploadProgress} className="h-1.5" />
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+                        <p className="text-xs text-muted-foreground">
+                          {pt ? "Enviar PDFs" : "Upload PDFs"}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/70">
+                          {pt ? "Clique ou arraste" : "Click or drag"}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    ref={pdfInputRef}
+                    type="file"
+                    accept=".pdf"
+                    multiple
+                    className="hidden"
+                    onChange={handlePDFUpload}
+                    disabled={uploadingPDF}
+                  />
+                </label>
+              </div>
+
+              {/* PDF list */}
+              <ScrollArea className="flex-1">
+                <div className="space-y-1">
+                  {loadingPDFs ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : uploadedPDFs.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      {pt ? "Nenhum PDF enviado ainda" : "No PDFs uploaded yet"}
+                    </p>
+                  ) : (
+                    uploadedPDFs.map(pdf => {
+                      const isSelected = selectedPDFs.some(p => p.id === pdf.id);
+                      const isProcessed = pdf.status === "processed";
+                      const isProcessing = pdf.status === "processing";
+                      return (
+                        <div
+                          key={pdf.id}
+                          className={`relative group rounded-md text-xs transition-colors ${
+                            isSelected
+                              ? "bg-primary/10 border border-primary/30"
+                              : "hover:bg-muted border border-transparent"
+                          }`}
+                        >
+                          <button
+                            onClick={() => isProcessed && togglePDF(pdf)}
+                            className="w-full text-left p-2"
+                            disabled={!isProcessed}
+                          >
+                            <div className="flex items-start gap-2">
+                              <File className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${
+                                isProcessed ? "text-primary" : isProcessing ? "text-amber-500" : "text-destructive"
+                              }`} />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-foreground line-clamp-2">
+                                  {pdf.title || pdf.file_name}
+                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <Badge variant={isProcessed ? "secondary" : isProcessing ? "outline" : "destructive"} className="text-[9px] px-1 py-0">
+                                    {isProcessed
+                                      ? (pt ? "Processado" : "Processed")
+                                      : isProcessing
+                                        ? (pt ? "Processando" : "Processing")
+                                        : (pt ? "Erro" : "Error")}
+                                  </Badge>
+                                  {isProcessed && pdf.extracted_text && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {(pdf.extracted_text.length / 1000).toFixed(0)}k chars
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deletePDF(pdf); }}
+                            className="absolute top-1.5 right-1.5 h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-destructive transition-opacity"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
           </Tabs>
         </div>
 
@@ -363,6 +630,31 @@ const WritingAssistant = () => {
             </Select>
 
             <Separator orientation="vertical" className="h-6" />
+
+            {/* Selected sources summary */}
+            {(selectedPapers.length > 0 || selectedPDFs.length > 0 || selectedAnalyses.length > 0) && (
+              <div className="flex items-center gap-1.5">
+                {selectedPapers.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    <FileText className="h-2.5 w-2.5 mr-0.5" />
+                    {selectedPapers.length} papers
+                  </Badge>
+                )}
+                {selectedPDFs.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    <File className="h-2.5 w-2.5 mr-0.5" />
+                    {selectedPDFs.length} PDFs
+                  </Badge>
+                )}
+                {selectedAnalyses.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    <Database className="h-2.5 w-2.5 mr-0.5" />
+                    {selectedAnalyses.length}
+                  </Badge>
+                )}
+                <Separator orientation="vertical" className="h-4" />
+              </div>
+            )}
 
             <Button
               size="sm"
@@ -483,8 +775,8 @@ const WritingAssistant = () => {
                   {aiOutput || (
                     <p className="text-muted-foreground italic text-center mt-12">
                       {pt
-                        ? "Use os botões acima para gerar conteúdo. Selecione papers e análises do DataMind no painel esquerdo para contextualizar a escrita."
-                        : "Use the buttons above to generate content. Select papers and DataMind analyses from the left panel to contextualize the writing."}
+                        ? "Use os botões acima para gerar conteúdo. Selecione papers, PDFs e análises do DataMind no painel esquerdo para contextualizar a escrita."
+                        : "Use the buttons above to generate content. Select papers, PDFs and DataMind analyses from the left panel to contextualize the writing."}
                     </p>
                   )}
                 </div>
