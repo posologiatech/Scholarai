@@ -144,10 +144,19 @@ const Docs = () => {
       category: pt ? "Revisão" : "Review",
       content: [
         {
-          heading: pt ? "Fluxo de 5 etapas" : "5-step workflow",
+          heading: pt ? "Fluxo de 6 etapas" : "6-step workflow",
           body: pt
-            ? "O módulo de Revisão Sistemática segue o protocolo PRISMA 2020 com 5 etapas guiadas: 1) Pergunta de Pesquisa — defina sua questão usando o formato PICO; 2) Coleta — busque via API ou importe artigos de bases externas (RIS, BibTeX, CSV); 3) Triagem — aplique critérios de inclusão/exclusão com suporte de IA; 4) Extração — extraia dados padronizados dos artigos incluídos; 5) Relatório — gere o relatório final com diagrama PRISMA."
-            : "The Systematic Review module follows the PRISMA 2020 protocol with 5 guided steps: 1) Research Question — define your question using PICO format; 2) Collection — search via API or import papers from external databases (RIS, BibTeX, CSV); 3) Screening — apply inclusion/exclusion criteria with AI support; 4) Extraction — extract standardized data from included papers; 5) Report — generate the final report with PRISMA diagram.",
+            ? "O módulo de Revisão Sistemática segue o protocolo PRISMA 2020 com 6 etapas guiadas: 1) Pergunta de Pesquisa — defina sua questão usando o formato PICO; 2) Coleta — busque via API, use o construtor de busca booleana ou importe artigos de bases externas (RIS, BibTeX, CSV); 3) Triagem — aplique critérios de inclusão/exclusão com suporte de IA e Active Learning; 4) Extração — extraia dados padronizados dos artigos incluídos; 5) Qualidade — avalie a qualidade metodológica com checklists padronizados (CASP, Newcastle-Ottawa, Jadad, ROBINS-I); 6) Relatório — gere o relatório final com diagrama PRISMA."
+            : "The Systematic Review module follows the PRISMA 2020 protocol with 6 guided steps: 1) Research Question — define your question using PICO format; 2) Collection — search via API, use the boolean query builder, or import papers from external databases (RIS, BibTeX, CSV); 3) Screening — apply inclusion/exclusion criteria with AI support and Active Learning; 4) Extraction — extract standardized data from included papers; 5) Quality — assess methodological quality with standardized checklists (CASP, Newcastle-Ottawa, Jadad, ROBINS-I); 6) Report — generate the final report with PRISMA diagram.",
+        },
+        {
+          heading: pt ? "Busca booleana avançada" : "Advanced boolean search",
+          body: pt
+            ? "O construtor de busca booleana permite criar estratégias de busca complexas e reproduzíveis usando operadores AND/OR/NOT. Organize sua busca em blocos conceituais (ex: População, Intervenção, Desfecho), adicione sinônimos e termos MeSH para cada conceito, e combine-os com operadores lógicos. O sistema traduz automaticamente sua query para a sintaxe de cada base de dados (PubMed, Scopus, genérica) e gera uma 'Estratégia de Busca' formal exportável em Markdown — requisito essencial para revisões publicáveis."
+            : "The boolean query builder lets you create complex, reproducible search strategies using AND/OR/NOT operators. Organize your search into concept blocks (e.g., Population, Intervention, Outcome), add synonyms and MeSH terms for each concept, and combine them with logical operators. The system automatically translates your query into each database's syntax (PubMed, Scopus, generic) and generates a formal exportable 'Search Strategy' in Markdown — an essential requirement for publishable reviews.",
+          tip: pt
+            ? "Use o campo MeSH para adicionar descritores controlados do PubMed. Isso aumenta a sensibilidade e a reproduzibilidade da sua busca."
+            : "Use the MeSH field to add PubMed controlled descriptors. This increases the sensitivity and reproducibility of your search.",
         },
         {
           heading: pt ? "Importação de bases externas (RIS/BibTeX)" : "External database import (RIS/BibTeX)",
@@ -171,16 +180,34 @@ const Docs = () => {
             : "In the Screening step, AI automatically generates inclusion/exclusion criteria based on your research question. You can edit, add, or remove criteria. Screening follows the INCLUSIVE principle: when in doubt, the paper is included. Each paper gets an inclusion score (0-100%) and can be 'Included', 'Maybe', or 'Excluded'. You can manually override any AI decision.",
         },
         {
+          heading: pt ? "Active Learning / Triagem Adaptativa" : "Active Learning / Adaptive Screening",
+          body: pt
+            ? "Após triar manualmente pelo menos 10 artigos (incluindo inclusões e exclusões), o sistema de Active Learning se ativa. Inspirado no ASReview, ele aprende com suas decisões manuais e re-ranqueia os artigos restantes por probabilidade de inclusão. Artigos mais provavelmente relevantes são priorizados no topo da fila, com badges 'AI Priority' indicando o score de prioridade. Isso pode reduzir o esforço de triagem em 70-95%. O sistema também calcula o Kappa de Cohen para medir a concordância entre suas decisões e as predições da IA."
+            : "After manually screening at least 10 papers (including both inclusions and exclusions), the Active Learning system activates. Inspired by ASReview, it learns from your manual decisions and re-ranks remaining papers by inclusion probability. Most likely relevant papers are prioritized at the top of the queue, with 'AI Priority' badges showing the priority score. This can reduce screening effort by 70-95%. The system also calculates Cohen's Kappa to measure agreement between your decisions and AI predictions.",
+          tip: pt
+            ? "Triar os primeiros 20-30 artigos com atenção produz um modelo de Active Learning muito mais preciso para os restantes."
+            : "Carefully screening the first 20-30 papers produces a much more accurate Active Learning model for the rest.",
+        },
+        {
+          heading: pt ? "Avaliação de Qualidade Metodológica" : "Methodological Quality Assessment",
+          body: pt
+            ? "A nova etapa de Qualidade (entre Extração e Relatório) permite avaliar a qualidade metodológica dos estudos incluídos usando checklists padronizados internacionalmente reconhecidos: CASP RCT (ensaios clínicos randomizados), Newcastle-Ottawa Scale (estudos observacionais), Jadad Scale (qualidade de RCTs) e ROBINS-I (risco de viés em estudos não randomizados). A IA realiza uma avaliação inicial de cada domínio do checklist selecionado, atribuindo classificações de 'Baixo', 'Moderado' ou 'Alto' risco. O revisor pode sobrescrever manualmente qualquer avaliação. Os resultados são apresentados em uma tabela visual com indicadores coloridos por domínio e paper."
+            : "The new Quality step (between Extraction and Report) lets you assess the methodological quality of included studies using internationally recognized standardized checklists: CASP RCT (randomized controlled trials), Newcastle-Ottawa Scale (observational studies), Jadad Scale (RCT quality), and ROBINS-I (risk of bias in non-randomized studies). AI performs an initial assessment of each domain in the selected checklist, assigning 'Low', 'Moderate', or 'High' risk ratings. The reviewer can manually override any assessment. Results are displayed in a visual table with color-coded indicators per domain and paper.",
+          tip: pt
+            ? "Escolha o checklist adequado ao tipo de estudo predominante na sua revisão. Use CASP para RCTs, Newcastle-Ottawa para coorte/caso-controle e ROBINS-I para intervenções não randomizadas."
+            : "Choose the checklist appropriate to the predominant study type in your review. Use CASP for RCTs, Newcastle-Ottawa for cohort/case-control, and ROBINS-I for non-randomized interventions.",
+        },
+        {
           heading: pt ? "Diagrama PRISMA 2020 interativo" : "Interactive PRISMA 2020 diagram",
           body: pt
-            ? "O relatório final inclui um diagrama de fluxo PRISMA 2020 gerado automaticamente, mostrando o número de artigos em cada etapa: identificação, deduplicação, triagem, avaliação e inclusão final. O diagrama se atualiza em tempo real conforme você avança nas etapas e pode ser exportado como SVG ou PNG para inclusão direta em publicações."
-            : "The final report includes an automatically generated PRISMA 2020 flow diagram showing the number of papers at each stage: identification, deduplication, screening, assessment, and final inclusion. The diagram updates in real-time as you progress and can be exported as SVG or PNG for direct inclusion in publications.",
+            ? "O relatório final inclui um diagrama de fluxo PRISMA 2020 gerado automaticamente, mostrando o número de artigos em cada etapa: identificação, deduplicação, triagem, avaliação de qualidade e inclusão final. O diagrama se atualiza em tempo real conforme você avança nas etapas e pode ser exportado como SVG ou PNG para inclusão direta em publicações."
+            : "The final report includes an automatically generated PRISMA 2020 flow diagram showing the number of papers at each stage: identification, deduplication, screening, quality assessment, and final inclusion. The diagram updates in real-time as you progress and can be exported as SVG or PNG for direct inclusion in publications.",
         },
         {
           heading: pt ? "Relatório acadêmico" : "Academic report",
           body: pt
-            ? "O relatório gerado segue normas acadêmicas com ~3000 palavras, incluindo: introdução, métodos, resultados, discussão, conclusão, diagrama PRISMA, tabela de características dos estudos e lista de referências formatadas. Disponível para download em Markdown e PDF (A4)."
-            : "The generated report follows academic standards with ~3000 words, including: introduction, methods, results, discussion, conclusion, PRISMA diagram, study characteristics table, and formatted reference list. Available for download in Markdown and PDF (A4).",
+            ? "O relatório gerado segue normas acadêmicas com ~3000 palavras, incluindo: introdução, métodos (com estratégia de busca documentada), resultados, discussão, conclusão, diagrama PRISMA, tabela de características dos estudos, avaliação de qualidade e lista de referências formatadas. Disponível para download em Markdown e PDF (A4)."
+            : "The generated report follows academic standards with ~3000 words, including: introduction, methods (with documented search strategy), results, discussion, conclusion, PRISMA diagram, study characteristics table, quality assessment, and formatted reference list. Available for download in Markdown and PDF (A4).",
         },
       ],
     },
