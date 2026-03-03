@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-// AppSidebar provided by ProtectedRoute
 import ReviewStepper from "@/components/app/systematic-review/ReviewStepper";
 import StepQuestion from "@/components/app/systematic-review/StepQuestion";
 import StepCollection from "@/components/app/systematic-review/StepCollection";
 import StepScreening from "@/components/app/systematic-review/StepScreening";
 import StepExtraction from "@/components/app/systematic-review/StepExtraction";
+import StepQuality from "@/components/app/systematic-review/StepQuality";
 import StepReport from "@/components/app/systematic-review/StepReport";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -29,10 +29,10 @@ const SystematicReview = () => {
   const [includedPaperIds, setIncludedPaperIds] = useState<string[]>([]);
   const [extractionColumns, setExtractionColumns] = useState<any[]>([]);
   const [extractionResults, setExtractionResults] = useState<Record<string, Record<string, string>>>({});
+  const [qualityResults, setQualityResults] = useState<Record<string, any>>({});
   const [reportContent, setReportContent] = useState("");
   const [duplicatesRemoved, setDuplicatesRemoved] = useState(0);
 
-  // Load existing review if id is provided
   useEffect(() => {
     if (reviewId) {
       loadReview(reviewId);
@@ -56,7 +56,6 @@ const SystematicReview = () => {
     setReportContent(data.report_content || "");
   };
 
-  // Auto-save with debounce
   const saveReview = useCallback(async () => {
     if (!user?.id || !question.trim()) return;
 
@@ -64,7 +63,7 @@ const SystematicReview = () => {
       user_id: user.id,
       research_question: question,
       auto_suggestions: autoSuggestions,
-      status: currentStep >= 4 ? "complete" : currentStep >= 3 ? "extracting" : currentStep >= 2 ? "screening" : "draft",
+      status: currentStep >= 5 ? "complete" : currentStep >= 4 ? "quality" : currentStep >= 3 ? "extracting" : currentStep >= 2 ? "screening" : "draft",
       papers: papers as any,
       screening_criteria: criteria as any,
       screening_results: screeningResults as any,
@@ -87,7 +86,6 @@ const SystematicReview = () => {
     }
   }, [user?.id, question, currentStep, papers, criteria, screeningResults, extractionColumns, extractionResults, includedPaperIds, reportContent, dbId, autoSuggestions]);
 
-  // Save on step change
   useEffect(() => {
     const timeout = setTimeout(saveReview, 2000);
     return () => clearTimeout(timeout);
@@ -97,7 +95,6 @@ const SystematicReview = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      
       <div className="border-b border-border bg-card px-4 py-3">
         <ReviewStepper currentStep={currentStep} onStepClick={setCurrentStep} />
       </div>
@@ -151,6 +148,17 @@ const SystematicReview = () => {
           />
         )}
         {currentStep === 4 && (
+          <StepQuality
+            question={question}
+            papers={papers}
+            includedPaperIds={includedPaperIds}
+            qualityResults={qualityResults}
+            onQualityResultsChange={setQualityResults}
+            onNext={() => setCurrentStep(5)}
+            onPrev={() => setCurrentStep(3)}
+          />
+        )}
+        {currentStep === 5 && (
           <StepReport
             question={question}
             papers={papers}
@@ -163,7 +171,7 @@ const SystematicReview = () => {
             extractionResults={extractionResults}
             reportContent={reportContent}
             onReportChange={setReportContent}
-            onPrev={() => setCurrentStep(3)}
+            onPrev={() => setCurrentStep(4)}
             duplicatesRemoved={duplicatesRemoved}
           />
         )}

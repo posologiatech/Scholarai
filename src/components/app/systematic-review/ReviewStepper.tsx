@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 interface ReviewStepperProps {
@@ -14,6 +14,7 @@ const ReviewStepper = ({ currentStep, onStepClick }: ReviewStepperProps) => {
     { label: locale === "pt" ? "Coleta" : "Collection" },
     { label: locale === "pt" ? "Triagem" : "Screening" },
     { label: locale === "pt" ? "Extração" : "Extraction" },
+    { label: locale === "pt" ? "Qualidade" : "Quality" },
     { label: locale === "pt" ? "Relatório" : "Report" },
   ];
 
