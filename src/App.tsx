@@ -39,6 +39,9 @@ import MetaAnalysis from "./pages/MetaAnalysis";
 import LiteratureAlerts from "./pages/LiteratureAlerts";
 import RiskOfBias from "./pages/RiskOfBias";
 import WorkspaceDetail from "./pages/WorkspaceDetail";
+import DataMindDashboards from "./pages/DataMindDashboards";
+import DataMindDashboardView from "./pages/DataMindDashboardView";
+import SharedDashboard from "./pages/SharedDashboard";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -89,6 +92,9 @@ const App = () => (
               <Route path="/meta-analysis" element={<ProtectedRoute><MetaAnalysis /></ProtectedRoute>} />
               <Route path="/alerts" element={<ProtectedRoute><LiteratureAlerts /></ProtectedRoute>} />
               <Route path="/risk-of-bias" element={<ProtectedRoute><RiskOfBias /></ProtectedRoute>} />
+              <Route path="/datamind/dashboards" element={<ProtectedRoute><DataMindDashboards /></ProtectedRoute>} />
+              <Route path="/datamind/dashboard/:id" element={<ProtectedRoute><DataMindDashboardView /></ProtectedRoute>} />
+              <Route path="/shared/dashboard/:token" element={<SharedDashboard />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
