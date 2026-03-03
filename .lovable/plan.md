@@ -1,114 +1,115 @@
 
-# Planilha Interativa estilo Julius.ai no DataMind
 
-## Objetivo
-Substituir o preview simples de tabela HTML por um Data Grid interativo estilo Excel, permitindo seleção de colunas, linhas e células, com envio do contexto selecionado para a IA.
+# Funcionalidades de Alto Impacto para o ScholarAI
 
-## Arquitetura
-
-### Biblioteca escolhida: `react-data-grid`
-- Leve, focada em performance com virtualização nativa
-- Suporta seleção de linhas, colunas e range de células
-- Estilo Excel out-of-the-box
-- Sem custo de licença (MIT)
-
-### Dependencias novas
-- `react-data-grid` - grid interativo
-- `xlsx` (ja instalado) - parsing de Excel client-side
+Baseado na análise completa do projeto — que já possui busca semântica, DataMind, revisões sistemáticas, extração de dados e verificação de referências — aqui estão funcionalidades que trariam vantagem competitiva real frente a concorrentes como Elicit, Consensus, Scite e Julius.ai:
 
 ---
 
-## Etapas de Implementacao
+## 1. Knowledge Graph Interativo (Mapa de Conhecimento)
 
-### 1. Parsing completo de Excel no client-side
-**Arquivo:** `src/pages/DataMind.tsx`
+**Impacto: Muito Alto | Diferencial: Único no mercado**
 
-Atualmente, arquivos `.xlsx` nao sao parseados no frontend (apenas CSV). Vamos usar a biblioteca `xlsx` (ja instalada) para extrair **todas as linhas** do arquivo Excel em JSON, nao apenas 5 linhas de preview.
+Gerar automaticamente um grafo visual de conexões entre papers, autores, conceitos e metodologias a partir dos resultados de busca. O usuário poderia:
+- Visualizar clusters temáticos e lacunas na literatura
+- Clicar em nós para expandir conexões
+- Identificar autores-chave e papers seminais
+- Detectar tendências emergentes por ano
 
-- Ler o arquivo com `xlsx.read(arrayBuffer)`
-- Extrair headers e todas as linhas como array de objetos
-- Salvar os dados completos no state local (nao no Supabase, que guarda apenas o preview de 5 linhas)
-- Limitar a 50.000 linhas para seguranca de memoria
-
-### 2. Novo componente `DataMindSpreadsheet`
-**Arquivo:** `src/components/datamind/DataMindSpreadsheet.tsx`
-
-Componente principal que substitui o `DataMindFilePreview` quando ha dados completos:
-
-- Renderiza `react-data-grid` com todas as colunas e linhas
-- Header com nome do arquivo, contagem de linhas/colunas
-- Texto instrucional: "(Opcional) clique em colunas, linhas ou celulas para focar em dados especificos"
-- Barra de status inferior mostrando "X celulas selecionadas" quando ha selecao
-
-**Funcionalidades do grid:**
-- Virtualizacao nativa (suporta planilhas grandes)
-- Selecao de linhas (clique com Shift/Ctrl)
-- Selecao de colunas inteiras (clique no header)
-- Range selection (arrastar mouse sobre celulas)
-- Estilo visual limpo com headers `bg-muted/50`, linhas zebra
-
-### 3. Estado de selecao (`selectedContext`)
-**Arquivo:** `src/pages/DataMind.tsx`
-
-- Novo state: `selectedContext: { data: Record<string, string>[]; summary: string } | null`
-- Atualizado pelo callback `onSelectionChange` do `DataMindSpreadsheet`
-- Quando o usuario seleciona celulas, o componente extrai os dados exatos selecionados
-
-### 4. Integracao com o Input/Chat
-**Arquivo:** `src/components/datamind/DataMindInput.tsx`
-
-- Receber `selectedContext` como prop
-- Mostrar badge "X celulas selecionadas" no input quando ha selecao ativa
-- Botao para limpar selecao
-
-**Arquivo:** `src/pages/DataMind.tsx` (funcao `sendMessage`)
-
-- Se `selectedContext` nao estiver vazio, anexar os dados selecionados ao prompt como contexto Markdown/CSV
-- Trava de seguranca: se a selecao passar de 1000 linhas, mostrar aviso sugerindo usar Python/Pandas para o arquivo inteiro
-- Limpar `selectedContext` apos envio
-
-### 5. Ajuste no `DataMindChat`
-**Arquivo:** `src/components/datamind/DataMindChat.tsx`
-
-- Substituir `DataMindFilePreview` pelo novo `DataMindSpreadsheet` quando os dados completos estiverem disponiveis
-- Manter `DataMindFilePreview` como fallback para arquivos sem dados completos (ex: Excel que falhou no parse)
+Nenhum concorrente direto oferece isso de forma integrada. Ferramentas como Connected Papers fazem algo similar, mas isolado.
 
 ---
 
-## Fluxo do usuario
+## 2. Colaboração em Tempo Real (Workspaces Compartilhados)
 
-```text
-Upload .xlsx/.csv
-       |
-       v
-  Parse completo (xlsx/PapaParse)
-       |
-       v
-  Grid interativo aparece no chat
-  "(Opcional) clique em colunas, linhas ou celulas..."
-       |
-       v
-  Usuario seleciona celulas/colunas
-       |
-       v
-  Badge "42 celulas selecionadas" no input
-       |
-       v
-  Usuario digita pergunta + envia
-       |
-       v
-  Dados selecionados anexados ao prompt (hidden)
-       |
-       v
-  IA responde com contexto focado
-```
+**Impacto: Alto | Diferencial: Forte**
+
+Permitir que equipes de pesquisa trabalhem juntas:
+- Projetos compartilhados com múltiplos membros
+- Anotações e comentários em papers específicos
+- Histórico de decisões de triagem (screening) com atribuição por membro
+- Roles (orientador, co-autor, revisor)
+
+Elicit e Consensus são ferramentas individuais. Oferecer colaboração nativa posiciona o ScholarAI como ferramenta de equipe.
 
 ---
 
-## Detalhes tecnicos
+## 3. Assistente de Escrita Científica (AI Writing Co-pilot)
 
-- **Parsing CSV:** Usar split por linhas (ja existente), expandir para todas as linhas em vez de 5
-- **Parsing Excel:** `xlsx.read(buffer, {type:'array'})` -> `xlsx.utils.sheet_to_json(sheet)`
-- **Dados completos** ficam apenas no state React (nao sao salvos no Supabase para nao sobrecarregar)
-- **Limite de tokens:** Selecoes acima de 1000 linhas exibem toast de aviso
-- **Estilo do grid:** altura fixa ~400px com scroll virtual, bordas e cores consistentes com o design system existente
+**Impacto: Muito Alto | Diferencial: Forte**
+
+Um editor de texto integrado onde a IA ajuda a redigir seções do artigo:
+- Gerar rascunhos de Introdução, Métodos, Discussão baseados nos papers coletados
+- Inserir citações inline automaticamente no formato correto (APA, Vancouver, ABNT)
+- Sugerir reformulações para melhorar clareza e rigor
+- Verificar consistência entre claims e evidências citadas
+
+Isso transformaria o ScholarAI de ferramenta de pesquisa em ferramenta de produção acadêmica completa.
+
+---
+
+## 4. Meta-análise Automatizada
+
+**Impacto: Muito Alto | Diferencial: Único**
+
+Após a extração de dados estruturados (que o sistema já faz), oferecer:
+- Cálculo automático de effect sizes (Cohen's d, OR, RR)
+- Forest plots interativos
+- Análise de heterogeneidade (I², Q-test)
+- Funnel plots para detecção de viés de publicação
+- Exportação do relatório em formato PRISMA
+
+Nenhuma ferramenta no mercado faz isso de ponta a ponta. Seria um diferencial massivo para revisões sistemáticas.
+
+---
+
+## 5. Alertas Inteligentes e Monitoramento de Literatura
+
+**Impacto: Médio-Alto | Diferencial: Moderado**
+
+Sistema de vigilância científica contínua:
+- Salvar buscas e receber notificações quando novos papers relevantes são publicados
+- Alertas de retratação para papers já citados pelo usuário
+- Resumo semanal automático por email com novidades na área
+- Feed personalizado baseado no histórico de pesquisa
+
+---
+
+## 6. Integração com Repositórios e Gerenciadores de Referência
+
+**Impacto: Médio | Diferencial: Essencial**
+
+- Exportação direta para Zotero, Mendeley, EndNote (formato RIS/BibTeX)
+- Importação de bibliotecas existentes para análise
+- Sincronização bidirecional com gerenciadores
+
+Isso remove fricção na adoção e integra o ScholarAI no workflow existente dos pesquisadores.
+
+---
+
+## 7. Análise de Qualidade Metodológica (Risk of Bias)
+
+**Impacto: Alto | Diferencial: Único**
+
+Avaliação automática da qualidade metodológica dos estudos usando frameworks padrão:
+- RoB 2 (Cochrane) para ensaios clínicos
+- ROBINS-I para estudos observacionais
+- NOS (Newcastle-Ottawa) para coortes
+- Geração de tabelas de qualidade prontas para publicação
+
+---
+
+## Priorização Recomendada
+
+| Prioridade | Funcionalidade | Esforço | Impacto |
+|-----------|---------------|---------|---------|
+| 1 | Meta-análise Automatizada | Alto | Revolucionário |
+| 2 | Assistente de Escrita | Alto | Muito Alto |
+| 3 | Knowledge Graph | Médio | Alto + Wow factor |
+| 4 | Colaboração em Tempo Real | Alto | Alto |
+| 5 | Alertas Inteligentes | Médio | Médio-Alto |
+| 6 | Risk of Bias | Médio | Alto (nicho) |
+| 7 | Integração Zotero/Mendeley | Baixo | Essencial |
+
+A combinação de **Meta-análise + Assistente de Escrita + Knowledge Graph** posicionaria o ScholarAI como a primeira plataforma verdadeiramente end-to-end para pesquisa científica — da busca à publicação.
+
