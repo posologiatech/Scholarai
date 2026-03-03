@@ -1,76 +1,61 @@
 
 
-# Redesign do Knowledge Graph no estilo Connected Papers
+## Dashboard Builder Interativo para DataMind
 
-## Objetivo
-Transformar o Knowledge Graph atual (que usa nós de tipos variados: paper, author, concept, method) em um layout visual inspirado no Connected Papers, com 3 paineis e foco exclusivo em papers como nós do grafo.
+### Visão Geral
+Permitir que usuários "fixem" gráficos e tabelas gerados durante análises em dashboards persistentes, compartilháveis via link público, com layout configurável.
 
-## Layout: 3 Paineis (como Connected Papers)
+### Arquitetura
 
-```text
-+------------------+-------------------------+------------------+
-|  PAINEL ESQUERDO |    PAINEL CENTRAL       | PAINEL DIREITO   |
-|                  |                         |                  |
-|  Lista de papers |   Grafo force-directed  |  Detalhes do     |
-|  relacionados    |   apenas com papers     |  paper           |
-|                  |                         |  selecionado     |
-|  - Origin paper  |   Nós = papers          |                  |
-|    (destacado)   |   Cor = ano publicação  |  - Titulo        |
-|  - Paper 1       |   Tamanho = citações    |  - Autores       |
-|  - Paper 2       |   Proximidade =         |  - Ano/Journal   |
-|  - ...           |     similaridade        |  - Citações      |
-|                  |                         |  - Abstract/TLDR |
-|  Busca na lista  |   Linhas = similaridade |  - Open in DOI   |
-|  Expand button   |                         |  - Save          |
-|                  |   Barra de anos         |                  |
-|  Prior works tab |   (timeline inferior)   |  Prior works     |
-|  Derivative tab  |                         |  Derivative works|
-+------------------+-------------------------+------------------+
-```
+**Banco de dados** — 2 novas tabelas:
+- `datamind_dashboards`: id, user_id, title, description, is_public, share_token (unique), layout (jsonb), created_at, updated_at
+- `datamind_dashboard_items`: id, dashboard_id, user_id, item_type (chart/table), title, content (jsonb — armazena dados do gráfico base64 ou headers+rows da tabela), position (jsonb — x, y, w, h para grid), source_message_id (ref à mensagem original), created_at
 
-## Mudancas principais
+RLS: usuários acessam seus próprios dashboards; dashboards públicos são acessíveis via share_token sem autenticação.
 
-### 1. KnowledgeGraphView.tsx - Redesign completo
-- Remover nós de autor/conceito/metodo do grafo visual (manter apenas papers)
-- Cor dos nós baseada no **ano de publicação** (gradiente: claro=antigo, escuro=recente)
-- Tamanho dos nós baseado no **numero de citações**
-- Origin paper marcado com borda roxa especial
-- Linhas entre nós representam similaridade (geradas pela IA)
-- Ao selecionar um nó, destacar o caminho mais curto ate o origin paper
-- Barra de timeline de anos na parte inferior do grafo
+**Frontend — Componentes novos:**
 
-### 2. KnowledgeGraph.tsx - Layout de 3 paineis
-- **Painel esquerdo (~250px):** Lista scrollable de papers com busca, origin paper destacado, tabs "Prior works" / "Derivative works"
-- **Painel central (flex-1):** O grafo force-directed
-- **Painel direito (~300px):** Detalhes do paper selecionado (titulo completo, autores, journal, ano, citações, abstract/TL;DR, links externos, botao Save)
-- Clicar em um paper na lista esquerda centraliza o grafo naquele nó
-- Clicar em um nó no grafo atualiza o painel direito
+1. **Botão "Pin to Dashboard"** — Adicionado no `DataMindCodeOutput.tsx` em cada bloco de imagem e tabela. Ao clicar, abre um popover para selecionar dashboard existente ou criar novo.
 
-### 3. Edge Function - Ajustar para formato Connected Papers
-- Gerar apenas nós do tipo "paper" com campo `similarity` entre 0-100
-- Gerar edges com peso de similaridade (baseado em co-citation e bibliographic coupling)
-- Retornar listas separadas de `priorWorks` e `derivativeWorks`
-- Prior works: papers mais citados pelos papers do grafo
-- Derivative works: papers que citam muitos papers do grafo
+2. **Página `/datamind/dashboards`** — Lista todos os dashboards do usuário com cards preview, opções de editar/excluir/compartilhar.
 
-### 4. Funcionalidades Connected Papers
-- **Busca por DOI ou titulo** (seed paper)
-- **Prior Works tab:** Lista de trabalhos seminais ordenavel por titulo, autor, ano, citações
-- **Derivative Works tab:** Surveys e trabalhos recentes que citam o corpus
-- **Download/Export** da lista de papers (BibTeX)
-- **Timeline bar** na base do grafo mostrando distribuição por ano
-- **Path highlighting:** ao selecionar um nó, mostrar caminho ate o origin
+3. **Página `/datamind/dashboard/:id`** — Visualização do dashboard com grid responsivo usando CSS Grid. Cada item pode ser redimensionado/reordenado via drag. Toolbar com título editável, botão de compartilhamento (copiar link público), e toggle público/privado.
 
-## Arquivos modificados
-1. `supabase/functions/generate-knowledge-graph/index.ts` - Novo prompt focado em similaridade entre papers
-2. `src/components/knowledge-graph/KnowledgeGraphView.tsx` - Redesign completo do grafo (apenas papers, cor=ano, tamanho=citações)
-3. `src/pages/KnowledgeGraph.tsx` - Layout 3 paineis com lista lateral, detalhes e tabs
+4. **Página `/shared/dashboard/:token`** — Rota pública (sem auth) para visualizar dashboards compartilhados. Renderiza os mesmos componentes de tabela/gráfico em modo read-only.
 
-## Detalhes visuais (inspirados no Connected Papers)
-- Cor dos nós: gradiente de bege/amarelo claro (papers antigos) ate verde escuro (papers recentes)
-- Origin paper: borda roxa/lilás destacada
-- Hover: tooltip com titulo resumido
-- Seleção: highlight do nó + caminho ate origin
-- Lista lateral: cada paper mostra titulo truncado, primeiro autor, ano
-- Painel direito: titulo completo, todos autores, journal, citações, TL;DR
+5. **`DataMindDashboardPinButton.tsx`** — Componente reutilizável com Popover que lista dashboards e permite criar novo inline.
+
+**Fluxo do usuário:**
+1. Usuário analisa dados no DataMind → gráfico/tabela é gerado
+2. Clica no ícone 📌 no bloco de output
+3. Seleciona dashboard existente ou cria novo
+4. Item é salvo com os dados (base64 para imagens, headers+rows para tabelas)
+5. Acessa `/datamind/dashboards` para ver/gerenciar
+6. Ativa "link público" para compartilhar
+
+**Mudanças em arquivos existentes:**
+- `DataMindCodeOutput.tsx`: Adicionar botão Pin em cada bloco de imagem e tabela
+- `App.tsx`: 3 novas rotas (dashboards list, dashboard detail, shared dashboard)
+- `AppSidebar.tsx`: Link para Dashboards dentro da seção DataMind
+
+### Detalhes Técnicos
+
+- **Persistência de gráficos**: Os gráficos são base64 (já existentes no output_content como `[IMG]...[/IMG]`). Serão armazenados diretamente no campo `content` jsonb do item.
+- **Persistência de tabelas**: headers + rows já parseados serão salvos no jsonb.
+- **Share token**: UUID gerado automaticamente, usado na rota pública.
+- **Layout**: Grid simples com posições salvas em jsonb. Sem biblioteca extra de drag — uso de CSS Grid com ordenação por posição.
+- **RLS para rota pública**: Policy SELECT em `datamind_dashboards` e `datamind_dashboard_items` permitindo acesso quando `is_public = true` (para a rota shared).
+
+### Arquivos a Criar/Editar
+
+| Arquivo | Ação |
+|---------|------|
+| Migration SQL | Criar tabelas + RLS |
+| `src/components/datamind/DataMindDashboardPinButton.tsx` | Criar — botão pin com popover |
+| `src/components/datamind/DataMindCodeOutput.tsx` | Editar — adicionar botão pin |
+| `src/pages/DataMindDashboards.tsx` | Criar — lista de dashboards |
+| `src/pages/DataMindDashboardView.tsx` | Criar — visualização/edição do dashboard |
+| `src/pages/SharedDashboard.tsx` | Criar — rota pública |
+| `src/App.tsx` | Editar — adicionar rotas |
+| `src/components/app/AppSidebar.tsx` | Editar — link Dashboards |
 
