@@ -100,7 +100,7 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuContent align="start" side="right" className="w-40 z-50">
                       {onExport && (
                         <DropdownMenuItem
                           onClick={(e) => {
