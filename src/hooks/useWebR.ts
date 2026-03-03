@@ -24,7 +24,8 @@ export function useWebR() {
       const { type, data } = e.data;
       switch (type) {
         case "status":
-          if (data === "ready") setStatus("installing");
+          if (data === "loading") setStatus("loading");
+          else if (data === "ready") setStatus("installing");
           else if (data === "installing_packages") setStatus("installing");
           else if (data === "packages_ready") setStatus("ready");
           else if (data === "reset") setStatus("idle");
