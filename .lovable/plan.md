@@ -1,115 +1,76 @@
 
 
-# Funcionalidades de Alto Impacto para o ScholarAI
+# Redesign do Knowledge Graph no estilo Connected Papers
 
-Baseado na análise completa do projeto — que já possui busca semântica, DataMind, revisões sistemáticas, extração de dados e verificação de referências — aqui estão funcionalidades que trariam vantagem competitiva real frente a concorrentes como Elicit, Consensus, Scite e Julius.ai:
+## Objetivo
+Transformar o Knowledge Graph atual (que usa nós de tipos variados: paper, author, concept, method) em um layout visual inspirado no Connected Papers, com 3 paineis e foco exclusivo em papers como nós do grafo.
 
----
+## Layout: 3 Paineis (como Connected Papers)
 
-## 1. Knowledge Graph Interativo (Mapa de Conhecimento)
+```text
++------------------+-------------------------+------------------+
+|  PAINEL ESQUERDO |    PAINEL CENTRAL       | PAINEL DIREITO   |
+|                  |                         |                  |
+|  Lista de papers |   Grafo force-directed  |  Detalhes do     |
+|  relacionados    |   apenas com papers     |  paper           |
+|                  |                         |  selecionado     |
+|  - Origin paper  |   Nós = papers          |                  |
+|    (destacado)   |   Cor = ano publicação  |  - Titulo        |
+|  - Paper 1       |   Tamanho = citações    |  - Autores       |
+|  - Paper 2       |   Proximidade =         |  - Ano/Journal   |
+|  - ...           |     similaridade        |  - Citações      |
+|                  |                         |  - Abstract/TLDR |
+|  Busca na lista  |   Linhas = similaridade |  - Open in DOI   |
+|  Expand button   |                         |  - Save          |
+|                  |   Barra de anos         |                  |
+|  Prior works tab |   (timeline inferior)   |  Prior works     |
+|  Derivative tab  |                         |  Derivative works|
++------------------+-------------------------+------------------+
+```
 
-**Impacto: Muito Alto | Diferencial: Único no mercado**
+## Mudancas principais
 
-Gerar automaticamente um grafo visual de conexões entre papers, autores, conceitos e metodologias a partir dos resultados de busca. O usuário poderia:
-- Visualizar clusters temáticos e lacunas na literatura
-- Clicar em nós para expandir conexões
-- Identificar autores-chave e papers seminais
-- Detectar tendências emergentes por ano
+### 1. KnowledgeGraphView.tsx - Redesign completo
+- Remover nós de autor/conceito/metodo do grafo visual (manter apenas papers)
+- Cor dos nós baseada no **ano de publicação** (gradiente: claro=antigo, escuro=recente)
+- Tamanho dos nós baseado no **numero de citações**
+- Origin paper marcado com borda roxa especial
+- Linhas entre nós representam similaridade (geradas pela IA)
+- Ao selecionar um nó, destacar o caminho mais curto ate o origin paper
+- Barra de timeline de anos na parte inferior do grafo
 
-Nenhum concorrente direto oferece isso de forma integrada. Ferramentas como Connected Papers fazem algo similar, mas isolado.
+### 2. KnowledgeGraph.tsx - Layout de 3 paineis
+- **Painel esquerdo (~250px):** Lista scrollable de papers com busca, origin paper destacado, tabs "Prior works" / "Derivative works"
+- **Painel central (flex-1):** O grafo force-directed
+- **Painel direito (~300px):** Detalhes do paper selecionado (titulo completo, autores, journal, ano, citações, abstract/TL;DR, links externos, botao Save)
+- Clicar em um paper na lista esquerda centraliza o grafo naquele nó
+- Clicar em um nó no grafo atualiza o painel direito
 
----
+### 3. Edge Function - Ajustar para formato Connected Papers
+- Gerar apenas nós do tipo "paper" com campo `similarity` entre 0-100
+- Gerar edges com peso de similaridade (baseado em co-citation e bibliographic coupling)
+- Retornar listas separadas de `priorWorks` e `derivativeWorks`
+- Prior works: papers mais citados pelos papers do grafo
+- Derivative works: papers que citam muitos papers do grafo
 
-## 2. Colaboração em Tempo Real (Workspaces Compartilhados)
+### 4. Funcionalidades Connected Papers
+- **Busca por DOI ou titulo** (seed paper)
+- **Prior Works tab:** Lista de trabalhos seminais ordenavel por titulo, autor, ano, citações
+- **Derivative Works tab:** Surveys e trabalhos recentes que citam o corpus
+- **Download/Export** da lista de papers (BibTeX)
+- **Timeline bar** na base do grafo mostrando distribuição por ano
+- **Path highlighting:** ao selecionar um nó, mostrar caminho ate o origin
 
-**Impacto: Alto | Diferencial: Forte**
+## Arquivos modificados
+1. `supabase/functions/generate-knowledge-graph/index.ts` - Novo prompt focado em similaridade entre papers
+2. `src/components/knowledge-graph/KnowledgeGraphView.tsx` - Redesign completo do grafo (apenas papers, cor=ano, tamanho=citações)
+3. `src/pages/KnowledgeGraph.tsx` - Layout 3 paineis com lista lateral, detalhes e tabs
 
-Permitir que equipes de pesquisa trabalhem juntas:
-- Projetos compartilhados com múltiplos membros
-- Anotações e comentários em papers específicos
-- Histórico de decisões de triagem (screening) com atribuição por membro
-- Roles (orientador, co-autor, revisor)
-
-Elicit e Consensus são ferramentas individuais. Oferecer colaboração nativa posiciona o ScholarAI como ferramenta de equipe.
-
----
-
-## 3. Assistente de Escrita Científica (AI Writing Co-pilot)
-
-**Impacto: Muito Alto | Diferencial: Forte**
-
-Um editor de texto integrado onde a IA ajuda a redigir seções do artigo:
-- Gerar rascunhos de Introdução, Métodos, Discussão baseados nos papers coletados
-- Inserir citações inline automaticamente no formato correto (APA, Vancouver, ABNT)
-- Sugerir reformulações para melhorar clareza e rigor
-- Verificar consistência entre claims e evidências citadas
-
-Isso transformaria o ScholarAI de ferramenta de pesquisa em ferramenta de produção acadêmica completa.
-
----
-
-## 4. Meta-análise Automatizada
-
-**Impacto: Muito Alto | Diferencial: Único**
-
-Após a extração de dados estruturados (que o sistema já faz), oferecer:
-- Cálculo automático de effect sizes (Cohen's d, OR, RR)
-- Forest plots interativos
-- Análise de heterogeneidade (I², Q-test)
-- Funnel plots para detecção de viés de publicação
-- Exportação do relatório em formato PRISMA
-
-Nenhuma ferramenta no mercado faz isso de ponta a ponta. Seria um diferencial massivo para revisões sistemáticas.
-
----
-
-## 5. Alertas Inteligentes e Monitoramento de Literatura
-
-**Impacto: Médio-Alto | Diferencial: Moderado**
-
-Sistema de vigilância científica contínua:
-- Salvar buscas e receber notificações quando novos papers relevantes são publicados
-- Alertas de retratação para papers já citados pelo usuário
-- Resumo semanal automático por email com novidades na área
-- Feed personalizado baseado no histórico de pesquisa
-
----
-
-## 6. Integração com Repositórios e Gerenciadores de Referência
-
-**Impacto: Médio | Diferencial: Essencial**
-
-- Exportação direta para Zotero, Mendeley, EndNote (formato RIS/BibTeX)
-- Importação de bibliotecas existentes para análise
-- Sincronização bidirecional com gerenciadores
-
-Isso remove fricção na adoção e integra o ScholarAI no workflow existente dos pesquisadores.
-
----
-
-## 7. Análise de Qualidade Metodológica (Risk of Bias)
-
-**Impacto: Alto | Diferencial: Único**
-
-Avaliação automática da qualidade metodológica dos estudos usando frameworks padrão:
-- RoB 2 (Cochrane) para ensaios clínicos
-- ROBINS-I para estudos observacionais
-- NOS (Newcastle-Ottawa) para coortes
-- Geração de tabelas de qualidade prontas para publicação
-
----
-
-## Priorização Recomendada
-
-| Prioridade | Funcionalidade | Esforço | Impacto |
-|-----------|---------------|---------|---------|
-| 1 | Meta-análise Automatizada | Alto | Revolucionário |
-| 2 | Assistente de Escrita | Alto | Muito Alto |
-| 3 | Knowledge Graph | Médio | Alto + Wow factor |
-| 4 | Colaboração em Tempo Real | Alto | Alto |
-| 5 | Alertas Inteligentes | Médio | Médio-Alto |
-| 6 | Risk of Bias | Médio | Alto (nicho) |
-| 7 | Integração Zotero/Mendeley | Baixo | Essencial |
-
-A combinação de **Meta-análise + Assistente de Escrita + Knowledge Graph** posicionaria o ScholarAI como a primeira plataforma verdadeiramente end-to-end para pesquisa científica — da busca à publicação.
+## Detalhes visuais (inspirados no Connected Papers)
+- Cor dos nós: gradiente de bege/amarelo claro (papers antigos) ate verde escuro (papers recentes)
+- Origin paper: borda roxa/lilás destacada
+- Hover: tooltip com titulo resumido
+- Seleção: highlight do nó + caminho ate origin
+- Lista lateral: cada paper mostra titulo truncado, primeiro autor, ano
+- Painel direito: titulo completo, todos autores, journal, citações, TL;DR
 
