@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import PrismaFlowDiagram from "./PrismaFlowDiagram";
 
 interface Paper {
   id: string;
@@ -44,6 +45,7 @@ interface StepReportProps {
   reportContent: string;
   onReportChange: (content: string) => void;
   onPrev: () => void;
+  duplicatesRemoved?: number;
 }
 
 const StepReport = ({
@@ -59,6 +61,7 @@ const StepReport = ({
   reportContent,
   onReportChange,
   onPrev,
+  duplicatesRemoved = 0,
 }: StepReportProps) => {
   const { locale } = useLanguage();
   const [generating, setGenerating] = useState(false);
@@ -623,49 +626,15 @@ const StepReport = ({
 
             {/* PRISMA Flow Diagram */}
             <section className="mt-10 pt-6 border-t border-border">
-              <h2 className="text-base font-bold text-foreground uppercase tracking-wider mb-6 text-center">
-                {locale === "pt" ? "Diagrama de Fluxo PRISMA" : "PRISMA Flow Diagram"}
-              </h2>
-              <div className="flex flex-col items-center gap-0">
-                <div className="rounded-lg border-2 border-foreground/20 bg-muted/30 px-8 py-4 text-center min-w-[280px]">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {locale === "pt" ? "Artigos identificados nas bases de dados" : "Records identified through database searching"}
-                  </p>
-                  <p className="text-2xl font-bold text-foreground mt-1">n = {totalPapers}</p>
-                </div>
-                <div className="w-px h-8 bg-foreground/20" />
-                <div className="rounded-lg border-2 border-foreground/20 bg-muted/30 px-8 py-4 text-center min-w-[280px]">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {locale === "pt" ? "Artigos triados" : "Records screened"}
-                  </p>
-                  <p className="text-2xl font-bold text-foreground mt-1">n = {screenedCount}</p>
-                  {enabledCriteria.length > 0 && (
-                    <p className="text-[10px] text-muted-foreground mt-1 max-w-xs">
-                      {enabledCriteria.map((c) => c.name).join(", ")}
-                    </p>
-                  )}
-                </div>
-                <div className="w-px h-8 bg-foreground/20" />
-                <div className="flex gap-6 items-start">
-                  <div className="rounded-lg border-2 border-primary/40 bg-primary/5 px-6 py-4 text-center min-w-[160px]">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      {locale === "pt" ? "Artigos incluídos" : "Studies included"}
-                    </p>
-                    <p className="text-2xl font-bold text-primary mt-1">n = {includedPaperIds.length}</p>
-                  </div>
-                  <div className="rounded-lg border-2 border-destructive/30 bg-destructive/5 px-6 py-4 text-center min-w-[160px]">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      {locale === "pt" ? "Artigos excluídos" : "Records excluded"}
-                    </p>
-                    <p className="text-2xl font-bold text-destructive mt-1">n = {excludedCount}</p>
-                  </div>
-                </div>
-              </div>
-              <p className="text-[10px] text-muted-foreground text-center mt-4 italic">
-                {locale === "pt"
-                  ? "Figura 1. Diagrama de fluxo PRISMA da seleção dos estudos."
-                  : "Figure 1. PRISMA flow diagram of study selection."}
-              </p>
+              <PrismaFlowDiagram
+                identified={totalPapers + duplicatesRemoved}
+                duplicatesRemoved={duplicatesRemoved}
+                screened={screenedCount}
+                excludedScreening={screenedCount - includedPaperIds.length}
+                includedFullText={includedPaperIds.length}
+                excludedFullText={0}
+                finalIncluded={includedPaperIds.length}
+              />
             </section>
 
             {/* Extraction results table */}

@@ -1,9 +1,11 @@
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, Search, Loader2, FileText, Plus, Check } from "lucide-react";
-import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, ArrowRight, Search, Loader2, FileText, Upload, AlertTriangle, CheckCircle2, X } from "lucide-react";
+import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { detectAndParse, findDuplicates, type DuplicateGroup } from "@/lib/bibliographyParsers";
 
 interface Paper {
   id: string;
@@ -14,6 +16,7 @@ interface Paper {
   source?: string;
   doi?: string;
   url?: string;
+  journal?: string;
 }
 
 interface StepCollectionProps {
@@ -22,18 +25,25 @@ interface StepCollectionProps {
   onPapersChange: (papers: Paper[]) => void;
   onNext: () => void;
   onPrev: () => void;
+  duplicatesRemoved?: number;
+  onDuplicatesRemovedChange?: (n: number) => void;
 }
 
-const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev }: StepCollectionProps) => {
+const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev, duplicatesRemoved = 0, onDuplicatesRemovedChange }: StepCollectionProps) => {
   const { locale } = useLanguage();
   const [searching, setSearching] = useState(false);
   const [searchCount, setSearchCount] = useState(200);
+  const [importing, setImporting] = useState(false);
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const pt = locale === "pt";
 
   const handleSearch = async () => {
     if (!question.trim()) return;
     setSearching(true);
     try {
-      // Use the selected total limit; backend handles source balancing and caps final total
       const { data, error } = await supabase.functions.invoke("search-papers", {
         body: { query: question, limit: searchCount },
       });
@@ -49,14 +59,13 @@ const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev }: St
         url: p.url,
       }));
 
-      // Merge without duplicates
-      const existingIds = new Set(papers.map((p) => p.id));
-      const newPapers = results.filter((p) => !existingIds.has(p.id));
-      onPapersChange([...papers, ...newPapers]);
+      const merged = [...papers, ...results];
+      runDeduplication(merged);
+
       toast.success(
-        locale === "pt"
-          ? `${newPapers.length} artigos adicionados (${results.length} encontrados)`
-          : `${newPapers.length} papers added (${results.length} found)`
+        pt
+          ? `${results.length} artigos encontrados`
+          : `${results.length} papers found`
       );
     } catch (err: any) {
       toast.error(err.message || "Search failed");
@@ -65,49 +74,196 @@ const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev }: St
     }
   };
 
+  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setImporting(true);
+    let totalImported = 0;
+
+    try {
+      const allImported: Paper[] = [];
+
+      for (const file of Array.from(files)) {
+        const text = await file.text();
+        const parsed = detectAndParse(text, file.name);
+        allImported.push(...parsed);
+        totalImported += parsed.length;
+      }
+
+      if (totalImported === 0) {
+        toast.error(pt ? "Nenhum artigo encontrado nos arquivos" : "No papers found in files");
+        return;
+      }
+
+      const merged = [...papers, ...allImported];
+      runDeduplication(merged);
+
+      toast.success(
+        pt
+          ? `${totalImported} artigos importados`
+          : `${totalImported} papers imported`
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Import failed");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const runDeduplication = (allPapers: Paper[]) => {
+    const { unique, duplicateGroups: groups } = findDuplicates(allPapers);
+    const removedCount = allPapers.length - unique.length;
+
+    onPapersChange(unique);
+    setDuplicateGroups(groups);
+
+    if (removedCount > 0) {
+      onDuplicatesRemovedChange?.((duplicatesRemoved || 0) + removedCount);
+      setShowDuplicates(true);
+      toast.info(
+        pt
+          ? `${removedCount} duplicatas detectadas e removidas`
+          : `${removedCount} duplicates detected and removed`
+      );
+    }
+  };
+
   const removePaper = (id: string) => {
     onPapersChange(papers.filter((p) => p.id !== id));
   };
+
+  // Count sources
+  const sourceCounts: Record<string, number> = {};
+  papers.forEach((p) => {
+    const src = p.source || "unknown";
+    sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+  });
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="space-y-2 text-center">
         <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
           <FileText className="h-4 w-4" />
-          {locale === "pt" ? "Etapa 2: Coleta de Artigos" : "Step 2: Article Collection"}
+          {pt ? "Etapa 2: Coleta de Artigos" : "Step 2: Article Collection"}
         </div>
         <p className="text-sm text-muted-foreground">
-          {locale === "pt"
-            ? "Colete artigos via busca semântica. Quanto mais artigos, melhor a cobertura."
-            : "Collect articles via semantic search. More articles means better coverage."}
+          {pt
+            ? "Busque via API ou importe artigos de arquivos RIS, BibTeX ou CSV. Duplicatas são removidas automaticamente."
+            : "Search via API or import papers from RIS, BibTeX or CSV files. Duplicates are automatically removed."}
         </p>
       </div>
 
       {/* Search controls */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4">
         <div className="flex-1 text-sm text-muted-foreground truncate">
-          <span className="font-medium text-foreground">{locale === "pt" ? "Pergunta:" : "Question:"}</span> {question}
+          <span className="font-medium text-foreground">{pt ? "Pergunta:" : "Question:"}</span> {question}
         </div>
         <select
           value={searchCount}
           onChange={(e) => setSearchCount(Number(e.target.value))}
           className="rounded border border-border bg-background px-2 py-1.5 text-sm"
         >
-          <option value={100}>100 {locale === "pt" ? "artigos" : "papers"}</option>
-          <option value={200}>200 {locale === "pt" ? "artigos" : "papers"}</option>
-          <option value={500}>500 {locale === "pt" ? "artigos" : "papers"}</option>
+          <option value={100}>100 {pt ? "artigos" : "papers"}</option>
+          <option value={200}>200 {pt ? "artigos" : "papers"}</option>
+          <option value={500}>500 {pt ? "artigos" : "papers"}</option>
         </select>
         <Button onClick={handleSearch} disabled={searching} className="gap-2">
           {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          {locale === "pt" ? "Buscar" : "Search"}
+          {pt ? "Buscar" : "Search"}
         </Button>
       </div>
+
+      {/* Import section */}
+      <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Upload className="h-5 w-5 text-primary" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-foreground">
+              {pt ? "Importar de bases externas" : "Import from external databases"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {pt
+                ? "Suporta RIS (Scopus, WoS), BibTeX (Google Scholar), CSV e EndNote XML"
+                : "Supports RIS (Scopus, WoS), BibTeX (Google Scholar), CSV and EndNote XML"}
+            </p>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".ris,.bib,.bibtex,.csv,.txt,.enw,.xml"
+            multiple
+            onChange={handleFileImport}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="gap-2"
+          >
+            {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {pt ? "Importar arquivos" : "Import files"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Deduplication notice */}
+      {showDuplicates && duplicateGroups.length > 0 && (
+        <div className="rounded-xl border border-yellow-300/50 bg-yellow-50 dark:bg-yellow-950/20 p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                {pt
+                  ? `${duplicateGroups.reduce((acc, g) => acc + g.duplicates.length, 0)} duplicatas removidas`
+                  : `${duplicateGroups.reduce((acc, g) => acc + g.duplicates.length, 0)} duplicates removed`}
+              </span>
+            </div>
+            <button onClick={() => setShowDuplicates(false)} className="text-yellow-600 hover:text-yellow-800">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="max-h-32 overflow-y-auto space-y-1">
+            {duplicateGroups.slice(0, 10).map((g, i) => (
+              <div key={i} className="text-xs text-yellow-700 dark:text-yellow-300">
+                <span className="font-medium">{g.keep.title.slice(0, 60)}...</span>
+                <span className="text-yellow-600 dark:text-yellow-400">
+                  {" "}({g.duplicates.length} {pt ? "dup." : "dup."})
+                </span>
+              </div>
+            ))}
+            {duplicateGroups.length > 10 && (
+              <p className="text-xs text-yellow-600">
+                +{duplicateGroups.length - 10} {pt ? "mais grupos" : "more groups"}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Source breakdown */}
+      {papers.length > 0 && Object.keys(sourceCounts).length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(sourceCounts).map(([src, count]) => (
+            <Badge key={src} variant="secondary" className="text-xs">
+              {src.replace(/_/g, " ").replace("imported ", "📥 ")}: {count}
+            </Badge>
+          ))}
+          {duplicatesRemoved > 0 && (
+            <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-300">
+              🔁 {pt ? "Duplicatas removidas" : "Duplicates removed"}: {duplicatesRemoved}
+            </Badge>
+          )}
+        </div>
+      )}
 
       {/* Papers list */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-foreground">
-            {locale === "pt" ? `${papers.length} artigos coletados` : `${papers.length} papers collected`}
+            {pt ? `${papers.length} artigos coletados` : `${papers.length} papers collected`}
           </h3>
         </div>
 
@@ -115,7 +271,7 @@ const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev }: St
           <div className="rounded-xl border border-dashed border-border bg-muted/30 py-12 text-center">
             <Search className="mx-auto h-8 w-8 text-muted-foreground/50" />
             <p className="mt-2 text-sm text-muted-foreground">
-              {locale === "pt" ? "Clique em 'Buscar' para coletar artigos" : "Click 'Search' to collect papers"}
+              {pt ? "Busque ou importe artigos para começar" : "Search or import papers to get started"}
             </p>
           </div>
         ) : (
@@ -130,6 +286,11 @@ const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev }: St
                   <p className="text-xs text-muted-foreground truncate">
                     {paper.authors?.slice(0, 3).join(", ")}
                     {(paper.authors?.length || 0) > 3 && " et al."} {paper.year && `(${paper.year})`}
+                    {paper.source?.startsWith("imported") && (
+                      <Badge variant="outline" className="ml-2 text-[10px] py-0 h-4">
+                        {paper.source.replace("imported_", "📥 ")}
+                      </Badge>
+                    )}
                   </p>
                 </div>
                 <button
@@ -148,10 +309,10 @@ const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev }: St
       <div className="flex justify-between">
         <Button variant="outline" onClick={onPrev} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
-          {locale === "pt" ? "Anterior" : "Previous"}
+          {pt ? "Anterior" : "Previous"}
         </Button>
         <Button onClick={onNext} disabled={papers.length === 0} className="gap-2">
-          {locale === "pt" ? "Próximo: Triagem" : "Next: Screening"}
+          {pt ? "Próximo: Triagem" : "Next: Screening"}
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
