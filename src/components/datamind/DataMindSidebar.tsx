@@ -35,7 +35,7 @@ const DataMindSidebar = ({ conversations, activeId, onSelect, onNew, onDelete, o
 
   return (
     <>
-      <div className="w-64 border-r border-border/30 bg-sidebar-background flex flex-col h-full">
+      <div className="w-64 border-r border-border/30 bg-sidebar-background flex flex-col flex-1 min-h-0">
         {/* Header */}
         <div className="p-4 pb-3">
           <div className="flex items-center gap-2.5 mb-4">
