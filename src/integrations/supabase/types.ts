@@ -172,6 +172,86 @@ export type Database = {
         }
         Relationships: []
       }
+      datamind_dashboard_items: {
+        Row: {
+          content: Json
+          created_at: string
+          dashboard_id: string
+          id: string
+          item_type: string
+          position: Json
+          source_message_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          dashboard_id: string
+          id?: string
+          item_type?: string
+          position?: Json
+          source_message_id?: string | null
+          title?: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          dashboard_id?: string
+          id?: string
+          item_type?: string
+          position?: Json
+          source_message_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datamind_dashboard_items_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "datamind_dashboards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      datamind_dashboards: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_public: boolean
+          layout: Json
+          share_token: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          layout?: Json
+          share_token?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean
+          layout?: Json
+          share_token?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       datamind_files: {
         Row: {
           conversation_id: string | null

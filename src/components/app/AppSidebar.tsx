@@ -35,6 +35,7 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
     { label: "Ref. Check", href: "/reference-check", icon: ShieldCheck },
     { label: t("nav.illustrations"), href: "/illustrations", icon: Palette },
     { label: "DataMind", href: "/datamind", icon: BrainCircuit },
+    { label: "Dashboards", href: "/datamind/dashboards", icon: LayoutDashboard },
     { label: locale === "pt" ? "Mapa de Conhecimento" : "Knowledge Map", href: "/knowledge-graph", icon: Network },
     { label: "Workspaces", href: "/workspaces", icon: Users },
     { label: locale === "pt" ? "Escrita Científica" : "Writing Assistant", href: "/writing", icon: PenLine },

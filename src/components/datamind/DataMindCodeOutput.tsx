@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Download, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, TableIcon, ImageIcon, FileText, Maximize2, FileSpreadsheet, Loader2, ExternalLink } from "lucide-react";
+import DataMindDashboardPinButton from "./DataMindDashboardPinButton";
 import { motion, AnimatePresence } from "framer-motion";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -433,6 +434,11 @@ const InlineTable = ({ block, index }: { block: OutputBlock; index: number }) =>
               </span>
             </div>
             <div className="flex items-center gap-1">
+              <DataMindDashboardPinButton
+                itemType="table"
+                title={block.title || `Tabela ${index + 1}`}
+                content={{ headers, rows }}
+              />
               <button
                 onClick={handleExportSheets}
                 disabled={sheetsLoading}
@@ -559,6 +565,11 @@ const InlineChart = ({ block, index }: { block: OutputBlock; index: number }) =>
             <span className="text-xs font-medium text-muted-foreground">{block.label || "Chart"}</span>
           </div>
           <div className="flex items-center gap-1">
+            <DataMindDashboardPinButton
+              itemType="chart"
+              title={block.label || `Gráfico ${index + 1}`}
+              content={{ base64: block.content }}
+            />
             <button
               onClick={() => downloadImage(block.content, `grafico_${index + 1}.png`)}
               className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
