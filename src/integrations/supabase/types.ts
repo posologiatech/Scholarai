@@ -687,24 +687,33 @@ export type Database = {
       }
       illustrations: {
         Row: {
+          category: string | null
           created_at: string
           id: string
           image_url: string
+          is_public: boolean
           prompt: string
+          style: string | null
           user_id: string
         }
         Insert: {
+          category?: string | null
           created_at?: string
           id?: string
           image_url: string
+          is_public?: boolean
           prompt: string
+          style?: string | null
           user_id: string
         }
         Update: {
+          category?: string | null
           created_at?: string
           id?: string
           image_url?: string
+          is_public?: boolean
           prompt?: string
+          style?: string | null
           user_id?: string
         }
         Relationships: []
