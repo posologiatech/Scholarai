@@ -199,7 +199,12 @@ const WritingAssistant = () => {
 
       try {
         // 1. Upload to storage
-        const filePath = `${user.id}/writing/${Date.now()}_${file.name}`;
+        const safeFileName = file.name
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9._-]/g, "_")
+          .replace(/_+/g, "_");
+        const filePath = `${user.id}/writing/${Date.now()}_${safeFileName}`;
         const { error: uploadError } = await supabase.storage
           .from("papers")
           .upload(filePath, file);
