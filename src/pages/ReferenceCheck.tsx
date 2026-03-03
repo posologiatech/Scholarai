@@ -60,8 +60,40 @@ const ReferenceCheck = () => {
     setSummary(null);
 
     try {
-      // Read file as text (for now, support text-based content)
-      const text = await file.text();
+      let text = "";
+
+      if (file.name.toLowerCase().endsWith(".pdf")) {
+        // For PDFs, send as base64 to edge function for extraction
+        const buffer = await file.arrayBuffer();
+        const base64 = btoa(
+          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+        );
+        
+        // First extract text from PDF via edge function
+        const extractUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-pdf`;
+        const extractResp = await fetch(extractUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ pdf_base64: base64, file_name: file.name }),
+        });
+        
+        if (extractResp.ok) {
+          const extractData = await extractResp.json();
+          text = extractData.text || extractData.extracted_text || "";
+        }
+        
+        if (!text) {
+          toast.error(locale === "pt" ? "Não foi possível extrair texto do PDF" : "Could not extract text from PDF");
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Text-based files (TXT, DOCX)
+        text = await file.text();
+      }
 
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-references`;
       const resp = await fetch(url, {
@@ -167,11 +199,11 @@ const ReferenceCheck = () => {
                 </p>
                 <p className="text-xs text-muted-foreground mb-4">
                   {locale === "pt" ? "ou clique para selecionar" : "or click to select"}
-                  {" · TXT, DOCX"}
+                  {" · TXT, DOCX, PDF"}
                 </p>
                 <input
                   type="file"
-                  accept=".txt,.doc,.docx"
+                  accept=".txt,.doc,.docx,.pdf"
                   onChange={handleFileChange}
                   className="absolute inset-0 cursor-pointer opacity-0"
                 />
