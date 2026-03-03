@@ -12,6 +12,7 @@ interface Props {
   messages: Message[];
   files: DataMindFile[];
   loading: boolean;
+  conversationId?: string;
   onSend: (content: string, file?: File) => void;
   hasConversation: boolean;
   existingFiles?: DataMindFile[];
@@ -20,7 +21,7 @@ interface Props {
   onSelectionChange?: (ctx: SelectedContext | null) => void;
 }
 
-const DataMindChat = ({ messages, files, loading, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange }: Props) => {
+const DataMindChat = ({ messages, files, loading, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange }: Props) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -95,7 +96,7 @@ const DataMindChat = ({ messages, files, loading, onSend, hasConversation, exist
 
             {/* Messages */}
             {messages.map((msg) => (
-              <DataMindMessage key={msg.id} message={msg} />
+              <DataMindMessage key={msg.id} message={msg} conversationId={conversationId} />
             ))}
 
             {/* Suggestions after last AI message — contextual */}
