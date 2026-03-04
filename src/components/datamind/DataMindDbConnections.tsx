@@ -76,31 +76,34 @@ const DataMindDbConnections = ({ onSelect, selectedId }: Props) => {
     if (!user || !form.name || !form.host || !form.database_name || !form.username || !form.password) return;
     setSaving(true);
 
-    const { data, error } = await supabase
-      .from("datamind_db_connections" as any)
-      .insert({
-        user_id: user.id,
-        name: form.name,
-        db_type: form.db_type,
-        host: form.host,
-        port: form.port,
-        database_name: form.database_name,
-        username: form.username,
-        password_encrypted: form.password,
-        ssl_mode: form.ssl_mode,
-      } as any)
-      .select("id, name, db_type, host, port, database_name, username, is_active, schema_cache, last_connected_at, created_at")
-      .single();
+    try {
+      const res = await supabase.functions.invoke("datamind-db", {
+        body: {
+          action: "save",
+          name: form.name,
+          db_type: form.db_type,
+          host: form.host,
+          port: form.port,
+          database_name: form.database_name,
+          username: form.username,
+          password: form.password,
+          ssl_mode: form.ssl_mode,
+        },
+      });
+
+      if (res.error || !res.data?.success) {
+        toast({ title: "Erro ao salvar", description: res.error?.message || res.data?.error || "Erro desconhecido", variant: "destructive" });
+      } else {
+        setConnections(prev => [res.data.connection, ...prev]);
+        setDialogOpen(false);
+        setForm({ name: "", db_type: "postgresql", host: "", port: 5432, database_name: "", username: "", password: "", ssl_mode: "require" });
+        toast({ title: "Conexão salva!" });
+      }
+    } catch (e) {
+      toast({ title: "Erro ao salvar", description: "Falha ao salvar conexão", variant: "destructive" });
+    }
 
     setSaving(false);
-    if (error) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
-    } else {
-      setConnections(prev => [(data as any), ...prev]);
-      setDialogOpen(false);
-      setForm({ name: "", db_type: "postgresql", host: "", port: 5432, database_name: "", username: "", password: "", ssl_mode: "require" });
-      toast({ title: "Conexão salva!" });
-    }
   };
 
   const testConnection = async (id: string) => {
