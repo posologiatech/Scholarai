@@ -19,10 +19,39 @@ interface DbConnection {
   schema_cache: any;
 }
 
-// Build connection URL for PostgreSQL
-function buildPostgresUrl(conn: DbConnection): string {
-  const ssl = conn.ssl_mode !== "disable" ? `?sslmode=${conn.ssl_mode}` : "";
-  return `postgres://${encodeURIComponent(conn.username)}:${encodeURIComponent(conn.password_encrypted)}@${conn.host}:${conn.port}/${conn.database_name}${ssl}`;
+// --- AES-GCM encryption helpers ---
+async function getEncryptionKey(): Promise<CryptoKey> {
+  const raw = Deno.env.get("DB_ENCRYPTION_KEY");
+  if (!raw) throw new Error("DB_ENCRYPTION_KEY not configured");
+  const keyBytes = new TextEncoder().encode(raw.padEnd(32, "0").slice(0, 32));
+  return crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+
+async function encryptPassword(plaintext: string): Promise<string> {
+  const key = await getEncryptionKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(plaintext);
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
+  // Store as base64: iv:ciphertext
+  const ivB64 = btoa(String.fromCharCode(...iv));
+  const ctB64 = btoa(String.fromCharCode(...new Uint8Array(ciphertext)));
+  return `enc:${ivB64}:${ctB64}`;
+}
+
+async function decryptPassword(stored: string): Promise<string> {
+  // If not encrypted (legacy), return as-is
+  if (!stored.startsWith("enc:")) return stored;
+  const key = await getEncryptionKey();
+  const parts = stored.split(":");
+  const iv = Uint8Array.from(atob(parts[1]), c => c.charCodeAt(0));
+  const ciphertext = Uint8Array.from(atob(parts[2]), c => c.charCodeAt(0));
+  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+  return new TextDecoder().decode(decrypted);
+}
+
+// Build a connection object with decrypted password
+async function withDecryptedPassword(conn: DbConnection): Promise<DbConnection> {
+  return { ...conn, password_encrypted: await decryptPassword(conn.password_encrypted) };
 }
 
 // Execute SQL on remote PostgreSQL using Deno's postgres driver
@@ -73,7 +102,6 @@ async function fetchPostgresSchema(conn: DbConnection): Promise<any> {
   try {
     await client.connect();
     
-    // Get tables and columns
     const result = await client.queryObject(`
       SELECT 
         t.table_schema,
@@ -145,10 +173,8 @@ REGRAS:
   const data = await response.json();
   let sql = data.choices?.[0]?.message?.content || "";
   
-  // Clean up: remove markdown fences
   sql = sql.replace(/^```(?:sql)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
   
-  // Security: verify it's a SELECT
   const firstWord = sql.split(/\s+/)[0]?.toUpperCase();
   if (!["SELECT", "WITH", "EXPLAIN"].includes(firstWord)) {
     throw new Error("Apenas consultas SELECT são permitidas por segurança.");
@@ -185,9 +211,50 @@ serve(async (req) => {
       });
     }
 
-    const { action, connection_id, query, question } = await req.json();
+    const body = await req.json();
+    const { action, connection_id, query, question } = body;
 
-    // Fetch connection
+    // --- NEW: Save connection with encrypted password ---
+    if (action === "save") {
+      const { name, db_type, host, port, database_name, username, password, ssl_mode } = body;
+      if (!name || !host || !database_name || !username || !password) {
+        return new Response(JSON.stringify({ error: "Campos obrigatórios faltando" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const encrypted = await encryptPassword(password);
+
+      const { data, error } = await supabase
+        .from("datamind_db_connections")
+        .insert({
+          user_id: user.id,
+          name,
+          db_type: db_type || "postgresql",
+          host,
+          port: port || 5432,
+          database_name,
+          username,
+          password_encrypted: encrypted,
+          ssl_mode: ssl_mode || "require",
+        })
+        .select("id, name, db_type, host, port, database_name, username, is_active, schema_cache, last_connected_at, created_at")
+        .single();
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, connection: data }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Fetch connection and decrypt password
     if (action === "test" || action === "query" || action === "schema" || action === "nl2sql") {
       const { data: conn, error: connError } = await supabase
         .from("datamind_db_connections")
@@ -203,11 +270,13 @@ serve(async (req) => {
         });
       }
 
+      // Decrypt password before use
+      const decryptedConn = await withDecryptedPassword(conn as DbConnection);
+
       if (action === "test") {
         try {
-          const schema = await fetchPostgresSchema(conn as DbConnection);
+          const schema = await fetchPostgresSchema(decryptedConn);
           
-          // Cache schema
           await supabase
             .from("datamind_db_connections")
             .update({ schema_cache: schema, last_connected_at: new Date().toISOString() })
@@ -232,14 +301,13 @@ serve(async (req) => {
       }
 
       if (action === "schema") {
-        const schema = conn.schema_cache || await fetchPostgresSchema(conn as DbConnection);
+        const schema = conn.schema_cache || await fetchPostgresSchema(decryptedConn);
         return new Response(JSON.stringify({ schema }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       if (action === "query") {
-        // Validate: only SELECT allowed
         const firstWord = query.trim().split(/\s+/)[0]?.toUpperCase();
         if (!["SELECT", "WITH", "EXPLAIN"].includes(firstWord)) {
           return new Response(JSON.stringify({ error: "Apenas consultas SELECT são permitidas." }), {
@@ -248,18 +316,16 @@ serve(async (req) => {
           });
         }
 
-        const result = await executePostgresQuery(conn as DbConnection, query);
+        const result = await executePostgresQuery(decryptedConn, query);
         return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       if (action === "nl2sql") {
-        const schema = conn.schema_cache || await fetchPostgresSchema(conn as DbConnection);
+        const schema = conn.schema_cache || await fetchPostgresSchema(decryptedConn);
         const sql = await naturalLanguageToSQL(question, schema, conn.db_type);
-        
-        // Execute the generated SQL
-        const result = await executePostgresQuery(conn as DbConnection, sql);
+        const result = await executePostgresQuery(decryptedConn, sql);
         
         return new Response(JSON.stringify({ sql, ...result }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
