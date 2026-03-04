@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { callAI, callEmbeddings } from "../_shared/ai-caller.ts";
+import { requireAuth } from "../_shared/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,6 +11,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const auth = await requireAuth(req, corsHeaders);
+  if ("error" in auth) return auth.error;
 
   try {
     const { query, papers, column_name, custom_prompt, locale = 'en', stream = false, full_texts = {} } = await req.json();
