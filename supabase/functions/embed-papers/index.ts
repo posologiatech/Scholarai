@@ -1,9 +1,10 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireAuth } from "../_shared/auth.ts";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // Split text into chunks of ~500 tokens (~2000 chars)
 function chunkText(text: string, maxChars = 2000): string[] {
@@ -28,10 +29,6 @@ function chunkText(text: string, maxChars = 2000): string[] {
 // Generate embedding via Lovable AI Gateway
 async function generateEmbedding(text: string, apiKey: string): Promise<number[] | null> {
   try {
-    // Use chat completions to generate a pseudo-embedding by asking the model
-    // to summarize, then use a hash-based approach. 
-    // Actually, we'll use Gemini's embedding endpoint through the gateway.
-    // The Lovable AI gateway is OpenAI-compatible, so we use the embeddings endpoint.
     const response = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
       method: 'POST',
       headers: {
@@ -40,7 +37,7 @@ async function generateEmbedding(text: string, apiKey: string): Promise<number[]
       },
       body: JSON.stringify({
         model: 'google/text-embedding-004',
-        input: text.slice(0, 8000), // Limit input size
+        input: text.slice(0, 8000),
       }),
     });
 
@@ -62,6 +59,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const authResult = await requireAuth(req, corsHeaders);
+  if ("error" in authResult) return authResult.error;
 
   try {
     const { papers } = await req.json();

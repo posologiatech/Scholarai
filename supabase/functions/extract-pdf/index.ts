@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { requireAuth } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,6 +73,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Authenticate user
+  const auth = await requireAuth(req, corsHeaders);
+  if ("error" in auth) return auth.error;
+
   try {
     const { paper_id, columns, query, locale = "en" } = await req.json();
 
@@ -90,15 +95,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get auth token from request
-    const authHeader = req.headers.get("Authorization");
+    // Verify paper ownership using user's auth context (RLS enforced)
+    const { data: ownedPaper, error: ownershipError } = await auth.supabase
+      .from("uploaded_papers")
+      .select("id")
+      .eq("id", paper_id)
+      .single();
 
-    // Create supabase client with service role for storage access
+    if (ownershipError || !ownedPaper) {
+      return new Response(
+        JSON.stringify({ error: "Paper not found or access denied" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Use service role for storage access (ownership already verified)
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch the paper record
+    // Fetch the paper record with service role
     const { data: paper, error: paperError } = await supabase
       .from("uploaded_papers")
       .select("*")

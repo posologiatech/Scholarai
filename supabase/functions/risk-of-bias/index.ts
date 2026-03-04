@@ -1,4 +1,5 @@
 import { callAI } from "../_shared/ai-caller.ts";
+import { requireAuth } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,6 +52,9 @@ function getJudgmentScale(framework: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const auth = await requireAuth(req, corsHeaders);
+  if ("error" in auth) return auth.error;
 
   try {
     const { action, papers, framework, stream } = await req.json();
