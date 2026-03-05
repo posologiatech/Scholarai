@@ -49,13 +49,29 @@ Deno.serve(async (req) => {
       ).length;
     }
 
+    // Agregar dados de uso de IA
+    const { data: aiStats } = await supabase
+      .from("ai_usage_log")
+      .select("tokens_input, tokens_output, estimated_cost_usd");
+
+    let aiRequests = 0;
+    let aiTokensUsed = 0;
+    let aiCostUsd = 0;
+    if (aiStats) {
+      aiRequests = aiStats.length;
+      for (const row of aiStats) {
+        aiTokensUsed += (row.tokens_input ?? 0) + (row.tokens_output ?? 0);
+        aiCostUsd += row.estimated_cost_usd ?? 0;
+      }
+    }
+
     const metrics = {
       total_users: totalUsers ?? (allUsers?.users?.length ?? 0),
       active_users: activeUsers,
       subscribers: 0,
-      ai_requests: 0,
-      ai_tokens_used: 0,
-      ai_cost_usd: 0,
+      ai_requests: aiRequests,
+      ai_tokens_used: aiTokensUsed,
+      ai_cost_usd: Math.round(aiCostUsd * 10000) / 10000,
       revenue_usd: 0,
       mrr_usd: 0,
       collected_at: new Date().toISOString(),
