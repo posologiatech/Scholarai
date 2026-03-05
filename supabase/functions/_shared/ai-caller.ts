@@ -141,13 +141,59 @@ function transformAnthropicResponse(data: any): any {
   };
 }
 
+async function logAIUsage(
+  provider: string,
+  model: string,
+  promptType: string,
+  responseData: any,
+  userId?: string,
+) {
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const usage = responseData?.usage;
+    const tokensInput = usage?.prompt_tokens ?? 0;
+    const tokensOutput = usage?.completion_tokens ?? 0;
+
+    // Estimated cost per 1M tokens (approximate)
+    const costMap: Record<string, { input: number; output: number }> = {
+      "gpt-4o-mini": { input: 0.15, output: 0.6 },
+      "gpt-4o": { input: 2.5, output: 10 },
+      "llama-3.3-70b-versatile": { input: 0.59, output: 0.79 },
+      "gemini-2.5-flash": { input: 0.15, output: 0.6 },
+      "claude-sonnet-4-20250514": { input: 3, output: 15 },
+    };
+    const rates = costMap[model] || { input: 0.15, output: 0.6 };
+    const estimatedCost =
+      (tokensInput * rates.input + tokensOutput * rates.output) / 1_000_000;
+
+    await supabase.from("ai_usage_log").insert({
+      user_id: userId || "00000000-0000-0000-0000-000000000000",
+      provider,
+      model,
+      prompt_type: promptType,
+      tokens_input: tokensInput,
+      tokens_output: tokensOutput,
+      estimated_cost_usd: estimatedCost,
+    });
+  } catch (err) {
+    console.error("[ai-caller] Failed to log AI usage:", err);
+  }
+}
+
 export async function callAI(options: ChatCompletionOptions): Promise<Response> {
   const activeKeys = await getActiveApiKeys();
   const forceProvider = (options as any)._forceProvider;
+  const userId = (options as any)._userId;
+  const promptType = (options as any)._promptType || "chat";
   
   // Clean internal fields
   const cleanOptions = { ...options };
   delete (cleanOptions as any)._forceProvider;
+  delete (cleanOptions as any)._userId;
+  delete (cleanOptions as any)._promptType;
 
   // If a specific provider is forced, try only that one
   const keysToTry = forceProvider 
@@ -193,9 +239,24 @@ export async function callAI(options: ChatCompletionOptions): Promise<Response> 
         if (!providerConfig.isOpenAICompatible && !options.stream) {
           const data = await response.json();
           const transformed = transformAnthropicResponse(data);
+          // Log usage (Anthropic uses different usage keys)
+          logAIUsage(keyRecord.provider, model, promptType, {
+            usage: {
+              prompt_tokens: data.usage?.input_tokens ?? 0,
+              completion_tokens: data.usage?.output_tokens ?? 0,
+            },
+          }, userId);
           return new Response(JSON.stringify(transformed), {
             headers: { "Content-Type": "application/json" },
           });
+        }
+
+        // Clone to read usage without consuming the stream
+        if (!options.stream) {
+          const cloned = response.clone();
+          cloned.json().then((data) => {
+            logAIUsage(keyRecord.provider, model, promptType, data, userId);
+          }).catch(() => {});
         }
 
         return response;
@@ -224,6 +285,14 @@ export async function callAI(options: ChatCompletionOptions): Promise<Response> 
     },
     body: JSON.stringify(cleanOptions),
   });
+
+  // Log Lovable AI usage
+  if (response.ok && !options.stream) {
+    const cloned = response.clone();
+    cloned.json().then((data) => {
+      logAIUsage("lovable", cleanOptions.model || "unknown", promptType, data, userId);
+    }).catch(() => {});
+  }
 
   return response;
 }
