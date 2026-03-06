@@ -1,91 +1,180 @@
 
 
-# Funcionalidades de Alto Impacto para Ilustrações Científicas
+# Survey Module (ScholarAI Surveys) -- Implementation Plan
 
-## Estado Atual
-O módulo atual gera ilustrações via IA (Gemini 3 Pro Image) com prompt textual, salva no Supabase Storage e exibe numa galeria simples com download PNG e exclusão. É funcional, mas básico comparado a ferramentas como BioRender, Miro e Canva Docs.
+## Overview
 
----
+A new Qualtrics-inspired survey/data collection module integrated into ScholarAI, designed for academic research. Surveys created here can export collected responses directly into DataMind for analysis.
 
-## Funcionalidades Propostas
+## Why This Is Competitive
 
-### 1. Edição de Imagem por Instrução (AI Image Editing)
-Permitir que o usuário selecione uma ilustração já gerada e dê instruções de edição em linguagem natural ("adicione uma legenda no canto", "mude a cor das mitocôndrias para azul", "remova o texto da direita"). Usa o mesmo modelo Gemini com a imagem existente como input.
-
-- Botão "Editar com IA" em cada card da galeria e no resultado atual
-- Modal com preview da imagem + campo de instrução
-- Salva como nova versão mantendo histórico
-
-### 2. Templates de Ilustração Científica por Área
-Biblioteca de templates pré-definidos organizados por categoria (Biologia Celular, Anatomia, Química, Fluxogramas de Pesquisa, Diagramas Estatísticos). O usuário escolhe um template e customiza via prompt.
-
-- Grid de categorias com ícones visuais
-- Cada template tem prompt-base otimizado + preview de exemplo
-- Reduz a barreira de "o que escrever" e melhora a qualidade dos resultados
-
-### 3. Exportação Multi-formato (SVG, PDF, TIFF)
-Além do PNG atual, permitir exportação em formatos exigidos por periódicos: SVG (vetorial), PDF (alta resolução), TIFF (300+ DPI). Essencial para publicação.
-
-- Menu dropdown de exportação no card
-- Conversão client-side usando Canvas API e jsPDF (já instalado)
-
-### 4. Anotação e Labels Editáveis
-Após gerar a ilustração, permitir que o usuário adicione/edite labels, setas e caixas de texto diretamente sobre a imagem via overlay HTML/Canvas.
-
-- Toolbar com ferramentas: texto, seta, retângulo, círculo
-- Drag-and-drop para posicionar anotações
-- Exporta a composição final (imagem + anotações) como PNG/PDF
-
-### 5. Variações e Estilos
-Gerar múltiplas variações de uma mesma descrição com estilos diferentes: "BioRender flat", "Textbook sketch", "3D render", "Watercolor scientific". O usuário escolhe o melhor.
-
-- Seletor de estilo antes de gerar
-- Botão "Gerar 3 variações" que faz chamadas paralelas
-- Comparação side-by-side
-
-### 6. Ilustração a partir de Paper/Abstract
-Integração com o restante do sistema: o usuário seleciona um paper da biblioteca e a IA gera automaticamente uma figura representativa do estudo (diagrama de métodos, fluxo do estudo, graphical abstract).
-
-- Botão "Gerar Graphical Abstract" na Library e nos resultados de busca
-- Usa título + abstract como contexto para o prompt
-- Diferencial único no mercado — nenhum concorrente faz isso
-
-### 7. Galeria Comunitária (Discover)
-Seção "Explorar" com ilustrações públicas compartilhadas por outros usuários (opt-in). Permite descobrir, copiar prompts e usar como inspiração.
-
-- Toggle "Compartilhar na comunidade" no card
-- Feed de ilustrações populares com filtro por área
-- Botão "Usar este prompt" que copia para o gerador
+- **Deep academic integration**: Surveys link directly to DataMind analysis pipelines, eliminating the export-import cycle researchers face with Qualtrics + SPSS/R.
+- **AI-powered question generation**: Leverage existing AI infrastructure to suggest questions based on research objectives.
+- **Built-in statistical summaries**: Mean, SD, CI displayed inline in reports -- no external tools needed.
+- **Bilingual (PT/EN)** out of the box.
+- **Workspace collaboration**: Team members can co-edit surveys via existing workspace infrastructure.
 
 ---
 
-## Prioridade de Implementação
+## Database Schema (New Tables)
 
-| # | Funcionalidade | Impacto | Complexidade |
-|---|---|---|---|
-| 1 | Edição por instrução AI | Alto — reuso e refinamento | Média |
-| 2 | Templates por área | Alto — reduz fricção | Baixa |
-| 3 | Variações e estilos | Alto — diferencial visual | Média |
-| 4 | Graphical Abstract de Paper | Muito alto — diferencial único | Média |
-| 5 | Exportação multi-formato | Alto — requisito para publicação | Baixa |
-| 6 | Anotação editável | Médio — melhora utilidade | Alta |
-| 7 | Galeria comunitária | Médio — engajamento | Alta |
+```text
+surveys
+├── id, user_id, workspace_id?, title, description, status (draft/active/closed)
+├── settings (jsonb: randomization, progress_bar, back_button, etc.)
+├── created_at, updated_at, published_at, closed_at
+
+survey_blocks
+├── id, survey_id, title, description, block_order
+├── randomize_questions (bool), settings (jsonb)
+
+survey_questions
+├── id, block_id, survey_id, question_type, question_text, description
+├── question_order, is_required, validation_rules (jsonb)
+├── choices (jsonb: [{id, text, value, order}])
+├── matrix_rows (jsonb), matrix_columns (jsonb)
+├── settings (jsonb: randomize_choices, slider_min/max, etc.)
+
+survey_logic_rules
+├── id, survey_id, source_question_id?, source_block_id?
+├── condition (jsonb: {field, operator, value})
+├── action (show_block/hide_question/skip_to/end_survey)
+├── target_id (uuid), rule_order
+
+survey_contacts
+├── id, survey_id, user_id, first_name, last_name, email
+├── institution, custom_fields (jsonb), status (not_sent/sent/responded)
+
+survey_distributions
+├── id, survey_id, type (anonymous_link/email), anonymous_token
+├── email_subject, email_body, scheduled_at, sent_at
+
+survey_responses
+├── id, survey_id, respondent_id?, contact_id?
+├── started_at, completed_at, status (in_progress/complete/disqualified)
+├── ip_address, user_agent, duration_seconds
+├── metadata (jsonb: embedded_data, geo, etc.)
+
+survey_answers
+├── id, response_id, question_id
+├── answer_text, answer_numeric, answer_choices (jsonb)
+├── matrix_answers (jsonb: [{row_id, column_id}])
+```
+
+RLS: All tables scoped to `user_id = auth.uid()`. Public survey responses allow anonymous insert via edge function (no JWT). Workspace-shared surveys use existing `is_workspace_member()`.
 
 ---
 
-## Plano de Implementação (features 1-5, maior impacto/viabilidade)
+## File & Component Structure
 
-### Arquivos a criar/modificar:
-- **`src/pages/Illustrations.tsx`** — Redesign completo com: seletor de estilo, templates, botão editar, exportação multi-formato, integração com papers
-- **`supabase/functions/generate-illustration/index.ts`** — Adicionar suporte a edição (receber imagem existente + instrução) e estilos diferentes no prompt do sistema
-- **`src/i18n/translations.ts`** — Novas strings para templates, estilos, edição, exportação
-- **`src/components/app/IllustrationEditor.tsx`** (novo) — Modal de edição AI com preview + instrução
-- **`src/components/app/IllustrationTemplates.tsx`** (novo) — Grid de templates por categoria
+```text
+src/pages/
+├── Surveys.tsx                    (project list / dashboard)
+├── SurveyBuilder.tsx              (3-pane builder)
+├── SurveyFlow.tsx                 (visual logic editor)
+├── SurveyDistribution.tsx         (links, email, contacts)
+├── SurveyResults.tsx              (reports + raw data)
+├── SurveyPreview.tsx              (respondent-facing preview)
+├── SurveyRespond.tsx              (public respondent page, no auth)
 
-### Detalhes técnicos:
-- **Edição AI**: Mesma API Gemini, enviando imagem base64 existente + instrução textual como `content: [{type: "text"}, {type: "image_url"}]`
-- **Estilos**: Modificar o system prompt com instruções específicas por estilo selecionado
-- **Variações**: 2-3 chamadas paralelas à API com seed/temperature diferentes
-- **Exportação PDF**: Usar jsPDF já instalado; SVG via Canvas `toDataURL("image/svg+xml")`
-- **Graphical Abstract**: Novo parâmetro `paperContext` no edge function que injeta título+abstract no prompt
+src/components/survey/
+├── SurveyProjectList.tsx          (data table with status, responses, sparklines)
+├── builder/
+│   ├── BlockSidebar.tsx           (left pane: block navigation, drag-reorder)
+│   ├── QuestionCanvas.tsx         (center: inline WYSIWYG editing)
+│   ├── QuestionContextPanel.tsx   (right: type, validation, randomization)
+│   ├── QuestionRenderer.tsx       (renders each question type)
+│   ├── question-types/
+│   │   ├── MultipleChoice.tsx
+│   │   ├── TextEntry.tsx
+│   │   ├── MatrixTable.tsx
+│   │   ├── SliderQuestion.tsx
+│   │   ├── RankOrder.tsx
+│   │   └── ConstantSum.tsx
+├── flow/
+│   ├── FlowCanvas.tsx             (visual nested-list / node-based flow)
+│   ├── ConditionBuilder.tsx       (dropdown rule rows)
+│   └── LogicBadge.tsx             (GitBranch icon on questions with logic)
+├── distribution/
+│   ├── AnonymousLinkTab.tsx       (URL + QR code + copy)
+│   ├── EmailComposerTab.tsx       (rich text + piped text insertion)
+│   └── ContactListTab.tsx         (data table + CSV upload)
+├── results/
+│   ├── ReportsDashboard.tsx       (Recharts widgets grid)
+│   ├── ResponseDataGrid.tsx       (raw data table, variable name toggle)
+│   ├── StatsSummary.tsx           (mean, SD, n calculations)
+│   └── ExportEngine.tsx           (CSV, TSV, XLSX export)
+├── respond/
+│   ├── RespondentForm.tsx         (public form with logic evaluation)
+│   └── ProgressIndicator.tsx
+
+src/hooks/
+├── useSurveyStore.ts              (Zustand store for survey builder state)
+
+supabase/functions/
+├── survey-respond/index.ts        (anonymous response submission, verify_jwt=false)
+├── survey-export-datamind/index.ts (push responses into DataMind conversation)
+```
+
+---
+
+## Implementation Phases
+
+### Phase 1: Foundation (Database + Routing + Project List)
+- Create all database tables with RLS policies via migration tool
+- Add routes: `/surveys`, `/surveys/:id/build`, `/surveys/:id/flow`, `/surveys/:id/distribute`, `/surveys/:id/results`, `/survey/respond/:token`
+- Add "Surveys" nav link in AppSidebar (ClipboardList icon)
+- Build `SurveyProjectList` with status badges, response counts, sparkline trends, search/filter, "Create Survey" button
+
+### Phase 2: Survey Builder (Core Engine)
+- Implement Zustand store (`useSurveyStore`) managing the nested survey object (blocks → questions → choices/matrix)
+- Build 3-pane layout: BlockSidebar | QuestionCanvas | QuestionContextPanel
+- Implement all 6 question types with inline editing
+- Drag-and-drop reordering for blocks and questions
+- Auto-save to Supabase on changes (debounced)
+
+### Phase 3: Logic Engine & Survey Flow
+- Build ConditionBuilder component (question selector → operator → value → action)
+- Visual flow editor showing block sequence with branch indicators
+- Extend Zustand store with `logicRules` array
+- Preview mode that evaluates logic rules in real-time
+- GitBranch badges on questions with active logic
+
+### Phase 4: Distribution Module
+- Anonymous link generation with unique token + QR code (via canvas/SVG)
+- Email composer with piped text insertion (`{{Contact.FirstName}}`, etc.)
+- Contact list management table with CSV upload
+- Schedule send UI (mock for now, real via edge function later)
+- `survey-respond` edge function for anonymous submissions (no JWT)
+
+### Phase 5: Data & Analysis + DataMind Integration
+- Reports dashboard with Recharts: bar charts, donut charts, stacked bars for Likert
+- Statistical calculations: mean, SD, confidence intervals
+- Raw data grid with question text / variable name toggle
+- Export engine: CSV, TSV, XLSX (using existing xlsx dependency)
+- **DataMind integration**: "Analyze in DataMind" button that creates a new DataMind conversation with survey responses auto-loaded as a CSV file in the `datamind-files` bucket, enabling immediate analysis
+
+### Phase 6: Respondent-Facing Form
+- Public page at `/survey/respond/:token` (no auth required)
+- Progress bar, one-block-at-a-time or all-at-once modes
+- Logic evaluation engine to show/hide questions dynamically
+- Mobile-responsive form design
+- Submission via `survey-respond` edge function
+
+---
+
+## DataMind Integration Detail
+
+The key differentiator: a single click from Survey Results exports all responses as a structured CSV into DataMind. The `survey-export-datamind` edge function:
+1. Queries `survey_answers` joined with `survey_questions` for headers
+2. Generates CSV with proper variable names
+3. Uploads to `datamind-files` bucket
+4. Creates a new `datamind_conversations` entry with an initial system message referencing the file
+5. Redirects user to `/datamind/:newConversationId`
+
+---
+
+## Design System
+
+Consistent with existing ScholarAI design: white backgrounds, `bg-muted/50` panels, primary blue accents, shadcn/ui components throughout. The builder uses `ResizablePanelGroup` for the 3-pane layout (already in the project). Question cards use the existing `Card` component with subtle borders.
 
