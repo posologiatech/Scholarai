@@ -17,6 +17,7 @@ import FAQ from "./pages/FAQ";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import Blog from "./pages/Blog";
+import BlogPost from "./pages/BlogPost";
 import Docs from "./pages/Docs";
 import Careers from "./pages/Careers";
 import Contact from "./pages/Contact";
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="/about" element={<About />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/blog" element={<Blog />} />
+              <Route path="/blog/:slug" element={<BlogPost />} />
               <Route path="/docs" element={<Docs />} />
               <Route path="/careers" element={<Careers />} />
               <Route path="/contact" element={<Contact />} />

@@ -128,34 +128,45 @@ const Blog = () => {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {posts.map((post, i) => (
-              <article
-                key={i}
-                className="group flex flex-col rounded-2xl border border-border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
-              >
-                <span className="mb-3 inline-flex w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                  {post.category}
-                </span>
-                <h2 className="mb-2 font-display text-lg font-bold text-foreground leading-snug group-hover:text-primary transition-colors">
-                  {post.title}
-                </h2>
-                <p className="mb-4 flex-1 text-sm leading-relaxed text-muted-foreground">
-                  {post.excerpt}
-                </p>
-                <div className="flex items-center justify-between border-t border-border pt-4">
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {post.date}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {post.readTime}
-                    </span>
+            {posts.map((post, i) => {
+              const slugMap = [
+                "ia-revisao-literatura",
+                "guia-revisao-sistematica",
+                "erros-busca-literatura",
+                "semantic-scholar-vs-pubmed",
+                "extrair-dados-automaticamente",
+                "futuro-publicacao-cientifica",
+              ];
+              return (
+                <Link
+                  to={`/blog/${slugMap[i]}`}
+                  key={i}
+                  className="group flex flex-col rounded-2xl border border-border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+                >
+                  <span className="mb-3 inline-flex w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                    {post.category}
+                  </span>
+                  <h2 className="mb-2 font-display text-lg font-bold text-foreground leading-snug group-hover:text-primary transition-colors">
+                    {post.title}
+                  </h2>
+                  <p className="mb-4 flex-1 text-sm leading-relaxed text-muted-foreground">
+                    {post.excerpt}
+                  </p>
+                  <div className="flex items-center justify-between border-t border-border pt-4">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {post.date}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {post.readTime}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </main>
