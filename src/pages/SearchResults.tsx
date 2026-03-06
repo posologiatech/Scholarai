@@ -1119,7 +1119,7 @@ const SearchResults = () => {
                       {table.getHeaderGroups()[0]?.headers.map((header) => (
                         <col
                           key={header.id}
-                          style={{ width: header.getSize() }}
+                          style={{ width: header.getSize(), minWidth: header.getSize(), maxWidth: header.getSize() }}
                         />
                       ))}
                     </colgroup>
@@ -1129,8 +1129,8 @@ const SearchResults = () => {
                           {headerGroup.headers.map((header) => (
                             <th
                               key={header.id}
-                              className="relative py-3 px-3 text-left text-sm font-medium text-muted-foreground group"
-                              style={{ width: header.getSize() }}
+                              className="relative py-3 px-3 text-left text-sm font-medium text-muted-foreground group overflow-hidden"
+                              style={{ width: header.getSize(), minWidth: header.getSize(), maxWidth: header.getSize() }}
                             >
                               {header.isPlaceholder
                                 ? null
@@ -1170,15 +1170,18 @@ const SearchResults = () => {
                               transform: `translateY(${virtualRow.start}px)`,
                             }}
                           >
-                            {row.getVisibleCells().map((cell) => (
-                              <td
-                                key={cell.id}
-                                className="px-3 py-4 align-top"
-                                style={{ width: cell.column.getSize() }}
-                              >
-                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                              </td>
-                            ))}
+                            {row.getVisibleCells().map((cell) => {
+                              const size = cell.column.getSize();
+                              return (
+                                <td
+                                  key={cell.id}
+                                  className="px-3 py-4 align-top overflow-hidden"
+                                  style={{ width: size, minWidth: size, maxWidth: size }}
+                                >
+                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </td>
+                              );
+                            })}
                           </tr>
                         );
                       })}
