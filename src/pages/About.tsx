@@ -4,7 +4,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { Target, Users, Lightbulb } from "lucide-react";
 
 const About = () => {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
 
   return (
     <div className="min-h-screen bg-background">
@@ -28,25 +28,15 @@ const About = () => {
             <div className="mb-4 inline-flex rounded-xl bg-accent/5 p-3">
               <Users className="h-6 w-6 text-accent" />
             </div>
-            <h2 className="mb-4 font-display text-2xl font-bold text-foreground">{t("about.team.title")}</h2>
-            <p className="mb-8 text-lg leading-relaxed text-muted-foreground">{t("about.team.desc")}</p>
-
-            <div className="grid gap-6 sm:grid-cols-3">
-              {[
-                { name: "Dr. Ana Silva", role: "CEO & Co-founder", icon: Lightbulb },
-                { name: "Carlos Mendes", role: "CTO & Co-founder", icon: Lightbulb },
-                { name: "Dr. Maria Santos", role: "Head of AI Research", icon: Lightbulb },
-              ].map((member) => (
-                <div key={member.name} className="rounded-xl bg-muted p-6 text-center">
-                  <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                    <span className="font-display text-xl font-bold text-primary">
-                      {member.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                    </span>
-                  </div>
-                  <h4 className="font-display font-semibold text-foreground">{member.name}</h4>
-                  <p className="text-sm text-muted-foreground">{member.role}</p>
-                </div>
-              ))}
+            <h2 className="mb-4 font-display text-2xl font-bold text-foreground">
+              {locale === "pt" ? "Pesquisador Responsável" : "Lead Researcher"}
+            </h2>
+            <div className="rounded-xl bg-muted p-6 text-center max-w-xs">
+              <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <span className="font-display text-xl font-bold text-primary">SA</span>
+              </div>
+              <h4 className="font-display font-semibold text-foreground">Sérgio Araújo</h4>
+              <p className="text-sm text-muted-foreground">{locale === "pt" ? "Pesquisador Responsável" : "Lead Researcher"}</p>
             </div>
           </div>
         </div>

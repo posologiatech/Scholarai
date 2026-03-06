@@ -21,13 +21,6 @@ const Footer = () => {
         { label: t("footer.helpCenter"), href: "/faq" },
         { label: t("footer.blog"), href: "/blog" },
         { label: t("footer.docs"), href: "/docs" },
-      ],
-    },
-    {
-      title: t("footer.company"),
-      links: [
-        { label: t("footer.aboutUs"), href: "/about" },
-        { label: t("footer.careers"), href: "/careers" },
         { label: t("footer.contact"), href: "/contact" },
       ],
     },
@@ -43,7 +36,7 @@ const Footer = () => {
   return (
     <footer className="border-t border-border bg-card">
       <div className="container mx-auto py-12">
-        <div className="grid gap-8 md:grid-cols-5">
+        <div className="grid gap-8 md:grid-cols-4">
           <div className="md:col-span-1">
             <Link to="/" className="flex items-center gap-2 font-display text-lg font-bold text-foreground">
               <GraduationCap className="h-6 w-6 text-primary" />
