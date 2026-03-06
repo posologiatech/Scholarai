@@ -8,6 +8,7 @@ import {
   GraduationCap, Globe, LogOut, BookOpen, Table, FileText,
   LayoutDashboard, Shield, ShieldCheck, Palette, BrainCircuit,
   PanelLeftClose, PanelLeft, Network, Users, PenLine, BarChart3, Bell, ClipboardCheck, GitBranch,
+  ClipboardList,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -43,6 +44,7 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
     { label: locale === "pt" ? "Meta-análise" : "Meta-Analysis", href: "/meta-analysis", icon: BarChart3 },
     { label: locale === "pt" ? "Alertas" : "Alerts", href: "/alerts", icon: Bell },
     { label: locale === "pt" ? "Qualidade (RoB)" : "Risk of Bias", href: "/risk-of-bias", icon: ClipboardCheck },
+    { label: locale === "pt" ? "Pesquisas" : "Surveys", href: "/surveys", icon: ClipboardList },
     ...(isAdmin ? [{ label: t("nav.admin"), href: "/admin", icon: Shield }] : []),
   ];
 
