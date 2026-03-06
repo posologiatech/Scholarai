@@ -118,11 +118,15 @@ const KnowledgeGraph = () => {
       setGraphLoading(true);
 
       const graphUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-knowledge-graph`;
+      const { data: sess } = await supabase.auth.getSession();
+      const tk = sess?.session?.access_token;
+      if (!tk) throw new Error("Not authenticated");
+
       const graphResp = await fetch(graphUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${tk}`,
         },
         body: JSON.stringify({ papers: fetchedPapers, query: searchTerm, locale }),
       });

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Switch } from "@/components/ui/switch";
 import { ChevronRight, Loader2, Send, Info } from "lucide-react";
@@ -110,11 +111,15 @@ const ColumnsPanel = ({ suggestedColumns, onColumnsChange, papers = [], query = 
     setChatLoading(true);
 
     try {
+      const { data: sess } = await supabase.auth.getSession();
+      const tk = sess?.session?.access_token;
+      if (!tk) throw new Error("Not authenticated");
+
       const resp = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${tk}`,
         },
         body: JSON.stringify({
           query,

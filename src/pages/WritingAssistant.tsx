@@ -228,13 +228,17 @@ const WritingAssistant = () => {
         if (insertError) throw insertError;
 
         // 3. Extract text from PDF via edge function (sends paper_id, function downloads from storage)
+        const { data: sess } = await supabase.auth.getSession();
+        const tk = sess?.session?.access_token;
+        if (!tk) throw new Error("Not authenticated");
+
         const extractResp = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-pdf`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              Authorization: `Bearer ${tk}`,
             },
             body: JSON.stringify({ paper_id: record.id }),
           }
@@ -329,13 +333,17 @@ const WritingAssistant = () => {
         language: locale,
       };
 
+      const { data: sess2 } = await supabase.auth.getSession();
+      const tk2 = sess2?.session?.access_token;
+      if (!tk2) throw new Error("Not authenticated");
+
       const resp = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/writing-assist`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${tk2}`,
           },
           body: JSON.stringify(body),
         }

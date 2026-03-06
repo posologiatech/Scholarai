@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Sparkles, Loader2, AlertCircle } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 
@@ -36,11 +37,15 @@ const AISynthesis = ({ query, papers, loading: papersLoading }: AISynthesisProps
     setSynthesis("");
 
     try {
+      const { data: sess } = await supabase.auth.getSession();
+      const tk = sess?.session?.access_token;
+      if (!tk) throw new Error("Not authenticated");
+
       const resp = await fetch(SYNTHESIZE_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${tk}`,
         },
         body: JSON.stringify({ query, papers, locale }),
       });

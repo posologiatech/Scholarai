@@ -73,13 +73,17 @@ const MetaAnalysis = () => {
 
     setCalculating(true);
     try {
+      const { data: sess } = await supabase.auth.getSession();
+      const tk = sess?.session?.access_token;
+      if (!tk) throw new Error("Not authenticated");
+
       const resp = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-analysis`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${tk}`,
           },
           body: JSON.stringify({ action: "calculate", studies: valid, effectType }),
         }
@@ -101,13 +105,17 @@ const MetaAnalysis = () => {
     setInterpreting(true);
     setInterpretation("");
     try {
+      const { data: sess2 } = await supabase.auth.getSession();
+      const tk2 = sess2?.session?.access_token;
+      if (!tk2) throw new Error("Not authenticated");
+
       const resp = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-analysis`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${tk2}`,
           },
           body: JSON.stringify({
             action: "interpret",

@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/i18n/LanguageContext";
 // AppSidebar provided by ProtectedRoute
 import { Button } from "@/components/ui/button";
@@ -71,11 +72,15 @@ const ReferenceCheck = () => {
         
         // First extract text from PDF via edge function
         const extractUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-pdf`;
+        const { data: sess } = await supabase.auth.getSession();
+        const tk = sess?.session?.access_token;
+        if (!tk) throw new Error("Not authenticated");
+
         const extractResp = await fetch(extractUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${tk}`,
           },
           body: JSON.stringify({ pdf_base64: base64, file_name: file.name }),
         });
@@ -96,11 +101,15 @@ const ReferenceCheck = () => {
       }
 
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-references`;
+      const { data: sess3 } = await supabase.auth.getSession();
+      const tk3 = sess3?.session?.access_token;
+      if (!tk3) throw new Error("Not authenticated");
+
       const resp = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${tk3}`,
         },
         body: JSON.stringify({ text }),
       });
