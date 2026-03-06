@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callAI } from "../_shared/ai-caller.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,14 +13,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "AI not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // Auth check
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -44,6 +37,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const userId = claimsData.claims.sub as string;
     const { research_objective, existing_questions, question_count, language } = await req.json();
 
     if (!research_objective) {
@@ -80,106 +74,105 @@ For multiple_choice, include 3-6 answer choices.
 For matrix_table, include 2-4 row statements and appropriate Likert scale columns.
 For slider, specify appropriate min/max values.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "suggest_questions",
-              description: "Return suggested survey questions with their configuration",
-              parameters: {
-                type: "object",
-                properties: {
-                  questions: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        question_text: { type: "string", description: "The question text" },
-                        question_type: {
-                          type: "string",
-                          enum: ["multiple_choice", "text_entry", "matrix_table", "slider", "rank_order", "constant_sum"],
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "suggest_questions",
+          description: "Return suggested survey questions with their configuration",
+          parameters: {
+            type: "object",
+            properties: {
+              questions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    question_text: { type: "string", description: "The question text" },
+                    question_type: {
+                      type: "string",
+                      enum: ["multiple_choice", "text_entry", "matrix_table", "slider", "rank_order", "constant_sum"],
+                    },
+                    description: { type: "string", description: "Optional helper text for the respondent" },
+                    is_required: { type: "boolean" },
+                    choices: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          text: { type: "string" },
+                          value: { type: "string" },
                         },
-                        description: { type: "string", description: "Optional helper text for the respondent" },
-                        is_required: { type: "boolean" },
-                        choices: {
-                          type: "array",
-                          items: {
-                            type: "object",
-                            properties: {
-                              text: { type: "string" },
-                              value: { type: "string" },
-                            },
-                            required: ["text", "value"],
-                            additionalProperties: false,
-                          },
-                          description: "For multiple_choice, rank_order, constant_sum",
-                        },
-                        matrix_rows: {
-                          type: "array",
-                          items: {
-                            type: "object",
-                            properties: { text: { type: "string" } },
-                            required: ["text"],
-                            additionalProperties: false,
-                          },
-                          description: "For matrix_table: statement rows",
-                        },
-                        matrix_columns: {
-                          type: "array",
-                          items: {
-                            type: "object",
-                            properties: { text: { type: "string" } },
-                            required: ["text"],
-                            additionalProperties: false,
-                          },
-                          description: "For matrix_table: scale columns",
-                        },
-                        settings: {
-                          type: "object",
-                          description: "Type-specific settings (min, max, step for slider, multiline for text_entry, total for constant_sum)",
-                        },
+                        required: ["text", "value"],
+                        additionalProperties: false,
                       },
-                      required: ["question_text", "question_type", "is_required"],
-                      additionalProperties: false,
+                      description: "For multiple_choice, rank_order, constant_sum",
+                    },
+                    matrix_rows: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: { text: { type: "string" } },
+                        required: ["text"],
+                        additionalProperties: false,
+                      },
+                      description: "For matrix_table: statement rows",
+                    },
+                    matrix_columns: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: { text: { type: "string" } },
+                        required: ["text"],
+                        additionalProperties: false,
+                      },
+                      description: "For matrix_table: scale columns",
+                    },
+                    settings: {
+                      type: "object",
+                      description: "Type-specific settings (min, max, step for slider, multiline for text_entry, total for constant_sum)",
                     },
                   },
+                  required: ["question_text", "question_type", "is_required"],
+                  additionalProperties: false,
                 },
-                required: ["questions"],
-                additionalProperties: false,
               },
             },
+            required: ["questions"],
+            additionalProperties: false,
           },
-        ],
-        tool_choice: { type: "function", function: { name: "suggest_questions" } },
-      }),
-    });
+        },
+      },
+    ];
+
+    // Use callAI which tries external providers first, then falls back to Lovable AI
+    const response = await callAI({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      tools,
+      tool_choice: { type: "function", function: { name: "suggest_questions" } },
+      _userId: userId,
+      _promptType: "survey-generate-questions",
+    } as any);
 
     if (!response.ok) {
-      if (response.status === 429) {
+      const status = response.status;
+      if (status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
+      if (status === 402) {
         return new Response(
           JSON.stringify({ error: "Payment required. Please add credits." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
+      console.error("AI error:", status, errText);
       return new Response(
         JSON.stringify({ error: "AI generation failed" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
