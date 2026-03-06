@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,6 +9,8 @@ import AppSidebar from "@/components/app/AppSidebar";
 import BlockSidebar from "@/components/survey/builder/BlockSidebar";
 import QuestionCanvas from "@/components/survey/builder/QuestionCanvas";
 import QuestionContextPanel from "@/components/survey/builder/QuestionContextPanel";
+import FlowCanvas from "@/components/survey/flow/FlowCanvas";
+import DistributionPanel from "@/components/survey/distribution/DistributionPanel";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -17,16 +19,28 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3 } from "lucide-react";
+import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer } from "lucide-react";
 import { toast } from "sonner";
+
+type BuilderView = "build" | "flow" | "distribute" | "results" | "preview";
+
+const getViewFromPath = (pathname: string): BuilderView => {
+  if (pathname.endsWith("/flow")) return "flow";
+  if (pathname.endsWith("/distribute")) return "distribute";
+  if (pathname.endsWith("/results")) return "results";
+  if (pathname.endsWith("/preview")) return "preview";
+  return "build";
+};
 
 const SurveyBuilder = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { locale } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const store = useSurveyStore();
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const currentView = getViewFromPath(location.pathname);
 
   // Load survey data
   const { isLoading } = useQuery({
@@ -58,31 +72,39 @@ const SurveyBuilder = () => {
     try {
       await supabase
         .from("surveys")
-        .update({ title: store.survey.title, description: store.survey.description, settings: store.survey.settings, updated_at: new Date().toISOString() })
+        .update({
+          title: store.survey.title,
+          description: store.survey.description,
+          settings: store.survey.settings,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", store.survey.id);
 
-      // Upsert blocks
       for (const block of store.blocks) {
         await supabase.from("survey_blocks").upsert(block, { onConflict: "id" });
       }
-      // Upsert questions
       for (const q of store.questions) {
         await supabase.from("survey_questions").upsert(q as any, { onConflict: "id" });
+      }
+      // Save logic rules
+      for (const rule of store.logicRules) {
+        await supabase.from("survey_logic_rules").upsert(rule as any, { onConflict: "id" });
       }
       store.markClean();
     } catch {
       toast.error("Failed to save");
     }
-  }, [store.survey, store.blocks, store.questions, store.isDirty]);
+  }, [store.survey, store.blocks, store.questions, store.logicRules, store.isDirty]);
 
   useEffect(() => {
     if (!store.isDirty) return;
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(save, 2000);
-    return () => { if (saveTimeout.current) clearTimeout(saveTimeout.current); };
+    return () => {
+      if (saveTimeout.current) clearTimeout(saveTimeout.current);
+    };
   }, [store.isDirty, save]);
 
-  // Cleanup
   useEffect(() => () => store.resetStore(), []);
 
   if (isLoading || !store.survey) {
@@ -94,6 +116,43 @@ const SurveyBuilder = () => {
       </AppSidebar>
     );
   }
+
+  const renderContent = () => {
+    switch (currentView) {
+      case "flow":
+        return <FlowCanvas />;
+      case "distribute":
+        return <DistributionPanel surveyId={id!} />;
+      case "results":
+        return (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            {locale === "pt" ? "Módulo de Resultados — em breve" : "Results Module — coming soon"}
+          </div>
+        );
+      case "preview":
+        return (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            {locale === "pt" ? "Prévia — em breve" : "Preview — coming soon"}
+          </div>
+        );
+      default:
+        return (
+          <ResizablePanelGroup direction="horizontal">
+            <ResizablePanel defaultSize={18} minSize={14} maxSize={28}>
+              <BlockSidebar />
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={55} minSize={35}>
+              <QuestionCanvas />
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={27} minSize={20} maxSize={35}>
+              <QuestionContextPanel />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        );
+    }
+  };
 
   return (
     <AppSidebar>
@@ -108,9 +167,10 @@ const SurveyBuilder = () => {
             onChange={(e) => store.updateSurveyField("title", e.target.value)}
             className="max-w-xs border-none shadow-none text-base font-semibold focus-visible:ring-0 px-1"
           />
-          <Tabs defaultValue="build" className="ml-auto">
+          <Tabs value={currentView} className="ml-auto">
             <TabsList className="h-9">
-              <TabsTrigger value="build" className="text-xs" onClick={() => {}}>
+              <TabsTrigger value="build" className="text-xs" onClick={() => navigate(`/surveys/${id}/build`)}>
+                <Hammer className="h-3 w-3 mr-1" />
                 {locale === "pt" ? "Construir" : "Build"}
               </TabsTrigger>
               <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
@@ -139,22 +199,8 @@ const SurveyBuilder = () => {
           </div>
         </div>
 
-        {/* 3-pane layout */}
-        <div className="flex-1 min-h-0">
-          <ResizablePanelGroup direction="horizontal">
-            <ResizablePanel defaultSize={18} minSize={14} maxSize={28}>
-              <BlockSidebar />
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={55} minSize={35}>
-              <QuestionCanvas />
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={27} minSize={20} maxSize={35}>
-              <QuestionContextPanel />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </div>
+        {/* Content */}
+        <div className="flex-1 min-h-0">{renderContent()}</div>
       </div>
     </AppSidebar>
   );

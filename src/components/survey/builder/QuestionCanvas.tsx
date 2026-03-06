@@ -12,6 +12,7 @@ import {
 import { Plus, Trash2, GripVertical, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import QuestionRenderer from "./QuestionRenderer";
+import LogicBadge from "@/components/survey/flow/LogicBadge";
 
 const questionTypeLabels: Record<QuestionType, { en: string; pt: string }> = {
   multiple_choice: { en: "Multiple Choice", pt: "Múltipla Escolha" },
@@ -28,6 +29,7 @@ const QuestionCanvas = () => {
     survey,
     blocks,
     questions,
+    logicRules,
     activeBlockId,
     activeQuestionId,
     addQuestion,
@@ -85,7 +87,10 @@ const QuestionCanvas = () => {
                         question.question_type}
                     </span>
                     {question.is_required && (
-                      <span className="text-xs text-red-500 font-medium">*</span>
+                      <span className="text-xs text-destructive font-medium">*</span>
+                    )}
+                    {logicRules.filter((r) => r.source_question_id === question.id).length > 0 && (
+                      <LogicBadge count={logicRules.filter((r) => r.source_question_id === question.id).length} />
                     )}
                   </div>
                   <Button
