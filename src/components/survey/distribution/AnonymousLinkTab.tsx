@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Copy, Check, QrCode, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { QRCodeSVG } from "qrcode.react";
 
 const AnonymousLinkTab = ({ surveyId }: { surveyId: string }) => {
   const { locale } = useLanguage();
@@ -16,7 +17,6 @@ const AnonymousLinkTab = ({ surveyId }: { surveyId: string }) => {
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
 
-  // Get or create anonymous distribution
   const { data: distribution, isLoading } = useQuery({
     queryKey: ["survey-distribution-link", surveyId],
     queryFn: async () => {
@@ -97,7 +97,6 @@ const AnonymousLinkTab = ({ surveyId }: { surveyId: string }) => {
             : "Share this link with respondents. Responses are collected anonymously."}
         </p>
 
-        {/* URL field */}
         <div className="flex gap-2">
           <Input value={surveyUrl} readOnly className="font-mono text-sm" />
           <Button variant="outline" onClick={copyToClipboard} className="shrink-0 gap-2">
@@ -119,25 +118,30 @@ const AnonymousLinkTab = ({ surveyId }: { surveyId: string }) => {
         </div>
       </Card>
 
-      {/* QR Code placeholder */}
+      {/* Real QR Code */}
       <Card className="p-6">
         <div className="flex items-center gap-2 mb-4">
           <QrCode className="h-5 w-5 text-primary" />
           <h3 className="font-semibold">QR Code</h3>
         </div>
-        <div className="flex items-center justify-center h-48 border-2 border-dashed rounded-lg bg-muted/30">
-          <div className="text-center text-muted-foreground">
-            <QrCode className="h-16 w-16 mx-auto mb-2 text-muted-foreground/30" />
-            <p className="text-sm">
+        {surveyUrl ? (
+          <div className="flex flex-col items-center gap-4">
+            <div className="bg-white p-4 rounded-lg border">
+              <QRCodeSVG value={surveyUrl} size={200} level="M" includeMargin />
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
               {locale === "pt"
-                ? "QR Code para o link da pesquisa"
-                : "QR Code for survey link"}
-            </p>
-            <p className="text-xs mt-1 text-muted-foreground/60">
-              {locale === "pt" ? "Em breve" : "Coming soon"}
+                ? "Escaneie para acessar a pesquisa"
+                : "Scan to access the survey"}
             </p>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center justify-center h-48 border-2 border-dashed rounded-lg bg-muted/30">
+            <p className="text-sm text-muted-foreground">
+              {locale === "pt" ? "Gerando link..." : "Generating link..."}
+            </p>
+          </div>
+        )}
       </Card>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +12,7 @@ import QuestionContextPanel from "@/components/survey/builder/QuestionContextPan
 import FlowCanvas from "@/components/survey/flow/FlowCanvas";
 import DistributionPanel from "@/components/survey/distribution/DistributionPanel";
 import SurveyResultsPanel from "@/components/survey/results/SurveyResultsPanel";
+import SurveyPreviewPanel from "@/components/survey/preview/SurveyPreviewPanel";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -127,11 +128,7 @@ const SurveyBuilder = () => {
       case "results":
         return <SurveyResultsPanel surveyId={id!} />;
       case "preview":
-        return (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            {locale === "pt" ? "Prévia — em breve" : "Preview — coming soon"}
-          </div>
-        );
+        return <SurveyPreviewPanel />;
       default:
         return (
           <ResizablePanelGroup direction="horizontal">
