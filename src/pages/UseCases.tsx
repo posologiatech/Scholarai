@@ -1,11 +1,13 @@
+import { Link } from "react-router-dom";
 import Header from "@/components/landing/Header";
 import Footer from "@/components/landing/Footer";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { Building2, GraduationCap, Stethoscope, Landmark } from "lucide-react";
+import { Building2, GraduationCap, Stethoscope, Landmark, ArrowRight } from "lucide-react";
 
 const useCasesData = {
   pt: [
     {
+      slug: "farmaceutica",
       icon: Stethoscope,
       sector: "Farmacêutica",
       title: "Revisão de literatura clínica em horas, não semanas",
@@ -13,6 +15,7 @@ const useCasesData = {
       stat: "3h vs 3 semanas",
     },
     {
+      slug: "academia",
       icon: GraduationCap,
       sector: "Academia",
       title: "Dissertação de mestrado com revisão sistemática completa",
@@ -20,6 +23,7 @@ const useCasesData = {
       stat: "4 dias vs 2 meses",
     },
     {
+      slug: "tecnologia_medica",
       icon: Building2,
       sector: "Tecnologia Médica",
       title: "Mapeamento de evidências para aprovação regulatória",
@@ -27,6 +31,7 @@ const useCasesData = {
       stat: "150 estudos sintetizados",
     },
     {
+      slug: "governo",
       icon: Landmark,
       sector: "Governo",
       title: "Políticas públicas baseadas em evidências",
@@ -36,6 +41,7 @@ const useCasesData = {
   ],
   en: [
     {
+      slug: "farmaceutica",
       icon: Stethoscope,
       sector: "Pharmaceutical",
       title: "Clinical literature review in hours, not weeks",
@@ -43,6 +49,7 @@ const useCasesData = {
       stat: "3h vs 3 weeks",
     },
     {
+      slug: "academia",
       icon: GraduationCap,
       sector: "Academia",
       title: "Master's thesis with complete systematic review",
@@ -50,6 +57,7 @@ const useCasesData = {
       stat: "4 days vs 2 months",
     },
     {
+      slug: "tecnologia_medica",
       icon: Building2,
       sector: "Medical Technology",
       title: "Evidence mapping for regulatory approval",
@@ -57,6 +65,7 @@ const useCasesData = {
       stat: "150 studies synthesized",
     },
     {
+      slug: "governo",
       icon: Landmark,
       sector: "Government",
       title: "Evidence-based public policy",
@@ -82,17 +91,24 @@ const UseCases = () => {
 
           <div className="grid gap-8 md:grid-cols-2">
             {cases.map((c) => (
-              <div key={c.sector} className="rounded-2xl border border-border bg-card p-8 transition-all hover:shadow-lg hover:shadow-primary/5">
+              <Link
+                key={c.sector}
+                to={`/use-cases/${c.slug}`}
+                className="group rounded-2xl border border-border bg-card p-8 transition-all hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20"
+              >
                 <div className="mb-4 inline-flex rounded-xl bg-primary/5 p-3">
                   <c.icon className="h-6 w-6 text-primary" />
                 </div>
                 <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-primary">{c.sector}</span>
                 <h3 className="mb-3 font-display text-xl font-bold text-foreground">{c.title}</h3>
                 <p className="mb-4 text-sm leading-relaxed text-muted-foreground">{c.description}</p>
-                <div className="inline-flex rounded-full bg-success/10 px-3 py-1 text-sm font-semibold text-success">
-                  {c.stat}
+                <div className="flex items-center justify-between">
+                  <div className="inline-flex rounded-full bg-success/10 px-3 py-1 text-sm font-semibold text-success">
+                    {c.stat}
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

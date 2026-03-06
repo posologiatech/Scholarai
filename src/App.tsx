@@ -12,6 +12,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Solutions from "./pages/Solutions";
 import UseCases from "./pages/UseCases";
+import UseCaseDetail from "./pages/UseCaseDetail";
 import About from "./pages/About";
 import FAQ from "./pages/FAQ";
 import Terms from "./pages/Terms";
@@ -69,6 +70,7 @@ const App = () => (
               <Route path="/solutions" element={<Solutions />} />
               <Route path="/solutions/*" element={<Solutions />} />
               <Route path="/use-cases" element={<UseCases />} />
+              <Route path="/use-cases/:slug" element={<UseCaseDetail />} />
               <Route path="/about" element={<About />} />
               <Route path="/faq" element={<FAQ />} />
               <Route path="/blog" element={<Blog />} />
