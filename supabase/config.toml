@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.quality-assessment]
 verify_jwt = false
+
+[functions.survey-respond]
+verify_jwt = false
