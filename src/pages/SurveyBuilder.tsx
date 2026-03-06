@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useSurveyStore } from "@/hooks/useSurveyStore";
-import AppSidebar from "@/components/app/AppSidebar";
+
 import BlockSidebar from "@/components/survey/builder/BlockSidebar";
 import QuestionCanvas from "@/components/survey/builder/QuestionCanvas";
 import QuestionContextPanel from "@/components/survey/builder/QuestionContextPanel";
@@ -111,11 +111,9 @@ const SurveyBuilder = () => {
 
   if (isLoading || !store.survey) {
     return (
-      <AppSidebar>
-        <div className="flex items-center justify-center h-screen">
-          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
-        </div>
-      </AppSidebar>
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
     );
   }
 
@@ -149,54 +147,52 @@ const SurveyBuilder = () => {
   };
 
   return (
-    <AppSidebar>
-      <div className="flex flex-col h-screen">
-        {/* Top bar */}
-        <div className="flex items-center gap-3 px-4 h-14 border-b bg-background shrink-0">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/surveys")}>
-            <ArrowLeft className="h-4 w-4" />
+    <div className="flex flex-col h-screen">
+      {/* Top bar */}
+      <div className="flex items-center gap-3 px-4 h-14 border-b bg-background shrink-0">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/surveys")}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <Input
+          value={store.survey.title}
+          onChange={(e) => store.updateSurveyField("title", e.target.value)}
+          className="max-w-xs border-none shadow-none text-base font-semibold focus-visible:ring-0 px-1"
+        />
+        <Tabs value={currentView} className="ml-auto">
+          <TabsList className="h-9">
+            <TabsTrigger value="build" className="text-xs" onClick={() => navigate(`/surveys/${id}/build`)}>
+              <Hammer className="h-3 w-3 mr-1" />
+              {locale === "pt" ? "Construir" : "Build"}
+            </TabsTrigger>
+            <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
+              <GitBranch className="h-3 w-3 mr-1" />
+              {locale === "pt" ? "Fluxo" : "Flow"}
+            </TabsTrigger>
+            <TabsTrigger value="distribute" className="text-xs" onClick={() => navigate(`/surveys/${id}/distribute`)}>
+              <Send className="h-3 w-3 mr-1" />
+              {locale === "pt" ? "Distribuir" : "Distribute"}
+            </TabsTrigger>
+            <TabsTrigger value="results" className="text-xs" onClick={() => navigate(`/surveys/${id}/results`)}>
+              <BarChart3 className="h-3 w-3 mr-1" />
+              {locale === "pt" ? "Resultados" : "Results"}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="flex items-center gap-2 ml-4">
+          <Button variant="outline" size="sm" onClick={() => navigate(`/surveys/${id}/preview`)}>
+            <Eye className="h-4 w-4 mr-1" />
+            {locale === "pt" ? "Prévia" : "Preview"}
           </Button>
-          <Input
-            value={store.survey.title}
-            onChange={(e) => store.updateSurveyField("title", e.target.value)}
-            className="max-w-xs border-none shadow-none text-base font-semibold focus-visible:ring-0 px-1"
-          />
-          <Tabs value={currentView} className="ml-auto">
-            <TabsList className="h-9">
-              <TabsTrigger value="build" className="text-xs" onClick={() => navigate(`/surveys/${id}/build`)}>
-                <Hammer className="h-3 w-3 mr-1" />
-                {locale === "pt" ? "Construir" : "Build"}
-              </TabsTrigger>
-              <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
-                <GitBranch className="h-3 w-3 mr-1" />
-                {locale === "pt" ? "Fluxo" : "Flow"}
-              </TabsTrigger>
-              <TabsTrigger value="distribute" className="text-xs" onClick={() => navigate(`/surveys/${id}/distribute`)}>
-                <Send className="h-3 w-3 mr-1" />
-                {locale === "pt" ? "Distribuir" : "Distribute"}
-              </TabsTrigger>
-              <TabsTrigger value="results" className="text-xs" onClick={() => navigate(`/surveys/${id}/results`)}>
-                <BarChart3 className="h-3 w-3 mr-1" />
-                {locale === "pt" ? "Resultados" : "Results"}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <div className="flex items-center gap-2 ml-4">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/surveys/${id}/preview`)}>
-              <Eye className="h-4 w-4 mr-1" />
-              {locale === "pt" ? "Prévia" : "Preview"}
-            </Button>
-            <Button size="sm" onClick={save} disabled={!store.isDirty}>
-              <Save className="h-4 w-4 mr-1" />
-              {locale === "pt" ? "Salvar" : "Save"}
-            </Button>
-          </div>
+          <Button size="sm" onClick={save} disabled={!store.isDirty}>
+            <Save className="h-4 w-4 mr-1" />
+            {locale === "pt" ? "Salvar" : "Save"}
+          </Button>
         </div>
-
-        {/* Content */}
-        <div className="flex-1 min-h-0">{renderContent()}</div>
       </div>
-    </AppSidebar>
+
+      {/* Content */}
+      <div className="flex-1 min-h-0">{renderContent()}</div>
+    </div>
   );
 };
 
