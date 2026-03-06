@@ -45,6 +45,8 @@ import SharedDashboard from "./pages/SharedDashboard";
 import DataMindPipelines from "./pages/DataMindPipelines";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import NotFound from "./pages/NotFound";
+import Surveys from "./pages/Surveys";
+import SurveyBuilder from "./pages/SurveyBuilder";
 
 const queryClient = new QueryClient();
 
@@ -97,6 +99,12 @@ const App = () => (
               <Route path="/datamind/dashboard/:id" element={<ProtectedRoute><DataMindDashboardView /></ProtectedRoute>} />
               <Route path="/shared/dashboard/:token" element={<SharedDashboard />} />
               <Route path="/datamind/pipelines" element={<ProtectedRoute><DataMindPipelines /></ProtectedRoute>} />
+              <Route path="/surveys" element={<ProtectedRoute><Surveys /></ProtectedRoute>} />
+              <Route path="/surveys/:id/build" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
+              <Route path="/surveys/:id/flow" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
+              <Route path="/surveys/:id/distribute" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
+              <Route path="/surveys/:id/results" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
+              <Route path="/surveys/:id/preview" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
