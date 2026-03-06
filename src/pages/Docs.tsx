@@ -8,6 +8,7 @@ import {
   ArrowRight, Layers, Settings, Users, Upload, BrainCircuit, GitBranch,
   Database, PenTool, Filter, Network, AlertTriangle, BookMarked, FlaskConical,
   MessageSquare, Share2, LayoutDashboard, Workflow, ClipboardCheck, FileSearch,
+  ClipboardList, QrCode, GripVertical, Wand2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -438,6 +439,74 @@ const Docs = () => {
       ],
     },
     {
+      id: "surveys",
+      icon: ClipboardList,
+      title: pt ? "Pesquisas / Surveys" : "Surveys",
+      category: pt ? "Pesquisa" : "Research",
+      content: [
+        {
+          heading: pt ? "Construtor de pesquisas acadêmicas" : "Academic survey builder",
+          body: pt
+            ? "O módulo de Pesquisas permite criar, distribuir e analisar questionários acadêmicos completos — do design à coleta e análise de dados. Inspirado em ferramentas como Qualtrics, ele é integrado ao ecossistema ScholarAI e ao DataMind para análise avançada."
+            : "The Surveys module lets you create, distribute, and analyze complete academic questionnaires — from design to data collection and analysis. Inspired by tools like Qualtrics, it's integrated with the ScholarAI ecosystem and DataMind for advanced analysis.",
+        },
+        {
+          heading: pt ? "6 tipos de questões" : "6 question types",
+          body: pt
+            ? "O construtor suporta 6 tipos de questão validados para pesquisa acadêmica: Múltipla Escolha (seleção única ou múltipla), Entrada de Texto (campo aberto ou multilinha), Tabela Matricial (escala Likert com linhas de afirmações e colunas de concordância), Slider (escala numérica contínua com min/max/step configuráveis), Ranking (ordenação por prioridade com drag-and-drop), e Soma Constante (distribuição de pontos com total fixo). Cada tipo possui configurações avançadas como validação, obrigatoriedade e texto de ajuda."
+            : "The builder supports 6 validated question types for academic research: Multiple Choice (single or multi-select), Text Entry (open or multiline field), Matrix Table (Likert scale with statement rows and agreement columns), Slider (continuous numeric scale with configurable min/max/step), Rank Order (priority ordering with drag-and-drop), and Constant Sum (point distribution with fixed total). Each type has advanced settings like validation, required fields, and helper text.",
+        },
+        {
+          heading: pt ? "Blocos e organização" : "Blocks and organization",
+          body: pt
+            ? "As questões são organizadas em Blocos temáticos (ex: 'Dados Demográficos', 'Escala de Satisfação', 'Perguntas Abertas'). Blocos podem ser reordenados via drag-and-drop visual — arraste pela alça de arraste para reorganizar a ordem. Dentro de cada bloco, as questões também podem ser reordenadas por arraste. Cada bloco pode ter aleatorização de questões ativada independentemente."
+            : "Questions are organized into thematic Blocks (e.g., 'Demographics', 'Satisfaction Scale', 'Open Questions'). Blocks can be reordered via visual drag-and-drop — drag by the handle to reorganize order. Within each block, questions can also be reordered by dragging. Each block can have question randomization enabled independently.",
+        },
+        {
+          heading: pt ? "Geração de questões com IA" : "AI question generation",
+          body: pt
+            ? "Clique no botão 'Gerar com IA' no canvas de questões e descreva seu objetivo de pesquisa (ex: 'Avaliar a satisfação de estudantes com o ensino remoto durante a pandemia'). A IA gera questões metodologicamente sólidas com tipos apropriados (Likert para atitudes, múltipla escolha para dados demográficos, texto aberto para percepções qualitativas). Você pode selecionar quais questões adicionar à pesquisa. O sistema utiliza os provedores de IA configurados no painel administrativo, com fallback automático."
+            : "Click the 'Generate with AI' button on the question canvas and describe your research objective (e.g., 'Evaluate student satisfaction with remote learning during the pandemic'). AI generates methodologically sound questions with appropriate types (Likert for attitudes, multiple choice for demographics, open text for qualitative perceptions). You can select which questions to add to your survey. The system uses AI providers configured in the admin panel, with automatic fallback.",
+          tip: pt
+            ? "Descreva o objetivo de pesquisa com detalhes e a IA gerará questões mais relevantes e diversificadas."
+            : "Describe the research objective in detail and AI will generate more relevant and diverse questions.",
+        },
+        {
+          heading: pt ? "Lógica condicional (Skip Logic)" : "Conditional logic (Skip Logic)",
+          body: pt
+            ? "Na aba 'Lógica' do construtor, defina regras condicionais para criar pesquisas ramificadas. Exemplos: 'Se respondeu X na Q1, pular para o Bloco 3', 'Se selecionou Outro, mostrar campo de texto'. As regras suportam operadores como 'igual a', 'contém', 'maior que', com ações de 'pular para questão', 'pular para bloco' ou 'ocultar questão'. Badges visuais indicam quais questões têm lógica aplicada."
+            : "In the builder's 'Logic' tab, define conditional rules to create branched surveys. Examples: 'If answered X on Q1, skip to Block 3', 'If selected Other, show text field'. Rules support operators like 'equals', 'contains', 'greater than', with actions of 'skip to question', 'skip to block', or 'hide question'. Visual badges indicate which questions have applied logic.",
+        },
+        {
+          heading: pt ? "Prévia embutida" : "Embedded preview",
+          body: pt
+            ? "A aba 'Prévia' no construtor renderiza o formulário exatamente como o respondente verá, incluindo avaliação em tempo real de regras de lógica condicional. Alterne entre visualizações de desktop e mobile para testar a responsividade. Útil para validar o fluxo antes de distribuir."
+            : "The 'Preview' tab in the builder renders the form exactly as the respondent will see it, including real-time evaluation of conditional logic rules. Toggle between desktop and mobile views to test responsiveness. Useful for validating the flow before distribution.",
+        },
+        {
+          heading: pt ? "Distribuição e QR Code" : "Distribution and QR Code",
+          body: pt
+            ? "Na aba 'Distribuir', gere um link anônimo para coleta de respostas sem autenticação. O sistema gera automaticamente um QR Code SVG funcional do link, pronto para impressão ou inclusão em materiais de pesquisa. Também é possível gerenciar listas de contatos e configurar envio por email com templates personalizáveis."
+            : "In the 'Distribute' tab, generate an anonymous link for response collection without authentication. The system automatically generates a functional SVG QR Code of the link, ready for printing or inclusion in research materials. You can also manage contact lists and configure email sending with customizable templates.",
+        },
+        {
+          heading: pt ? "Formulário do respondente" : "Respondent form",
+          body: pt
+            ? "O link anônimo abre um formulário público responsivo com navegação bloco-a-bloco, barra de progresso e validação em tempo real. A lógica condicional é avaliada dinamicamente: questões e blocos são exibidos ou ocultados conforme as respostas do participante. Ao final, as respostas são salvas com metadados (duração, user agent) para análise posterior."
+            : "The anonymous link opens a responsive public form with block-by-block navigation, progress bar, and real-time validation. Conditional logic is dynamically evaluated: questions and blocks are shown or hidden based on participant responses. Upon completion, responses are saved with metadata (duration, user agent) for later analysis.",
+        },
+        {
+          heading: pt ? "Resultados e análise" : "Results and analysis",
+          body: pt
+            ? "A aba 'Resultados' oferece dois modos: Dashboard de Relatórios com gráficos interativos (barras, pizza, stacked bars para Likert/Matriz) e estatísticas por questão (média, desvio padrão, n); e Grade de Dados Brutos com paginação, alternância entre texto da questão e nome de variável, e exportação multi-formato (CSV, TSV, XLSX). É possível exportar diretamente para o DataMind para análise avançada com IA."
+            : "The 'Results' tab offers two modes: Reports Dashboard with interactive charts (bar, pie, stacked bars for Likert/Matrix) and per-question statistics (mean, std deviation, n); and Raw Data Grid with pagination, toggle between question text and variable name, and multi-format export (CSV, TSV, XLSX). You can export directly to DataMind for advanced AI-powered analysis.",
+          tip: pt
+            ? "Use a exportação para o DataMind para cruzamentos estatísticos avançados, regressões e análises de subgrupos automatizadas."
+            : "Use the DataMind export for advanced statistical cross-tabulations, regressions, and automated subgroup analyses.",
+        },
+      ],
+    },
+    {
       id: "export",
       icon: Download,
       title: pt ? "Exportação" : "Export",
@@ -498,8 +567,8 @@ const Docs = () => {
             </h1>
             <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
               {pt
-                ? "Guia completo de todas as funcionalidades do ScholarAI — busca, revisão sistemática, DataMind, colaboração e mais."
-                : "Complete guide to all ScholarAI features — search, systematic review, DataMind, collaboration and more."}
+                ? "Guia completo de todas as funcionalidades do ScholarAI — busca, revisão sistemática, DataMind, pesquisas, colaboração e mais."
+                : "Complete guide to all ScholarAI features — search, systematic review, DataMind, surveys, collaboration and more."}
             </p>
 
             {/* Search */}
