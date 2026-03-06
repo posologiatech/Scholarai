@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Circle, Loader2 } from "lucide-react";
 
 interface MissingElement {
@@ -44,11 +45,14 @@ const QuestionEvaluator = ({ question, onEvaluation, onRewrite }: QuestionEvalua
       lastQuestion.current = question;
       setLoading(true);
       try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        if (!token) throw new Error("No session");
         const resp = await fetch(EVALUATE_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ question, locale }),
         });
