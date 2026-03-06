@@ -11,6 +11,7 @@ import QuestionCanvas from "@/components/survey/builder/QuestionCanvas";
 import QuestionContextPanel from "@/components/survey/builder/QuestionContextPanel";
 import FlowCanvas from "@/components/survey/flow/FlowCanvas";
 import DistributionPanel from "@/components/survey/distribution/DistributionPanel";
+import SurveyResultsPanel from "@/components/survey/results/SurveyResultsPanel";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -124,11 +125,7 @@ const SurveyBuilder = () => {
       case "distribute":
         return <DistributionPanel surveyId={id!} />;
       case "results":
-        return (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            {locale === "pt" ? "Módulo de Resultados — em breve" : "Results Module — coming soon"}
-          </div>
-        );
+        return <SurveyResultsPanel surveyId={id!} />;
       case "preview":
         return (
           <div className="flex items-center justify-center h-full text-muted-foreground">
