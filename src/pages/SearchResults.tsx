@@ -200,12 +200,16 @@ const SearchResults = () => {
     if (embeddingStatus !== 'idle') return;
     setEmbeddingStatus('processing');
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) return;
+
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/embed-papers`;
       await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           papers: papersToEmbed.map((p) => ({
@@ -277,11 +281,15 @@ const SearchResults = () => {
     if (papers.length === 0) return;
     setLoadingColumns((prev) => new Set(prev).add(columnName));
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
       const resp = await fetch(EXTRACT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           query,
