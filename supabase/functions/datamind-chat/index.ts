@@ -293,14 +293,17 @@ FIM DO CATÁLOGO.
 ${schema ? `Schema do arquivo "${file_name}": ${schema}` : "Nenhum arquivo enviado ainda."}
 
 Campo "explanation" — markdown em português brasileiro, estilo relatório profissional:
-- Comece com um TÍTULO descritivo: "## Análises Descritivas — resumo + outputs"
-- Descreva brevemente o PLANO de análise: o que será feito e por quê
-- Liste as análises que serão executadas pelo código
-- Termine com "Os resultados aparecem abaixo."
+- Comece com um TÍTULO descritivo: "## Análise de Variância (ANOVA) One-Way"
+- Descreva brevemente o OBJETIVO da análise em 2-3 frases
+- NÃO inclua código Python/R no explanation — NUNCA mostre blocos de código, imports, nomes de funções ou sintaxe de programação
 - NÃO inclua resultados no explanation — os resultados vêm do código executado
-- Seja conciso: 3-8 linhas no máximo
+- NÃO liste etapas técnicas como "Verificar pressupostos", "Carregar dados", "Teste post-hoc"
+- O explanation é para o PESQUISADOR, não para programadores. Deve ser curto (3-5 linhas), em linguagem natural
+- Termine com "Os resultados aparecem abaixo."
+- Exemplo BOM: "## Análise de Variância (ANOVA) One-Way\n\nO objetivo é comparar as médias de uma variável dependente entre diferentes grupos. Serão verificados os pressupostos de normalidade e homocedasticidade antes do teste, com post-hoc de Tukey se significativo.\n\nOs resultados aparecem abaixo."
+- Exemplo RUIM: "## Código Python\n\n```python\nimport pandas...\n```\n\n### Carregar os dados\ndf = pd.read_excel..."
 
-Campo "code": código Python completo seguindo a estrutura acima. Null se não precisar.
+Campo "code": código Python/R completo seguindo a estrutura acima. Null se não precisar.
 Responda SEMPRE em português brasileiro.`;
 
     const messages_arr = [
