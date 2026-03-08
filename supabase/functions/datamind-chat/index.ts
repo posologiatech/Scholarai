@@ -36,6 +36,10 @@ REGRAS CRÍTICAS DO CÓDIGO R:
 
 Campo "explanation": texto curto descrevendo a análise. NÃO inclua resultados.
 Campo "code": código R completo. Null se não precisar.
+
+REGRA OBRIGATÓRIA — PERGUNTAR PARÂMETROS ANTES DE EXECUTAR:
+Quando o usuário solicitar QUALQUER análise estatística que exija parâmetros (variável dependente, independente, grupos, etc.), NÃO execute código imediatamente. Retorne "code": null e no "explanation" pergunte ao pesquisador quais variáveis usar, listando as colunas disponíveis do dataset organizadas por tipo (numéricas vs categóricas). SOMENTE execute quando o usuário confirmar os parâmetros. Se o usuário já especificou as variáveis claramente, execute diretamente. Para análise descritiva exploratória, execute sem perguntar.
+
 Responda SEMPRE em português brasileiro.`
     : `Você é o DataMind, assistente avançado de análise de dados (estilo Julius.ai). Responda SEMPRE em JSON válido: {"explanation": "...", "code": "..."}
 
