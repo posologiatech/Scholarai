@@ -163,12 +163,14 @@ serve(async (req) => {
           const result = await uploadAndSave(base64Results[i], `${savedPrompt} [Variation ${i + 1}]`);
           results.push(result);
         }
+        trackUsage(userId, "illustration", numVariations).catch(e => console.error("usage tracking error:", e));
         return new Response(JSON.stringify({ variations: results }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } else {
         const base64Url = await generateOne();
         const result = await uploadAndSave(base64Url, savedPrompt);
+        trackUsage(userId, "illustration").catch(e => console.error("usage tracking error:", e));
         return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

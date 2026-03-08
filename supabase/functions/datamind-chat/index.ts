@@ -209,6 +209,8 @@ Responda SEMPRE em português brasileiro.`;
 
     if (!explanation) explanation = "Análise processada.";
 
+    trackUsage(auth.userId, "datamind_message").catch(e => console.error("usage tracking error:", e));
+
     return new Response(JSON.stringify({ explanation, code }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

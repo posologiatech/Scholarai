@@ -81,6 +81,8 @@ Cite papers by number [1], [2] etc. throughout. Use academic but accessible lang
       });
     }
 
+    trackUsage(auth.userId, "search").catch(e => console.error("usage tracking error:", e));
+
     return new Response(response.body, {
       headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
     });

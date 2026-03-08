@@ -290,6 +290,7 @@ Deno.serve(async (req) => {
     }
 
     extractions.sort((a, b) => a.paper_index - b.paper_index);
+    trackUsage(auth.userId, "extraction").catch(e => console.error("usage tracking error:", e));
     return new Response(JSON.stringify({ extractions }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

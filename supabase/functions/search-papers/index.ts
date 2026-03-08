@@ -558,6 +558,7 @@ Deno.serve(async (req) => {
 
     // Persist returned papers to database in background (fire-and-forget)
     persistPapers(capped).catch(e => console.error('[search-papers] bg persist error:', e));
+    trackUsage(auth.userId, "search").catch(e => console.error('[search-papers] usage tracking error:', e));
 
     return new Response(JSON.stringify({
       papers: capped,
