@@ -16,8 +16,8 @@ Deno.serve(async (req) => {
   if ("error" in auth) return auth.error;
 
   try {
-    const { paper_id, paper_title, papers } = await req.json();
-    const papersToClassify = papers || (paper_id ? [{ id: paper_id, title: paper_title }] : []);
+    const { paper_id, paper_title, paper_abstract, paper_doi, papers } = await req.json();
+    const papersToClassify = papers || (paper_id ? [{ id: paper_id, title: paper_title, abstract: paper_abstract, doi: paper_doi }] : []);
 
     if (papersToClassify.length === 0) {
       return new Response(JSON.stringify({ error: 'paper_id or papers array required' }), {
@@ -36,12 +36,59 @@ Deno.serve(async (req) => {
         .from('citation_classifications').select('id').eq('paper_id', paper.id).limit(1);
       if (existing && existing.length > 0) continue;
 
+      // Try to get text from chunks first
       const { data: chunks } = await supabase
         .from('paper_chunks').select('chunk_text, paper_id, paper_title')
         .eq('paper_id', paper.id).order('chunk_index');
-      if (!chunks || chunks.length === 0) continue;
 
-      const fullText = chunks.map(c => c.chunk_text).join('\n\n');
+      let fullText = '';
+
+      if (chunks && chunks.length > 0) {
+        fullText = chunks.map(c => c.chunk_text).join('\n\n');
+      } else {
+        // Fallback: use abstract from papers table or from request body
+        const { data: paperRow } = await supabase
+          .from('papers').select('abstract, title, doi')
+          .eq('external_id', paper.id).maybeSingle();
+
+        const abstract = paperRow?.abstract || paper.abstract || '';
+        const doi = paperRow?.doi || paper.doi || '';
+
+        if (!abstract && !doi) {
+          console.log(`No text available for paper ${paper.id}, skipping`);
+          continue;
+        }
+
+        // Try fetching full text via Europe PMC if DOI available
+        if (doi) {
+          try {
+            const pmcResp = await fetch(
+              `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:${encodeURIComponent(doi)}&resultType=core&format=json`
+            );
+            if (pmcResp.ok) {
+              const pmcData = await pmcResp.json();
+              const result = pmcData?.resultList?.result?.[0];
+              if (result?.fullTextUrl) {
+                // Try fetching the text version
+                try {
+                  const ftResp = await fetch(result.fullTextUrl);
+                  if (ftResp.ok) {
+                    const ftText = await ftResp.text();
+                    if (ftText.length > 500) {
+                      fullText = ftText.replace(/<[^>]*>/g, ' ').slice(0, 50000);
+                    }
+                  }
+                } catch { /* ignore */ }
+              }
+            }
+          } catch { /* ignore */ }
+        }
+
+        // If still no full text, use abstract
+        if (!fullText) {
+          fullText = `Title: ${paper.title}\n\nAbstract: ${abstract}`;
+        }
+      }
 
       const response = await callAI({
         model: 'google/gemini-3-flash-preview',

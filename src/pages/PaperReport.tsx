@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 import { ArrowLeft, ExternalLink, Loader2, ThumbsUp, ThumbsDown, MessageSquare, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 
 interface CitationEntry {
   id: string;
@@ -115,6 +116,8 @@ const PaperReport = () => {
   const triggerClassification = async () => {
     if (!id || !paper) return;
     setClassifying(true);
+    const isPt = locale === "pt";
+    toast.info(isPt ? "Classificando citações com IA..." : "Classifying citations with AI...");
     try {
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classify-citations`;
       const { data: sess } = await supabase.auth.getSession();
@@ -127,13 +130,39 @@ const PaperReport = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tk}`,
         },
-        body: JSON.stringify({ paper_id: id, paper_title: paper.title }),
+        body: JSON.stringify({
+          paper_id: id,
+          paper_title: paper.title,
+          paper_abstract: paper.abstract,
+          paper_doi: paper.doi,
+        }),
       });
-      if (resp.ok) {
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${resp.status}`);
+      }
+
+      const result = await resp.json();
+      const count = result.count || 0;
+
+      if (count > 0) {
+        toast.success(isPt ? `${count} citações classificadas!` : `${count} citations classified!`);
         await loadPaperData();
+      } else {
+        toast.warning(
+          isPt
+            ? "Nenhuma citação encontrada. O paper pode não ter texto completo indexado."
+            : "No citations found. The paper may not have full text indexed."
+        );
       }
     } catch (err) {
       console.error("Classification failed:", err);
+      toast.error(
+        isPt
+          ? `Falha na classificação: ${err instanceof Error ? err.message : "Erro desconhecido"}`
+          : `Classification failed: ${err instanceof Error ? err.message : "Unknown error"}`
+      );
     } finally {
       setClassifying(false);
     }
@@ -227,7 +256,9 @@ const PaperReport = () => {
                   {paper.journal && <Badge variant="secondary" className="text-xs">{paper.journal}</Badge>}
                 </div>
                 {paper.abstract && (
-                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-4">{paper.abstract}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-4">
+                    {paper.abstract.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()}
+                  </p>
                 )}
                 {paper.doi && (
                   <a
