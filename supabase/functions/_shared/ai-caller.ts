@@ -191,14 +191,16 @@ export async function callAI(options: ChatCompletionOptions): Promise<Response> 
   
   // Clean internal fields
   const cleanOptions = { ...options };
+  const skipProviders: string[] = (cleanOptions as any)._skipProviders || [];
   delete (cleanOptions as any)._forceProvider;
   delete (cleanOptions as any)._userId;
   delete (cleanOptions as any)._promptType;
+  delete (cleanOptions as any)._skipProviders;
 
   // If a specific provider is forced, try only that one
   const keysToTry = forceProvider 
     ? activeKeys.filter(k => k.provider === forceProvider)
-    : activeKeys;
+    : activeKeys.filter(k => !skipProviders.includes(k.provider));
 
   // Try each configured external provider
   for (const keyRecord of keysToTry) {
