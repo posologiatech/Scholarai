@@ -471,6 +471,7 @@ const DataMind = () => {
             file_name: uploadedFile?.file_name || files[0]?.file_name || "",
             provider: selectedModel?.provider || undefined,
             model: selectedModel?.model || undefined,
+            codeLanguage,
           },
         }
       );
