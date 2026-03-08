@@ -87,7 +87,10 @@ const SystematicReviewList = () => {
                   : "Manage your saved systematic reviews"}
               </p>
             </div>
-            <Button onClick={() => navigate("/systematic-review/new")} className="gap-2">
+            <Button onClick={() => {
+              if (!canUse("systematic_review")) { setShowSrLimitDialog(true); return; }
+              navigate("/systematic-review/new");
+            }} className="gap-2">
               <Plus className="h-4 w-4" />
               {locale === "pt" ? "Nova Revisão" : "New Review"}
             </Button>

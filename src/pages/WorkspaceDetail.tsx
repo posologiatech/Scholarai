@@ -306,6 +306,10 @@ const WorkspaceDetail = () => {
 
   const handleSummarize = async () => {
     if (selectedAnnotationIds.size === 0) return;
+    if (!canUse("ai_summary")) {
+      setShowSummaryLimitDialog(true);
+      return;
+    }
     setSummarizing(true);
     try {
       const selected = annotations.filter((a) => selectedAnnotationIds.has(a.id));
