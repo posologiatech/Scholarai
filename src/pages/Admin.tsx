@@ -55,6 +55,9 @@ const Admin = () => {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
   const [approvalFilter, setApprovalFilter] = useState<"pending" | "approved" | "all">("pending");
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [usageTracking, setUsageTracking] = useState<any[]>([]);
+  const [aiUsageLog, setAiUsageLog] = useState<any[]>([]);
 
   useEffect(() => {
     if (!adminLoading && !isAdmin) navigate("/dashboard");
