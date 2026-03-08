@@ -241,16 +241,45 @@ const Library = () => {
                 key={s.id}
                 className="flex items-center justify-between rounded-lg border border-border bg-card p-4 hover:bg-muted/30 transition-colors"
               >
-                <div
-                  className="flex-1 cursor-pointer"
-                  onClick={() => navigate(`/search?q=${encodeURIComponent(s.query)}`, { state: { savedSearch: s } })}
-                >
-                  <h3 className="text-sm font-semibold text-foreground">{s.query}</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {(s.papers as any[])?.length || 0} papers · {new Date(s.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
+                {editingId === s.id ? (
+                  <div className="flex-1 flex items-center gap-2 mr-2">
+                    <Input
+                      value={editingName}
+                      onChange={e => setEditingName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") confirmRename();
+                        if (e.key === "Escape") cancelRename();
+                      }}
+                      className="h-8 text-sm"
+                      autoFocus
+                    />
+                    <Button variant="ghost" size="icon" onClick={confirmRename} className="shrink-0">
+                      <Check className="h-4 w-4 text-primary" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={cancelRename} className="shrink-0">
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    className="flex-1 cursor-pointer"
+                    onClick={() => navigate(`/search?q=${encodeURIComponent(s.query)}`, { state: { savedSearch: s } })}
+                  >
+                    <h3 className="text-sm font-semibold text-foreground">{s.query}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {(s.papers as any[])?.length || 0} papers · {new Date(s.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => startRename(s)}
+                    title={pt ? "Renomear" : "Rename"}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
