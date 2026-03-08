@@ -227,6 +227,7 @@ const MetaAnalysis = () => {
   const isContinuous = effectType === "cohens_d";
 
   return (
+    <UpgradeGate feature="meta_analysis">
       <div className="flex flex-col h-screen overflow-hidden">
         {/* Header */}
         <div className="border-b border-border/40 bg-background px-6 py-4">
