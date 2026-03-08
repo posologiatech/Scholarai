@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 // AppSidebar provided by ProtectedRoute
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Upload, FileText, Loader2, Trash2, Plus, Sparkles, X,
