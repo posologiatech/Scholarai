@@ -73,11 +73,12 @@ const WritingAssistant = () => {
   const [selectedSection, setSelectedSection] = useState("introduction");
   const [instructions, setInstructions] = useState("");
 
-  // Papers
-  const [papers, setPapers] = useState<Paper[]>([]);
+  // Papers grouped by saved search
+  const [searchGroups, setSearchGroups] = useState<SearchGroup[]>([]);
   const [selectedPapers, setSelectedPapers] = useState<Paper[]>([]);
   const [paperSearch, setPaperSearch] = useState("");
   const [loadingPapers, setLoadingPapers] = useState(false);
+  const [expandedSearches, setExpandedSearches] = useState<Set<string>>(new Set());
 
   // DataMind analyses
   const [datamindAnalyses, setDatamindAnalyses] = useState<DataMindAnalysis[]>([]);
@@ -95,17 +96,34 @@ const WritingAssistant = () => {
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load papers from library
+  // Load papers from saved searches (grouped)
   useEffect(() => {
     if (!user) return;
     const loadPapers = async () => {
       setLoadingPapers(true);
       const { data } = await supabase
-        .from("papers")
-        .select("id, title, authors, year, journal, doi")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      setPapers(data || []);
+        .from("saved_searches")
+        .select("id, query, papers")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (data) {
+        const groups: SearchGroup[] = data.map((s: any) => ({
+          id: s.id,
+          query: s.query,
+          papers: (s.papers as any[] || []).map((p: any, idx: number) => ({
+            id: `${s.id}_${idx}`,
+            title: p.title || "",
+            authors: p.authors,
+            year: p.year,
+            journal: p.journal,
+            doi: p.doi,
+          })),
+        })).filter(g => g.papers.length > 0);
+        setSearchGroups(groups);
+        // Expand all by default
+        setExpandedSearches(new Set(groups.map(g => g.id)));
+      }
       setLoadingPapers(false);
     };
     loadPapers();
