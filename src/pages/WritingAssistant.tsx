@@ -251,29 +251,41 @@ const WritingAssistant = () => {
           // Re-fetch the updated record to get full extracted text
           const { data: updated } = await supabase
             .from("uploaded_papers")
-            .select("extracted_text")
+            .select("extracted_text, status, title")
             .eq("id", record.id)
             .single();
           if (updated?.extracted_text) {
             extractedText = updated.extracted_text;
           }
+        } else {
+          const errData = await extractResp.json().catch(() => ({}));
+          const errMsg = errData.error || `HTTP ${extractResp.status}`;
+          console.error("PDF extraction failed:", errMsg);
+          toast.error(`${file.name}: ${pt ? "Falha na extração" : "Extraction failed"} - ${errMsg}`);
+          
+          await supabase
+            .from("uploaded_papers")
+            .update({ status: "error" })
+            .eq("id", record.id);
+
+          const errorRecord: UploadedPDF = { ...record, status: "error", extracted_text: null };
+          setUploadedPDFs(prev => [errorRecord, ...prev]);
+          continue;
         }
 
-        // 4. Update record with extracted text
-        await supabase
+        // 4. Re-fetch to get the latest status (edge function already updates)
+        const { data: finalRecord } = await supabase
           .from("uploaded_papers")
-          .update({
-            extracted_text: extractedText.slice(0, 100000), // limit storage
-            status: extractedText ? "processed" : "error",
-          })
-          .eq("id", record.id);
+          .select("*")
+          .eq("id", record.id)
+          .single();
 
         // 5. Add to local state
         const updatedRecord: UploadedPDF = {
-          ...record,
+          ...(finalRecord || record),
           extracted_text: extractedText.slice(0, 100000),
           status: extractedText ? "processed" : "error",
-        };
+        } as UploadedPDF;
         setUploadedPDFs(prev => [updatedRecord, ...prev]);
 
         completed++;
