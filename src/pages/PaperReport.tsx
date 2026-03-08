@@ -256,7 +256,9 @@ const PaperReport = () => {
                   {paper.journal && <Badge variant="secondary" className="text-xs">{paper.journal}</Badge>}
                 </div>
                 {paper.abstract && (
-                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-4">{paper.abstract}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-4">
+                    {paper.abstract.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()}
+                  </p>
                 )}
                 {paper.doi && (
                   <a
