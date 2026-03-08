@@ -80,6 +80,8 @@ const DataMind = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
+  const [showDmLimitDialog, setShowDmLimitDialog] = useState(false);
   const { toast } = useToast();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);

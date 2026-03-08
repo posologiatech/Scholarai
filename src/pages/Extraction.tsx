@@ -40,6 +40,8 @@ const EXTRACT_PDF_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extra
 const Extraction = () => {
   const { t, locale } = useLanguage();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
+  const [showExtLimitDialog, setShowExtLimitDialog] = useState(false);
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 

@@ -32,6 +32,8 @@ interface Workspace {
 const Workspaces = () => {
   const { locale } = useLanguage();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
+  const [showWsLimitDialog, setShowWsLimitDialog] = useState(false);
   const navigate = useNavigate();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
