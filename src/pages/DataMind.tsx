@@ -311,6 +311,10 @@ const DataMind = () => {
 
   const sendMessage = async (content: string, file?: File) => {
     if (!user) return;
+    if (!canUse("datamind_chat")) {
+      setShowDmLimitDialog(true);
+      return;
+    }
     setLoading(true);
 
     let activeConvId = conversationId;

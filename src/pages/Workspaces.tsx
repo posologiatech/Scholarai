@@ -106,6 +106,10 @@ const Workspaces = () => {
 
   const handleCreate = async () => {
     if (!newName.trim() || !user) return;
+    if (!canUse("workspaces")) {
+      setShowWsLimitDialog(true);
+      return;
+    }
     setCreating(true);
     try {
       const { data, error } = await supabase

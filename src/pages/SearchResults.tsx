@@ -231,6 +231,10 @@ const SearchResults = () => {
   };
 
   const fetchPapers = async (q: string, appliedFilters?: AdvancedFilters) => {
+    if (!canUse("search")) {
+      setShowLimitDialog(true);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {

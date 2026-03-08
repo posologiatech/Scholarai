@@ -136,6 +136,10 @@ const Extraction = () => {
   };
 
   const extractPaper = async (paperId: string) => {
+    if (!canUse("extraction")) {
+      setShowExtLimitDialog(true);
+      return;
+    }
     if (columns.length === 0) {
       toast.error(
         locale === "pt"

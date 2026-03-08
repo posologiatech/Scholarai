@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 // AppSidebar provided by ProtectedRoute
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
