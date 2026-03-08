@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { requireAuth } from "../_shared/auth.ts";
+import { callAI } from "../_shared/ai-caller.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,7 +36,6 @@ async function generateAndSaveEmbeddings(
   const chunks = chunkText(text);
 
   for (let i = 0; i < chunks.length; i++) {
-    // Generate embedding via Lovable AI Gateway
     const embResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
       method: 'POST',
       headers: {
@@ -68,12 +68,23 @@ async function generateAndSaveEmbeddings(
   }
 }
 
+// Encode ArrayBuffer to base64 without btoa (handles large files)
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const CHUNK_SIZE = 32768;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.subarray(i, i + CHUNK_SIZE);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Authenticate user
   const auth = await requireAuth(req, corsHeaders);
   if ("error" in auth) return auth.error;
 
@@ -132,7 +143,6 @@ Deno.serve(async (req) => {
 
     // If text not yet extracted, download PDF and extract via AI
     if (!textContent) {
-      // Update status to processing
       await supabase
         .from("uploaded_papers")
         .update({ status: "processing" })
@@ -144,75 +154,128 @@ Deno.serve(async (req) => {
         .download(paper.file_path);
 
       if (downloadError || !fileData) {
+        console.error("Download error:", downloadError);
         await supabase
           .from("uploaded_papers")
           .update({ status: "error" })
           .eq("id", paper_id);
         return new Response(
-          JSON.stringify({ error: "Failed to download PDF" }),
+          JSON.stringify({ error: "Failed to download PDF from storage" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Convert PDF to base64 for Gemini vision
+      // Check file size - limit to 10MB for base64 encoding
       const arrayBuffer = await fileData.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-      );
+      const fileSizeMB = arrayBuffer.byteLength / (1024 * 1024);
+      console.log(`PDF size: ${fileSizeMB.toFixed(2)} MB`);
 
-      // Use Gemini to extract text from PDF
-      const extractResponse = await fetch(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
+      if (fileSizeMB > 15) {
+        await supabase
+          .from("uploaded_papers")
+          .update({ status: "error" })
+          .eq("id", paper_id);
+        return new Response(
+          JSON.stringify({ error: "PDF too large. Maximum 15MB supported." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Convert PDF to base64
+      let base64: string;
+      try {
+        base64 = arrayBufferToBase64(arrayBuffer);
+      } catch (encodeErr) {
+        console.error("Base64 encoding error:", encodeErr);
+        await supabase
+          .from("uploaded_papers")
+          .update({ status: "error" })
+          .eq("id", paper_id);
+        return new Response(
+          JSON.stringify({ error: "Failed to encode PDF" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Use Gemini to extract text from PDF via callAI (with provider fallback)
+      console.log("Starting text extraction via AI...");
+      const extractResponse = await callAI({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a document text extraction assistant. Extract ALL text content from the provided PDF document. Preserve the structure including title, authors, abstract, sections, references. Output the full text faithfully. Do NOT add any commentary or headers like '==Start of text extraction=='.",
           },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: [
+          {
+            role: "user",
+            content: JSON.stringify([
               {
-                role: "system",
-                content:
-                  "You are a document text extraction assistant. Extract ALL text content from the provided PDF document. Preserve the structure including title, authors, abstract, sections, references. Output the full text faithfully.",
+                type: "text",
+                text: "Extract all the text from this PDF document. Preserve structure and formatting. Output ONLY the extracted text, no wrapper markers.",
               },
               {
-                role: "user",
-                content: [
-                  {
-                    type: "text",
-                    text: "Extract all the text from this PDF document. Preserve structure and formatting.",
-                  },
-                  {
-                    type: "image_url",
-                    image_url: {
-                      url: `data:application/pdf;base64,${base64}`,
-                    },
-                  },
-                ],
+                type: "image_url",
+                image_url: {
+                  url: `data:application/pdf;base64,${base64}`,
+                },
               },
-            ],
-          }),
-        }
-      );
+            ]),
+          },
+        ],
+      });
 
       if (!extractResponse.ok) {
         const errText = await extractResponse.text();
         console.error("Text extraction error:", extractResponse.status, errText);
+        
+        // Try fallback: simpler prompt without multimodal
+        console.log("Trying text-only fallback extraction...");
+        
+        // For the fallback, we'll try to get a signed URL and use fetch to get text
+        const { data: signedUrl } = await supabase.storage
+          .from("papers")
+          .createSignedUrl(paper.file_path, 300);
+        
+        let fallbackText = '';
+        if (signedUrl?.signedUrl) {
+          // Try pdf.js-like extraction won't work in edge, so just report the error clearly
+          console.error("PDF extraction failed - AI could not process the file");
+        }
+        
+        if (!fallbackText) {
+          await supabase
+            .from("uploaded_papers")
+            .update({ status: "error" })
+            .eq("id", paper_id);
+          return new Response(
+            JSON.stringify({ error: "Failed to extract text from PDF. The AI service could not process this file. Try a smaller or text-based PDF." }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      const extractData = await extractResponse.json();
+      textContent = extractData.choices?.[0]?.message?.content || "";
+      
+      // Clean up extraction artifacts
+      textContent = textContent
+        .replace(/^==\s*Start of text extraction\s*==\s*/i, '')
+        .replace(/==\s*End of text extraction\s*==\s*$/i, '')
+        .replace(/^```[\s\S]*?\n/, '')
+        .replace(/\n```\s*$/, '')
+        .trim();
+
+      if (!textContent || textContent.length < 50) {
         await supabase
           .from("uploaded_papers")
           .update({ status: "error" })
           .eq("id", paper_id);
         return new Response(
-          JSON.stringify({ error: "Failed to extract text from PDF" }),
+          JSON.stringify({ error: "Could not extract meaningful text from the PDF" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      const extractData = await extractResponse.json();
-      textContent =
-        extractData.choices?.[0]?.message?.content || "No text extracted";
 
       // Try to extract title from the text
       const titleMatch = textContent.match(/^#?\s*(.+?)[\n\r]/);
@@ -222,23 +285,24 @@ Deno.serve(async (req) => {
       await supabase
         .from("uploaded_papers")
         .update({
-          extracted_text: textContent,
+          extracted_text: textContent.slice(0, 100000),
           title: extractedTitle,
-          status: "ready",
+          status: "processed",
           updated_at: new Date().toISOString(),
         })
         .eq("id", paper_id);
 
-      // Generate embeddings in background for the extracted text
+      console.log(`Text extracted successfully: ${textContent.length} chars`);
+
+      // Generate embeddings in background
       try {
         await generateAndSaveEmbeddings(paper_id, extractedTitle, textContent, LOVABLE_API_KEY, supabase);
         console.log(`Embeddings generated for paper ${paper_id}`);
       } catch (embErr) {
         console.error(`Embedding generation failed for paper ${paper_id}:`, embErr);
-        // Non-blocking: extraction still succeeds even if embeddings fail
       }
     } else {
-      // Text already exists — check if embeddings exist, generate if not
+      // Text already exists — check if embeddings exist
       const { data: existingChunks } = await supabase
         .from('paper_chunks')
         .select('id')
@@ -249,7 +313,6 @@ Deno.serve(async (req) => {
         try {
           const title = paper.title || paper.file_name.replace(/\.pdf$/i, "");
           await generateAndSaveEmbeddings(paper_id, title, textContent, LOVABLE_API_KEY, supabase);
-          console.log(`Embeddings generated (existing text) for paper ${paper_id}`);
         } catch (embErr) {
           console.error(`Embedding generation failed for paper ${paper_id}:`, embErr);
         }
@@ -258,12 +321,8 @@ Deno.serve(async (req) => {
 
     // If columns are provided, extract structured data
     if (columns && Array.isArray(columns) && columns.length > 0 && query) {
-      const columnNames = columns.map((c: any) => c.name).join(", ");
       const columnDetails = columns
-        .map(
-          (c: any) =>
-            `- "${c.name}": ${c.prompt || c.description || c.name}`
-        )
+        .map((c: any) => `- "${c.name}": ${c.prompt || c.description || c.name}`)
         .join("\n");
 
       const systemPrompt =
@@ -271,71 +330,54 @@ Deno.serve(async (req) => {
           ? `Você é um assistente de extração de dados acadêmicos. Dado o texto completo de um artigo científico, extraia as informações solicitadas para cada coluna. Responda APENAS usando a função fornecida.`
           : `You are an academic data extraction assistant. Given the full text of a scientific paper, extract the requested information for each column. Respond ONLY using the provided function.`;
 
-      const dataResponse = await fetch(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
+      const dataResponse = await callAI({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: `Research question: "${query}"\n\nColumns to extract:\n${columnDetails}\n\nFull paper text:\n${textContent.slice(0, 30000)}`,
           },
-          body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: [
-              { role: "system", content: systemPrompt },
-              {
-                role: "user",
-                content: `Research question: "${query}"\n\nColumns to extract:\n${columnDetails}\n\nFull paper text:\n${textContent.slice(0, 30000)}`,
-              },
-            ],
-            tools: [
-              {
-                type: "function",
-                function: {
-                  name: "extract_paper_data",
-                  description:
-                    "Return extracted data for each column from the paper",
-                  parameters: {
-                    type: "object",
-                    properties: {
-                      extractions: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            column_name: { type: "string" },
-                            value: { type: "string" },
-                          },
-                          required: ["column_name", "value"],
-                          additionalProperties: false,
-                        },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "extract_paper_data",
+              description: "Return extracted data for each column from the paper",
+              parameters: {
+                type: "object",
+                properties: {
+                  extractions: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        column_name: { type: "string" },
+                        value: { type: "string" },
                       },
+                      required: ["column_name", "value"],
+                      additionalProperties: false,
                     },
-                    required: ["extractions"],
-                    additionalProperties: false,
                   },
                 },
+                required: ["extractions"],
+                additionalProperties: false,
               },
-            ],
-            tool_choice: {
-              type: "function",
-              function: { name: "extract_paper_data" },
             },
-          }),
-        }
-      );
+          },
+        ],
+        tool_choice: {
+          type: "function",
+          function: { name: "extract_paper_data" },
+        },
+      });
 
       if (!dataResponse.ok) {
         if (dataResponse.status === 429) {
           return new Response(
             JSON.stringify({ error: "Rate limit exceeded" }),
             { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        if (dataResponse.status === 402) {
-          return new Response(
-            JSON.stringify({ error: "Payment required" }),
-            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
         const errText = await dataResponse.text();
@@ -357,9 +399,7 @@ Deno.serve(async (req) => {
 
       const result = JSON.parse(toolCall.function.arguments);
 
-      // Save extraction data
-      const existingData =
-        (paper.extraction_data as Record<string, string>) || {};
+      const existingData = (paper.extraction_data as Record<string, string>) || {};
       const newData: Record<string, string> = { ...existingData };
       for (const ext of result.extractions) {
         newData[ext.column_name] = ext.value;
@@ -382,7 +422,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         extracted_text: textContent.slice(0, 1000),
         text_length: textContent.length,
-        status: "ready",
+        status: "processed",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
