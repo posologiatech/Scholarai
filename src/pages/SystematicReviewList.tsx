@@ -41,6 +41,8 @@ const statusConfig: Record<string, { label: { pt: string; en: string }; icon: an
 const SystematicReviewList = () => {
   const { locale } = useLanguage();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
+  const [showSrLimitDialog, setShowSrLimitDialog] = useState(false);
   const navigate = useNavigate();
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
