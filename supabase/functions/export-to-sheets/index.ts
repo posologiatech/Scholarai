@@ -70,10 +70,16 @@ Deno.serve(async (req) => {
     });
 
     if (!createRes.ok) {
-      const err = await createRes.text();
-      console.error("Google Sheets create error:", err);
+      const errText = await createRes.text();
+      console.error("Google Sheets create error:", errText);
+      // Parse and forward the actual Google error for frontend scope detection
+      let errorMessage = "Falha ao criar planilha.";
+      try {
+        const errJson = JSON.parse(errText);
+        errorMessage = errJson?.error?.message || errorMessage;
+      } catch { /* use default */ }
       return new Response(
-        JSON.stringify({ error: "Falha ao criar planilha. Verifique se o login Google tem permissão de Sheets." }),
+        JSON.stringify({ error: errorMessage }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
