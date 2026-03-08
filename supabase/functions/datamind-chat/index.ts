@@ -45,6 +45,7 @@ REGRAS CRÍTICAS DO CÓDIGO PYTHON:
 - NÃO use separadores decorativos como "---" ou "==="
 - Após cada grupo de resultados, imprima uma INTERPRETAÇÃO CONTEXTUALIZADA sobre os DADOS REAIS do pesquisador
 - plt.figure(figsize=(10,6)) + plt.tight_layout() antes de plt.show()
+- EIXOS LEGÍVEIS: Quando houver muitas categorias no eixo X (>10), SEMPRE use plt.xticks(rotation=45, ha='right', fontsize=8) ou plt.xticks(rotation=90, fontsize=7). Para >30 categorias, considere mostrar apenas as top 15-20 mais relevantes ou usar um gráfico horizontal (barh). NUNCA deixe labels sobrepostos e ilegíveis.
 - Títulos dos gráficos em português
 - Cores vibrantes: sns.color_palette("husl"), "Set2", "viridis"
 - NO MÁXIMO 5-6 gráficos por análise
