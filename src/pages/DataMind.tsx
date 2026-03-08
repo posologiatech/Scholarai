@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 import { supabase } from "@/integrations/supabase/client";
 import { usePyodide, PyodideStatus } from "@/hooks/usePyodide";
 import DataMindSidebar from "@/components/datamind/DataMindSidebar";
