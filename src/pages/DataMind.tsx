@@ -727,6 +727,10 @@ const DataMind = () => {
                   Aplicar Pipeline
                 </Button>
               )}
+              <DataMindStatsMenu
+                onInsertPrompt={(prompt) => sendMessage(prompt)}
+                disabled={loading}
+              />
               <DataMindModelSelector value={selectedModel} onChange={setSelectedModel} />
               <DataMindSandboxPanel codeLanguage={codeLanguage} onLanguageChange={setCodeLanguage} pyodideStatus={pyodide.status} onReset={pyodide.reset} onInit={pyodide.init} webRStatus={webR.status} onWebRInit={webR.init} onWebRReset={webR.reset} />
             </div>
