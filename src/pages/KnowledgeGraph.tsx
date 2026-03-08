@@ -347,10 +347,6 @@ const KnowledgeGraph = () => {
         )}
       </div>
     </div>
-  );
-  return (
-    <UpgradeGate feature="knowledge_graph">
-      {content}
     </UpgradeGate>
   );
 };
