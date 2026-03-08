@@ -16,7 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
-  FileText, Plus, Trash2, ChevronRight, Database, Copy, Check, ArrowRight,
+  FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
   Upload, File, X,
 } from "lucide-react";
 
