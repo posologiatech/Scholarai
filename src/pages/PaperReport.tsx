@@ -117,7 +117,7 @@ const PaperReport = () => {
     if (!id || !paper) return;
     setClassifying(true);
     const isPt = locale === "pt";
-    toast.info(isPt ? "Classificando citações com IA..." : "Classifying citations with AI...");
+    toast.info(isPt ? "Buscando e classificando todas as citações com IA... Isso pode levar alguns minutos." : "Fetching and classifying all citations with AI... This may take a few minutes.");
     try {
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/classify-citations`;
       const { data: sess } = await supabase.auth.getSession();
