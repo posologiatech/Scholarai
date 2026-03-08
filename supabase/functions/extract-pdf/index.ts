@@ -36,35 +36,46 @@ async function generateAndSaveEmbeddings(
   const chunks = chunkText(text);
 
   for (let i = 0; i < chunks.length; i++) {
-    const embResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/text-embedding-004',
-        input: chunks[i].slice(0, 8000),
-      }),
-    });
+    try {
+      const embResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/text-embedding-004',
+          input: chunks[i].slice(0, 2048),
+        }),
+      });
 
-    if (!embResponse.ok) {
-      console.error(`Embedding error for chunk ${i}:`, embResponse.status);
+      if (!embResponse.ok) {
+        const errBody = await embResponse.text().catch(() => '');
+        console.error(`Embedding error for chunk ${i}: ${embResponse.status} - ${errBody.slice(0, 200)}`);
+        // If model not supported, stop trying all chunks
+        if (embResponse.status === 400 || embResponse.status === 404) {
+          console.error('Embedding model may not be supported, skipping remaining chunks');
+          break;
+        }
+        continue;
+      }
+
+      const embData = await embResponse.json();
+      const embedding = embData.data?.[0]?.embedding;
+      if (!embedding) continue;
+
+      await supabase.from('paper_chunks').insert({
+        paper_id: paperId,
+        paper_title: paperTitle,
+        chunk_index: i,
+        chunk_text: chunks[i],
+        embedding: embedding,
+        source: 'full_text',
+      });
+    } catch (chunkErr) {
+      console.error(`Embedding chunk ${i} exception:`, chunkErr);
       continue;
     }
-
-    const embData = await embResponse.json();
-    const embedding = embData.data?.[0]?.embedding;
-    if (!embedding) continue;
-
-    await supabase.from('paper_chunks').insert({
-      paper_id: paperId,
-      paper_title: paperTitle,
-      chunk_index: i,
-      chunk_text: chunks[i],
-      embedding: embedding,
-      source: 'full_text',
-    });
   }
 }
 
