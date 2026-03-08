@@ -113,6 +113,33 @@ const Admin = () => {
     setAnalyticsLoading(false);
   };
 
+  const fetchSubscriptions = async () => {
+    const { data } = await supabase
+      .from("subscriptions")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) setSubscriptions(data);
+  };
+
+  const fetchUsageTracking = async () => {
+    const currentPeriod = new Date().toISOString().slice(0, 7);
+    const { data } = await supabase
+      .from("usage_tracking")
+      .select("*")
+      .eq("period", currentPeriod);
+    if (data) setUsageTracking(data);
+  };
+
+  const fetchAiUsageLog = async () => {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from("ai_usage_log")
+      .select("*")
+      .gte("created_at", thirtyDaysAgo)
+      .order("created_at", { ascending: false });
+    if (data) setAiUsageLog(data);
+  };
+
   const approveUser = async (approvalId: string) => {
     const { error } = await supabase
       .from("user_approvals")
