@@ -38,6 +38,8 @@ const Library = () => {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importPreview, setImportPreview] = useState<PaperRef[] | null>(null);
   const [importing, setImporting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
 
   useEffect(() => {
     if (user) fetchSaved();
