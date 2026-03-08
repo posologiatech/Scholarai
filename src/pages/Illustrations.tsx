@@ -168,6 +168,7 @@ const Illustrations = () => {
   };
 
   return (
+    <UpgradeGate feature="illustrations">
     <div className="min-h-screen bg-background">
       <main className="container py-8 space-y-8 max-w-5xl">
         {/* Header */}

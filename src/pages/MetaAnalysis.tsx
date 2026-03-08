@@ -562,6 +562,7 @@ const MetaAnalysis = () => {
           </TabsContent>
         </Tabs>
       </div>
+    </UpgradeGate>
   );
 };
 
