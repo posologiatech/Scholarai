@@ -208,6 +208,9 @@ export async function callAI(options: ChatCompletionOptions): Promise<Response> 
     // Skip Anthropic for streaming (complex SSE format differences)
     if (!providerConfig.isOpenAICompatible && options.stream) continue;
 
+    // Skip Groq for tool calling — Llama models have unreliable tool use
+    if (keyRecord.provider === "groq" && options.tools && options.tools.length > 0) continue;
+
     const model = forceProvider ? (cleanOptions.model || providerConfig.defaultModel) : (providerConfig.modelMap[cleanOptions.model || ""] || providerConfig.defaultModel);
 
     let requestBody: any;
