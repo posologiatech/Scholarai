@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callAI } from "../_shared/ai-caller.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { trackUsage } from "../_shared/usage-tracker.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -207,6 +208,8 @@ Responda SEMPRE em português brasileiro.`;
     }
 
     if (!explanation) explanation = "Análise processada.";
+
+    trackUsage(auth.userId, "datamind_message").catch(e => console.error("usage tracking error:", e));
 
     return new Response(JSON.stringify({ explanation, code }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

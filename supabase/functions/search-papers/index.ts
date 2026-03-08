@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { callAI } from '../_shared/ai-caller.ts';
 import { requireAuth } from "../_shared/auth.ts";
+import { trackUsage } from "../_shared/usage-tracker.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -557,6 +558,7 @@ Deno.serve(async (req) => {
 
     // Persist returned papers to database in background (fire-and-forget)
     persistPapers(capped).catch(e => console.error('[search-papers] bg persist error:', e));
+    trackUsage(auth.userId, "search").catch(e => console.error('[search-papers] usage tracking error:', e));
 
     return new Response(JSON.stringify({
       papers: capped,

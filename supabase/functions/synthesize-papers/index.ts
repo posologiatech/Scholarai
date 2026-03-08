@@ -1,5 +1,6 @@
 import { callAI } from "../_shared/ai-caller.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { trackUsage } from "../_shared/usage-tracker.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -79,6 +80,8 @@ Cite papers by number [1], [2] etc. throughout. Use academic but accessible lang
         status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    trackUsage(auth.userId, "search").catch(e => console.error("usage tracking error:", e));
 
     return new Response(response.body, {
       headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
