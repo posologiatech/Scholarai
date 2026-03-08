@@ -90,7 +90,7 @@ async function fetchCitingPapersFromOpenAlex(doi: string, externalId: string): P
     try {
       const paperId = doi ? `DOI:${doi}` : externalId;
       const ssResp = await fetch(
-        `https://api.semanticscholar.org/graph/v1/paper/${encodeURIComponent(paperId)}/citations?fields=title,abstract,year,authors&limit=50`
+        `https://api.semanticscholar.org/graph/v1/paper/${encodeURIComponent(paperId)}/citations?fields=title,abstract,year,authors&limit=1000`
       );
       if (ssResp.ok) {
         const ssData = await ssResp.json();
