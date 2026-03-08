@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { UpgradeGate } from "@/components/app/UpgradeGate";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
