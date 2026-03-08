@@ -178,9 +178,21 @@ const WritingAssistant = () => {
     loadPDFs();
   }, [user]);
 
-  const filteredPapers = papers.filter(p =>
-    p.title.toLowerCase().includes(paperSearch.toLowerCase())
-  );
+  const filteredGroups = searchGroups.map(g => ({
+    ...g,
+    papers: g.papers.filter(p =>
+      p.title.toLowerCase().includes(paperSearch.toLowerCase())
+    ),
+  })).filter(g => g.papers.length > 0);
+
+  const toggleSearchExpanded = (searchId: string) => {
+    setExpandedSearches(prev => {
+      const next = new Set(prev);
+      if (next.has(searchId)) next.delete(searchId);
+      else next.add(searchId);
+      return next;
+    });
+  };
 
   const togglePaper = (paper: Paper) => {
     setSelectedPapers(prev =>
