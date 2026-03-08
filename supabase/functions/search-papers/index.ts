@@ -423,6 +423,63 @@ async function translateToEnglish(query: string): Promise<string> {
   }
 }
 
+// ─── Enrich missing abstracts ───────────────────────────────────────
+async function enrichMissingAbstracts(papers: Paper[]): Promise<void> {
+  const missing = papers.filter(p => (!p.abstract || p.abstract.trim().length < 50) && p.doi);
+  if (missing.length === 0) return;
+
+  console.log(`[search-papers] Enriching abstracts for ${missing.length} papers with DOI`);
+
+  const batchSize = 5;
+  for (let i = 0; i < missing.length; i += batchSize) {
+    const batch = missing.slice(i, i + batchSize);
+    await Promise.all(batch.map(async (paper) => {
+      try {
+        // Try Europe PMC search by DOI — returns abstract in core resultType
+        const url = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:"${encodeURIComponent(paper.doi!)}"&format=json&resultType=core&pageSize=1`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) return;
+        const data = await res.json();
+        const result = data?.resultList?.result?.[0];
+        if (result?.abstractText && result.abstractText.length > 50) {
+          paper.abstract = result.abstractText;
+          console.log(`[search-papers] Enriched abstract for "${paper.title.slice(0, 50)}..." (${result.abstractText.length} chars)`);
+          return;
+        }
+
+        // Fallback: try PubMed efetch by DOI search
+        if (!paper.abstract || paper.abstract.trim().length < 50) {
+          const pmSearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(paper.doi!)}[doi]&retmode=json`;
+          const pmSearchRes = await fetch(pmSearchUrl, { signal: AbortSignal.timeout(6000) });
+          if (!pmSearchRes.ok) return;
+          const pmSearchData = await pmSearchRes.json();
+          const pmids = pmSearchData?.esearchresult?.idlist || [];
+          if (pmids.length === 0) return;
+
+          const abstractUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmids[0]}&rettype=abstract&retmode=xml`;
+          const abstractRes = await fetch(abstractUrl, { signal: AbortSignal.timeout(8000) });
+          if (!abstractRes.ok) return;
+          const xml = await abstractRes.text();
+
+          const textParts: string[] = [];
+          const regex = /<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/g;
+          let m;
+          while ((m = regex.exec(xml)) !== null) {
+            textParts.push(m[1].replace(/<[^>]+>/g, '').trim());
+          }
+          if (textParts.length > 0) {
+            paper.abstract = textParts.join(' ');
+            console.log(`[search-papers] Enriched abstract via PubMed for "${paper.title.slice(0, 50)}..." (${paper.abstract.length} chars)`);
+          }
+        }
+      } catch (err) {
+        // Non-blocking — skip this paper
+        console.error(`[search-papers] Abstract enrichment failed for DOI ${paper.doi}:`, err);
+      }
+    }));
+  }
+}
+
 // ─── Persist papers to database ─────────────────────────────────────
 async function persistPapers(papers: Paper[]): Promise<void> {
   try {
