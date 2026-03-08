@@ -63,6 +63,29 @@ const Library = () => {
     }
   };
 
+  const startRename = (s: SavedSearch) => {
+    setEditingId(s.id);
+    setEditingName(s.query);
+  };
+
+  const confirmRename = async () => {
+    if (!editingId || !editingName.trim()) return;
+    const { error } = await supabase
+      .from("saved_searches")
+      .update({ query: editingName.trim() })
+      .eq("id", editingId);
+    if (!error) {
+      setSearches(prev => prev.map(s => s.id === editingId ? { ...s, query: editingName.trim() } : s));
+      toast.success(pt ? "Renomeado!" : "Renamed!");
+    }
+    setEditingId(null);
+  };
+
+  const cancelRename = () => {
+    setEditingId(null);
+    setEditingName("");
+  };
+
   // ── Collect all papers from all saved searches ──
   const allPapers: PaperRef[] = searches.flatMap((s) =>
     (s.papers as any[]).map((p: any) => ({
