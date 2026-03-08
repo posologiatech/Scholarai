@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import {
   BookOpen, Trash2, ExternalLink, Loader2, Search, Download, Upload,
-  FileText, FileDown, FileUp,
+  FileText, FileDown, FileUp, Pencil, Check, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
