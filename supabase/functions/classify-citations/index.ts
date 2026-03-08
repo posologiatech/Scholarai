@@ -44,14 +44,21 @@ async function fetchCitingPapersFromOpenAlex(doi: string, externalId: string): P
     }
 
     if (oaWorkId) {
-      // Fetch citing papers (up to 50 for classification)
-      const citesResp = await fetch(
-        `https://api.openalex.org/works?filter=cites:${oaWorkId}&per_page=50&sort=cited_by_count:desc`,
-        { headers: { 'User-Agent': 'ArcaResearch/1.0 (mailto:contact@arca.research)' } }
-      );
-      if (citesResp.ok) {
+      // Fetch ALL citing papers with pagination (OpenAlex max 200 per page)
+      let cursor = '*';
+      let hasMore = true;
+      while (hasMore) {
+        const citesResp = await fetch(
+          `https://api.openalex.org/works?filter=cites:${oaWorkId}&per_page=200&cursor=${cursor}&sort=cited_by_count:desc`,
+          { headers: { 'User-Agent': 'ArcaResearch/1.0 (mailto:contact@arca.research)' } }
+        );
+        if (!citesResp.ok) break;
+        
         const citesData = await citesResp.json();
-        for (const work of (citesData.results || [])) {
+        const results = citesData.results || [];
+        if (results.length === 0) break;
+
+        for (const work of results) {
           papers.push({
             id: work.id?.replace('https://openalex.org/', '') || work.doi || `oa-${Math.random()}`,
             title: work.title || 'Unknown',
@@ -62,7 +69,17 @@ async function fetchCitingPapersFromOpenAlex(doi: string, externalId: string): P
             authors: work.authorships?.map((a: any) => a.author?.display_name).filter(Boolean).slice(0, 3),
           });
         }
+
+        // Get next cursor
+        const nextCursor = citesData.meta?.next_cursor;
+        if (nextCursor && results.length === 200) {
+          cursor = nextCursor;
+        } else {
+          hasMore = false;
+        }
       }
+      console.log(`OpenAlex: fetched ${papers.length} citing papers total`);
+    }
     }
   } catch (err) {
     console.error('OpenAlex fetch error:', err);
