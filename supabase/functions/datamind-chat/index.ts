@@ -300,8 +300,8 @@ Campo "explanation" — markdown em português brasileiro, estilo relatório pro
 - NÃO liste etapas técnicas como "Verificar pressupostos", "Carregar dados", "Teste post-hoc"
 - O explanation é para o PESQUISADOR, não para programadores. Deve ser curto (3-5 linhas), em linguagem natural
 - Termine com "Os resultados aparecem abaixo."
-- Exemplo BOM: "## Análise de Variância (ANOVA) One-Way\n\nO objetivo é comparar as médias de uma variável dependente entre diferentes grupos. Serão verificados os pressupostos de normalidade e homocedasticidade antes do teste, com post-hoc de Tukey se significativo.\n\nOs resultados aparecem abaixo."
-- Exemplo RUIM: "## Código Python\n\n```python\nimport pandas...\n```\n\n### Carregar os dados\ndf = pd.read_excel..."
+- Exemplo BOM: Um parágrafo curto explicando o objetivo da análise em linguagem natural, sem nenhum código
+- Exemplo RUIM: Mostrar blocos de código, imports, nomes de variáveis, pd.read_excel ou sintaxe de programação
 
 Campo "code": código Python/R completo seguindo a estrutura acima. Null se não precisar.
 Responda SEMPRE em português brasileiro.`;
