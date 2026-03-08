@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import CitationBadge from "@/components/app/CitationBadge";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 // AppSidebar provided by ProtectedRoute
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -109,7 +111,9 @@ const SearchResults = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
   const query = searchParams.get("q") || "";
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
 
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
@@ -227,6 +231,10 @@ const SearchResults = () => {
   };
 
   const fetchPapers = async (q: string, appliedFilters?: AdvancedFilters) => {
+    if (!canUse("search")) {
+      setShowLimitDialog(true);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -1210,6 +1218,11 @@ const SearchResults = () => {
         )}
       </div>
     </div>
+  return (
+    <>
+      {mainContent}
+      <UsageLimitDialog feature="search" open={showLimitDialog} onOpenChange={setShowLimitDialog} />
+    </>
   );
 };
 

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 // AppSidebar provided by ProtectedRoute
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +41,8 @@ const statusConfig: Record<string, { label: { pt: string; en: string }; icon: an
 const SystematicReviewList = () => {
   const { locale } = useLanguage();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
+  const [showSrLimitDialog, setShowSrLimitDialog] = useState(false);
   const navigate = useNavigate();
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,7 +87,10 @@ const SystematicReviewList = () => {
                   : "Manage your saved systematic reviews"}
               </p>
             </div>
-            <Button onClick={() => navigate("/systematic-review/new")} className="gap-2">
+            <Button onClick={() => {
+              if (!canUse("systematic_review")) { setShowSrLimitDialog(true); return; }
+              navigate("/systematic-review/new");
+            }} className="gap-2">
               <Plus className="h-4 w-4" />
               {locale === "pt" ? "Nova Revisão" : "New Review"}
             </Button>
@@ -150,6 +157,7 @@ const SystematicReviewList = () => {
           )}
         </div>
       </main>
+      <UsageLimitDialog feature="systematic_review" open={showSrLimitDialog} onOpenChange={setShowSrLimitDialog} />
     </div>
   );
 };

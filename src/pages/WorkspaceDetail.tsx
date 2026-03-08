@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +69,8 @@ const WorkspaceDetail = () => {
   const navigate = useNavigate();
   const { locale } = useLanguage();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
+  const [showSummaryLimitDialog, setShowSummaryLimitDialog] = useState(false);
   const pt = locale === "pt";
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -302,6 +306,10 @@ const WorkspaceDetail = () => {
 
   const handleSummarize = async () => {
     if (selectedAnnotationIds.size === 0) return;
+    if (!canUse("ai_summary")) {
+      setShowSummaryLimitDialog(true);
+      return;
+    }
     setSummarizing(true);
     try {
       const selected = annotations.filter((a) => selectedAnnotationIds.has(a.id));
@@ -807,6 +815,7 @@ const WorkspaceDetail = () => {
           </ScrollArea>
         </TabsContent>
       </Tabs>
+      <UsageLimitDialog feature="ai_summary" open={showSummaryLimitDialog} onOpenChange={setShowSummaryLimitDialog} />
     </div>
   );
 };

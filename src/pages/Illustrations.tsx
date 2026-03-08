@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { UpgradeGate } from "@/components/app/UpgradeGate";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -167,6 +168,7 @@ const Illustrations = () => {
   };
 
   return (
+    <UpgradeGate feature="illustrations">
     <div className="min-h-screen bg-background">
       <main className="container py-8 space-y-8 max-w-5xl">
         {/* Header */}
@@ -460,6 +462,7 @@ const Illustrations = () => {
         />
       )}
     </div>
+    </UpgradeGate>
   );
 };
 

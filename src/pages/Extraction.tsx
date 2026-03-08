@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 // AppSidebar provided by ProtectedRoute
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Upload, FileText, Loader2, Trash2, Plus, Sparkles, X,
@@ -38,6 +40,8 @@ const EXTRACT_PDF_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extra
 const Extraction = () => {
   const { t, locale } = useLanguage();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
+  const [showExtLimitDialog, setShowExtLimitDialog] = useState(false);
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -134,6 +138,10 @@ const Extraction = () => {
   };
 
   const extractPaper = async (paperId: string) => {
+    if (!canUse("extraction")) {
+      setShowExtLimitDialog(true);
+      return;
+    }
     if (columns.length === 0) {
       toast.error(
         locale === "pt"
@@ -564,6 +572,7 @@ const Extraction = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <UsageLimitDialog feature="extraction" open={showExtLimitDialog} onOpenChange={setShowExtLimitDialog} />
     </div>
   );
 };

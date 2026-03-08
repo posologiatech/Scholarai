@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 import { supabase } from "@/integrations/supabase/client";
 import { usePyodide, PyodideStatus } from "@/hooks/usePyodide";
 import DataMindSidebar from "@/components/datamind/DataMindSidebar";
@@ -78,6 +80,8 @@ const DataMind = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
+  const [showDmLimitDialog, setShowDmLimitDialog] = useState(false);
   const { toast } = useToast();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -309,6 +313,10 @@ const DataMind = () => {
 
   const sendMessage = async (content: string, file?: File) => {
     if (!user) return;
+    if (!canUse("datamind_chat")) {
+      setShowDmLimitDialog(true);
+      return;
+    }
     setLoading(true);
 
     let activeConvId = conversationId;
@@ -809,6 +817,7 @@ const DataMind = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <UsageLimitDialog feature="datamind_chat" open={showDmLimitDialog} onOpenChange={setShowDmLimitDialog} />
     </div>
   );
 };

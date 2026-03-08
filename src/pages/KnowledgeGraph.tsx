@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { UpgradeGate } from "@/components/app/UpgradeGate";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -227,6 +228,7 @@ const KnowledgeGraph = () => {
   const hasGraph = graphNodes.length > 0 && !isLoading;
 
   return (
+    <UpgradeGate feature="knowledge_graph">
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="border-b border-border/40 bg-background/95 backdrop-blur-sm px-4 py-3 shrink-0">
@@ -345,6 +347,7 @@ const KnowledgeGraph = () => {
         )}
       </div>
     </div>
+    </UpgradeGate>
   );
 };
 

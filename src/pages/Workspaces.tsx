@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,8 @@ interface Workspace {
 const Workspaces = () => {
   const { locale } = useLanguage();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
+  const [showWsLimitDialog, setShowWsLimitDialog] = useState(false);
   const navigate = useNavigate();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +108,10 @@ const Workspaces = () => {
 
   const handleCreate = async () => {
     if (!newName.trim() || !user) return;
+    if (!canUse("workspaces")) {
+      setShowWsLimitDialog(true);
+      return;
+    }
     setCreating(true);
     try {
       const { data, error } = await supabase
@@ -268,6 +276,7 @@ const Workspaces = () => {
           ))}
         </div>
       )}
+      <UsageLimitDialog feature="workspaces" open={showWsLimitDialog} onOpenChange={setShowWsLimitDialog} />
     </div>
   );
 };

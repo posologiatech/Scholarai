@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { UpgradeGate } from "@/components/app/UpgradeGate";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -209,6 +210,7 @@ const LiteratureAlerts = () => {
   }
 
   return (
+    <UpgradeGate feature="alerts">
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
       <div className="border-b border-border/40 bg-background px-6 py-4">
@@ -472,6 +474,7 @@ const LiteratureAlerts = () => {
         </TabsContent>
       </Tabs>
     </div>
+    </UpgradeGate>
   );
 };
 
