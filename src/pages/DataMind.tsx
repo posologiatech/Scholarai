@@ -19,6 +19,7 @@ import DataCleaningPanel from "@/components/datamind/DataCleaningPanel";
 import DataMindProfiler from "@/components/datamind/DataMindProfiler";
 import DataMindVersioning from "@/components/datamind/DataMindVersioning";
 import { useWebR } from "@/hooks/useWebR";
+import DataMindStatsMenu from "@/components/datamind/DataMindStatsMenu";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeft, GitBranch, Sparkles, Activity, Trash2, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
