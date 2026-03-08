@@ -88,6 +88,19 @@ const WorkspaceDetail = () => {
   const [annotationPaperTitle, setAnnotationPaperTitle] = useState("");
   const [addingAnnotation, setAddingAnnotation] = useState(false);
 
+  // AI Summary state
+  const [showSummarySelector, setShowSummarySelector] = useState(false);
+  const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<Set<string>>(new Set());
+  const [summarizing, setSummarizing] = useState(false);
+  const [summaries, setSummaries] = useState<Array<{
+    id: string;
+    title: string;
+    content: string;
+    date: string;
+    annotationIds: string[];
+  }>>([]);
+  const [showSummaryPanel, setShowSummaryPanel] = useState(false);
+
   useEffect(() => {
     if (id) loadWorkspace();
   }, [id]);
