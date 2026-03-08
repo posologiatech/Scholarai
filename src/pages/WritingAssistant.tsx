@@ -16,9 +16,10 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
-  FileText, Plus, Trash2, ChevronRight, Database, Copy, Check, ArrowRight,
+  FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
   Upload, File, X,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Paper {
   id: string;
@@ -27,6 +28,12 @@ interface Paper {
   year: number | null;
   journal: string | null;
   doi: string | null;
+}
+
+interface SearchGroup {
+  id: string;
+  query: string;
+  papers: Paper[];
 }
 
 interface DataMindAnalysis {
@@ -66,11 +73,12 @@ const WritingAssistant = () => {
   const [selectedSection, setSelectedSection] = useState("introduction");
   const [instructions, setInstructions] = useState("");
 
-  // Papers
-  const [papers, setPapers] = useState<Paper[]>([]);
+  // Papers grouped by saved search
+  const [searchGroups, setSearchGroups] = useState<SearchGroup[]>([]);
   const [selectedPapers, setSelectedPapers] = useState<Paper[]>([]);
   const [paperSearch, setPaperSearch] = useState("");
   const [loadingPapers, setLoadingPapers] = useState(false);
+  const [expandedSearches, setExpandedSearches] = useState<Set<string>>(new Set());
 
   // DataMind analyses
   const [datamindAnalyses, setDatamindAnalyses] = useState<DataMindAnalysis[]>([]);
@@ -88,17 +96,34 @@ const WritingAssistant = () => {
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load papers from library
+  // Load papers from saved searches (grouped)
   useEffect(() => {
     if (!user) return;
     const loadPapers = async () => {
       setLoadingPapers(true);
       const { data } = await supabase
-        .from("papers")
-        .select("id, title, authors, year, journal, doi")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      setPapers(data || []);
+        .from("saved_searches")
+        .select("id, query, papers")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (data) {
+        const groups: SearchGroup[] = data.map((s: any) => ({
+          id: s.id,
+          query: s.query,
+          papers: (s.papers as any[] || []).map((p: any, idx: number) => ({
+            id: `${s.id}_${idx}`,
+            title: p.title || "",
+            authors: p.authors,
+            year: p.year,
+            journal: p.journal,
+            doi: p.doi,
+          })),
+        })).filter(g => g.papers.length > 0);
+        setSearchGroups(groups);
+        // Expand all by default
+        setExpandedSearches(new Set(groups.map(g => g.id)));
+      }
       setLoadingPapers(false);
     };
     loadPapers();
@@ -153,9 +178,21 @@ const WritingAssistant = () => {
     loadPDFs();
   }, [user]);
 
-  const filteredPapers = papers.filter(p =>
-    p.title.toLowerCase().includes(paperSearch.toLowerCase())
-  );
+  const filteredGroups = searchGroups.map(g => ({
+    ...g,
+    papers: g.papers.filter(p =>
+      p.title.toLowerCase().includes(paperSearch.toLowerCase())
+    ),
+  })).filter(g => g.papers.length > 0);
+
+  const toggleSearchExpanded = (searchId: string) => {
+    setExpandedSearches(prev => {
+      const next = new Set(prev);
+      if (next.has(searchId)) next.delete(searchId);
+      else next.add(searchId);
+      return next;
+    });
+  };
 
   const togglePaper = (paper: Paper) => {
     setSelectedPapers(prev =>
@@ -459,28 +496,52 @@ const WritingAssistant = () => {
                     <div className="flex justify-center py-4">
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
-                  ) : filteredPapers.length === 0 ? (
+                  ) : filteredGroups.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-4">
                       {pt ? "Nenhum paper encontrado" : "No papers found"}
                     </p>
                   ) : (
-                    filteredPapers.slice(0, 50).map(paper => {
-                      const isSelected = selectedPapers.some(p => p.id === paper.id);
+                    filteredGroups.map(group => {
+                      const isExpanded = expandedSearches.has(group.id);
+                      const selectedCount = group.papers.filter(p => selectedPapers.some(sp => sp.id === p.id)).length;
                       return (
-                        <button
-                          key={paper.id}
-                          onClick={() => togglePaper(paper)}
-                          className={`w-full text-left p-2 rounded-md text-xs transition-colors ${
-                            isSelected
-                              ? "bg-primary/10 border border-primary/30"
-                              : "hover:bg-muted border border-transparent"
-                          }`}
-                        >
-                          <p className="font-medium text-foreground line-clamp-2">{paper.title}</p>
-                          <p className="text-muted-foreground mt-0.5">
-                            {formatAuthors(paper.authors)} {paper.year ? `(${paper.year})` : ""}
-                          </p>
-                        </button>
+                        <Collapsible key={group.id} open={isExpanded} onOpenChange={() => toggleSearchExpanded(group.id)}>
+                          <CollapsibleTrigger className="w-full flex items-center gap-1.5 p-2 rounded-md hover:bg-muted text-xs text-left group">
+                            {isExpanded ? (
+                              <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                            ) : (
+                              <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                            )}
+                            <span className="font-semibold text-foreground line-clamp-1 flex-1">{group.query}</span>
+                            {selectedCount > 0 && (
+                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5">{selectedCount}</Badge>
+                            )}
+                            <span className="text-[10px] text-muted-foreground shrink-0">{group.papers.length}</span>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="ml-4 space-y-0.5">
+                              {group.papers.map(paper => {
+                                const isSelected = selectedPapers.some(p => p.id === paper.id);
+                                return (
+                                  <button
+                                    key={paper.id}
+                                    onClick={() => togglePaper(paper)}
+                                    className={`w-full text-left p-2 rounded-md text-xs transition-colors ${
+                                      isSelected
+                                        ? "bg-primary/10 border border-primary/30"
+                                        : "hover:bg-muted border border-transparent"
+                                    }`}
+                                  >
+                                    <p className="font-medium text-foreground line-clamp-2">{paper.title}</p>
+                                    <p className="text-muted-foreground mt-0.5">
+                                      {formatAuthors(paper.authors)} {paper.year ? `(${paper.year})` : ""}
+                                    </p>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
                       );
                     })
                   )}

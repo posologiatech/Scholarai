@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import {
   BookOpen, Trash2, ExternalLink, Loader2, Search, Download, Upload,
-  FileText, FileDown, FileUp,
+  FileText, FileDown, FileUp, Pencil, Check, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -37,6 +38,8 @@ const Library = () => {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importPreview, setImportPreview] = useState<PaperRef[] | null>(null);
   const [importing, setImporting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
 
   useEffect(() => {
     if (user) fetchSaved();
@@ -58,6 +61,29 @@ const Library = () => {
       setSearches((prev) => prev.filter((s) => s.id !== id));
       toast.success(pt ? "Removido!" : "Removed!");
     }
+  };
+
+  const startRename = (s: SavedSearch) => {
+    setEditingId(s.id);
+    setEditingName(s.query);
+  };
+
+  const confirmRename = async () => {
+    if (!editingId || !editingName.trim()) return;
+    const { error } = await supabase
+      .from("saved_searches")
+      .update({ query: editingName.trim() })
+      .eq("id", editingId);
+    if (!error) {
+      setSearches(prev => prev.map(s => s.id === editingId ? { ...s, query: editingName.trim() } : s));
+      toast.success(pt ? "Renomeado!" : "Renamed!");
+    }
+    setEditingId(null);
+  };
+
+  const cancelRename = () => {
+    setEditingId(null);
+    setEditingName("");
   };
 
   // ── Collect all papers from all saved searches ──
@@ -215,16 +241,45 @@ const Library = () => {
                 key={s.id}
                 className="flex items-center justify-between rounded-lg border border-border bg-card p-4 hover:bg-muted/30 transition-colors"
               >
-                <div
-                  className="flex-1 cursor-pointer"
-                  onClick={() => navigate(`/search?q=${encodeURIComponent(s.query)}`, { state: { savedSearch: s } })}
-                >
-                  <h3 className="text-sm font-semibold text-foreground">{s.query}</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {(s.papers as any[])?.length || 0} papers · {new Date(s.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
+                {editingId === s.id ? (
+                  <div className="flex-1 flex items-center gap-2 mr-2">
+                    <Input
+                      value={editingName}
+                      onChange={e => setEditingName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") confirmRename();
+                        if (e.key === "Escape") cancelRename();
+                      }}
+                      className="h-8 text-sm"
+                      autoFocus
+                    />
+                    <Button variant="ghost" size="icon" onClick={confirmRename} className="shrink-0">
+                      <Check className="h-4 w-4 text-primary" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={cancelRename} className="shrink-0">
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    className="flex-1 cursor-pointer"
+                    onClick={() => navigate(`/search?q=${encodeURIComponent(s.query)}`, { state: { savedSearch: s } })}
+                  >
+                    <h3 className="text-sm font-semibold text-foreground">{s.query}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {(s.papers as any[])?.length || 0} papers · {new Date(s.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => startRename(s)}
+                    title={pt ? "Renomear" : "Rename"}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
