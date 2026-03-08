@@ -46,6 +46,7 @@ import DataMindDashboardView from "./pages/DataMindDashboardView";
 import SharedDashboard from "./pages/SharedDashboard";
 import DataMindPipelines from "./pages/DataMindPipelines";
 import ProtectedRoute from "./components/app/ProtectedRoute";
+import CookieBanner from "./components/app/CookieBanner";
 import NotFound from "./pages/NotFound";
 import Surveys from "./pages/Surveys";
 import SurveyBuilder from "./pages/SurveyBuilder";
@@ -61,6 +62,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <CookieBanner />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
