@@ -2,7 +2,8 @@ import { Conversation } from "@/pages/DataMind";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, MessageSquare, Trash2, BrainCircuit, FileDown, CheckSquare } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, MessageSquare, Trash2, BrainCircuit, FileDown, CheckSquare, Pencil, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -14,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface Props {
   conversations: Conversation[];
@@ -23,6 +24,7 @@ interface Props {
   onNew: () => void;
   onDelete: (id: string) => void;
   onExport?: (id: string) => void;
+  onRename?: (id: string, newTitle: string) => void;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   selectionMode: boolean;
@@ -30,10 +32,37 @@ interface Props {
 }
 
 const DataMindSidebar = ({
-  conversations, activeId, onSelect, onNew, onDelete, onExport,
+  conversations, activeId, onSelect, onNew, onDelete, onExport, onRename,
   selectedIds, onToggleSelect, selectionMode, onToggleSelectionMode,
 }: Props) => {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingId]);
+
+  const startEditing = (conv: Conversation, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(conv.id);
+    setEditValue(conv.title);
+  };
+
+  const confirmEdit = () => {
+    if (editingId && editValue.trim() && onRename) {
+      onRename(editingId, editValue.trim());
+    }
+    setEditingId(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
 
   return (
     <>
@@ -83,6 +112,7 @@ const DataMindSidebar = ({
             {conversations.map((conv) => {
               const isActive = activeId === conv.id;
               const isSelected = selectedIds.has(conv.id);
+              const isEditing = editingId === conv.id;
               return (
                 <div
                   key={conv.id}
@@ -93,7 +123,7 @@ const DataMindSidebar = ({
                       : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                     isSelected && "bg-primary/10 ring-1 ring-primary/30"
                   )}
-                  onClick={() => selectionMode ? onToggleSelect(conv.id) : onSelect(conv.id)}
+                  onClick={() => !isEditing && (selectionMode ? onToggleSelect(conv.id) : onSelect(conv.id))}
                 >
                   {/* Active indicator */}
                   {isActive && !selectionMode && (
@@ -110,34 +140,73 @@ const DataMindSidebar = ({
                   ) : (
                     <MessageSquare className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "")} />
                   )}
-                  <span className="truncate flex-1 min-w-0 text-sm font-medium">{conv.title}</span>
 
-                  {/* Action buttons — always visible, not in selection mode */}
-                  {!selectionMode && (
-                    <div className="flex items-center gap-0.5 shrink-0 ml-1">
-                      {onExport && (
-                        <button
-                          className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onExport(conv.id);
-                          }}
-                          title="Exportar PDF"
-                        >
-                          <FileDown className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                      <button
-                        className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteTarget(conv.id);
+                  {isEditing ? (
+                    <div className="flex-1 min-w-0 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Input
+                        ref={editInputRef}
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") confirmEdit();
+                          if (e.key === "Escape") cancelEdit();
                         }}
-                        title="Apagar"
+                        className="h-6 text-sm px-1.5 py-0"
+                      />
+                      <button
+                        onClick={confirmEdit}
+                        className="h-5 w-5 rounded flex items-center justify-center text-primary hover:bg-primary/10 shrink-0"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Check className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:bg-muted shrink-0"
+                      >
+                        <X className="h-3 w-3" />
                       </button>
                     </div>
+                  ) : (
+                    <>
+                      <span className="truncate flex-1 min-w-0 text-sm font-medium" title={conv.title}>{conv.title}</span>
+
+                      {/* Action buttons */}
+                      {!selectionMode && (
+                        <div className="flex items-center gap-0.5 shrink-0 ml-1">
+                          {onRename && (
+                            <button
+                              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+                              onClick={(e) => startEditing(conv, e)}
+                              title="Renomear"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {onExport && (
+                            <button
+                              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onExport(conv.id);
+                              }}
+                              title="Exportar PDF"
+                            >
+                              <FileDown className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          <button
+                            className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteTarget(conv.id);
+                            }}
+                            title="Apagar"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               );
