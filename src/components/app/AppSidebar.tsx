@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { PlanBadge } from "@/components/app/UsageMeter";
 
 const AppSidebar = ({ children }: { children: React.ReactNode }) => {
   const { t, locale, setLocale } = useLanguage();
