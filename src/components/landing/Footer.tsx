@@ -4,7 +4,8 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { useCookieConsent } from "@/hooks/useCookieConsent";
 
 const Footer = () => {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const { resetBanner } = useCookieConsent();
 
   const columns = [
     {
