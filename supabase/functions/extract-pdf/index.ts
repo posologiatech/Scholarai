@@ -197,10 +197,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Use Gemini to extract text from PDF via callAI (with provider fallback)
+      // Use Gemini to extract text from PDF via callAI
+      // Skip non-multimodal providers (groq, openai text models can't handle PDF base64)
       console.log("Starting text extraction via AI...");
       const extractResponse = await callAI({
         model: "google/gemini-2.5-flash",
+        _skipProviders: ["groq", "openai"],
         messages: [
           {
             role: "system",
@@ -209,7 +211,7 @@ Deno.serve(async (req) => {
           },
           {
             role: "user",
-            content: JSON.stringify([
+            content: [
               {
                 type: "text",
                 text: "Extract all the text from this PDF document. Preserve structure and formatting. Output ONLY the extracted text, no wrapper markers.",
@@ -220,10 +222,10 @@ Deno.serve(async (req) => {
                   url: `data:application/pdf;base64,${base64}`,
                 },
               },
-            ]),
+            ],
           },
         ],
-      });
+      } as any);
 
       if (!extractResponse.ok) {
         const errText = await extractResponse.text();

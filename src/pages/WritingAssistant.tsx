@@ -352,6 +352,18 @@ const WritingAssistant = () => {
     toast.success(pt ? "Arquivo removido" : "File removed");
   };
 
+  const clearErrorPDFs = async () => {
+    const errorPDFs = uploadedPDFs.filter(p => p.status === "error");
+    if (errorPDFs.length === 0) return;
+    for (const pdf of errorPDFs) {
+      await supabase.storage.from("papers").remove([pdf.file_path]);
+      await supabase.from("uploaded_papers").delete().eq("id", pdf.id);
+    }
+    setUploadedPDFs(prev => prev.filter(p => p.status !== "error"));
+    setSelectedPDFs(prev => prev.filter(sp => !errorPDFs.some(ep => ep.id === sp.id)));
+    toast.success(pt ? "Erros limpos" : "Errors cleared");
+  };
+
   const streamAI = useCallback(async (action: string, extraContent?: string) => {
     if (selectedPapers.length === 0 && selectedPDFs.length === 0 && action !== "rephrase") {
       toast.error(pt ? "Selecione pelo menos um paper ou PDF" : "Select at least one paper or PDF");
@@ -618,9 +630,18 @@ const WritingAssistant = () => {
                     disabled={uploadingPDF}
                   />
                 </label>
+                {uploadedPDFs.some(p => p.status === "error") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearErrorPDFs}
+                    className="w-full text-xs text-destructive hover:text-destructive h-7 mt-1"
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    {pt ? "Limpar erros" : "Clear errors"}
+                  </Button>
+                )}
               </div>
-
-              {/* PDF list */}
               <ScrollArea className="flex-1">
                 <div className="space-y-1">
                   {loadingPDFs ? (
