@@ -281,7 +281,7 @@ const DataMind = () => {
     setConversations((prev) => prev.map((c) => c.id === id ? { ...c, title: newTitle } : c));
   };
 
-
+  const exportConversation = async (id: string) => {
     const conv = conversations.find((c) => c.id === id);
     const { data: msgs } = await supabase
       .from("datamind_messages")
