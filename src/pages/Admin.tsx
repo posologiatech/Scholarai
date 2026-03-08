@@ -542,18 +542,24 @@ const Admin = () => {
               </div>
             ) : (
               <>
-                {/* Summary cards */}
+                {/* KPI Cards */}
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   {(() => {
                     const pageViews = analyticsEvents.filter((e) => e.event_name === "page_view").length;
-                    const searches = analyticsEvents.filter((e) => e.event_name === "search").length;
-                    const featureUses = analyticsEvents.filter((e) => e.event_name === "feature_use").length;
                     const uniqueSessions = new Set(analyticsEvents.map((e) => e.session_id).filter(Boolean)).size;
+                    const totalAiRequests = aiUsageLog.length;
+                    const totalAiCost = aiUsageLog.reduce((sum, l) => sum + (l.estimated_cost_usd || 0), 0);
+                    const paidSubs = subscriptions.filter((s) => s.plan !== "free" && s.status === "active").length;
+                    const totalUsageActions = usageTracking.reduce((sum, u) => sum + (u.count || 0), 0);
                     return [
                       { label: locale === "pt" ? "Visualizações" : "Page Views", value: pageViews, icon: Eye, color: "bg-primary/10 text-primary" },
-                      { label: locale === "pt" ? "Buscas" : "Searches", value: searches, icon: Search, color: "bg-blue-500/10 text-blue-500" },
-                      { label: locale === "pt" ? "Uso de Funcionalidades" : "Feature Usage", value: featureUses, icon: MousePointerClick, color: "bg-green-500/10 text-green-500" },
-                      { label: locale === "pt" ? "Sessões Únicas" : "Unique Sessions", value: uniqueSessions, icon: TrendingUp, color: "bg-amber-500/10 text-amber-500" },
+                      { label: locale === "pt" ? "Sessões Únicas" : "Unique Sessions", value: uniqueSessions, icon: TrendingUp, color: "bg-accent/10 text-accent-foreground" },
+                      { label: locale === "pt" ? "Assinaturas Pagas" : "Paid Subscriptions", value: paidSubs, icon: CreditCard, color: "bg-emerald-500/10 text-emerald-600" },
+                      { label: locale === "pt" ? "Custo IA (30d)" : "AI Cost (30d)", value: `$${totalAiCost.toFixed(2)}`, icon: DollarSign, color: "bg-amber-500/10 text-amber-600" },
+                      { label: locale === "pt" ? "Requisições IA (30d)" : "AI Requests (30d)", value: totalAiRequests, icon: Zap, color: "bg-purple-500/10 text-purple-600" },
+                      { label: locale === "pt" ? "Ações do mês" : "Actions this month", value: totalUsageActions, icon: MousePointerClick, color: "bg-blue-500/10 text-blue-600" },
+                      { label: locale === "pt" ? "Total Usuários" : "Total Users", value: approvals.length, icon: Users, color: "bg-muted text-muted-foreground" },
+                      { label: locale === "pt" ? "Pesquisas Salvas" : "Saved Searches", value: searches.length, icon: Search, color: "bg-primary/10 text-primary" },
                     ].map((card) => (
                       <div key={card.label} className="rounded-xl border border-border bg-card p-5">
                         <div className="flex items-center gap-3">
@@ -570,44 +576,154 @@ const Admin = () => {
                   })()}
                 </div>
 
-                {/* Top pages */}
+                {/* Subscription Distribution + Usage by Feature */}
                 <div className="grid gap-6 lg:grid-cols-2">
                   <div className="rounded-xl border border-border bg-card">
                     <div className="flex items-center gap-2 border-b border-border p-4">
-                      <Eye className="h-5 w-5 text-primary" />
+                      <PieChart className="h-5 w-5 text-primary" />
                       <h2 className="font-display text-lg font-semibold text-foreground">
-                        {locale === "pt" ? "Páginas mais visitadas" : "Most visited pages"}
+                        {locale === "pt" ? "Distribuição de Planos" : "Plan Distribution"}
+                      </h2>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {(() => {
+                        const planCounts: Record<string, number> = { free: 0, pro: 0, team: 0, enterprise: 0 };
+                        subscriptions.forEach((s) => {
+                          if (s.status === "active") planCounts[s.plan] = (planCounts[s.plan] || 0) + 1;
+                        });
+                        const usersWithSub = new Set(subscriptions.map((s: any) => s.user_id));
+                        const freeOnly = approvals.filter((a) => !usersWithSub.has(a.user_id)).length;
+                        planCounts.free += freeOnly;
+                        const total = Object.values(planCounts).reduce((a, b) => a + b, 0) || 1;
+                        const planColors: Record<string, string> = { free: "bg-muted-foreground", pro: "bg-primary", team: "bg-accent", enterprise: "bg-emerald-500" };
+                        return Object.entries(planCounts).map(([p, count]) => (
+                          <div key={p} className="space-y-1">
+                            <div className="flex justify-between text-sm">
+                              <span className="font-medium text-foreground capitalize">{p}</span>
+                              <span className="text-muted-foreground">{count} ({Math.round((count / total) * 100)}%)</span>
+                            </div>
+                            <div className="h-2 w-full rounded-full bg-muted">
+                              <div className={`h-full rounded-full ${planColors[p] || "bg-primary"}`} style={{ width: `${(count / total) * 100}%` }} />
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-card">
+                    <div className="flex items-center gap-2 border-b border-border p-4">
+                      <BarChart3 className="h-5 w-5 text-primary" />
+                      <h2 className="font-display text-lg font-semibold text-foreground">
+                        {locale === "pt" ? "Uso por Funcionalidade (mês)" : "Usage by Feature (month)"}
                       </h2>
                     </div>
                     <div className="divide-y divide-border">
                       {(() => {
-                        const pageCounts: Record<string, number> = {};
-                        analyticsEvents
-                          .filter((e) => e.event_name === "page_view")
-                          .forEach((e) => {
-                            const path = e.page_path || "/";
-                            pageCounts[path] = (pageCounts[path] || 0) + 1;
-                          });
-                        const sorted = Object.entries(pageCounts)
-                          .sort(([, a], [, b]) => b - a)
-                          .slice(0, 10);
-                        if (sorted.length === 0)
-                          return (
-                            <div className="py-8 text-center text-sm text-muted-foreground">
-                              {locale === "pt" ? "Nenhum dado ainda" : "No data yet"}
+                        const featureTotals: Record<string, number> = {};
+                        usageTracking.forEach((u) => { featureTotals[u.feature] = (featureTotals[u.feature] || 0) + (u.count || 0); });
+                        const sorted = Object.entries(featureTotals).sort(([, a], [, b]) => b - a);
+                        if (sorted.length === 0) return <div className="py-8 text-center text-sm text-muted-foreground">{locale === "pt" ? "Nenhum uso registrado" : "No usage recorded"}</div>;
+                        const max = sorted[0][1];
+                        const labels: Record<string, string> = { search: locale === "pt" ? "Buscas" : "Searches", extraction: locale === "pt" ? "Extrações" : "Extractions", datamind_message: "DataMind", illustration: locale === "pt" ? "Ilustrações" : "Illustrations" };
+                        return sorted.map(([f, c]) => (
+                          <div key={f} className="flex items-center gap-3 p-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm text-foreground">{labels[f] || f}</p>
+                              <div className="mt-1 h-1.5 w-full rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${(c / max) * 100}%` }} /></div>
                             </div>
-                          );
+                            <span className="text-sm font-semibold text-foreground">{c}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI Cost + Model breakdown */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="rounded-xl border border-border bg-card">
+                    <div className="flex items-center gap-2 border-b border-border p-4">
+                      <DollarSign className="h-5 w-5 text-primary" />
+                      <h2 className="font-display text-lg font-semibold text-foreground">{locale === "pt" ? "Custo IA por Provedor (30d)" : "AI Cost by Provider (30d)"}</h2>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {(() => {
+                        const providerCosts: Record<string, { cost: number; requests: number; tokens: number }> = {};
+                        aiUsageLog.forEach((l) => {
+                          const p = l.provider || "unknown";
+                          if (!providerCosts[p]) providerCosts[p] = { cost: 0, requests: 0, tokens: 0 };
+                          providerCosts[p].cost += l.estimated_cost_usd || 0;
+                          providerCosts[p].requests += 1;
+                          providerCosts[p].tokens += (l.tokens_input || 0) + (l.tokens_output || 0);
+                        });
+                        const sorted = Object.entries(providerCosts).sort(([, a], [, b]) => b.cost - a.cost);
+                        if (sorted.length === 0) return <div className="py-8 text-center text-sm text-muted-foreground">{locale === "pt" ? "Nenhum uso de IA" : "No AI usage"}</div>;
+                        return sorted.map(([provider, stats]) => (
+                          <div key={provider} className="p-3">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium text-foreground capitalize">{provider}</span>
+                              <span className="text-sm font-bold text-foreground">${stats.cost.toFixed(3)}</span>
+                            </div>
+                            <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
+                              <span>{stats.requests} {locale === "pt" ? "req" : "req"}</span>
+                              <span>{(stats.tokens / 1000).toFixed(1)}k tokens</span>
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-card">
+                    <div className="flex items-center gap-2 border-b border-border p-4">
+                      <Zap className="h-5 w-5 text-primary" />
+                      <h2 className="font-display text-lg font-semibold text-foreground">{locale === "pt" ? "Uso por Modelo IA (30d)" : "AI by Model (30d)"}</h2>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {(() => {
+                        const modelCounts: Record<string, { count: number; cost: number }> = {};
+                        aiUsageLog.forEach((l) => {
+                          const m = l.model || l.prompt_type || "unknown";
+                          if (!modelCounts[m]) modelCounts[m] = { count: 0, cost: 0 };
+                          modelCounts[m].count += 1;
+                          modelCounts[m].cost += l.estimated_cost_usd || 0;
+                        });
+                        const sorted = Object.entries(modelCounts).sort(([, a], [, b]) => b.count - a.count).slice(0, 10);
+                        if (sorted.length === 0) return <div className="py-8 text-center text-sm text-muted-foreground">{locale === "pt" ? "Nenhum dado" : "No data"}</div>;
+                        return sorted.map(([model, stats]) => (
+                          <div key={model} className="flex items-center justify-between p-3">
+                            <span className="text-sm text-foreground truncate max-w-[200px]">{model}</span>
+                            <div className="flex gap-3 text-xs text-muted-foreground">
+                              <span>{stats.count}x</span>
+                              <span className="font-medium text-foreground">${stats.cost.toFixed(3)}</span>
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top pages + features */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="rounded-xl border border-border bg-card">
+                    <div className="flex items-center gap-2 border-b border-border p-4">
+                      <Eye className="h-5 w-5 text-primary" />
+                      <h2 className="font-display text-lg font-semibold text-foreground">{locale === "pt" ? "Páginas mais visitadas" : "Most visited pages"}</h2>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {(() => {
+                        const pageCounts: Record<string, number> = {};
+                        analyticsEvents.filter((e) => e.event_name === "page_view").forEach((e) => { pageCounts[e.page_path || "/"] = (pageCounts[e.page_path || "/"] || 0) + 1; });
+                        const sorted = Object.entries(pageCounts).sort(([, a], [, b]) => b - a).slice(0, 10);
+                        if (sorted.length === 0) return <div className="py-8 text-center text-sm text-muted-foreground">{locale === "pt" ? "Nenhum dado" : "No data"}</div>;
                         const max = sorted[0][1];
                         return sorted.map(([path, count]) => (
                           <div key={path} className="flex items-center gap-3 p-3">
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-mono text-foreground">{path}</p>
-                              <div className="mt-1 h-1.5 w-full rounded-full bg-muted">
-                                <div
-                                  className="h-full rounded-full bg-primary"
-                                  style={{ width: `${(count / max) * 100}%` }}
-                                />
-                              </div>
+                              <div className="mt-1 h-1.5 w-full rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${(count / max) * 100}%` }} /></div>
                             </div>
                             <span className="text-sm font-semibold text-foreground">{count}</span>
                           </div>
@@ -615,44 +731,23 @@ const Admin = () => {
                       })()}
                     </div>
                   </div>
-
-                  {/* Top features */}
                   <div className="rounded-xl border border-border bg-card">
                     <div className="flex items-center gap-2 border-b border-border p-4">
                       <MousePointerClick className="h-5 w-5 text-primary" />
-                      <h2 className="font-display text-lg font-semibold text-foreground">
-                        {locale === "pt" ? "Funcionalidades mais usadas" : "Most used features"}
-                      </h2>
+                      <h2 className="font-display text-lg font-semibold text-foreground">{locale === "pt" ? "Funcionalidades (analytics)" : "Features (analytics)"}</h2>
                     </div>
                     <div className="divide-y divide-border">
                       {(() => {
                         const featureCounts: Record<string, number> = {};
-                        analyticsEvents
-                          .filter((e) => e.event_name === "feature_use")
-                          .forEach((e) => {
-                            const feature = (e.metadata as any)?.feature || "unknown";
-                            featureCounts[feature] = (featureCounts[feature] || 0) + 1;
-                          });
-                        const sorted = Object.entries(featureCounts)
-                          .sort(([, a], [, b]) => b - a)
-                          .slice(0, 10);
-                        if (sorted.length === 0)
-                          return (
-                            <div className="py-8 text-center text-sm text-muted-foreground">
-                              {locale === "pt" ? "Nenhum dado ainda" : "No data yet"}
-                            </div>
-                          );
+                        analyticsEvents.filter((e) => e.event_name === "feature_use").forEach((e) => { const f = (e.metadata as any)?.feature || "unknown"; featureCounts[f] = (featureCounts[f] || 0) + 1; });
+                        const sorted = Object.entries(featureCounts).sort(([, a], [, b]) => b - a).slice(0, 10);
+                        if (sorted.length === 0) return <div className="py-8 text-center text-sm text-muted-foreground">{locale === "pt" ? "Nenhum dado" : "No data"}</div>;
                         const max = sorted[0][1];
                         return sorted.map(([feature, count]) => (
                           <div key={feature} className="flex items-center gap-3 p-3">
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm text-foreground capitalize">{feature}</p>
-                              <div className="mt-1 h-1.5 w-full rounded-full bg-muted">
-                                <div
-                                  className="h-full rounded-full bg-green-500"
-                                  style={{ width: `${(count / max) * 100}%` }}
-                                />
-                              </div>
+                              <div className="mt-1 h-1.5 w-full rounded-full bg-muted"><div className="h-full rounded-full bg-accent" style={{ width: `${(count / max) * 100}%` }} /></div>
                             </div>
                             <span className="text-sm font-semibold text-foreground">{count}</span>
                           </div>
@@ -662,18 +757,62 @@ const Admin = () => {
                   </div>
                 </div>
 
-                {/* Recent events table */}
+                {/* Top active users */}
+                <div className="rounded-xl border border-border bg-card">
+                  <div className="flex items-center gap-2 border-b border-border p-4">
+                    <Users className="h-5 w-5 text-primary" />
+                    <h2 className="font-display text-lg font-semibold text-foreground">{locale === "pt" ? "Usuários mais ativos (mês)" : "Most active users (month)"}</h2>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-left">
+                          <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Usuário" : "User"}</th>
+                          <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Plano" : "Plan"}</th>
+                          <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Ações" : "Actions"}</th>
+                          <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Funcionalidades" : "Features"}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {(() => {
+                          const userActions: Record<string, { total: number; features: Record<string, number> }> = {};
+                          usageTracking.forEach((u) => {
+                            if (!userActions[u.user_id]) userActions[u.user_id] = { total: 0, features: {} };
+                            userActions[u.user_id].total += u.count || 0;
+                            userActions[u.user_id].features[u.feature] = (userActions[u.user_id].features[u.feature] || 0) + (u.count || 0);
+                          });
+                          const sorted = Object.entries(userActions).sort(([, a], [, b]) => b.total - a.total).slice(0, 15);
+                          const subMap = new Map(subscriptions.map((s: any) => [s.user_id, s.plan]));
+                          const emailMap = new Map(approvals.map((a) => [a.user_id, a.email]));
+                          return sorted.map(([userId, stats]) => (
+                            <tr key={userId} className="hover:bg-muted/30">
+                              <td className="px-4 py-2 text-xs text-foreground">{emailMap.get(userId) || `${userId.slice(0, 12)}...`}</td>
+                              <td className="px-4 py-2">
+                                <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${subMap.get(userId) === "pro" ? "bg-primary/10 text-primary" : subMap.get(userId) === "team" ? "bg-accent/10 text-accent-foreground" : "bg-muted text-muted-foreground"}`}>
+                                  {subMap.get(userId) || "free"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-sm font-semibold text-foreground">{stats.total}</td>
+                              <td className="px-4 py-2 text-xs text-muted-foreground max-w-[250px] truncate">{Object.entries(stats.features).map(([f, c]) => `${f}: ${c}`).join(", ")}</td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                    {usageTracking.length === 0 && (
+                      <div className="py-8 text-center text-sm text-muted-foreground">{locale === "pt" ? "Nenhum uso registrado" : "No usage recorded"}</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Recent events */}
                 <div className="rounded-xl border border-border bg-card">
                   <div className="flex items-center justify-between border-b border-border p-4">
                     <div className="flex items-center gap-2">
                       <Activity className="h-5 w-5 text-primary" />
-                      <h2 className="font-display text-lg font-semibold text-foreground">
-                        {locale === "pt" ? "Eventos recentes" : "Recent events"}
-                      </h2>
+                      <h2 className="font-display text-lg font-semibold text-foreground">{locale === "pt" ? "Eventos recentes" : "Recent events"}</h2>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      {analyticsEvents.length} {locale === "pt" ? "eventos" : "events"}
-                    </span>
+                    <span className="text-xs text-muted-foreground">{analyticsEvents.length} {locale === "pt" ? "eventos" : "events"}</span>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -689,36 +828,22 @@ const Admin = () => {
                         {analyticsEvents.slice(0, 30).map((e: any) => (
                           <tr key={e.id} className="hover:bg-muted/30">
                             <td className="px-4 py-2">
-                              <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                e.event_name === "page_view" ? "bg-primary/10 text-primary"
-                                : e.event_name === "search" ? "bg-blue-500/10 text-blue-500"
-                                : e.event_name === "feature_use" ? "bg-green-500/10 text-green-500"
-                                : "bg-muted text-muted-foreground"
-                              }`}>
+                              <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${e.event_name === "page_view" ? "bg-primary/10 text-primary" : e.event_name === "search" ? "bg-blue-500/10 text-blue-600" : e.event_name === "feature_use" ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"}`}>
                                 {e.event_name}
                               </span>
                             </td>
                             <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{e.page_path || "—"}</td>
                             <td className="px-4 py-2 text-xs text-muted-foreground max-w-[200px] truncate">
-                              {e.metadata && Object.keys(e.metadata).length > 0
-                                ? Object.entries(e.metadata)
-                                    .filter(([k]) => k !== "user_agent")
-                                    .map(([k, v]) => `${k}: ${v}`)
-                                    .join(", ")
-                                : "—"}
+                              {e.metadata && Object.keys(e.metadata).length > 0 ? Object.entries(e.metadata).filter(([k]) => k !== "user_agent").map(([k, v]) => `${k}: ${v}`).join(", ") : "—"}
                             </td>
-                            <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                              {new Date(e.created_at).toLocaleString()}
-                            </td>
+                            <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(e.created_at).toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                     {analyticsEvents.length === 0 && (
                       <div className="py-8 text-center text-sm text-muted-foreground">
-                        {locale === "pt"
-                          ? "Nenhum evento registrado ainda. Os dados aparecerão quando usuários aceitarem cookies analíticos."
-                          : "No events recorded yet. Data will appear when users accept analytical cookies."}
+                        {locale === "pt" ? "Nenhum evento registrado ainda." : "No events recorded yet."}
                       </div>
                     )}
                   </div>
