@@ -597,6 +597,9 @@ Deno.serve(async (req) => {
     // Cap to requested total after dedup
     const capped = unique.slice(0, limit);
 
+    // Enrich papers that have no abstract (or very short ones) using DOI lookup
+    await enrichMissingAbstracts(capped);
+
     // Count papers per source for stats
     const sourceCounts: Record<string, number> = {};
     for (const p of capped) {
