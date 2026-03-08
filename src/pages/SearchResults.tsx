@@ -109,7 +109,9 @@ const SearchResults = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
   const query = searchParams.get("q") || "";
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
 
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
