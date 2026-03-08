@@ -19,6 +19,7 @@ import DataCleaningPanel from "@/components/datamind/DataCleaningPanel";
 import DataMindProfiler from "@/components/datamind/DataMindProfiler";
 import DataMindVersioning from "@/components/datamind/DataMindVersioning";
 import { useWebR } from "@/hooks/useWebR";
+import DataMindStatsMenu from "@/components/datamind/DataMindStatsMenu";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeft, GitBranch, Sparkles, Activity, Trash2, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -726,6 +727,10 @@ const DataMind = () => {
                   Aplicar Pipeline
                 </Button>
               )}
+              <DataMindStatsMenu
+                onInsertPrompt={(prompt) => sendMessage(prompt)}
+                disabled={loading}
+              />
               <DataMindModelSelector value={selectedModel} onChange={setSelectedModel} />
               <DataMindSandboxPanel codeLanguage={codeLanguage} onLanguageChange={setCodeLanguage} pyodideStatus={pyodide.status} onReset={pyodide.reset} onInit={pyodide.init} webRStatus={webR.status} onWebRInit={webR.init} onWebRReset={webR.reset} />
             </div>

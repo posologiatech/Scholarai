@@ -99,6 +99,179 @@ REGRA CRÍTICA SOBRE INTERPRETAÇÕES (OBRIGATÓRIA):
 
 IMPORTANTE: O código será executado de VERDADE no Pyodide. NÃO simule resultados.
 
+CATÁLOGO DE ANÁLISES ESTATÍSTICAS (use como referência ao gerar código):
+
+Quando o usuário pedir uma análise estatística, siga SEMPRE esta estrutura:
+1. Imprimir colunas disponíveis
+2. Verificar pressupostos do teste
+3. Executar o teste
+4. Exibir resultados em show_table()
+5. Interpretar com valores concretos
+
+TEMPLATES DE REFERÊNCIA:
+
+--- TESTE T INDEPENDENTE ---
+from scipy import stats
+import pandas as pd
+import numpy as np
+# Separar grupos
+g1 = df[df['GRUPO_COL'] == 'valor1']['DEP_COL'].dropna()
+g2 = df[df['GRUPO_COL'] == 'valor2']['DEP_COL'].dropna()
+# Pressupostos
+stat_sw1, p_sw1 = stats.shapiro(g1[:5000])
+stat_sw2, p_sw2 = stats.shapiro(g2[:5000])
+stat_lev, p_lev = stats.levene(g1, g2)
+pressupostos = pd.DataFrame({
+    'Teste': ['Shapiro-Wilk (Grupo 1)', 'Shapiro-Wilk (Grupo 2)', 'Levene'],
+    'Estatística': [stat_sw1, stat_sw2, stat_lev],
+    'p-valor': [p_sw1, p_sw2, p_lev],
+    'Resultado': ['Normal' if p_sw1>0.05 else 'Não-normal', 'Normal' if p_sw2>0.05 else 'Não-normal', 'Homogêneo' if p_lev>0.05 else 'Não-homogêneo']
+})
+show_table(pressupostos, "Verificação de Pressupostos")
+# Teste
+equal_var = p_lev > 0.05
+t_stat, p_val = stats.ttest_ind(g1, g2, equal_var=equal_var)
+# Efeito (d de Cohen)
+pooled_std = np.sqrt(((len(g1)-1)*g1.std()**2 + (len(g2)-1)*g2.std()**2)/(len(g1)+len(g2)-2))
+cohen_d = (g1.mean() - g2.mean()) / pooled_std
+# IC 95% da diferença
+from scipy.stats import sem
+diff = g1.mean() - g2.mean()
+se_diff = np.sqrt(sem(g1)**2 + sem(g2)**2)
+ci_low, ci_high = diff - 1.96*se_diff, diff + 1.96*se_diff
+resultados = pd.DataFrame({
+    'Métrica': ['Média Grupo 1', 'Média Grupo 2', 'Diferença', 't', 'df', 'p-valor', 'IC 95% inferior', 'IC 95% superior', 'd de Cohen', 'Interpretação efeito'],
+    'Valor': [f'{g1.mean():.4f}', f'{g2.mean():.4f}', f'{diff:.4f}', f'{t_stat:.4f}', f'{len(g1)+len(g2)-2}', f'{p_val:.6f}', f'{ci_low:.4f}', f'{ci_high:.4f}', f'{cohen_d:.4f}', 'Pequeno' if abs(cohen_d)<0.5 else 'Médio' if abs(cohen_d)<0.8 else 'Grande']
+})
+show_table(resultados, "Resultado do Teste t Independente")
+
+--- ANOVA ONE-WAY ---
+from scipy import stats
+import pandas as pd
+groups = [group['DEP_COL'].dropna().values for name, group in df.groupby('GRUPO_COL')]
+f_stat, p_val = stats.f_oneway(*groups)
+# Eta-quadrado
+ss_between = sum(len(g)*(g.mean()-df['DEP_COL'].dropna().mean())**2 for g in groups)
+ss_total = sum((df['DEP_COL'].dropna() - df['DEP_COL'].dropna().mean())**2)
+eta_sq = ss_between / ss_total
+# Post-hoc Tukey
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
+tukey = pairwise_tukeyhsd(df['DEP_COL'].dropna(), df.loc[df['DEP_COL'].notna(), 'GRUPO_COL'])
+show_table(pd.DataFrame(tukey._results_table.data[1:], columns=tukey._results_table.data[0]), "Post-hoc de Tukey")
+
+--- QUI-QUADRADO ---
+from scipy import stats
+import pandas as pd, numpy as np
+ct = pd.crosstab(df['VAR1'], df['VAR2'])
+chi2, p, dof, expected = stats.chi2_contingency(ct)
+n = ct.sum().sum()
+cramers_v = np.sqrt(chi2 / (n * (min(ct.shape) - 1)))
+show_table(ct.reset_index(), "Tabela Cruzada (Frequências Observadas)")
+show_table(pd.DataFrame(expected, index=ct.index, columns=ct.columns).round(2).reset_index(), "Frequências Esperadas")
+resultado = pd.DataFrame({'Métrica': ['χ²', 'df', 'p-valor', 'V de Cramér'], 'Valor': [f'{chi2:.4f}', f'{dof}', f'{p:.6f}', f'{cramers_v:.4f}']})
+show_table(resultado, "Resultado do Teste Qui-quadrado")
+
+--- REGRESSÃO LINEAR ---
+import statsmodels.api as sm
+X = df[['PRED1', 'PRED2']].dropna()
+y = df.loc[X.index, 'DEP_COL']
+X_const = sm.add_constant(X)
+model = sm.OLS(y, X_const).fit()
+coefs = pd.DataFrame({'Variável': model.params.index, 'Coeficiente': model.params.values, 'Erro Padrão': model.bse.values, 't': model.tvalues.values, 'p-valor': model.pvalues.values, 'IC 2.5%': model.conf_int()[0].values, 'IC 97.5%': model.conf_int()[1].values})
+show_table(coefs, "Coeficientes da Regressão Linear")
+resumo = pd.DataFrame({'Métrica': ['R²', 'R² ajustado', 'F', 'p-valor (F)', 'AIC', 'BIC', 'N'], 'Valor': [f'{model.rsquared:.4f}', f'{model.rsquared_adj:.4f}', f'{model.fvalue:.4f}', f'{model.f_pvalue:.6f}', f'{model.aic:.2f}', f'{model.bic:.2f}', f'{int(model.nobs)}']})
+show_table(resumo, "Resumo do Modelo")
+
+--- REGRESSÃO LOGÍSTICA ---
+import statsmodels.api as sm
+import numpy as np, pandas as pd
+from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
+X = df[['PRED1', 'PRED2']].dropna()
+y = df.loc[X.index, 'DEP_BIN']
+X_const = sm.add_constant(X)
+model = sm.Logit(y, X_const).fit(disp=0)
+coefs = pd.DataFrame({'Variável': model.params.index, 'β': model.params.values, 'OR': np.exp(model.params.values), 'IC 2.5% OR': np.exp(model.conf_int()[0].values), 'IC 97.5% OR': np.exp(model.conf_int()[1].values), 'p-valor': model.pvalues.values})
+show_table(coefs, "Coeficientes da Regressão Logística")
+# ROC
+y_pred_prob = model.predict(X_const)
+fpr, tpr, _ = roc_curve(y, y_pred_prob)
+auc_val = roc_auc_score(y, y_pred_prob)
+plt.figure(figsize=(8,6))
+plt.plot(fpr, tpr, label=f'AUC = {auc_val:.3f}')
+plt.plot([0,1],[0,1],'--', color='gray')
+plt.xlabel('1 - Especificidade')
+plt.ylabel('Sensibilidade')
+plt.title('Curva ROC')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+--- MANN-WHITNEY U ---
+from scipy import stats
+g1 = df[df['GRUPO_COL']=='valor1']['DEP_COL'].dropna()
+g2 = df[df['GRUPO_COL']=='valor2']['DEP_COL'].dropna()
+u_stat, p_val = stats.mannwhitneyu(g1, g2, alternative='two-sided')
+# Rank-biserial correlation
+r_rb = 1 - (2*u_stat)/(len(g1)*len(g2))
+resultado = pd.DataFrame({'Métrica': ['U', 'p-valor', 'Mediana Grupo 1', 'Mediana Grupo 2', 'r (rank-biserial)', 'Tamanho efeito'], 'Valor': [f'{u_stat:.1f}', f'{p_val:.6f}', f'{g1.median():.4f}', f'{g2.median():.4f}', f'{r_rb:.4f}', 'Pequeno' if abs(r_rb)<0.3 else 'Médio' if abs(r_rb)<0.5 else 'Grande']})
+show_table(resultado, "Resultado Mann-Whitney U")
+
+--- KAPLAN-MEIER (requer lifelines) ---
+from lifelines import KaplanMeierFitter
+kmf = KaplanMeierFitter()
+T = df['TEMPO_COL'].dropna()
+E = df.loc[T.index, 'EVENTO_COL']
+kmf.fit(T, event_observed=E)
+plt.figure(figsize=(10,6))
+kmf.plot_survival_function(ci_show=True)
+plt.title('Curva de Sobrevivência de Kaplan-Meier')
+plt.xlabel('Tempo')
+plt.ylabel('Probabilidade de Sobrevivência')
+plt.tight_layout()
+plt.show()
+median_surv = kmf.median_survival_time_
+print(f"Mediana de sobrevivência: {median_surv:.2f}")
+
+--- REGRESSÃO DE COX (requer lifelines) ---
+from lifelines import CoxPHFitter
+cph = CoxPHFitter()
+cols = ['TEMPO', 'EVENTO', 'COVAR1', 'COVAR2']
+cph.fit(df[cols].dropna(), duration_col='TEMPO', event_col='EVENTO')
+cph.print_summary()
+show_table(cph.summary.reset_index(), "Resultado da Regressão de Cox")
+
+--- PCA ---
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+num_cols = df.select_dtypes(include='number').dropna(axis=1)
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(num_cols)
+pca = PCA()
+pca.fit(X_scaled)
+var_exp = pd.DataFrame({'Componente': [f'PC{i+1}' for i in range(len(pca.explained_variance_ratio_))], 'Variância Explicada (%)': (pca.explained_variance_ratio_*100).round(2), 'Acumulada (%)': (pca.explained_variance_ratio_.cumsum()*100).round(2)})
+show_table(var_exp.head(10), "Variância Explicada por Componente")
+
+--- CRONBACH'S ALPHA ---
+import numpy as np, pandas as pd
+items = df[['ITEM1','ITEM2','ITEM3']].dropna()
+n_items = items.shape[1]
+var_items = items.var(axis=0, ddof=1).sum()
+var_total = items.sum(axis=1).var(ddof=1)
+alpha = (n_items/(n_items-1))*(1 - var_items/var_total)
+# Alpha se removido
+alphas_removed = []
+for col in items.columns:
+    sub = items.drop(columns=[col])
+    k = sub.shape[1]
+    vi = sub.var(axis=0, ddof=1).sum()
+    vt = sub.sum(axis=1).var(ddof=1)
+    a = (k/(k-1))*(1-vi/vt)
+    alphas_removed.append({'Item removido': col, 'Alpha': f'{a:.4f}'})
+resultado = pd.DataFrame(alphas_removed)
+show_table(resultado, f"Cronbach's Alpha = {alpha:.4f} — Alpha se item removido")
+
+FIM DO CATÁLOGO.
+
 ${schema ? `Schema do arquivo "${file_name}": ${schema}` : "Nenhum arquivo enviado ainda."}
 
 Campo "explanation" — markdown em português brasileiro, estilo relatório profissional:
