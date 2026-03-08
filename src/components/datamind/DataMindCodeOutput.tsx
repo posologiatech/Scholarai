@@ -55,10 +55,20 @@ async function exportToGoogleSheets(headers: string[], rows: string[][], title: 
   const providerToken = session.provider_token;
   if (!providerToken) {
     toast({
-      title: "Login com Google necessário",
-      description: "Para exportar para Google Sheets, faça login usando sua conta Google com as permissões necessárias.",
-      variant: "destructive",
+      title: "Permissão do Google Sheets necessária",
+      description: "Você será redirecionado para autorizar o acesso ao Google Sheets. Após autorizar, tente exportar novamente.",
     });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.href,
+        scopes: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file",
+        queryParams: { access_type: "offline", prompt: "consent" },
+      },
+    });
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    }
     return null;
   }
 
@@ -66,8 +76,24 @@ async function exportToGoogleSheets(headers: string[], rows: string[][], title: 
     body: { headers, rows, title, provider_token: providerToken },
   });
 
-  if (error) {
-    toast({ title: "Erro ao exportar", description: error.message || "Falha ao criar planilha no Google Sheets.", variant: "destructive" });
+  if (error || data?.error) {
+    const errMsg = data?.error || error?.message || "Falha ao criar planilha no Google Sheets.";
+    if (errMsg.includes("insufficient") || errMsg.includes("scope") || errMsg.includes("PERMISSION_DENIED")) {
+      toast({
+        title: "Permissão insuficiente",
+        description: "Redirecionando para autorizar acesso ao Google Sheets...",
+      });
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.href,
+          scopes: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file",
+          queryParams: { access_type: "offline", prompt: "consent" },
+        },
+      });
+      return null;
+    }
+    toast({ title: "Erro ao exportar", description: errMsg, variant: "destructive" });
     return null;
   }
 
