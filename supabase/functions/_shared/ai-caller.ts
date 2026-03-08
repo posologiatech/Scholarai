@@ -280,13 +280,22 @@ export async function callAI(options: ChatCompletionOptions): Promise<Response> 
     throw new Error("No AI provider available and LOVABLE_API_KEY not configured");
   }
 
+  const gatewayModelMap: Record<string, string> = {
+    "gemini-2.5-flash": "google/gemini-2.5-flash",
+    "gemini-2.5-pro": "google/gemini-2.5-pro",
+    "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
+    "gemini-3-flash-preview": "google/gemini-3-flash-preview",
+  };
+
+  const gatewayModel = cleanOptions.model ? (gatewayModelMap[cleanOptions.model] || cleanOptions.model) : "google/gemini-3-flash-preview";
+
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${LOVABLE_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(cleanOptions),
+    body: JSON.stringify({ ...cleanOptions, model: gatewayModel }),
   });
 
   // Log Lovable AI usage
