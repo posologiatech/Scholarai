@@ -112,12 +112,12 @@ const DataMindSidebar = ({
                   )}
                   <span className="truncate flex-1 min-w-0 text-sm font-medium">{conv.title}</span>
 
-                  {/* Action buttons — only show when not in selection mode */}
+                  {/* Action buttons — always visible, not in selection mode */}
                   {!selectionMode && (
-                    <div className="flex items-center gap-0.5 shrink-0">
+                    <div className="flex items-center gap-0.5 shrink-0 ml-1">
                       {onExport && (
                         <button
-                          className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
                           onClick={(e) => {
                             e.stopPropagation();
                             onExport(conv.id);
@@ -128,7 +128,7 @@ const DataMindSidebar = ({
                         </button>
                       )}
                       <button
-                        className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
                           setDeleteTarget(conv.id);
