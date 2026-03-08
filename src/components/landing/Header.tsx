@@ -13,6 +13,7 @@ const Header = () => {
   const navLinks = [
     { label: t("nav.solutions"), href: "/solutions" },
     { label: t("nav.useCases"), href: "/use-cases" },
+    { label: locale === "pt" ? "Preços" : "Pricing", href: "/pricing" },
     { label: t("nav.about"), href: "/about" },
     { label: t("nav.faq"), href: "/faq" },
   ];

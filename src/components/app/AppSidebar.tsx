@@ -98,10 +98,15 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
 
         {/* Bottom section */}
         <div className="border-t border-border/40 p-2 space-y-1">
-          {!collapsed && user?.email && (
-            <p className="px-3 py-1 text-xs text-muted-foreground truncate">
-              {user.email}
-            </p>
+          {!collapsed && (
+            <div className="px-3 py-1 flex items-center justify-between">
+              {user?.email && (
+                <p className="text-xs text-muted-foreground truncate flex-1 mr-2">
+                  {user.email}
+                </p>
+              )}
+              <PlanBadge />
+            </div>
           )}
           <div className={cn("flex gap-1", collapsed ? "flex-col items-center" : "")}>
             <Button

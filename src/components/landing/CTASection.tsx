@@ -30,9 +30,9 @@ const CTASection = () => {
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
-            <Link to="/docs">
+            <Link to="/pricing">
               <Button variant="outline" size="lg" className="h-12 rounded-xl">
-                {pt ? "Ler documentação" : "Read documentation"}
+                {pt ? "Ver planos" : "View plans"}
               </Button>
             </Link>
           </div>
