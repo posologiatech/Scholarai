@@ -69,6 +69,9 @@ const Admin = () => {
       fetchSearches();
       fetchApprovals();
       fetchAnalytics();
+      fetchSubscriptions();
+      fetchUsageTracking();
+      fetchAiUsageLog();
     }
   }, [isAdmin]);
 
