@@ -85,6 +85,9 @@ export function useSubscription() {
   const [plan, setPlan] = useState<PlanType>("free");
   const [usage, setUsage] = useState<UsageRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
+  const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -93,6 +96,21 @@ export function useSubscription() {
     }
 
     const fetchData = async () => {
+      // Check if user is admin (admins bypass all limits)
+      const { data: adminRole } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      
+      if (adminRole) {
+        setIsAdmin(true);
+        setPlan("enterprise");
+        setLoading(false);
+        return;
+      }
+
       const currentPeriod = new Date().toISOString().slice(0, 7);
 
       // Check subscription status from Stripe via edge function
@@ -104,17 +122,20 @@ export function useSubscription() {
           });
           if (subData?.plan) {
             setPlan(subData.plan as PlanType);
+            setSubscriptionEnd(subData.subscription_end || null);
           }
         }
       } catch {
         // Fallback: read from subscriptions table
         const { data: subRes } = await supabase
           .from("subscriptions")
-          .select("plan, status")
+          .select("plan, status, current_period_end, stripe_customer_id")
           .eq("user_id", user.id)
           .maybeSingle();
         if (subRes && subRes.status === "active") {
           setPlan(subRes.plan as PlanType);
+          setSubscriptionEnd(subRes.current_period_end || null);
+          setStripeCustomerId(subRes.stripe_customer_id || null);
         }
       }
 
@@ -145,6 +166,7 @@ export function useSubscription() {
   };
 
   const canUse = (feature: FeatureKey): boolean => {
+    if (isAdmin) return true; // Admins bypass all limits
     const limit = getLimit(feature);
     if (limit === -1) return true; // unlimited
     if (limit === 0) return false; // not available
@@ -166,7 +188,9 @@ export function useSubscription() {
     getUsage,
     getLimit,
     getUsagePercent,
-    isFreePlan: plan === "free",
-    isPro: plan === "pro" || plan === "team" || plan === "enterprise",
+    isFreePlan: plan === "free" && !isAdmin,
+    isPro: plan === "pro" || plan === "team" || plan === "enterprise" || isAdmin,
+    isAdmin,
+    subscriptionEnd,
   };
 }
