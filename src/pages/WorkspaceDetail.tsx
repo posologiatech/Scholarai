@@ -291,6 +291,60 @@ const WorkspaceDetail = () => {
     }
   };
 
+  const toggleAnnotationSelection = (id: string) => {
+    setSelectedAnnotationIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSummarize = async () => {
+    if (selectedAnnotationIds.size === 0) return;
+    setSummarizing(true);
+    try {
+      const selected = annotations.filter((a) => selectedAnnotationIds.has(a.id));
+      const { data, error } = await supabase.functions.invoke("summarize-annotations", {
+        body: {
+          annotations: selected.map((a) => ({
+            content: a.content,
+            paper_title: a.paper_title,
+          })),
+          locale,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      const summary = {
+        id: crypto.randomUUID(),
+        title: pt
+          ? `Resumo de ${selected.length} anotação(ões)`
+          : `Summary of ${selected.length} annotation(s)`,
+        content: data.summary,
+        date: new Date().toISOString(),
+        annotationIds: Array.from(selectedAnnotationIds),
+      };
+
+      setSummaries((prev) => [summary, ...prev]);
+      setShowSummaryPanel(true);
+      setShowSummarySelector(false);
+      setSelectedAnnotationIds(new Set());
+      toast.success(pt ? "Resumo gerado com sucesso!" : "Summary generated successfully!");
+    } catch (err: any) {
+      console.error("Summarize error:", err);
+      toast.error(pt ? "Erro ao gerar resumo" : "Failed to generate summary");
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
   const roleLabel = (role: string) => {
     const labels: Record<string, Record<string, string>> = {
       owner: { pt: "Dono", en: "Owner" },
