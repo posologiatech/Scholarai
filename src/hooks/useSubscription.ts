@@ -93,27 +93,39 @@ export function useSubscription() {
     }
 
     const fetchData = async () => {
-      const currentPeriod = new Date().toISOString().slice(0, 7); // '2026-03'
+      const currentPeriod = new Date().toISOString().slice(0, 7);
 
-      const [subRes, usageRes] = await Promise.all([
-        supabase
+      // Check subscription status from Stripe via edge function
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const { data: subData } = await supabase.functions.invoke("check-subscription", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (subData?.plan) {
+            setPlan(subData.plan as PlanType);
+          }
+        }
+      } catch {
+        // Fallback: read from subscriptions table
+        const { data: subRes } = await supabase
           .from("subscriptions")
-          .select("plan, status, current_period_end")
+          .select("plan, status")
           .eq("user_id", user.id)
-          .maybeSingle(),
-        supabase
-          .from("usage_tracking")
-          .select("feature, count")
-          .eq("user_id", user.id)
-          .eq("period", currentPeriod),
-      ]);
+          .maybeSingle();
+        if (subRes && subRes.status === "active") {
+          setPlan(subRes.plan as PlanType);
+        }
+      }
 
-      if (subRes.data && subRes.data.status === "active") {
-        setPlan(subRes.data.plan as PlanType);
-      }
-      if (usageRes.data) {
-        setUsage(usageRes.data);
-      }
+      // Fetch usage
+      const { data: usageRes } = await supabase
+        .from("usage_tracking")
+        .select("feature, count")
+        .eq("user_id", user.id)
+        .eq("period", currentPeriod);
+      if (usageRes) setUsage(usageRes);
+
       setLoading(false);
     };
 
