@@ -157,6 +157,7 @@ const SystematicReviewList = () => {
           )}
         </div>
       </main>
+      <UsageLimitDialog feature="systematic_review" open={showSrLimitDialog} onOpenChange={setShowSrLimitDialog} />
     </div>
   );
 };

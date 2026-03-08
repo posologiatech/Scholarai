@@ -572,6 +572,7 @@ const Extraction = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <UsageLimitDialog feature="extraction" open={showExtLimitDialog} onOpenChange={setShowExtLimitDialog} />
     </div>
   );
 };

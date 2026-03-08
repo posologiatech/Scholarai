@@ -1219,6 +1219,7 @@ const SearchResults = () => {
       </div>
     </div>
   );
+  return (<>{content}<UsageLimitDialog feature="search" open={showLimitDialog} onOpenChange={setShowLimitDialog} /></>);
 };
 
 export default SearchResults;

@@ -815,6 +815,7 @@ const WorkspaceDetail = () => {
           </ScrollArea>
         </TabsContent>
       </Tabs>
+      <UsageLimitDialog feature="ai_summary" open={showSummaryLimitDialog} onOpenChange={setShowSummaryLimitDialog} />
     </div>
   );
 };

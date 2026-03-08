@@ -276,6 +276,7 @@ const Workspaces = () => {
           ))}
         </div>
       )}
+      <UsageLimitDialog feature="workspaces" open={showWsLimitDialog} onOpenChange={setShowWsLimitDialog} />
     </div>
   );
 };

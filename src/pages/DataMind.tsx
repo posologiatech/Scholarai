@@ -817,6 +817,7 @@ const DataMind = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <UsageLimitDialog feature="datamind_chat" open={showDmLimitDialog} onOpenChange={setShowDmLimitDialog} />
     </div>
   );
 };
