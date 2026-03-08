@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import CitationBadge from "@/components/app/CitationBadge";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 // AppSidebar provided by ProtectedRoute
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
