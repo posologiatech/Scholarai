@@ -49,7 +49,9 @@ const Admin = () => {
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [approvals, setApprovals] = useState<UserApproval[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "users" | "searches" | "apikeys" | "system">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "users" | "searches" | "apikeys" | "analytics" | "system">("overview");
+  const [analyticsEvents, setAnalyticsEvents] = useState<any[]>([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
   const [approvalFilter, setApprovalFilter] = useState<"pending" | "approved" | "all">("pending");
 
