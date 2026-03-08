@@ -630,9 +630,18 @@ const WritingAssistant = () => {
                     disabled={uploadingPDF}
                   />
                 </label>
+                {uploadedPDFs.some(p => p.status === "error") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearErrorPDFs}
+                    className="w-full text-xs text-destructive hover:text-destructive h-7 mt-1"
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    {pt ? "Limpar erros" : "Clear errors"}
+                  </Button>
+                )}
               </div>
-
-              {/* PDF list */}
               <ScrollArea className="flex-1">
                 <div className="space-y-1">
                   {loadingPDFs ? (
