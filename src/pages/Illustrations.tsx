@@ -462,6 +462,7 @@ const Illustrations = () => {
         />
       )}
     </div>
+    </UpgradeGate>
   );
 };
 
