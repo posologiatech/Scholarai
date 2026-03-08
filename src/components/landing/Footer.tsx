@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { GraduationCap } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useCookieConsent } from "@/hooks/useCookieConsent";
 
 const Footer = () => {
   const { t } = useLanguage();
