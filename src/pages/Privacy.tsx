@@ -24,7 +24,11 @@ const Privacy = () => {
             <p>Utilizamos criptografia e práticas de segurança padrão da indústria para proteger seus dados. Seus dados de pesquisa são armazenados de forma segura e acessíveis apenas por você. / We use encryption and industry-standard security practices to protect your data. Your research data is stored securely and accessible only by you.</p>
 
             <h2>4. Cookies</h2>
-            <p>Utilizamos cookies essenciais para manter sua sessão e preferências de idioma. Não utilizamos cookies de rastreamento de terceiros. / We use essential cookies to maintain your session and language preferences. We do not use third-party tracking cookies.</p>
+            <p>Utilizamos cookies organizados em três categorias: / We use cookies organized in three categories:</p>
+            <p><strong>Essenciais (sempre ativos):</strong> Necessários para autenticação (Supabase Auth), preferência de idioma e estado da interface. Sem eles, o sistema não funciona. / <strong>Essential (always active):</strong> Required for authentication (Supabase Auth), language preference, and UI state. Without them, the system does not work.</p>
+            <p><strong>Funcionais (opcionais):</strong> Salvam suas buscas recentes, status de onboarding e preferências de interface para melhorar sua experiência. / <strong>Functional (optional):</strong> Save your recent searches, onboarding status, and interface preferences to improve your experience.</p>
+            <p><strong>Analíticos (opcionais):</strong> Nos ajudam a entender como a plataforma é utilizada — páginas visitadas, funcionalidades mais usadas e tempo de sessão. Dados anonimizados, sem compartilhamento com terceiros. / <strong>Analytical (optional):</strong> Help us understand how the platform is used — pages visited, most-used features, and session duration. Anonymized data, no third-party sharing.</p>
+            <p>Você pode gerenciar suas preferências de cookies a qualquer momento através do banner exibido na primeira visita ou pelo link "Configurações de Cookies" no rodapé do site. / You can manage your cookie preferences at any time through the banner displayed on your first visit or via the "Cookie Settings" link in the site footer.</p>
 
             <h2>5. Seus Direitos / Your Rights</h2>
             <p>Você pode solicitar a exclusão completa dos seus dados a qualquer momento. Para isso, entre em contato conosco. Em conformidade com a LGPD e GDPR. / You may request complete deletion of your data at any time. Contact us to do so. In compliance with LGPD and GDPR.</p>

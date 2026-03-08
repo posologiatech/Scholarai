@@ -64,6 +64,14 @@ const Footer = () => {
           ))}
         </div>
         <div className="mt-10 border-t border-border pt-6 text-center text-xs text-muted-foreground">
+          <div className="mb-2">
+            <button
+              onClick={resetBanner}
+              className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
+            >
+              {locale === "pt" ? "Configurações de Cookies" : "Cookie Settings"}
+            </button>
+          </div>
           © {new Date().getFullYear()} ScholarAI. {t("footer.rights")} — Desenvolvido por Sérgio Araújo. Posologia Produções
         </div>
       </div>
