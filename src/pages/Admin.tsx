@@ -177,6 +177,7 @@ const Admin = () => {
     { id: "users" as const, label: locale === "pt" ? "Usuários" : "Users", icon: Users },
     { id: "searches" as const, label: locale === "pt" ? "Pesquisas" : "Searches", icon: Search },
     { id: "apikeys" as const, label: locale === "pt" ? "API Keys" : "API Keys", icon: Key },
+    { id: "analytics" as const, label: "Analytics", icon: Cookie, badge: analyticsEvents.length > 0 ? analyticsEvents.length : undefined },
     { id: "system" as const, label: locale === "pt" ? "Sistema" : "System", icon: Settings },
   ];
 
