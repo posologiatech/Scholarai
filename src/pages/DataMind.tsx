@@ -620,6 +620,7 @@ const DataMind = () => {
                 onSelect={(id) => navigate(`/datamind/${id}`)}
                 onNew={() => navigate("/datamind")}
                 onDelete={deleteConversation}
+                onRename={renameConversation}
                 onExport={exportConversation}
                 selectedIds={selectedConvIds}
                 onToggleSelect={toggleSelectConv}
