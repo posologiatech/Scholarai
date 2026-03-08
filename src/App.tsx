@@ -51,6 +51,7 @@ import NotFound from "./pages/NotFound";
 import Surveys from "./pages/Surveys";
 import SurveyBuilder from "./pages/SurveyBuilder";
 import SurveyRespond from "./pages/SurveyRespond";
+import Pricing from "./pages/Pricing";
 
 const queryClient = new QueryClient();
 
