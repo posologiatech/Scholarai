@@ -1219,10 +1219,7 @@ const SearchResults = () => {
         )}
       </div>
     </div>
-  return (
-    <>
-      {mainContent}
-      <UsageLimitDialog feature="search" open={showLimitDialog} onOpenChange={setShowLimitDialog} />
+    <UsageLimitDialog feature="search" open={showLimitDialog} onOpenChange={setShowLimitDialog} />
     </>
   );
 };
