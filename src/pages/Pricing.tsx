@@ -1,21 +1,94 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 import Header from "@/components/landing/Header";
 import Footer from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Check, X, Sparkles, Zap, Users, Building2 } from "lucide-react";
+import { Check, X, Sparkles, Zap, Users, Building2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+const STRIPE_PRICES = {
+  pro: {
+    monthly: "price_1T8fRhQaWA3IKZab7UddPJ11",
+    annual: "price_1T8fSlQaWA3IKZabZGD2e5Cw",
+  },
+  team: {
+    monthly: "price_1T8fTqQaWA3IKZabFdbQErgo",
+    annual: "price_1T8fUsQaWA3IKZabiOPRZIwT",
+  },
+};
 
 const Pricing = () => {
   const { locale } = useLanguage();
   const { user } = useAuth();
+  const { plan: currentPlan } = useSubscription();
   const pt = locale === "pt";
   const [annual, setAnnual] = useState(false);
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+
+  const checkoutCancelled = searchParams.get("checkout") === "cancelled";
+
+  const handleCheckout = async (planId: string) => {
+    if (!user) {
+      toast.error(pt ? "Faça login primeiro" : "Please log in first");
+      return;
+    }
+    if (planId === "free" || planId === "enterprise") return;
+
+    const priceId = annual
+      ? STRIPE_PRICES[planId as keyof typeof STRIPE_PRICES].annual
+      : STRIPE_PRICES[planId as keyof typeof STRIPE_PRICES].monthly;
+
+    setLoadingPlan(planId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("create-checkout", {
+        body: { priceId },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, "_blank");
+      }
+    } catch (err: any) {
+      toast.error(err.message || (pt ? "Erro ao iniciar checkout" : "Checkout error"));
+    } finally {
+      setLoadingPlan(null);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    setLoadingPlan("manage");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("customer-portal", {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (error) throw error;
+      if (data?.url) window.open(data.url, "_blank");
+    } catch {
+      toast.error(pt ? "Erro ao abrir portal" : "Portal error");
+    } finally {
+      setLoadingPlan(null);
+    }
+  };
+
+  const isCurrentPlan = (planId: string) => currentPlan === planId;
+
+  const getCtaText = (planId: string) => {
+    if (isCurrentPlan(planId)) return pt ? "Plano atual" : "Current plan";
+    if (planId === "free") return user ? (pt ? "Plano atual" : "Current plan") : (pt ? "Comece grátis" : "Start free");
+    if (planId === "enterprise") return pt ? "Falar com vendas" : "Contact sales";
+    return pt ? `Assinar ${planId.charAt(0).toUpperCase() + planId.slice(1)}` : `Subscribe ${planId.charAt(0).toUpperCase() + planId.slice(1)}`;
+  };
 
   const plans = [
     {
@@ -25,9 +98,6 @@ const Pricing = () => {
       price: { monthly: 0, annual: 0 },
       description: pt ? "Para explorar a plataforma" : "To explore the platform",
       highlight: false,
-      cta: user ? (pt ? "Plano atual" : "Current plan") : (pt ? "Comece grátis" : "Start free"),
-      ctaLink: user ? "/dashboard" : "/signup",
-      ctaDisabled: !!user,
       features: [
         { label: pt ? "20 buscas/mês" : "20 searches/mo", included: true },
         { label: pt ? "50 papers na biblioteca" : "50 papers in library", included: true },
@@ -49,9 +119,6 @@ const Pricing = () => {
       price: { monthly: 49, annual: 39 },
       description: pt ? "Para pesquisadores individuais" : "For individual researchers",
       highlight: true,
-      cta: pt ? "Assinar Pro" : "Subscribe Pro",
-      ctaLink: "/signup",
-      ctaDisabled: false,
       features: [
         { label: pt ? "Buscas ilimitadas" : "Unlimited searches", included: true },
         { label: pt ? "500 papers na biblioteca" : "500 papers in library", included: true },
@@ -73,9 +140,6 @@ const Pricing = () => {
       price: { monthly: 89, annual: 71 },
       description: pt ? "Para grupos de pesquisa" : "For research groups",
       highlight: false,
-      cta: pt ? "Assinar Team" : "Subscribe Team",
-      ctaLink: "/signup",
-      ctaDisabled: false,
       perUser: true,
       features: [
         { label: pt ? "Buscas ilimitadas" : "Unlimited searches", included: true },
@@ -98,9 +162,6 @@ const Pricing = () => {
       price: { monthly: -1, annual: -1 },
       description: pt ? "Para instituições e empresas" : "For institutions & companies",
       highlight: false,
-      cta: pt ? "Falar com vendas" : "Contact sales",
-      ctaLink: "/contact",
-      ctaDisabled: false,
       features: [
         { label: pt ? "Tudo ilimitado" : "Everything unlimited", included: true },
         { label: pt ? "Acesso à API" : "API access", included: true },
@@ -118,7 +179,12 @@ const Pricing = () => {
       <Header />
 
       <main className="container mx-auto max-w-7xl px-4 py-16 md:py-24">
-        {/* Title */}
+        {checkoutCancelled && (
+          <div className="mb-6 p-4 rounded-lg bg-destructive/10 text-destructive text-center text-sm">
+            {pt ? "Checkout cancelado. Você pode tentar novamente." : "Checkout cancelled. You can try again."}
+          </div>
+        )}
+
         <div className="text-center mb-12">
           <Badge variant="outline" className="mb-4 gap-1.5 text-sm px-3 py-1 border-primary/20 text-primary">
             <Sparkles className="h-3.5 w-3.5" />
@@ -133,7 +199,6 @@ const Pricing = () => {
               : "Start free. Upgrade when your research demands more."}
           </p>
 
-          {/* Annual toggle */}
           <div className="flex items-center justify-center gap-3 mt-8">
             <span className={cn("text-sm", !annual ? "text-foreground font-medium" : "text-muted-foreground")}>
               {pt ? "Mensal" : "Monthly"}
@@ -143,14 +208,11 @@ const Pricing = () => {
               {pt ? "Anual" : "Annual"}
             </span>
             {annual && (
-              <Badge className="bg-success/10 text-success border-success/20 text-xs">
-                -20%
-              </Badge>
+              <Badge className="bg-success/10 text-success border-success/20 text-xs">-20%</Badge>
             )}
           </div>
         </div>
 
-        {/* Plan Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {plans.map((plan) => (
             <Card
@@ -159,13 +221,21 @@ const Pricing = () => {
                 "relative flex flex-col transition-shadow",
                 plan.highlight
                   ? "border-primary shadow-lg shadow-primary/10 ring-1 ring-primary/20"
-                  : "border-border"
+                  : "border-border",
+                isCurrentPlan(plan.id) && "ring-2 ring-primary/40"
               )}
             >
               {plan.highlight && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <Badge className="bg-primary text-primary-foreground text-xs px-3">
                     {pt ? "Mais popular" : "Most popular"}
+                  </Badge>
+                </div>
+              )}
+              {isCurrentPlan(plan.id) && !plan.highlight && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <Badge variant="outline" className="text-xs px-3 bg-background">
+                    {pt ? "Seu plano" : "Your plan"}
                   </Badge>
                 </div>
               )}
@@ -184,7 +254,6 @@ const Pricing = () => {
               </CardHeader>
 
               <CardContent className="flex-1">
-                {/* Price */}
                 <div className="mb-6">
                   {plan.price.monthly === -1 ? (
                     <span className="font-display text-3xl font-bold text-foreground">
@@ -193,9 +262,7 @@ const Pricing = () => {
                   ) : plan.price.monthly === 0 ? (
                     <div>
                       <span className="font-display text-4xl font-bold text-foreground">R$0</span>
-                      <span className="text-muted-foreground text-sm ml-1">
-                        /{pt ? "mês" : "mo"}
-                      </span>
+                      <span className="text-muted-foreground text-sm ml-1">/{pt ? "mês" : "mo"}</span>
                     </div>
                   ) : (
                     <div>
@@ -204,7 +271,7 @@ const Pricing = () => {
                       </span>
                       <span className="text-muted-foreground text-sm ml-1">
                         /{pt ? "mês" : "mo"}
-                        {(plan as any).perUser && (pt ? " por usuário" : " per user")}
+                        {plan.perUser && (pt ? " por usuário" : " per user")}
                       </span>
                       {annual && plan.price.monthly > 0 && (
                         <p className="text-xs text-muted-foreground mt-1 line-through">
@@ -215,7 +282,6 @@ const Pricing = () => {
                   )}
                 </div>
 
-                {/* Features */}
                 <ul className="space-y-2.5">
                   {plan.features.map((feat, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
@@ -232,8 +298,18 @@ const Pricing = () => {
                 </ul>
               </CardContent>
 
-              <CardFooter>
-                <Link to={plan.ctaLink} className="w-full">
+              <CardFooter className="flex-col gap-2">
+                {plan.id === "enterprise" ? (
+                  <Link to="/contact" className="w-full">
+                    <Button variant="outline" className="w-full">{getCtaText(plan.id)}</Button>
+                  </Link>
+                ) : plan.id === "free" ? (
+                  <Link to={user ? "/dashboard" : "/signup"} className="w-full">
+                    <Button variant="outline" className="w-full" disabled={!!user}>
+                      {getCtaText(plan.id)}
+                    </Button>
+                  </Link>
+                ) : (
                   <Button
                     className={cn(
                       "w-full",
@@ -242,33 +318,43 @@ const Pricing = () => {
                         : ""
                     )}
                     variant={plan.highlight ? "default" : "outline"}
-                    disabled={plan.ctaDisabled}
+                    disabled={isCurrentPlan(plan.id) || loadingPlan === plan.id}
+                    onClick={() => handleCheckout(plan.id)}
                   >
-                    {plan.cta}
+                    {loadingPlan === plan.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : null}
+                    {getCtaText(plan.id)}
                   </Button>
-                </Link>
+                )}
+
+                {isCurrentPlan(plan.id) && plan.id !== "free" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs"
+                    disabled={loadingPlan === "manage"}
+                    onClick={handleManageSubscription}
+                  >
+                    {loadingPlan === "manage" ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                    {pt ? "Gerenciar assinatura" : "Manage subscription"}
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           ))}
         </div>
 
-        {/* FAQ-style section */}
         <div className="mt-20 text-center">
           <h2 className="font-display text-2xl font-bold text-foreground mb-3">
             {pt ? "Dúvidas sobre os planos?" : "Questions about plans?"}
           </h2>
           <p className="text-muted-foreground mb-6">
-            {pt
-              ? "Consulte nosso FAQ ou entre em contato conosco."
-              : "Check our FAQ or get in touch with us."}
+            {pt ? "Consulte nosso FAQ ou entre em contato conosco." : "Check our FAQ or get in touch with us."}
           </p>
           <div className="flex justify-center gap-3">
-            <Link to="/faq">
-              <Button variant="outline">{pt ? "Ver FAQ" : "View FAQ"}</Button>
-            </Link>
-            <Link to="/contact">
-              <Button variant="outline">{pt ? "Fale conosco" : "Contact us"}</Button>
-            </Link>
+            <Link to="/faq"><Button variant="outline">{pt ? "Ver FAQ" : "View FAQ"}</Button></Link>
+            <Link to="/contact"><Button variant="outline">{pt ? "Fale conosco" : "Contact us"}</Button></Link>
           </div>
         </div>
       </main>
