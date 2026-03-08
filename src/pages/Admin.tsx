@@ -64,6 +64,7 @@ const Admin = () => {
       fetchRoles();
       fetchSearches();
       fetchApprovals();
+      fetchAnalytics();
     }
   }, [isAdmin]);
 
