@@ -228,6 +228,7 @@ const KnowledgeGraph = () => {
   const hasGraph = graphNodes.length > 0 && !isLoading;
 
   return (
+    <UpgradeGate feature="knowledge_graph">
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="border-b border-border/40 bg-background/95 backdrop-blur-sm px-4 py-3 shrink-0">
