@@ -18,9 +18,10 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft, Users, Plus, Loader2, Crown, MessageSquare, History,
-  Send, Trash2, UserPlus, Settings,
+  Send, Trash2, UserPlus, Settings, Sparkles, X, Check,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Workspace {
   id: string;
