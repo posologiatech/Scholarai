@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Shield, Users, Trash2, Loader2, Search, FileText,
-  Database, Activity, BarChart3, Settings, CheckCircle2, XCircle, Clock, UserCheck, Key,
+  Database, Activity, BarChart3, Settings, CheckCircle2, XCircle, Clock, UserCheck, Key, Cookie, Eye, MousePointerClick, TrendingUp,
 } from "lucide-react";
 import ApiKeysPanel from "@/components/app/ApiKeysPanel";
 import { toast } from "sonner";
