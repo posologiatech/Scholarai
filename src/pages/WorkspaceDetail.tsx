@@ -538,83 +538,240 @@ const WorkspaceDetail = () => {
 
         {/* Annotations Tab */}
         <TabsContent value="annotations" className="space-y-4">
-          {/* Add annotation */}
-          <div className="rounded-lg border border-border/60 bg-card p-4 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">{pt ? "ID do Paper (opcional)" : "Paper ID (optional)"}</Label>
-                <Input
-                  value={annotationPaperId}
-                  onChange={(e) => setAnnotationPaperId(e.target.value)}
-                  placeholder="DOI or paper ID"
-                  className="h-8 text-sm"
-                />
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Main annotations column */}
+            <div className={`flex-1 space-y-4 ${showSummaryPanel ? 'lg:max-w-[60%]' : ''}`}>
+              {/* Add annotation */}
+              <div className="rounded-lg border border-border/60 bg-card p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">{pt ? "ID do Paper (opcional)" : "Paper ID (optional)"}</Label>
+                    <Input
+                      value={annotationPaperId}
+                      onChange={(e) => setAnnotationPaperId(e.target.value)}
+                      placeholder="DOI or paper ID"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">{pt ? "Título do Paper" : "Paper Title"}</Label>
+                    <Input
+                      value={annotationPaperTitle}
+                      onChange={(e) => setAnnotationPaperTitle(e.target.value)}
+                      placeholder={pt ? "Título do artigo..." : "Paper title..."}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Textarea
+                    value={newAnnotation}
+                    onChange={(e) => setNewAnnotation(e.target.value)}
+                    placeholder={pt ? "Adicione uma anotação ou comentário..." : "Add an annotation or comment..."}
+                    rows={2}
+                    className="text-sm"
+                  />
+                  <Button
+                    size="icon"
+                    className="h-auto shrink-0"
+                    onClick={handleAddAnnotation}
+                    disabled={addingAnnotation || !newAnnotation.trim()}
+                  >
+                    {addingAnnotation ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
-              <div>
-                <Label className="text-xs">{pt ? "Título do Paper" : "Paper Title"}</Label>
-                <Input
-                  value={annotationPaperTitle}
-                  onChange={(e) => setAnnotationPaperTitle(e.target.value)}
-                  placeholder={pt ? "Título do artigo..." : "Paper title..."}
-                  className="h-8 text-sm"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Textarea
-                value={newAnnotation}
-                onChange={(e) => setNewAnnotation(e.target.value)}
-                placeholder={pt ? "Adicione uma anotação ou comentário..." : "Add an annotation or comment..."}
-                rows={2}
-                className="text-sm"
-              />
-              <Button
-                size="icon"
-                className="h-auto shrink-0"
-                onClick={handleAddAnnotation}
-                disabled={addingAnnotation || !newAnnotation.trim()}
-              >
-                {addingAnnotation ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
 
-          {/* Annotation list */}
-          <ScrollArea className="h-[400px]">
-            <div className="space-y-3">
-              {annotations.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {pt ? "Nenhuma anotação ainda" : "No annotations yet"}
-                </p>
-              ) : (
-                annotations.map((ann) => (
-                  <div key={ann.id} className="rounded-lg border border-border/40 bg-card p-3">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="min-w-0">
-                        {ann.paper_title && (
-                          <p className="text-xs font-medium text-primary truncate">{ann.paper_title}</p>
+              {/* AI Summarize button & selector */}
+              {annotations.length > 0 && (
+                <div className="flex items-center gap-2">
+                  {!showSummarySelector ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSummarySelector(true)}
+                      className="gap-2"
+                    >
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      {pt ? "Resumir com IA" : "Summarize with AI"}
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={handleSummarize}
+                        disabled={summarizing || selectedAnnotationIds.size === 0}
+                        className="gap-2"
+                      >
+                        {summarizing ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-4 w-4" />
                         )}
-                        <p className="text-xs text-muted-foreground">
-                          {getMemberEmail(ann.user_id)} · {new Date(ann.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                      {ann.user_id === user?.id && (
+                        {summarizing
+                          ? pt ? "Gerando..." : "Generating..."
+                          : pt ? `Resumir (${selectedAnnotationIds.size})` : `Summarize (${selectedAnnotationIds.size})`}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowSummarySelector(false);
+                          setSelectedAnnotationIds(new Set());
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                      {annotations.length > 1 && (
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
-                          onClick={() => handleDeleteAnnotation(ann.id)}
+                          size="sm"
+                          onClick={() => {
+                            if (selectedAnnotationIds.size === annotations.length) {
+                              setSelectedAnnotationIds(new Set());
+                            } else {
+                              setSelectedAnnotationIds(new Set(annotations.map(a => a.id)));
+                            }
+                          }}
+                          className="text-xs"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          {selectedAnnotationIds.size === annotations.length
+                            ? pt ? "Desmarcar todas" : "Deselect all"
+                            : pt ? "Selecionar todas" : "Select all"}
                         </Button>
                       )}
-                    </div>
-                    <p className="text-sm text-foreground">{ann.content}</p>
-                  </div>
-                ))
+                    </>
+                  )}
+
+                  {summaries.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowSummaryPanel(!showSummaryPanel)}
+                      className="ml-auto text-xs gap-1"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      {pt ? `${summaries.length} resumo(s)` : `${summaries.length} summary(ies)`}
+                    </Button>
+                  )}
+                </div>
               )}
+
+              {/* Annotation list */}
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-3">
+                  {annotations.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      {pt ? "Nenhuma anotação ainda" : "No annotations yet"}
+                    </p>
+                  ) : (
+                    annotations.map((ann) => (
+                      <div
+                        key={ann.id}
+                        className={`rounded-lg border p-3 transition-colors ${
+                          showSummarySelector
+                            ? selectedAnnotationIds.has(ann.id)
+                              ? "border-primary bg-primary/5"
+                              : "border-border/40 bg-card hover:border-primary/30 cursor-pointer"
+                            : "border-border/40 bg-card"
+                        }`}
+                        onClick={showSummarySelector ? () => toggleAnnotationSelection(ann.id) : undefined}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="flex items-start gap-2 min-w-0">
+                            {showSummarySelector && (
+                              <Checkbox
+                                checked={selectedAnnotationIds.has(ann.id)}
+                                onCheckedChange={() => toggleAnnotationSelection(ann.id)}
+                                className="mt-0.5"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            )}
+                            <div className="min-w-0">
+                              {ann.paper_title && (
+                                <p className="text-xs font-medium text-primary truncate">{ann.paper_title}</p>
+                              )}
+                              <p className="text-xs text-muted-foreground">
+                                {getMemberEmail(ann.user_id)} · {new Date(ann.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                          {!showSummarySelector && ann.user_id === user?.id && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => handleDeleteAnnotation(ann.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                        <p className={`text-sm text-foreground ${showSummarySelector ? 'ml-6' : ''}`}>{ann.content}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
             </div>
-          </ScrollArea>
+
+            {/* Summary side panel */}
+            {showSummaryPanel && summaries.length > 0 && (
+              <div className="lg:w-[40%] space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    {pt ? "Resumos IA" : "AI Summaries"}
+                  </h3>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowSummaryPanel(false)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <ScrollArea className="h-[500px]">
+                  <div className="space-y-3">
+                    {summaries.map((s) => (
+                      <div key={s.id} className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{s.title}</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {new Date(s.date).toLocaleString()} · {s.annotationIds.length}{" "}
+                              {pt ? "anotação(ões)" : "annotation(s)"}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                            onClick={() => setSummaries((prev) => prev.filter((x) => x.id !== s.id))}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                          {s.content}
+                        </div>
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {s.annotationIds.map((aId) => {
+                            const ann = annotations.find((a) => a.id === aId);
+                            return ann ? (
+                              <span
+                                key={aId}
+                                className="inline-block rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground truncate max-w-[150px]"
+                                title={ann.content}
+                              >
+                                {ann.paper_title || ann.content.slice(0, 30)}
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         {/* Activity Tab */}
