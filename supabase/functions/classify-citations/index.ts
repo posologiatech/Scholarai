@@ -80,7 +80,6 @@ async function fetchCitingPapersFromOpenAlex(doi: string, externalId: string): P
       }
       console.log(`OpenAlex: fetched ${papers.length} citing papers total`);
     }
-    }
   } catch (err) {
     console.error('OpenAlex fetch error:', err);
   }
