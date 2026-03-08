@@ -19,6 +19,7 @@ import {
   FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
   Upload, File, X,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Paper {
   id: string;
@@ -27,6 +28,12 @@ interface Paper {
   year: number | null;
   journal: string | null;
   doi: string | null;
+}
+
+interface SearchGroup {
+  id: string;
+  query: string;
+  papers: Paper[];
 }
 
 interface DataMindAnalysis {
