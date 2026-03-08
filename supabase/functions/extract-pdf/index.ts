@@ -60,18 +60,22 @@ async function generateAndSaveEmbeddings(
         continue;
       }
 
-    const embData = await embResponse.json();
-    const embedding = embData.data?.[0]?.embedding;
-    if (!embedding) continue;
+      const embData = await embResponse.json();
+      const embedding = embData.data?.[0]?.embedding;
+      if (!embedding) continue;
 
-    await supabase.from('paper_chunks').insert({
-      paper_id: paperId,
-      paper_title: paperTitle,
-      chunk_index: i,
-      chunk_text: chunks[i],
-      embedding: embedding,
-      source: 'full_text',
-    });
+      await supabase.from('paper_chunks').insert({
+        paper_id: paperId,
+        paper_title: paperTitle,
+        chunk_index: i,
+        chunk_text: chunks[i],
+        embedding: embedding,
+        source: 'full_text',
+      });
+    } catch (chunkErr) {
+      console.error(`Embedding chunk ${i} exception:`, chunkErr);
+      continue;
+    }
   }
 }
 
