@@ -16,8 +16,8 @@ Deno.serve(async (req) => {
   if ("error" in auth) return auth.error;
 
   try {
-    const { paper_id, paper_title, papers } = await req.json();
-    const papersToClassify = papers || (paper_id ? [{ id: paper_id, title: paper_title }] : []);
+    const { paper_id, paper_title, paper_abstract, paper_doi, papers } = await req.json();
+    const papersToClassify = papers || (paper_id ? [{ id: paper_id, title: paper_title, abstract: paper_abstract, doi: paper_doi }] : []);
 
     if (papersToClassify.length === 0) {
       return new Response(JSON.stringify({ error: 'paper_id or papers array required' }), {
