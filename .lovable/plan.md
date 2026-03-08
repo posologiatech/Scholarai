@@ -1,180 +1,131 @@
 
 
-# Survey Module (ScholarAI Surveys) -- Implementation Plan
+## Plano de Monetização — ScholarAI / Arca Research
 
-## Overview
+### Contexto
 
-A new Qualtrics-inspired survey/data collection module integrated into ScholarAI, designed for academic research. Surveys created here can export collected responses directly into DataMind for analysis.
-
-## Why This Is Competitive
-
-- **Deep academic integration**: Surveys link directly to DataMind analysis pipelines, eliminating the export-import cycle researchers face with Qualtrics + SPSS/R.
-- **AI-powered question generation**: Leverage existing AI infrastructure to suggest questions based on research objectives.
-- **Built-in statistical summaries**: Mean, SD, CI displayed inline in reports -- no external tools needed.
-- **Bilingual (PT/EN)** out of the box.
-- **Workspace collaboration**: Team members can co-edit surveys via existing workspace infrastructure.
+O sistema possui 12+ funcionalidades de alto valor (busca semântica, revisão sistemática, DataMind, Knowledge Graph, ilustrações, meta-análise, surveys, etc.) e já menciona "planos pagos" no FAQ sem implementação real. Não há nenhuma infraestrutura de pagamento ou gating de features atualmente.
 
 ---
 
-## Database Schema (New Tables)
+### Modelo de Planos Proposto
 
-```text
-surveys
-├── id, user_id, workspace_id?, title, description, status (draft/active/closed)
-├── settings (jsonb: randomization, progress_bar, back_button, etc.)
-├── created_at, updated_at, published_at, closed_at
+| | **Free** | **Pro** (R$49/mês) | **Team** (R$89/mês/usuário) | **Enterprise** (sob consulta) |
+|---|---|---|---|---|
+| Buscas semânticas | 20/mês | Ilimitadas | Ilimitadas | Ilimitadas |
+| Papers na biblioteca | 50 | 500 | Ilimitado | Ilimitado |
+| Extrações AI/mês | 5 | 100 | 300 | Ilimitado |
+| Revisões sistemáticas | 1 ativa | 5 ativas | Ilimitadas | Ilimitadas |
+| DataMind (chat AI) | 10 msgs/mês | 200 msgs/mês | 500 msgs/mês | Ilimitado |
+| Resumo com IA | 3/mês | Ilimitado | Ilimitado | Ilimitado |
+| Workspaces | 1 | 5 | Ilimitados | Ilimitados |
+| Colaboradores | — | — | Até 20 | Ilimitado |
+| Knowledge Graph | — | Sim | Sim | Sim |
+| Meta-análise | — | Sim | Sim | Sim |
+| Ilustrações AI | — | 10/mês | 30/mês | Ilimitado |
+| Alertas de literatura | — | 3 | 10 | Ilimitado |
+| Suporte | Comunidade | Email | Prioritário | Dedicado |
+| API access | — | — | — | Sim |
 
-survey_blocks
-├── id, survey_id, title, description, block_order
-├── randomize_questions (bool), settings (jsonb)
+---
 
-survey_questions
-├── id, block_id, survey_id, question_type, question_text, description
-├── question_order, is_required, validation_rules (jsonb)
-├── choices (jsonb: [{id, text, value, order}])
-├── matrix_rows (jsonb), matrix_columns (jsonb)
-├── settings (jsonb: randomize_choices, slider_min/max, etc.)
+### Implementação Técnica
 
-survey_logic_rules
-├── id, survey_id, source_question_id?, source_block_id?
-├── condition (jsonb: {field, operator, value})
-├── action (show_block/hide_question/skip_to/end_survey)
-├── target_id (uuid), rule_order
+#### 1. Infraestrutura de Pagamentos (Stripe)
+- Ativar integração Stripe do Lovable
+- Criar 3 produtos (Pro, Team, Enterprise) com preços mensais e anuais (desconto 20%)
+- Criar Edge Function para checkout e webhooks
+- Tabela `subscriptions` no Supabase para rastrear plano ativo
 
-survey_contacts
-├── id, survey_id, user_id, first_name, last_name, email
-├── institution, custom_fields (jsonb), status (not_sent/sent/responded)
+#### 2. Tabela de Limites e Uso
+```sql
+-- Rastrear uso por feature
+create table public.usage_tracking (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade,
+  feature text not null, -- 'search', 'extraction', 'datamind_chat', etc.
+  period text not null,  -- '2026-03'
+  count int default 0,
+  unique(user_id, feature, period)
+);
 
-survey_distributions
-├── id, survey_id, type (anonymous_link/email), anonymous_token
-├── email_subject, email_body, scheduled_at, sent_at
-
-survey_responses
-├── id, survey_id, respondent_id?, contact_id?
-├── started_at, completed_at, status (in_progress/complete/disqualified)
-├── ip_address, user_agent, duration_seconds
-├── metadata (jsonb: embedded_data, geo, etc.)
-
-survey_answers
-├── id, response_id, question_id
-├── answer_text, answer_numeric, answer_choices (jsonb)
-├── matrix_answers (jsonb: [{row_id, column_id}])
+-- Plano do usuário
+create table public.subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade unique,
+  plan text default 'free', -- 'free', 'pro', 'team', 'enterprise'
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  status text default 'active',
+  current_period_end timestamptz,
+  created_at timestamptz default now()
+);
 ```
 
-RLS: All tables scoped to `user_id = auth.uid()`. Public survey responses allow anonymous insert via edge function (no JWT). Workspace-shared surveys use existing `is_workspace_member()`.
+#### 3. Hook de Gating — `useSubscription`
+- Hook que lê o plano atual e os limites de uso
+- Função `canUse(feature)` que verifica se o usuário atingiu o limite
+- Componente `<UpgradeGate feature="knowledge_graph" />` para bloquear features premium
+
+#### 4. Página de Pricing (`/pricing`)
+- Cards com os 4 planos lado a lado
+- Toggle mensal/anual
+- Botões de checkout integrados ao Stripe
+- Highlight no plano "Pro" como recomendado
+- Bilíngue (PT/EN)
+
+#### 5. Paywall UX
+- Quando o limite é atingido, mostrar modal elegante com:
+  - Quanto já usou vs. limite
+  - Benefícios do upgrade
+  - Botão direto para checkout
+- Features bloqueadas mostram ícone de cadeado com tooltip "Pro"
+
+#### 6. Portal do Cliente
+- Página `/account/billing` para gerenciar assinatura
+- Histórico de faturas, cancelamento, troca de plano
+- Integração com Stripe Customer Portal
 
 ---
 
-## File & Component Structure
+### Alterações em Arquivos Existentes
 
-```text
-src/pages/
-├── Surveys.tsx                    (project list / dashboard)
-├── SurveyBuilder.tsx              (3-pane builder)
-├── SurveyFlow.tsx                 (visual logic editor)
-├── SurveyDistribution.tsx         (links, email, contacts)
-├── SurveyResults.tsx              (reports + raw data)
-├── SurveyPreview.tsx              (respondent-facing preview)
-├── SurveyRespond.tsx              (public respondent page, no auth)
+- **`src/App.tsx`** — Adicionar rotas `/pricing` e `/account/billing`
+- **`src/components/landing/Header.tsx`** — Adicionar link "Preços" no menu
+- **`src/components/landing/CTASection.tsx`** — Redirecionar para `/pricing`
+- **`src/pages/FAQ.tsx`** — Atualizar resposta sobre preços
+- **`src/components/app/AppSidebar.tsx`** — Mostrar badge do plano e uso
+- Edge functions que consomem AI — Incrementar `usage_tracking`
 
-src/components/survey/
-├── SurveyProjectList.tsx          (data table with status, responses, sparklines)
-├── builder/
-│   ├── BlockSidebar.tsx           (left pane: block navigation, drag-reorder)
-│   ├── QuestionCanvas.tsx         (center: inline WYSIWYG editing)
-│   ├── QuestionContextPanel.tsx   (right: type, validation, randomization)
-│   ├── QuestionRenderer.tsx       (renders each question type)
-│   ├── question-types/
-│   │   ├── MultipleChoice.tsx
-│   │   ├── TextEntry.tsx
-│   │   ├── MatrixTable.tsx
-│   │   ├── SliderQuestion.tsx
-│   │   ├── RankOrder.tsx
-│   │   └── ConstantSum.tsx
-├── flow/
-│   ├── FlowCanvas.tsx             (visual nested-list / node-based flow)
-│   ├── ConditionBuilder.tsx       (dropdown rule rows)
-│   └── LogicBadge.tsx             (GitBranch icon on questions with logic)
-├── distribution/
-│   ├── AnonymousLinkTab.tsx       (URL + QR code + copy)
-│   ├── EmailComposerTab.tsx       (rich text + piped text insertion)
-│   └── ContactListTab.tsx         (data table + CSV upload)
-├── results/
-│   ├── ReportsDashboard.tsx       (Recharts widgets grid)
-│   ├── ResponseDataGrid.tsx       (raw data table, variable name toggle)
-│   ├── StatsSummary.tsx           (mean, SD, n calculations)
-│   └── ExportEngine.tsx           (CSV, TSV, XLSX export)
-├── respond/
-│   ├── RespondentForm.tsx         (public form with logic evaluation)
-│   └── ProgressIndicator.tsx
+### Novos Arquivos
 
-src/hooks/
-├── useSurveyStore.ts              (Zustand store for survey builder state)
-
-supabase/functions/
-├── survey-respond/index.ts        (anonymous response submission, verify_jwt=false)
-├── survey-export-datamind/index.ts (push responses into DataMind conversation)
-```
+- `src/pages/Pricing.tsx`
+- `src/pages/AccountBilling.tsx`
+- `src/hooks/useSubscription.ts`
+- `src/components/app/UpgradeGate.tsx`
+- `src/components/app/UsageMeter.tsx`
+- `supabase/functions/stripe-checkout/index.ts`
+- `supabase/functions/stripe-webhook/index.ts`
+- Migration para tabelas `subscriptions` e `usage_tracking`
 
 ---
 
-## Implementation Phases
+### Estratégia de Receita Adicional
 
-### Phase 1: Foundation (Database + Routing + Project List)
-- Create all database tables with RLS policies via migration tool
-- Add routes: `/surveys`, `/surveys/:id/build`, `/surveys/:id/flow`, `/surveys/:id/distribute`, `/surveys/:id/results`, `/survey/respond/:token`
-- Add "Surveys" nav link in AppSidebar (ClipboardList icon)
-- Build `SurveyProjectList` with status badges, response counts, sparkline trends, search/filter, "Create Survey" button
+Com os dados de **cookies analytics** já implementados, você poderá:
 
-### Phase 2: Survey Builder (Core Engine)
-- Implement Zustand store (`useSurveyStore`) managing the nested survey object (blocks → questions → choices/matrix)
-- Build 3-pane layout: BlockSidebar | QuestionCanvas | QuestionContextPanel
-- Implement all 6 question types with inline editing
-- Drag-and-drop reordering for blocks and questions
-- Auto-save to Supabase on changes (debounced)
-
-### Phase 3: Logic Engine & Survey Flow
-- Build ConditionBuilder component (question selector → operator → value → action)
-- Visual flow editor showing block sequence with branch indicators
-- Extend Zustand store with `logicRules` array
-- Preview mode that evaluates logic rules in real-time
-- GitBranch badges on questions with active logic
-
-### Phase 4: Distribution Module
-- Anonymous link generation with unique token + QR code (via canvas/SVG)
-- Email composer with piped text insertion (`{{Contact.FirstName}}`, etc.)
-- Contact list management table with CSV upload
-- Schedule send UI (mock for now, real via edge function later)
-- `survey-respond` edge function for anonymous submissions (no JWT)
-
-### Phase 5: Data & Analysis + DataMind Integration
-- Reports dashboard with Recharts: bar charts, donut charts, stacked bars for Likert
-- Statistical calculations: mean, SD, confidence intervals
-- Raw data grid with question text / variable name toggle
-- Export engine: CSV, TSV, XLSX (using existing xlsx dependency)
-- **DataMind integration**: "Analyze in DataMind" button that creates a new DataMind conversation with survey responses auto-loaded as a CSV file in the `datamind-files` bucket, enabling immediate analysis
-
-### Phase 6: Respondent-Facing Form
-- Public page at `/survey/respond/:token` (no auth required)
-- Progress bar, one-block-at-a-time or all-at-once modes
-- Logic evaluation engine to show/hide questions dynamically
-- Mobile-responsive form design
-- Submission via `survey-respond` edge function
+1. **Identificar features mais usadas** → justificar o que colocar no paywall
+2. **Medir funil de conversão** → signup → uso gratuito → hit de limite → upgrade
+3. **Ajustar limites** → se 80% dos free users usam <10 buscas, o limite de 20 é generoso o suficiente
 
 ---
 
-## DataMind Integration Detail
+### Ordem de Implementação Sugerida
 
-The key differentiator: a single click from Survey Results exports all responses as a structured CSV into DataMind. The `survey-export-datamind` edge function:
-1. Queries `survey_answers` joined with `survey_questions` for headers
-2. Generates CSV with proper variable names
-3. Uploads to `datamind-files` bucket
-4. Creates a new `datamind_conversations` entry with an initial system message referencing the file
-5. Redirects user to `/datamind/:newConversationId`
-
----
-
-## Design System
-
-Consistent with existing ScholarAI design: white backgrounds, `bg-muted/50` panels, primary blue accents, shadcn/ui components throughout. The builder uses `ResizablePanelGroup` for the 3-pane layout (already in the project). Question cards use the existing `Card` component with subtle borders.
+1. Ativar Stripe + criar produtos
+2. Criar tabelas `subscriptions` e `usage_tracking`
+3. Implementar página `/pricing`
+4. Criar `useSubscription` hook + `UpgradeGate`
+5. Integrar gating nas features premium
+6. Portal de billing
 
