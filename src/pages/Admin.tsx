@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import {
   Shield, Users, Trash2, Loader2, Search, FileText,
   Database, Activity, BarChart3, Settings, CheckCircle2, XCircle, Clock, UserCheck, Key, Cookie, Eye, MousePointerClick, TrendingUp,
+  CreditCard, DollarSign, Zap, PieChart,
 } from "lucide-react";
 import ApiKeysPanel from "@/components/app/ApiKeysPanel";
 import { toast } from "sonner";
