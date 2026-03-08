@@ -69,6 +69,8 @@ const WorkspaceDetail = () => {
   const navigate = useNavigate();
   const { locale } = useLanguage();
   const { user } = useAuth();
+  const { canUse } = useSubscription();
+  const [showSummaryLimitDialog, setShowSummaryLimitDialog] = useState(false);
   const pt = locale === "pt";
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
