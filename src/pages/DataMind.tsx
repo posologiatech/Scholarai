@@ -276,7 +276,12 @@ const DataMind = () => {
     if (conversationId === id) navigate("/datamind");
   };
 
-  const exportConversation = async (id: string) => {
+  const renameConversation = async (id: string, newTitle: string) => {
+    await supabase.from("datamind_conversations").update({ title: newTitle }).eq("id", id);
+    setConversations((prev) => prev.map((c) => c.id === id ? { ...c, title: newTitle } : c));
+  };
+
+
     const conv = conversations.find((c) => c.id === id);
     const { data: msgs } = await supabase
       .from("datamind_messages")
