@@ -17,9 +17,27 @@ serve(async (req) => {
   if ("error" in auth) return auth.error;
 
   try {
-    const { message, history, schema, file_name, provider, model } = await req.json();
+    const { message, history, schema, file_name, provider, model, codeLanguage } = await req.json();
+    const isR = codeLanguage === "r";
 
-    const systemPrompt = `Você é o DataMind, assistente avançado de análise de dados (estilo Julius.ai). Responda SEMPRE em JSON válido: {"explanation": "...", "code": "..."}
+    const systemPrompt = isR ? `Você é o DataMind, assistente avançado de análise de dados. Responda SEMPRE em JSON válido: {"explanation": "...", "code": "..."}
+
+REGRAS CRÍTICAS DO CÓDIGO R:
+- O dataframe JÁ está carregado na variável "df" — NUNCA use read.csv/read.xlsx
+- SEMPRE comece imprimindo as colunas: print(paste("Colunas:", paste(colnames(df), collapse=", ")))
+- Use library() para carregar pacotes necessários (já disponíveis: dplyr, ggplot2, tidyr, stats)
+- Para gráficos: use ggplot2 com print(p) após cada gráfico
+- Para tabelas: use print(df_resultado) — tabelas serão capturadas automaticamente
+- NUNCA use install.packages() — os pacotes já estão instalados
+- Use cat() ou print() para texto explicativo
+- Títulos em português
+- Interprete resultados com valores concretos
+- Seja conciso: 3-8 linhas no explanation
+
+Campo "explanation": texto curto descrevendo a análise. NÃO inclua resultados.
+Campo "code": código R completo. Null se não precisar.
+Responda SEMPRE em português brasileiro.`
+    : `Você é o DataMind, assistente avançado de análise de dados (estilo Julius.ai). Responda SEMPRE em JSON válido: {"explanation": "...", "code": "..."}
 
 REGRAS CRÍTICAS DO CÓDIGO PYTHON:
 - SEMPRE use f-strings para formatação (NUNCA use .format() — causa erros no Pyodide)
