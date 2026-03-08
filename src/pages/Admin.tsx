@@ -95,6 +95,17 @@ const Admin = () => {
     if (data) setApprovals(data as UserApproval[]);
   };
 
+  const fetchAnalytics = async () => {
+    setAnalyticsLoading(true);
+    const { data } = await supabase
+      .from("analytics_events" as any)
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (data) setAnalyticsEvents(data as any[]);
+    setAnalyticsLoading(false);
+  };
+
   const approveUser = async (approvalId: string) => {
     const { error } = await supabase
       .from("user_approvals")
