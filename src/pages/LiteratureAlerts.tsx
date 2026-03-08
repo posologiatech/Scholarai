@@ -474,6 +474,7 @@ const LiteratureAlerts = () => {
         </TabsContent>
       </Tabs>
     </div>
+    </UpgradeGate>
   );
 };
 
