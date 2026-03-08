@@ -499,6 +499,201 @@ const Admin = () => {
           </div>
         )}
 
+        {/* Analytics Tab */}
+        {activeTab === "analytics" && (
+          <div className="space-y-6">
+            {analyticsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <>
+                {/* Summary cards */}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {(() => {
+                    const pageViews = analyticsEvents.filter((e) => e.event_name === "page_view").length;
+                    const searches = analyticsEvents.filter((e) => e.event_name === "search").length;
+                    const featureUses = analyticsEvents.filter((e) => e.event_name === "feature_use").length;
+                    const uniqueSessions = new Set(analyticsEvents.map((e) => e.session_id).filter(Boolean)).size;
+                    return [
+                      { label: locale === "pt" ? "Visualizações" : "Page Views", value: pageViews, icon: Eye, color: "bg-primary/10 text-primary" },
+                      { label: locale === "pt" ? "Buscas" : "Searches", value: searches, icon: Search, color: "bg-blue-500/10 text-blue-500" },
+                      { label: locale === "pt" ? "Uso de Funcionalidades" : "Feature Usage", value: featureUses, icon: MousePointerClick, color: "bg-green-500/10 text-green-500" },
+                      { label: locale === "pt" ? "Sessões Únicas" : "Unique Sessions", value: uniqueSessions, icon: TrendingUp, color: "bg-amber-500/10 text-amber-500" },
+                    ].map((card) => (
+                      <div key={card.label} className="rounded-xl border border-border bg-card p-5">
+                        <div className="flex items-center gap-3">
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.color}`}>
+                            <card.icon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-foreground">{card.value}</p>
+                            <p className="text-xs text-muted-foreground">{card.label}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+
+                {/* Top pages */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="rounded-xl border border-border bg-card">
+                    <div className="flex items-center gap-2 border-b border-border p-4">
+                      <Eye className="h-5 w-5 text-primary" />
+                      <h2 className="font-display text-lg font-semibold text-foreground">
+                        {locale === "pt" ? "Páginas mais visitadas" : "Most visited pages"}
+                      </h2>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {(() => {
+                        const pageCounts: Record<string, number> = {};
+                        analyticsEvents
+                          .filter((e) => e.event_name === "page_view")
+                          .forEach((e) => {
+                            const path = e.page_path || "/";
+                            pageCounts[path] = (pageCounts[path] || 0) + 1;
+                          });
+                        const sorted = Object.entries(pageCounts)
+                          .sort(([, a], [, b]) => b - a)
+                          .slice(0, 10);
+                        if (sorted.length === 0)
+                          return (
+                            <div className="py-8 text-center text-sm text-muted-foreground">
+                              {locale === "pt" ? "Nenhum dado ainda" : "No data yet"}
+                            </div>
+                          );
+                        const max = sorted[0][1];
+                        return sorted.map(([path, count]) => (
+                          <div key={path} className="flex items-center gap-3 p-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-mono text-foreground">{path}</p>
+                              <div className="mt-1 h-1.5 w-full rounded-full bg-muted">
+                                <div
+                                  className="h-full rounded-full bg-primary"
+                                  style={{ width: `${(count / max) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-foreground">{count}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Top features */}
+                  <div className="rounded-xl border border-border bg-card">
+                    <div className="flex items-center gap-2 border-b border-border p-4">
+                      <MousePointerClick className="h-5 w-5 text-primary" />
+                      <h2 className="font-display text-lg font-semibold text-foreground">
+                        {locale === "pt" ? "Funcionalidades mais usadas" : "Most used features"}
+                      </h2>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {(() => {
+                        const featureCounts: Record<string, number> = {};
+                        analyticsEvents
+                          .filter((e) => e.event_name === "feature_use")
+                          .forEach((e) => {
+                            const feature = (e.metadata as any)?.feature || "unknown";
+                            featureCounts[feature] = (featureCounts[feature] || 0) + 1;
+                          });
+                        const sorted = Object.entries(featureCounts)
+                          .sort(([, a], [, b]) => b - a)
+                          .slice(0, 10);
+                        if (sorted.length === 0)
+                          return (
+                            <div className="py-8 text-center text-sm text-muted-foreground">
+                              {locale === "pt" ? "Nenhum dado ainda" : "No data yet"}
+                            </div>
+                          );
+                        const max = sorted[0][1];
+                        return sorted.map(([feature, count]) => (
+                          <div key={feature} className="flex items-center gap-3 p-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm text-foreground capitalize">{feature}</p>
+                              <div className="mt-1 h-1.5 w-full rounded-full bg-muted">
+                                <div
+                                  className="h-full rounded-full bg-green-500"
+                                  style={{ width: `${(count / max) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-foreground">{count}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent events table */}
+                <div className="rounded-xl border border-border bg-card">
+                  <div className="flex items-center justify-between border-b border-border p-4">
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-primary" />
+                      <h2 className="font-display text-lg font-semibold text-foreground">
+                        {locale === "pt" ? "Eventos recentes" : "Recent events"}
+                      </h2>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {analyticsEvents.length} {locale === "pt" ? "eventos" : "events"}
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-left">
+                          <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Evento" : "Event"}</th>
+                          <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Página" : "Page"}</th>
+                          <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Detalhes" : "Details"}</th>
+                          <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Data" : "Date"}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {analyticsEvents.slice(0, 30).map((e: any) => (
+                          <tr key={e.id} className="hover:bg-muted/30">
+                            <td className="px-4 py-2">
+                              <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                e.event_name === "page_view" ? "bg-primary/10 text-primary"
+                                : e.event_name === "search" ? "bg-blue-500/10 text-blue-500"
+                                : e.event_name === "feature_use" ? "bg-green-500/10 text-green-500"
+                                : "bg-muted text-muted-foreground"
+                              }`}>
+                                {e.event_name}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{e.page_path || "—"}</td>
+                            <td className="px-4 py-2 text-xs text-muted-foreground max-w-[200px] truncate">
+                              {e.metadata && Object.keys(e.metadata).length > 0
+                                ? Object.entries(e.metadata)
+                                    .filter(([k]) => k !== "user_agent")
+                                    .map(([k, v]) => `${k}: ${v}`)
+                                    .join(", ")
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(e.created_at).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {analyticsEvents.length === 0 && (
+                      <div className="py-8 text-center text-sm text-muted-foreground">
+                        {locale === "pt"
+                          ? "Nenhum evento registrado ainda. Os dados aparecerão quando usuários aceitarem cookies analíticos."
+                          : "No events recorded yet. Data will appear when users accept analytical cookies."}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* System Tab */}
         {activeTab === "system" && (
           <div className="space-y-6">
