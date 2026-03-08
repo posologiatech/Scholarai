@@ -496,28 +496,52 @@ const WritingAssistant = () => {
                     <div className="flex justify-center py-4">
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
-                  ) : filteredPapers.length === 0 ? (
+                  ) : filteredGroups.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-4">
                       {pt ? "Nenhum paper encontrado" : "No papers found"}
                     </p>
                   ) : (
-                    filteredPapers.slice(0, 50).map(paper => {
-                      const isSelected = selectedPapers.some(p => p.id === paper.id);
+                    filteredGroups.map(group => {
+                      const isExpanded = expandedSearches.has(group.id);
+                      const selectedCount = group.papers.filter(p => selectedPapers.some(sp => sp.id === p.id)).length;
                       return (
-                        <button
-                          key={paper.id}
-                          onClick={() => togglePaper(paper)}
-                          className={`w-full text-left p-2 rounded-md text-xs transition-colors ${
-                            isSelected
-                              ? "bg-primary/10 border border-primary/30"
-                              : "hover:bg-muted border border-transparent"
-                          }`}
-                        >
-                          <p className="font-medium text-foreground line-clamp-2">{paper.title}</p>
-                          <p className="text-muted-foreground mt-0.5">
-                            {formatAuthors(paper.authors)} {paper.year ? `(${paper.year})` : ""}
-                          </p>
-                        </button>
+                        <Collapsible key={group.id} open={isExpanded} onOpenChange={() => toggleSearchExpanded(group.id)}>
+                          <CollapsibleTrigger className="w-full flex items-center gap-1.5 p-2 rounded-md hover:bg-muted text-xs text-left group">
+                            {isExpanded ? (
+                              <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                            ) : (
+                              <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                            )}
+                            <span className="font-semibold text-foreground line-clamp-1 flex-1">{group.query}</span>
+                            {selectedCount > 0 && (
+                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5">{selectedCount}</Badge>
+                            )}
+                            <span className="text-[10px] text-muted-foreground shrink-0">{group.papers.length}</span>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="ml-4 space-y-0.5">
+                              {group.papers.map(paper => {
+                                const isSelected = selectedPapers.some(p => p.id === paper.id);
+                                return (
+                                  <button
+                                    key={paper.id}
+                                    onClick={() => togglePaper(paper)}
+                                    className={`w-full text-left p-2 rounded-md text-xs transition-colors ${
+                                      isSelected
+                                        ? "bg-primary/10 border border-primary/30"
+                                        : "hover:bg-muted border border-transparent"
+                                    }`}
+                                  >
+                                    <p className="font-medium text-foreground line-clamp-2">{paper.title}</p>
+                                    <p className="text-muted-foreground mt-0.5">
+                                      {formatAuthors(paper.authors)} {paper.year ? `(${paper.year})` : ""}
+                                    </p>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
                       );
                     })
                   )}
