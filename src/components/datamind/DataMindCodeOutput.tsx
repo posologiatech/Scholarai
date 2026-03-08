@@ -78,7 +78,7 @@ async function exportToGoogleSheets(headers: string[], rows: string[][], title: 
 
   if (error || data?.error) {
     const errMsg = data?.error || error?.message || "Falha ao criar planilha no Google Sheets.";
-    if (errMsg.includes("insufficient") || errMsg.includes("scope") || errMsg.includes("PERMISSION_DENIED")) {
+    if (errMsg.includes("insufficient") || errMsg.includes("scope") || errMsg.includes("PERMISSION_DENIED") || errMsg.includes("authentication scopes")) {
       toast({
         title: "Permissão insuficiente",
         description: "Redirecionando para autorizar acesso ao Google Sheets...",
