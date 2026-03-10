@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback } from "react";
 import DataGrid, { SelectColumn, type Column, type SortColumn } from "react-data-grid";
+import "react-data-grid/lib/styles.css";
 import { FileSpreadsheet, Grid3X3, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
