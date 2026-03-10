@@ -644,16 +644,11 @@ const DataMind = () => {
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="h-8 w-8"
+              className="h-8 w-8 shrink-0"
             >
               {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
             </Button>
-            <span className="text-sm font-medium text-muted-foreground">
-              {conversationId
-                ? conversations.find((c) => c.id === conversationId)?.title || "Análise"
-                : "Nova Análise"}
-            </span>
-            <div className="ml-auto flex items-center gap-1">
+            <div className="ml-auto flex items-center gap-1 flex-wrap justify-end">
               {/* Bulk actions */}
               {selectionMode && selectedConvIds.size > 0 && (
                 <>
