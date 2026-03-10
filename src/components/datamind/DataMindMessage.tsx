@@ -74,7 +74,7 @@ const DataMindMessage = ({ message, conversationId, onSuggestionClick }: Props) 
         )}
       </div>
 
-      <div className={`flex-1 min-w-0 ${isUser ? "text-right" : ""}`}>
+      <div className={`min-w-0 ${isUser ? "max-w-[75%] ml-auto text-right" : "flex-1"}`}>
         <div
           className={`inline-block text-left rounded-2xl px-4 py-3 max-w-full ${
             isUser
