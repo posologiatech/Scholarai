@@ -1,9 +1,10 @@
-import { useState } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Table2, Download, BrainCircuit } from "lucide-react";
+import { BarChart3, Table2, Filter, ShieldAlert } from "lucide-react";
 import ReportsDashboard from "./ReportsDashboard";
 import ResponseDataGrid from "./ResponseDataGrid";
+import RecruitmentFunnel from "./RecruitmentFunnel";
+import DataQualityAlerts from "./DataQualityAlerts";
 
 const SurveyResultsPanel = ({ surveyId }: { surveyId: string }) => {
   const { locale } = useLanguage();
@@ -15,8 +16,12 @@ const SurveyResultsPanel = ({ surveyId }: { surveyId: string }) => {
           {locale === "pt" ? "Dados & Análise" : "Data & Analysis"}
         </h2>
 
-        <Tabs defaultValue="reports" className="space-y-6">
-          <TabsList>
+        <Tabs defaultValue="recruitment" className="space-y-6">
+          <TabsList className="flex-wrap h-auto gap-1">
+            <TabsTrigger value="recruitment" className="gap-1.5">
+              <Filter className="h-3.5 w-3.5" />
+              {locale === "pt" ? "Recrutamento" : "Recruitment"}
+            </TabsTrigger>
             <TabsTrigger value="reports" className="gap-1.5">
               <BarChart3 className="h-3.5 w-3.5" />
               {locale === "pt" ? "Relatórios" : "Reports"}
@@ -25,13 +30,23 @@ const SurveyResultsPanel = ({ surveyId }: { surveyId: string }) => {
               <Table2 className="h-3.5 w-3.5" />
               {locale === "pt" ? "Dados" : "Data"}
             </TabsTrigger>
+            <TabsTrigger value="quality" className="gap-1.5">
+              <ShieldAlert className="h-3.5 w-3.5" />
+              {locale === "pt" ? "Qualidade" : "Quality"}
+            </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="recruitment">
+            <RecruitmentFunnel surveyId={surveyId} />
+          </TabsContent>
           <TabsContent value="reports">
             <ReportsDashboard surveyId={surveyId} />
           </TabsContent>
           <TabsContent value="data">
             <ResponseDataGrid surveyId={surveyId} />
+          </TabsContent>
+          <TabsContent value="quality">
+            <DataQualityAlerts surveyId={surveyId} />
           </TabsContent>
         </Tabs>
       </div>

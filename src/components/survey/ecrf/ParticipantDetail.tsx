@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -5,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Calendar, FileText, UserCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, Calendar, FileText, UserCircle, BrainCircuit, Loader2, Download } from "lucide-react";
+import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
 import DocumentUpload from "./DocumentUpload";
 
 interface ParticipantDetailProps {
@@ -23,6 +27,50 @@ interface ParticipantDetailProps {
 
 const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailProps) => {
   const { locale } = useLanguage();
+  const [synthesisOpen, setSynthesisOpen] = useState(false);
+  const [synthesis, setSynthesis] = useState("");
+  const [synthesisLoading, setSynthesisLoading] = useState(false);
+
+  const handleGenerateSynthesis = async () => {
+    setSynthesisLoading(true);
+    setSynthesisOpen(true);
+    setSynthesis("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase.functions.invoke("clinical-synthesis", {
+        body: { participantId: participant.id, surveyId },
+      });
+      if (error) throw error;
+      setSynthesis(data.synthesis || "");
+      toast.success(locale === "pt" ? "Síntese gerada!" : "Synthesis generated!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to generate synthesis");
+      setSynthesis(locale === "pt" ? "Erro ao gerar síntese." : "Error generating synthesis.");
+    } finally {
+      setSynthesisLoading(false);
+    }
+  };
+
+  const handleDownloadSynthesisPDF = async () => {
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const doc = new jsPDF();
+      doc.setFontSize(14);
+      doc.text(`Síntese Clínica - ${participant.participant_code}`, 20, 20);
+      doc.setFontSize(10);
+      doc.text(new Date().toLocaleString(), 20, 28);
+      doc.setFontSize(11);
+      const lines = doc.splitTextToSize(synthesis, 170);
+      doc.text(lines, 20, 40);
+      doc.save(`sintese_${participant.participant_code}.pdf`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate PDF");
+    }
+  };
 
   const { data: visits = [] } = useQuery({
     queryKey: ["study-visits", surveyId],
@@ -171,6 +219,60 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
             </CardContent>
           </Card>
         )}
+
+        {/* AI Clinical Synthesis */}
+        <Card>
+          <CardContent className="pt-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">
+                {locale === "pt" ? "Síntese Clínica com IA" : "AI Clinical Synthesis"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {locale === "pt"
+                  ? "Gera um rascunho de evolução clínica a partir dos dados coletados"
+                  : "Generates a clinical evolution draft from collected data"}
+              </p>
+            </div>
+            <Button onClick={handleGenerateSynthesis} disabled={synthesisLoading} className="gap-1.5">
+              {synthesisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BrainCircuit className="h-4 w-4" />}
+              {locale === "pt" ? "Gerar Síntese" : "Generate Synthesis"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Synthesis Dialog */}
+        <Dialog open={synthesisOpen} onOpenChange={setSynthesisOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BrainCircuit className="h-5 w-5" />
+                {locale === "pt" ? "Síntese Clínica" : "Clinical Synthesis"} — {participant.participant_code}
+              </DialogTitle>
+            </DialogHeader>
+            {synthesisLoading ? (
+              <div className="flex flex-col items-center gap-3 py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  {locale === "pt" ? "Gerando síntese clínica..." : "Generating clinical synthesis..."}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <Textarea
+                  value={synthesis}
+                  onChange={(e) => setSynthesis(e.target.value)}
+                  className="min-h-[300px] text-sm font-mono"
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownloadSynthesisPDF}>
+                    <Download className="h-4 w-4" />
+                    {locale === "pt" ? "Baixar PDF" : "Download PDF"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
