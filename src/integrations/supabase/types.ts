@@ -960,6 +960,54 @@ export type Database = {
         }
         Relationships: []
       }
+      participant_documents: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          file_type: string | null
+          id: string
+          participant_id: string
+          user_id: string
+          visit_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_type?: string | null
+          id?: string
+          participant_id: string
+          user_id: string
+          visit_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_type?: string | null
+          id?: string
+          participant_id?: string
+          user_id?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participant_documents_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "study_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participant_documents_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "study_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reports: {
         Row: {
           content: string
@@ -1145,6 +1193,92 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "study_consents_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_participants: {
+        Row: {
+          consent_signature_id: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          participant_code: string
+          status: string
+          survey_id: string
+          user_id: string
+        }
+        Insert: {
+          consent_signature_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          participant_code: string
+          status?: string
+          survey_id: string
+          user_id: string
+        }
+        Update: {
+          consent_signature_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          participant_code?: string
+          status?: string
+          survey_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_participants_consent_signature_id_fkey"
+            columns: ["consent_signature_id"]
+            isOneToOne: false
+            referencedRelation: "consent_signatures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_participants_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_visits: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          survey_id: string
+          target_days: number | null
+          user_id: string
+          visit_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          survey_id: string
+          target_days?: number | null
+          user_id: string
+          visit_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          survey_id?: string
+          target_days?: number | null
+          user_id?: string
+          visit_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_visits_survey_id_fkey"
             columns: ["survey_id"]
             isOneToOne: false
             referencedRelation: "surveys"
