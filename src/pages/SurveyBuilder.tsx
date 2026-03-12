@@ -13,6 +13,9 @@ import FlowCanvas from "@/components/survey/flow/FlowCanvas";
 import DistributionPanel from "@/components/survey/distribution/DistributionPanel";
 import SurveyResultsPanel from "@/components/survey/results/SurveyResultsPanel";
 import SurveyPreviewPanel from "@/components/survey/preview/SurveyPreviewPanel";
+import ConsentBuilder from "@/components/survey/consent/ConsentBuilder";
+import VisitManager from "@/components/survey/ecrf/VisitManager";
+import ParticipantList from "@/components/survey/ecrf/ParticipantList";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -21,14 +24,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users } from "lucide-react";
 import { toast } from "sonner";
-import ConsentBuilder from "@/components/survey/consent/ConsentBuilder";
 
-type BuilderView = "build" | "consent" | "flow" | "distribute" | "results" | "preview";
+type BuilderView = "build" | "consent" | "visits" | "participants" | "flow" | "distribute" | "results" | "preview";
 
 const getViewFromPath = (pathname: string): BuilderView => {
   if (pathname.endsWith("/consent")) return "consent";
+  if (pathname.endsWith("/visits")) return "visits";
+  if (pathname.endsWith("/participants")) return "participants";
   if (pathname.endsWith("/flow")) return "flow";
   if (pathname.endsWith("/distribute")) return "distribute";
   if (pathname.endsWith("/results")) return "results";
@@ -90,7 +94,6 @@ const SurveyBuilder = () => {
       for (const q of store.questions) {
         await supabase.from("survey_questions").upsert(q as any, { onConflict: "id" });
       }
-      // Save logic rules
       for (const rule of store.logicRules) {
         await supabase.from("survey_logic_rules").upsert(rule as any, { onConflict: "id" });
       }
@@ -123,6 +126,10 @@ const SurveyBuilder = () => {
     switch (currentView) {
       case "consent":
         return <ConsentBuilder surveyId={id!} />;
+      case "visits":
+        return <VisitManager surveyId={id!} />;
+      case "participants":
+        return <ParticipantList surveyId={id!} />;
       case "flow":
         return <FlowCanvas />;
       case "distribute":
@@ -163,7 +170,7 @@ const SurveyBuilder = () => {
           className="max-w-xs border-none shadow-none text-base font-semibold focus-visible:ring-0 px-1"
         />
         <Tabs value={currentView} className="ml-auto">
-          <TabsList className="h-9">
+          <TabsList className="h-9 flex-wrap">
             <TabsTrigger value="build" className="text-xs" onClick={() => navigate(`/surveys/${id}/build`)}>
               <Hammer className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Construir" : "Build"}
@@ -171,6 +178,14 @@ const SurveyBuilder = () => {
             <TabsTrigger value="consent" className="text-xs" onClick={() => navigate(`/surveys/${id}/consent`)}>
               <ShieldCheck className="h-3 w-3 mr-1" />
               TCLE
+            </TabsTrigger>
+            <TabsTrigger value="visits" className="text-xs" onClick={() => navigate(`/surveys/${id}/visits`)}>
+              <Calendar className="h-3 w-3 mr-1" />
+              {locale === "pt" ? "Visitas" : "Visits"}
+            </TabsTrigger>
+            <TabsTrigger value="participants" className="text-xs" onClick={() => navigate(`/surveys/${id}/participants`)}>
+              <Users className="h-3 w-3 mr-1" />
+              {locale === "pt" ? "Participantes" : "Participants"}
             </TabsTrigger>
             <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
               <GitBranch className="h-3 w-3 mr-1" />
