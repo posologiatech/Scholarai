@@ -27,6 +27,7 @@ import { toast } from "sonner";
 type BuilderView = "build" | "flow" | "distribute" | "results" | "preview";
 
 const getViewFromPath = (pathname: string): BuilderView => {
+  if (pathname.endsWith("/consent")) return "consent";
   if (pathname.endsWith("/flow")) return "flow";
   if (pathname.endsWith("/distribute")) return "distribute";
   if (pathname.endsWith("/results")) return "results";
