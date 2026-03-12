@@ -1,6 +1,6 @@
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Table2, Funnel, ShieldAlert } from "lucide-react";
+import { BarChart3, Table2, Filter, ShieldAlert } from "lucide-react";
 import ReportsDashboard from "./ReportsDashboard";
 import ResponseDataGrid from "./ResponseDataGrid";
 import RecruitmentFunnel from "./RecruitmentFunnel";
