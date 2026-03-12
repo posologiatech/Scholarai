@@ -167,6 +167,10 @@ const SurveyBuilder = () => {
               <Hammer className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Construir" : "Build"}
             </TabsTrigger>
+            <TabsTrigger value="consent" className="text-xs" onClick={() => navigate(`/surveys/${id}/consent`)}>
+              <ShieldCheck className="h-3 w-3 mr-1" />
+              TCLE
+            </TabsTrigger>
             <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
               <GitBranch className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Fluxo" : "Flow"}
