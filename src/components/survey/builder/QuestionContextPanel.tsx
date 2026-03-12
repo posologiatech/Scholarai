@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -12,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Settings2 } from "lucide-react";
+import { Settings2, Stethoscope } from "lucide-react";
+import { clinicalValidationTemplates } from "@/components/survey/ecrf/ClinicalValidationTemplates";
 
 const questionTypes: { value: QuestionType; label: string; labelPt: string }[] = [
   { value: "multiple_choice", label: "Multiple Choice", labelPt: "Múltipla Escolha" },
@@ -38,6 +40,27 @@ const QuestionContextPanel = () => {
       </div>
     );
   }
+
+  const validationRules = question.validation_rules || {};
+
+  const applyClinicalTemplate = (templateId: string) => {
+    if (templateId === "none") {
+      updateQuestion(question.id, {
+        validation_rules: {},
+      });
+      return;
+    }
+    const template = clinicalValidationTemplates.find((t) => t.id === templateId);
+    if (!template) return;
+    updateQuestion(question.id, {
+      validation_rules: {
+        clinical_template: template.id,
+        min: template.min,
+        max: template.max,
+        unit: template.unit,
+      },
+    });
+  };
 
   return (
     <div className="flex flex-col h-full bg-muted/20">
@@ -97,6 +120,82 @@ const QuestionContextPanel = () => {
                 onCheckedChange={(v) => updateQuestion(question.id, { is_required: v })}
               />
             </div>
+          </div>
+
+          {/* Clinical Validation Templates */}
+          <Separator />
+          <div className="space-y-3">
+            <div className="flex items-center gap-1.5">
+              <Stethoscope className="h-3.5 w-3.5 text-primary" />
+              <Label className="text-xs font-semibold">
+                {locale === "pt" ? "Validação Clínica" : "Clinical Validation"}
+              </Label>
+            </div>
+
+            <Select
+              value={validationRules.clinical_template || "none"}
+              onValueChange={applyClinicalTemplate}
+            >
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder={locale === "pt" ? "Selecionar template..." : "Select template..."} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  {locale === "pt" ? "Sem validação clínica" : "No clinical validation"}
+                </SelectItem>
+                {clinicalValidationTemplates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {locale === "pt" ? t.labelPt : t.label} ({t.unit})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {validationRules.clinical_template && (
+              <div className="space-y-2 p-3 border rounded-md bg-card">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-[10px]">
+                    {validationRules.unit}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {locale === "pt" ? "Faixa aceita:" : "Accepted range:"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[10px]">Min</Label>
+                    <Input
+                      type="number"
+                      className="h-8 text-xs"
+                      value={validationRules.min ?? ""}
+                      onChange={(e) =>
+                        updateQuestion(question.id, {
+                          validation_rules: { ...validationRules, min: Number(e.target.value) },
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px]">Max</Label>
+                    <Input
+                      type="number"
+                      className="h-8 text-xs"
+                      value={validationRules.max ?? ""}
+                      onChange={(e) =>
+                        updateQuestion(question.id, {
+                          validation_rules: { ...validationRules, max: Number(e.target.value) },
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  {locale === "pt"
+                    ? "Valores fora desta faixa serão sinalizados como possível erro"
+                    : "Values outside this range will be flagged as potential error"}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Type-specific settings */}
