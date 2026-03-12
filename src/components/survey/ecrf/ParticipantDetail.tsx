@@ -27,6 +27,50 @@ interface ParticipantDetailProps {
 
 const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailProps) => {
   const { locale } = useLanguage();
+  const [synthesisOpen, setSynthesisOpen] = useState(false);
+  const [synthesis, setSynthesis] = useState("");
+  const [synthesisLoading, setSynthesisLoading] = useState(false);
+
+  const handleGenerateSynthesis = async () => {
+    setSynthesisLoading(true);
+    setSynthesisOpen(true);
+    setSynthesis("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase.functions.invoke("clinical-synthesis", {
+        body: { participantId: participant.id, surveyId },
+      });
+      if (error) throw error;
+      setSynthesis(data.synthesis || "");
+      toast.success(locale === "pt" ? "Síntese gerada!" : "Synthesis generated!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to generate synthesis");
+      setSynthesis(locale === "pt" ? "Erro ao gerar síntese." : "Error generating synthesis.");
+    } finally {
+      setSynthesisLoading(false);
+    }
+  };
+
+  const handleDownloadSynthesisPDF = async () => {
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const doc = new jsPDF();
+      doc.setFontSize(14);
+      doc.text(`Síntese Clínica - ${participant.participant_code}`, 20, 20);
+      doc.setFontSize(10);
+      doc.text(new Date().toLocaleString(), 20, 28);
+      doc.setFontSize(11);
+      const lines = doc.splitTextToSize(synthesis, 170);
+      doc.text(lines, 20, 40);
+      doc.save(`sintese_${participant.participant_code}.pdf`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate PDF");
+    }
+  };
 
   const { data: visits = [] } = useQuery({
     queryKey: ["study-visits", surveyId],
