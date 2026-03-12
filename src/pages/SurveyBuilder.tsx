@@ -21,10 +21,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer } from "lucide-react";
+import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+import ConsentBuilder from "@/components/survey/consent/ConsentBuilder";
 
-type BuilderView = "build" | "flow" | "distribute" | "results" | "preview";
+type BuilderView = "build" | "consent" | "flow" | "distribute" | "results" | "preview";
 
 const getViewFromPath = (pathname: string): BuilderView => {
   if (pathname.endsWith("/consent")) return "consent";
