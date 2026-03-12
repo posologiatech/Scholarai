@@ -17,7 +17,9 @@ import * as XLSX from "xlsx";
 const ResponseDataGrid = ({ surveyId }: { surveyId: string }) => {
   const { locale } = useLanguage();
   const [useVariableNames, setUseVariableNames] = useState(false);
+  const [useCodedValues, setUseCodedValues] = useState(false);
   const [page, setPage] = useState(0);
+  const pageSize = 25;
   const pageSize = 25;
 
   const { data: questions } = useQuery({
