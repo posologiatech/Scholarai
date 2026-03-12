@@ -58,6 +58,31 @@ const ResponseDataGrid = ({ surveyId }: { surveyId: string }) => {
     }));
   }, [questions]);
 
+  // Build choice coding map for coded export
+  const choiceCodingMap = useMemo(() => {
+    const map: Record<string, Record<string, string>> = {};
+    if (!questions) return map;
+    questions.forEach((q: any) => {
+      if (q.question_type === "multiple_choice" && Array.isArray(q.choices)) {
+        const coding: Record<string, string> = {};
+        (q.choices as any[]).forEach((c: any, idx: number) => {
+          coding[c.text || c] = String(idx);
+        });
+        map[q.id] = coding;
+      }
+    });
+    return map;
+  }, [questions]);
+
+  const formatValue = (value: string, questionId: string) => {
+    if (!useCodedValues || !value) return value;
+    const coding = choiceCodingMap[questionId];
+    if (!coding) return value;
+    // Handle multi-value separated by "; "
+    const parts = value.split("; ");
+    return parts.map(p => coding[p] !== undefined ? coding[p] : p).join("; ");
+  };
+
   const rows = useMemo(() => {
     if (!responses || !answers) return [];
     return responses.map((r) => {
@@ -71,17 +96,18 @@ const ResponseDataGrid = ({ surveyId }: { surveyId: string }) => {
       columns.forEach((col) => {
         const ans = rAnswers.find((a) => a.question_id === col.id);
         if (!ans) { row[col.id] = ""; return; }
-        if (ans.answer_text) row[col.id] = ans.answer_text;
-        else if (ans.answer_numeric !== null) row[col.id] = String(ans.answer_numeric);
+        let val = "";
+        if (ans.answer_text) val = ans.answer_text;
+        else if (ans.answer_numeric !== null) val = String(ans.answer_numeric);
         else if (Array.isArray(ans.answer_choices) && (ans.answer_choices as any[]).length)
-          row[col.id] = (ans.answer_choices as string[]).join("; ");
+          val = (ans.answer_choices as string[]).join("; ");
         else if (Array.isArray(ans.matrix_answers) && (ans.matrix_answers as any[]).length)
-          row[col.id] = (ans.matrix_answers as any[]).map((m: any) => `${m.row_id}:${m.column_id}`).join("; ");
-        else row[col.id] = "";
+          val = (ans.matrix_answers as any[]).map((m: any) => `${m.row_id}:${m.column_id}`).join("; ");
+        row[col.id] = formatValue(val, col.id);
       });
       return row;
     });
-  }, [responses, answers, columns]);
+  }, [responses, answers, columns, useCodedValues, choiceCodingMap]);
 
   const pagedRows = rows.slice(page * pageSize, (page + 1) * pageSize);
   const totalPages = Math.ceil(rows.length / pageSize);
