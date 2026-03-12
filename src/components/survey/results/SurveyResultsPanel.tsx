@@ -19,7 +19,7 @@ const SurveyResultsPanel = ({ surveyId }: { surveyId: string }) => {
         <Tabs defaultValue="recruitment" className="space-y-6">
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="recruitment" className="gap-1.5">
-              <Funnel className="h-3.5 w-3.5" />
+              <Filter className="h-3.5 w-3.5" />
               {locale === "pt" ? "Recrutamento" : "Recruitment"}
             </TabsTrigger>
             <TabsTrigger value="reports" className="gap-1.5">
