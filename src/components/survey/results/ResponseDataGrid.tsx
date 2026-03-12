@@ -143,9 +143,15 @@ const ResponseDataGrid = ({ surveyId }: { surveyId: string }) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Label className="text-sm">{locale === "pt" ? "Nomes de variáveis" : "Variable names"}</Label>
-          <Switch checked={useVariableNames} onCheckedChange={setUseVariableNames} />
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Label className="text-sm">{locale === "pt" ? "Nomes de variáveis" : "Variable names"}</Label>
+            <Switch checked={useVariableNames} onCheckedChange={setUseVariableNames} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-sm">{locale === "pt" ? "Codificação numérica" : "Coded values"}</Label>
+            <Switch checked={useCodedValues} onCheckedChange={setUseCodedValues} />
+          </div>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
