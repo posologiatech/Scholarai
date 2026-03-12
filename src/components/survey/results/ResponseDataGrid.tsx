@@ -20,7 +20,6 @@ const ResponseDataGrid = ({ surveyId }: { surveyId: string }) => {
   const [useCodedValues, setUseCodedValues] = useState(false);
   const [page, setPage] = useState(0);
   const pageSize = 25;
-  const pageSize = 25;
 
   const { data: questions } = useQuery({
     queryKey: ["survey-q-grid", surveyId],
