@@ -219,6 +219,60 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
             </CardContent>
           </Card>
         )}
+
+        {/* AI Clinical Synthesis */}
+        <Card>
+          <CardContent className="pt-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">
+                {locale === "pt" ? "Síntese Clínica com IA" : "AI Clinical Synthesis"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {locale === "pt"
+                  ? "Gera um rascunho de evolução clínica a partir dos dados coletados"
+                  : "Generates a clinical evolution draft from collected data"}
+              </p>
+            </div>
+            <Button onClick={handleGenerateSynthesis} disabled={synthesisLoading} className="gap-1.5">
+              {synthesisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BrainCircuit className="h-4 w-4" />}
+              {locale === "pt" ? "Gerar Síntese" : "Generate Synthesis"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Synthesis Dialog */}
+        <Dialog open={synthesisOpen} onOpenChange={setSynthesisOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BrainCircuit className="h-5 w-5" />
+                {locale === "pt" ? "Síntese Clínica" : "Clinical Synthesis"} — {participant.participant_code}
+              </DialogTitle>
+            </DialogHeader>
+            {synthesisLoading ? (
+              <div className="flex flex-col items-center gap-3 py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  {locale === "pt" ? "Gerando síntese clínica..." : "Generating clinical synthesis..."}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <Textarea
+                  value={synthesis}
+                  onChange={(e) => setSynthesis(e.target.value)}
+                  className="min-h-[300px] text-sm font-mono"
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleDownloadSynthesisPDF}>
+                    <Download className="h-4 w-4" />
+                    {locale === "pt" ? "Baixar PDF" : "Download PDF"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
