@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
+import ConsentRespond from "@/components/survey/consent/ConsentRespond";
 
 type AnswerMap = Record<string, any>;
 
@@ -22,13 +23,14 @@ const SurveyRespond = () => {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consentCompleted, setConsentCompleted] = useState(false);
+  const [consentSignatureId, setConsentSignatureId] = useState<string | null>(null);
   const startTime = useRef(Date.now());
 
   // Load survey via distribution token
   const { data: surveyData, isLoading, isError } = useQuery({
     queryKey: ["survey-respond", token],
     queryFn: async () => {
-      // First get the survey_id from the distribution
       const { data: dist, error: distErr } = await supabase
         .from("survey_distributions")
         .select("survey_id")
@@ -38,11 +40,12 @@ const SurveyRespond = () => {
 
       if (distErr || !dist) throw new Error("Invalid survey link");
 
-      const [surveyRes, blocksRes, questionsRes, rulesRes] = await Promise.all([
+      const [surveyRes, blocksRes, questionsRes, rulesRes, consentRes] = await Promise.all([
         supabase.from("surveys").select("*").eq("id", dist.survey_id).single(),
         supabase.from("survey_blocks").select("*").eq("survey_id", dist.survey_id).order("block_order"),
         supabase.from("survey_questions").select("*").eq("survey_id", dist.survey_id).order("question_order"),
         supabase.from("survey_logic_rules").select("*").eq("survey_id", dist.survey_id),
+        supabase.from("study_consents").select("*").eq("survey_id", dist.survey_id).maybeSingle(),
       ]);
 
       if (surveyRes.error) throw new Error("Survey not found");
@@ -51,6 +54,7 @@ const SurveyRespond = () => {
         blocks: blocksRes.data || [],
         questions: questionsRes.data || [],
         rules: rulesRes.data || [],
+        consent: consentRes.data,
       };
     },
     enabled: !!token,
@@ -60,6 +64,16 @@ const SurveyRespond = () => {
   const blocks = surveyData?.blocks || [];
   const allQuestions = surveyData?.questions || [];
   const rules = surveyData?.rules || [];
+  const consent = surveyData?.consent;
+
+  // If there's a consent and it hasn't been completed, show consent flow
+  const needsConsent = !!consent && !consentCompleted;
+
+  const handleConsentComplete = useCallback((signatureId: string) => {
+    setConsentSignatureId(signatureId);
+    setConsentCompleted(true);
+    startTime.current = Date.now(); // Reset timer for actual survey
+  }, []);
 
   // Evaluate logic rules to determine visible questions
   const visibleQuestions = useMemo(() => {
@@ -90,11 +104,7 @@ const SurveyRespond = () => {
 
       if (conditionMet) {
         if (rule.action === "hide_question" && rule.target_id) hiddenQuestionIds.add(rule.target_id);
-        if (rule.action === "show_block" && rule.target_id) {
-          // Show this block, hide others logic can be added here
-        }
         if (rule.action === "end_survey") {
-          // Mark all subsequent questions hidden
           const sourceQ = allQuestions.find((q: any) => q.id === rule.source_question_id);
           if (sourceQ) {
             allQuestions.forEach((q: any) => {
@@ -135,7 +145,10 @@ const SurveyRespond = () => {
         body: JSON.stringify({
           token,
           answers,
-          metadata: { duration_seconds: duration },
+          metadata: {
+            duration_seconds: duration,
+            consent_signature_id: consentSignatureId,
+          },
         }),
       });
 
@@ -167,6 +180,25 @@ const SurveyRespond = () => {
             <p className="text-sm text-muted-foreground">This link may be invalid or the survey has been closed.</p>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  // Show consent flow first if needed
+  if (needsConsent) {
+    return (
+      <div className="min-h-screen bg-background">
+        <ConsentRespond
+          consent={{
+            id: consent.id,
+            title: consent.title,
+            sections: consent.sections as any,
+            video_url: consent.video_url,
+            audio_url: consent.audio_url,
+            require_signature: consent.require_signature,
+          }}
+          onConsentComplete={handleConsentComplete}
+        />
       </div>
     );
   }

@@ -214,6 +214,53 @@ export type Database = {
           },
         ]
       }
+      consent_signatures: {
+        Row: {
+          consent_id: string
+          id: string
+          ip_address: string | null
+          pdf_path: string | null
+          respondent_email: string | null
+          respondent_name: string
+          section_confirmations: Json
+          signature_data: string | null
+          signed_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          consent_id: string
+          id?: string
+          ip_address?: string | null
+          pdf_path?: string | null
+          respondent_email?: string | null
+          respondent_name: string
+          section_confirmations?: Json
+          signature_data?: string | null
+          signed_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          consent_id?: string
+          id?: string
+          ip_address?: string | null
+          pdf_path?: string | null
+          respondent_email?: string | null
+          respondent_name?: string
+          section_confirmations?: Json
+          signature_data?: string | null
+          signed_at?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_signatures_consent_id_fkey"
+            columns: ["consent_id"]
+            isOneToOne: false
+            referencedRelation: "study_consents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       datamind_checkpoints: {
         Row: {
           branch_name: string | null
@@ -1054,6 +1101,53 @@ export type Database = {
             columns: ["review_id"]
             isOneToOne: false
             referencedRelation: "systematic_reviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_consents: {
+        Row: {
+          audio_url: string | null
+          created_at: string
+          id: string
+          require_signature: boolean
+          sections: Json
+          survey_id: string
+          title: string
+          updated_at: string
+          user_id: string
+          video_url: string | null
+        }
+        Insert: {
+          audio_url?: string | null
+          created_at?: string
+          id?: string
+          require_signature?: boolean
+          sections?: Json
+          survey_id: string
+          title?: string
+          updated_at?: string
+          user_id: string
+          video_url?: string | null
+        }
+        Update: {
+          audio_url?: string | null
+          created_at?: string
+          id?: string
+          require_signature?: boolean
+          sections?: Json
+          survey_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_consents_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
             referencedColumns: ["id"]
           },
         ]

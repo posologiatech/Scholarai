@@ -21,12 +21,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer } from "lucide-react";
+import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+import ConsentBuilder from "@/components/survey/consent/ConsentBuilder";
 
-type BuilderView = "build" | "flow" | "distribute" | "results" | "preview";
+type BuilderView = "build" | "consent" | "flow" | "distribute" | "results" | "preview";
 
 const getViewFromPath = (pathname: string): BuilderView => {
+  if (pathname.endsWith("/consent")) return "consent";
   if (pathname.endsWith("/flow")) return "flow";
   if (pathname.endsWith("/distribute")) return "distribute";
   if (pathname.endsWith("/results")) return "results";
@@ -119,6 +121,8 @@ const SurveyBuilder = () => {
 
   const renderContent = () => {
     switch (currentView) {
+      case "consent":
+        return <ConsentBuilder surveyId={id!} />;
       case "flow":
         return <FlowCanvas />;
       case "distribute":
@@ -163,6 +167,10 @@ const SurveyBuilder = () => {
             <TabsTrigger value="build" className="text-xs" onClick={() => navigate(`/surveys/${id}/build`)}>
               <Hammer className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Construir" : "Build"}
+            </TabsTrigger>
+            <TabsTrigger value="consent" className="text-xs" onClick={() => navigate(`/surveys/${id}/consent`)}>
+              <ShieldCheck className="h-3 w-3 mr-1" />
+              TCLE
             </TabsTrigger>
             <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
               <GitBranch className="h-3 w-3 mr-1" />
