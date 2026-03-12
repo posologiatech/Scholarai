@@ -120,6 +120,8 @@ const SurveyBuilder = () => {
 
   const renderContent = () => {
     switch (currentView) {
+      case "consent":
+        return <ConsentBuilder surveyId={id!} />;
       case "flow":
         return <FlowCanvas />;
       case "distribute":
