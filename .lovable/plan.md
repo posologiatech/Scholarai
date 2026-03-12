@@ -1,180 +1,178 @@
 
 
-# Survey Module (ScholarAI Surveys) -- Implementation Plan
+# Reformulação do Módulo de Pesquisa → Plataforma de Pesquisa Clínica
 
-## Overview
+## Visão Geral
 
-A new Qualtrics-inspired survey/data collection module integrated into ScholarAI, designed for academic research. Surveys created here can export collected responses directly into DataMind for analysis.
+Transformar o módulo de Surveys atual (inspirado no Qualtrics) em uma plataforma completa de pesquisa clínica com 4 módulos: TCLE, eCRF, Painel do Pesquisador e Síntese com IA. O sistema atual já possui um construtor de questionários com 6 tipos de questões, lógica condicional, distribuição e análise de resultados -- tudo isso será preservado e expandido.
 
-## Why This Is Competitive
-
-- **Deep academic integration**: Surveys link directly to DataMind analysis pipelines, eliminating the export-import cycle researchers face with Qualtrics + SPSS/R.
-- **AI-powered question generation**: Leverage existing AI infrastructure to suggest questions based on research objectives.
-- **Built-in statistical summaries**: Mean, SD, CI displayed inline in reports -- no external tools needed.
-- **Bilingual (PT/EN)** out of the box.
-- **Workspace collaboration**: Team members can co-edit surveys via existing workspace infrastructure.
+Devido à magnitude, a implementação será dividida em **4 fases sequenciais**.
 
 ---
 
-## Database Schema (New Tables)
+## Fase 1: Módulo de TCLE (Termo de Consentimento Livre e Esclarecido)
 
-```text
-surveys
-├── id, user_id, workspace_id?, title, description, status (draft/active/closed)
-├── settings (jsonb: randomization, progress_bar, back_button, etc.)
-├── created_at, updated_at, published_at, closed_at
+### Banco de Dados
+Nova tabela `study_consents` para armazenar templates de TCLE vinculados a um survey/study:
 
-survey_blocks
-├── id, survey_id, title, description, block_order
-├── randomize_questions (bool), settings (jsonb)
+```sql
+CREATE TABLE public.study_consents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  survey_id UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  title TEXT NOT NULL DEFAULT 'TCLE',
+  sections JSONB NOT NULL DEFAULT '[]',
+  -- sections: [{id, title, content_html, media_url?, media_type?, require_checkbox: bool}]
+  video_url TEXT,
+  audio_url TEXT,
+  require_signature BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-survey_questions
-├── id, block_id, survey_id, question_type, question_text, description
-├── question_order, is_required, validation_rules (jsonb)
-├── choices (jsonb: [{id, text, value, order}])
-├── matrix_rows (jsonb), matrix_columns (jsonb)
-├── settings (jsonb: randomize_choices, slider_min/max, etc.)
-
-survey_logic_rules
-├── id, survey_id, source_question_id?, source_block_id?
-├── condition (jsonb: {field, operator, value})
-├── action (show_block/hide_question/skip_to/end_survey)
-├── target_id (uuid), rule_order
-
-survey_contacts
-├── id, survey_id, user_id, first_name, last_name, email
-├── institution, custom_fields (jsonb), status (not_sent/sent/responded)
-
-survey_distributions
-├── id, survey_id, type (anonymous_link/email), anonymous_token
-├── email_subject, email_body, scheduled_at, sent_at
-
-survey_responses
-├── id, survey_id, respondent_id?, contact_id?
-├── started_at, completed_at, status (in_progress/complete/disqualified)
-├── ip_address, user_agent, duration_seconds
-├── metadata (jsonb: embedded_data, geo, etc.)
-
-survey_answers
-├── id, response_id, question_id
-├── answer_text, answer_numeric, answer_choices (jsonb)
-├── matrix_answers (jsonb: [{row_id, column_id}])
+CREATE TABLE public.consent_signatures (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  consent_id UUID NOT NULL REFERENCES study_consents(id) ON DELETE CASCADE,
+  respondent_name TEXT NOT NULL,
+  respondent_email TEXT,
+  signature_data TEXT, -- base64 canvas image
+  ip_address TEXT,
+  user_agent TEXT,
+  section_confirmations JSONB NOT NULL DEFAULT '[]',
+  -- [{section_id, confirmed_at}]
+  signed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  pdf_path TEXT -- path in storage bucket
+);
 ```
 
-RLS: All tables scoped to `user_id = auth.uid()`. Public survey responses allow anonymous insert via edge function (no JWT). Workspace-shared surveys use existing `is_workspace_member()`.
+### Componentes UI
+- **ConsentBuilder**: editor no painel do pesquisador para criar seções do TCLE (Riscos, Benefícios, Privacidade, etc.), com upload de vídeo/áudio explicativo
+- **ConsentRespond**: tela pública que apresenta o TCLE em etapas (micro-commitments). Cada seção tem checkbox "Li e compreendi". Canvas de assinatura digital com o dedo (usando HTML5 Canvas)
+- **PDF automático**: ao assinar, gera PDF via `jspdf` (já instalado) com timestamp, IP, assinatura, e salva no bucket `papers` (ou novo bucket `consents`). Envia cópia por e-mail via edge function
+- Nova aba **"TCLE"** no SurveyBuilder (tabs: Construir | TCLE | Fluxo | Distribuir | Resultados)
+
+### Fluxo
+1. Pesquisador cria TCLE no builder com seções e mídia
+2. Participante acessa link → vê TCLE etapizado → confirma cada seção → assina no canvas
+3. Sistema gera PDF, salva no storage, envia por e-mail
+4. Só após TCLE assinado o participante pode responder o questionário (eCRF)
 
 ---
 
-## File & Component Structure
+## Fase 2: eCRF (Electronic Case Report Form) - Evolução do Construtor
 
-```text
-src/pages/
-├── Surveys.tsx                    (project list / dashboard)
-├── SurveyBuilder.tsx              (3-pane builder)
-├── SurveyFlow.tsx                 (visual logic editor)
-├── SurveyDistribution.tsx         (links, email, contacts)
-├── SurveyResults.tsx              (reports + raw data)
-├── SurveyPreview.tsx              (respondent-facing preview)
-├── SurveyRespond.tsx              (public respondent page, no auth)
+### Banco de Dados
+```sql
+-- Participantes do estudo (centrado no paciente)
+CREATE TABLE public.study_participants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  survey_id UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  participant_code TEXT NOT NULL, -- código anônimo
+  consent_signature_id UUID REFERENCES consent_signatures(id),
+  status TEXT NOT NULL DEFAULT 'active',
+  metadata JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-src/components/survey/
-├── SurveyProjectList.tsx          (data table with status, responses, sparklines)
-├── builder/
-│   ├── BlockSidebar.tsx           (left pane: block navigation, drag-reorder)
-│   ├── QuestionCanvas.tsx         (center: inline WYSIWYG editing)
-│   ├── QuestionContextPanel.tsx   (right: type, validation, randomization)
-│   ├── QuestionRenderer.tsx       (renders each question type)
-│   ├── question-types/
-│   │   ├── MultipleChoice.tsx
-│   │   ├── TextEntry.tsx
-│   │   ├── MatrixTable.tsx
-│   │   ├── SliderQuestion.tsx
-│   │   ├── RankOrder.tsx
-│   │   └── ConstantSum.tsx
-├── flow/
-│   ├── FlowCanvas.tsx             (visual nested-list / node-based flow)
-│   ├── ConditionBuilder.tsx       (dropdown rule rows)
-│   └── LogicBadge.tsx             (GitBranch icon on questions with logic)
-├── distribution/
-│   ├── AnonymousLinkTab.tsx       (URL + QR code + copy)
-│   ├── EmailComposerTab.tsx       (rich text + piped text insertion)
-│   └── ContactListTab.tsx         (data table + CSV upload)
-├── results/
-│   ├── ReportsDashboard.tsx       (Recharts widgets grid)
-│   ├── ResponseDataGrid.tsx       (raw data table, variable name toggle)
-│   ├── StatsSummary.tsx           (mean, SD, n calculations)
-│   └── ExportEngine.tsx           (CSV, TSV, XLSX export)
-├── respond/
-│   ├── RespondentForm.tsx         (public form with logic evaluation)
-│   └── ProgressIndicator.tsx
+-- Visitas/Timepoints longitudinais
+CREATE TABLE public.study_visits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  survey_id UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  label TEXT NOT NULL, -- 'Baseline (T0)', 'Acompanhamento 30d (T1)'
+  visit_order INTEGER NOT NULL DEFAULT 0,
+  target_days INTEGER, -- dias após baseline
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-src/hooks/
-├── useSurveyStore.ts              (Zustand store for survey builder state)
-
-supabase/functions/
-├── survey-respond/index.ts        (anonymous response submission, verify_jwt=false)
-├── survey-export-datamind/index.ts (push responses into DataMind conversation)
+-- Documentos anexados por participante
+CREATE TABLE public.participant_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  participant_id UUID NOT NULL REFERENCES study_participants(id) ON DELETE CASCADE,
+  visit_id UUID REFERENCES study_visits(id),
+  user_id UUID NOT NULL,
+  file_name TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  file_type TEXT, -- 'lab_result', 'prescription', 'image'
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 ```
 
----
-
-## Implementation Phases
-
-### Phase 1: Foundation (Database + Routing + Project List)
-- Create all database tables with RLS policies via migration tool
-- Add routes: `/surveys`, `/surveys/:id/build`, `/surveys/:id/flow`, `/surveys/:id/distribute`, `/surveys/:id/results`, `/survey/respond/:token`
-- Add "Surveys" nav link in AppSidebar (ClipboardList icon)
-- Build `SurveyProjectList` with status badges, response counts, sparkline trends, search/filter, "Create Survey" button
-
-### Phase 2: Survey Builder (Core Engine)
-- Implement Zustand store (`useSurveyStore`) managing the nested survey object (blocks → questions → choices/matrix)
-- Build 3-pane layout: BlockSidebar | QuestionCanvas | QuestionContextPanel
-- Implement all 6 question types with inline editing
-- Drag-and-drop reordering for blocks and questions
-- Auto-save to Supabase on changes (debounced)
-
-### Phase 3: Logic Engine & Survey Flow
-- Build ConditionBuilder component (question selector → operator → value → action)
-- Visual flow editor showing block sequence with branch indicators
-- Extend Zustand store with `logicRules` array
-- Preview mode that evaluates logic rules in real-time
-- GitBranch badges on questions with active logic
-
-### Phase 4: Distribution Module
-- Anonymous link generation with unique token + QR code (via canvas/SVG)
-- Email composer with piped text insertion (`{{Contact.FirstName}}`, etc.)
-- Contact list management table with CSV upload
-- Schedule send UI (mock for now, real via edge function later)
-- `survey-respond` edge function for anonymous submissions (no JWT)
-
-### Phase 5: Data & Analysis + DataMind Integration
-- Reports dashboard with Recharts: bar charts, donut charts, stacked bars for Likert
-- Statistical calculations: mean, SD, confidence intervals
-- Raw data grid with question text / variable name toggle
-- Export engine: CSV, TSV, XLSX (using existing xlsx dependency)
-- **DataMind integration**: "Analyze in DataMind" button that creates a new DataMind conversation with survey responses auto-loaded as a CSV file in the `datamind-files` bucket, enabling immediate analysis
-
-### Phase 6: Respondent-Facing Form
-- Public page at `/survey/respond/:token` (no auth required)
-- Progress bar, one-block-at-a-time or all-at-once modes
-- Logic evaluation engine to show/hide questions dynamically
-- Mobile-responsive form design
-- Submission via `survey-respond` edge function
+### Funcionalidades
+- **Validação de dados em tempo real**: campo `validation_rules` da `survey_questions` expandido com tipos clínicos pré-configurados (PA sistólica: 40-300 mmHg, Glicemia: 10-1000 mg/dL, Peso: 0.5-500 kg). No `QuestionContextPanel`, dropdown com templates de validação clínica
+- **Lógica Condicional Dinâmica**: já existente via `survey_logic_rules`, será aprimorada com mais operadores e ações (hide_question, skip_block, show_warning)
+- **Estrutura Longitudinal**: nova aba "Visitas" no builder para definir timepoints. No formulário de resposta, o participante é identificado por código e seleciona a visita correspondente
+- **Upload de documentos**: botão de upload no formulário de resposta (câmera/galeria otimizado para mobile) vinculado ao participante e visita, usando bucket `papers` ou novo bucket `study-documents`
+- **Novos tipos de questão**: `number_clinical` (com unidade e range), `date_field`, `file_upload`
 
 ---
 
-## DataMind Integration Detail
+## Fase 3: Painel do Pesquisador (Centro de Comando)
 
-The key differentiator: a single click from Survey Results exports all responses as a structured CSV into DataMind. The `survey-export-datamind` edge function:
-1. Queries `survey_answers` joined with `survey_questions` for headers
-2. Generates CSV with proper variable names
-3. Uploads to `datamind-files` bucket
-4. Creates a new `datamind_conversations` entry with an initial system message referencing the file
-5. Redirects user to `/datamind/:newConversationId`
+### Componentes
+- **Dashboard de Recrutamento**: gráfico de funil (Recharts, já instalado): Convidados → TCLEs assinados → Coletas em andamento → Coletas finalizadas. Cards de resumo com números totais
+- **Sistema de Queries/Alertas**: aba "Qualidade de Dados" que varre automaticamente as respostas buscando: campos obrigatórios vazios, valores fora do range de validação, participantes com visitas atrasadas. Lista de alertas com filtros por severidade
+- **Exportação Data-Ready**: botão "Exportar para Análise" no painel de resultados, gerando CSV/XLSX com variáveis codificadas numericamente (Masculino→0, Feminino→1) conforme mapeamento definido nas choices. Toggle para nomes de variáveis já existe, será expandido com codificação automática. Botão direto para enviar ao DataMind (já existe)
+
+### Modificações
+- `SurveyResultsPanel` ganha novas abas: "Recrutamento" (funil), "Qualidade" (queries), além das existentes "Relatórios" e "Dados"
+- `ResponseDataGrid` ganha toggle de codificação numérica
 
 ---
 
-## Design System
+## Fase 4: Síntese com IA para Documentos Clínicos
 
-Consistent with existing ScholarAI design: white backgrounds, `bg-muted/50` panels, primary blue accents, shadcn/ui components throughout. The builder uses `ResizablePanelGroup` for the 3-pane layout (already in the project). Question cards use the existing `Card` component with subtle borders.
+### Edge Function
+Nova edge function `clinical-synthesis` que recebe os dados coletados de um participante (todas as visitas) e gera um rascunho de evolução clínica ou sumário descritivo do caso.
+
+### UI
+- Botão "Gerar Síntese Clínica" na ficha do participante (visível apenas para o pesquisador)
+- Dialog mostrando o rascunho gerado com opção de editar e salvar como PDF
+- Manter o botão "Gerar com IA" existente para criação de questões
+
+---
+
+## Resumo de Arquivos
+
+### Novos arquivos (~15)
+- `src/components/survey/consent/ConsentBuilder.tsx`
+- `src/components/survey/consent/ConsentRespond.tsx`
+- `src/components/survey/consent/SignatureCanvas.tsx`
+- `src/components/survey/ecrf/VisitManager.tsx`
+- `src/components/survey/ecrf/ParticipantList.tsx`
+- `src/components/survey/ecrf/ParticipantDetail.tsx`
+- `src/components/survey/ecrf/DocumentUpload.tsx`
+- `src/components/survey/ecrf/ClinicalValidationTemplates.tsx`
+- `src/components/survey/results/RecruitmentFunnel.tsx`
+- `src/components/survey/results/DataQualityAlerts.tsx`
+- `supabase/functions/clinical-synthesis/index.ts`
+- `supabase/functions/consent-pdf/index.ts`
+
+### Arquivos modificados (~10)
+- `src/pages/SurveyBuilder.tsx` (novas abas)
+- `src/pages/SurveyRespond.tsx` (fluxo TCLE + visitas)
+- `src/pages/Surveys.tsx` (nova coluna participantes)
+- `src/hooks/useSurveyStore.ts` (novos tipos e estado para visitas/participantes)
+- `src/components/survey/builder/QuestionContextPanel.tsx` (validação clínica)
+- `src/components/survey/results/SurveyResultsPanel.tsx` (novas abas)
+- `src/components/survey/results/ResponseDataGrid.tsx` (codificação numérica)
+- `src/App.tsx` (novas rotas)
+- Migrações SQL (4-5 arquivos)
+
+### Dependências
+Nenhuma nova dependência necessária. O projeto já possui `jspdf`, `recharts`, `xlsx`, `framer-motion` e todos os componentes UI necessários.
+
+---
+
+## Ordem de Implementação Sugerida
+
+Dado o tamanho, recomendo implementar em **etapas menores**:
+1. **Primeiro**: Fase 2 parcial - validação clínica + novos tipos de questão (usa infraestrutura existente)
+2. **Segundo**: Fase 1 - TCLE completo (módulo independente)
+3. **Terceiro**: Fase 2 completa - visitas longitudinais + participantes + uploads
+4. **Quarto**: Fase 3 - Dashboard de recrutamento e qualidade
+5. **Quinto**: Fase 4 - Síntese com IA
+
+Posso começar pela Fase 1 (TCLE) ou pela ordem sugerida acima. Qual prefere?
 
