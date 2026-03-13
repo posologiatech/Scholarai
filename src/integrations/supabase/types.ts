@@ -217,11 +217,14 @@ export type Database = {
       consent_signatures: {
         Row: {
           consent_id: string
+          consent_version: number | null
           id: string
           ip_address: string | null
           pdf_path: string | null
           respondent_email: string | null
           respondent_name: string
+          revocation_reason: string | null
+          revoked_at: string | null
           section_confirmations: Json
           signature_data: string | null
           signed_at: string
@@ -229,11 +232,14 @@ export type Database = {
         }
         Insert: {
           consent_id: string
+          consent_version?: number | null
           id?: string
           ip_address?: string | null
           pdf_path?: string | null
           respondent_email?: string | null
           respondent_name: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
           section_confirmations?: Json
           signature_data?: string | null
           signed_at?: string
@@ -241,11 +247,14 @@ export type Database = {
         }
         Update: {
           consent_id?: string
+          consent_version?: number | null
           id?: string
           ip_address?: string | null
           pdf_path?: string | null
           respondent_email?: string | null
           respondent_name?: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
           section_confirmations?: Json
           signature_data?: string | null
           signed_at?: string
@@ -1153,6 +1162,54 @@ export type Database = {
           },
         ]
       }
+      study_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          details: Json | null
+          id: string
+          ip_address: string | null
+          participant_id: string | null
+          survey_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_address?: string | null
+          participant_id?: string | null
+          survey_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_address?: string | null
+          participant_id?: string | null
+          survey_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_audit_log_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "study_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_audit_log_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       study_consents: {
         Row: {
           audio_url: string | null
@@ -1164,6 +1221,7 @@ export type Database = {
           title: string
           updated_at: string
           user_id: string
+          version: number
           video_url: string | null
         }
         Insert: {
@@ -1176,6 +1234,7 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id: string
+          version?: number
           video_url?: string | null
         }
         Update: {
@@ -1188,6 +1247,7 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+          version?: number
           video_url?: string | null
         }
         Relationships: [
