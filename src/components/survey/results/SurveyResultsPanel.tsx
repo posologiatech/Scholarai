@@ -1,10 +1,11 @@
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Table2, Filter, ShieldAlert } from "lucide-react";
+import { BarChart3, Table2, Filter, ShieldAlert, Shield } from "lucide-react";
 import ReportsDashboard from "./ReportsDashboard";
 import ResponseDataGrid from "./ResponseDataGrid";
 import RecruitmentFunnel from "./RecruitmentFunnel";
 import DataQualityAlerts from "./DataQualityAlerts";
+import AuditLogPanel from "./AuditLogPanel";
 
 const SurveyResultsPanel = ({ surveyId }: { surveyId: string }) => {
   const { locale } = useLanguage();
@@ -34,6 +35,10 @@ const SurveyResultsPanel = ({ surveyId }: { surveyId: string }) => {
               <ShieldAlert className="h-3.5 w-3.5" />
               {locale === "pt" ? "Qualidade" : "Quality"}
             </TabsTrigger>
+            <TabsTrigger value="audit" className="gap-1.5">
+              <Shield className="h-3.5 w-3.5" />
+              {locale === "pt" ? "Auditoria" : "Audit"}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="recruitment">
@@ -47,6 +52,9 @@ const SurveyResultsPanel = ({ surveyId }: { surveyId: string }) => {
           </TabsContent>
           <TabsContent value="quality">
             <DataQualityAlerts surveyId={surveyId} />
+          </TabsContent>
+          <TabsContent value="audit">
+            <AuditLogPanel surveyId={surveyId} />
           </TabsContent>
         </Tabs>
       </div>
