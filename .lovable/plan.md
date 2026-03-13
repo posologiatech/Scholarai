@@ -1,112 +1,180 @@
 
 
-# Análise de Conformidade CEP/LGPD do Módulo de Pesquisa
+# Survey Module (ScholarAI Surveys) -- Implementation Plan
 
-Após revisão detalhada do código atual, identifiquei **lacunas significativas** que impedem a conformidade plena com as exigências do CEP (Comitê de Ética em Pesquisa / Resolução CNS 466/2012 e 510/2016) e da LGPD (Lei 13.709/2018). Abaixo, o diagnóstico e o plano de correção.
+## Overview
 
----
+A new Qualtrics-inspired survey/data collection module integrated into ScholarAI, designed for academic research. Surveys created here can export collected responses directly into DataMind for analysis.
 
-## Diagnóstico: O que JÁ funciona
+## Why This Is Competitive
 
-- Consentimento etapizado (micro-commitments por seção)
-- Assinatura digital em canvas com geração de PDF
-- Registro de user_agent e timestamp
-- Código anônimo para participantes (participant_code)
-- Armazenamento seguro em bucket privado (consents, study-documents)
-
-## Diagnóstico: O que FALTA
-
-### 1. Captura de IP no TCLE (CEP + LGPD Auditoria)
-O IP é registrado nas respostas do survey (`survey-respond` edge function), mas **NÃO** é capturado na assinatura do TCLE. O `ConsentRespond.tsx` insere `consent_signatures` diretamente do frontend sem capturar o IP real (o campo `ip_address` fica `null`). O IP precisa ser coletado via edge function server-side.
-
-### 2. Direito de Revogação do Consentimento (LGPD Art. 8° §5° / CEP 466/2012)
-Não existe nenhum mecanismo para o participante **revogar** seu consentimento. A LGPD exige que o consentimento possa ser revogado a qualquer momento, e o CEP exige que o participante possa se retirar do estudo sem prejuízo.
-
-### 3. Trilha de Auditoria (CEP / GCP-ICH)
-Não há tabela de auditoria que registre ações como: consentimento assinado, consentimento revogado, dados alterados, dados exportados. O CEP e as Boas Práticas Clínicas (GCP) exigem rastreabilidade completa.
-
-### 4. Envio de Cópia do PDF ao Participante (Resolução 466/2012)
-O PDF é gerado e salvo no storage, mas **não é enviado** por e-mail ao participante. A Resolução 466/2012 exige que o participante receba uma via do TCLE assinado.
-
-### 5. Versionamento do TCLE (CEP)
-Se o pesquisador edita o TCLE após participantes já terem assinado, não há controle de versão. O CEP exige que alterações no TCLE gerem uma nova versão e que participantes anteriores sejam re-consentidos se necessário.
-
-### 6. Política de Retenção e Exclusão de Dados (LGPD Art. 16)
-Não há mecanismo para exclusão dos dados pessoais do participante (nome, e-mail, assinatura) após o término do estudo ou mediante solicitação.
-
-### 7. Base Legal e Finalidade (LGPD Art. 7° e 11)
-O TCLE não registra explicitamente a base legal do tratamento de dados (consentimento para pesquisa científica) nem a finalidade específica. Isso deve constar no PDF gerado.
+- **Deep academic integration**: Surveys link directly to DataMind analysis pipelines, eliminating the export-import cycle researchers face with Qualtrics + SPSS/R.
+- **AI-powered question generation**: Leverage existing AI infrastructure to suggest questions based on research objectives.
+- **Built-in statistical summaries**: Mean, SD, CI displayed inline in reports -- no external tools needed.
+- **Bilingual (PT/EN)** out of the box.
+- **Workspace collaboration**: Team members can co-edit surveys via existing workspace infrastructure.
 
 ---
 
-## Plano de Implementação
+## Database Schema (New Tables)
 
-### A. Edge Function para Assinatura do TCLE (IP + PDF + E-mail)
-Mover a lógica de submissão do consentimento para uma **edge function** `consent-sign` que:
-- Captura o IP real via headers (`x-forwarded-for`)
-- Gera o PDF server-side com IP, timestamp e hash de integridade
-- Envia cópia do PDF por e-mail ao participante via Resend (secret `RESEND_API_KEY` já existe)
-- Registra na `consent_signatures` com IP preenchido
+```text
+surveys
+├── id, user_id, workspace_id?, title, description, status (draft/active/closed)
+├── settings (jsonb: randomization, progress_bar, back_button, etc.)
+├── created_at, updated_at, published_at, closed_at
 
-### B. Tabela de Auditoria
-```sql
-CREATE TABLE public.study_audit_log (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  survey_id UUID NOT NULL,
-  participant_id UUID,
-  action TEXT NOT NULL, -- 'consent_signed', 'consent_revoked', 'data_modified', 'data_exported', 'data_deleted'
-  actor_id UUID, -- user_id do pesquisador ou null para participante
-  details JSONB DEFAULT '{}',
-  ip_address TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+survey_blocks
+├── id, survey_id, title, description, block_order
+├── randomize_questions (bool), settings (jsonb)
+
+survey_questions
+├── id, block_id, survey_id, question_type, question_text, description
+├── question_order, is_required, validation_rules (jsonb)
+├── choices (jsonb: [{id, text, value, order}])
+├── matrix_rows (jsonb), matrix_columns (jsonb)
+├── settings (jsonb: randomize_choices, slider_min/max, etc.)
+
+survey_logic_rules
+├── id, survey_id, source_question_id?, source_block_id?
+├── condition (jsonb: {field, operator, value})
+├── action (show_block/hide_question/skip_to/end_survey)
+├── target_id (uuid), rule_order
+
+survey_contacts
+├── id, survey_id, user_id, first_name, last_name, email
+├── institution, custom_fields (jsonb), status (not_sent/sent/responded)
+
+survey_distributions
+├── id, survey_id, type (anonymous_link/email), anonymous_token
+├── email_subject, email_body, scheduled_at, sent_at
+
+survey_responses
+├── id, survey_id, respondent_id?, contact_id?
+├── started_at, completed_at, status (in_progress/complete/disqualified)
+├── ip_address, user_agent, duration_seconds
+├── metadata (jsonb: embedded_data, geo, etc.)
+
+survey_answers
+├── id, response_id, question_id
+├── answer_text, answer_numeric, answer_choices (jsonb)
+├── matrix_answers (jsonb: [{row_id, column_id}])
 ```
-Com RLS: pesquisadores veem logs dos seus estudos, insert público para edge functions.
 
-### C. Mecanismo de Revogação de Consentimento
-- Adicionar campo `revoked_at` e `revocation_reason` na tabela `consent_signatures`
-- Botão "Revogar Consentimento" acessível ao participante (via link no e-mail do TCLE)
-- Ao revogar: marca o participante como `withdrawn`, registra na trilha de auditoria, anonimiza dados pessoais (nome, e-mail, assinatura)
-
-### D. Versionamento do TCLE
-- Adicionar campo `version` (integer, default 1) na tabela `study_consents`
-- Ao editar um TCLE com assinaturas existentes: criar nova versão em vez de sobrescrever
-- Registrar qual versão cada participante assinou na `consent_signatures`
-
-### E. Metadados Legais no PDF
-- Incluir no PDF: base legal (LGPD Art. 7°, inciso IV - pesquisa), finalidade do tratamento, direito de revogação, contato do pesquisador e do CEP
-
-### F. Funcionalidade de Exclusão de Dados (LGPD Art. 18)
-- Botão no painel do pesquisador para anonimizar dados de um participante
-- Substitui nome, e-mail e assinatura por "[DADOS REMOVIDOS]", mantendo dados estatísticos anônimos
+RLS: All tables scoped to `user_id = auth.uid()`. Public survey responses allow anonymous insert via edge function (no JWT). Workspace-shared surveys use existing `is_workspace_member()`.
 
 ---
 
-## Arquivos Envolvidos
+## File & Component Structure
 
-**Novos:**
-- `supabase/functions/consent-sign/index.ts` (edge function para assinatura com IP + e-mail)
-- Migração SQL (audit_log, campos de revogação e versionamento)
+```text
+src/pages/
+├── Surveys.tsx                    (project list / dashboard)
+├── SurveyBuilder.tsx              (3-pane builder)
+├── SurveyFlow.tsx                 (visual logic editor)
+├── SurveyDistribution.tsx         (links, email, contacts)
+├── SurveyResults.tsx              (reports + raw data)
+├── SurveyPreview.tsx              (respondent-facing preview)
+├── SurveyRespond.tsx              (public respondent page, no auth)
 
-**Modificados:**
-- `src/components/survey/consent/ConsentRespond.tsx` (chamar edge function em vez de insert direto)
-- `src/components/survey/consent/ConsentBuilder.tsx` (controle de versão)
-- `src/components/survey/ecrf/ParticipantList.tsx` (botão anonimizar)
-- `src/components/survey/ecrf/ParticipantDetail.tsx` (status revogação)
-- `src/components/survey/results/SurveyResultsPanel.tsx` (aba auditoria)
-- `supabase/config.toml` (nova edge function)
+src/components/survey/
+├── SurveyProjectList.tsx          (data table with status, responses, sparklines)
+├── builder/
+│   ├── BlockSidebar.tsx           (left pane: block navigation, drag-reorder)
+│   ├── QuestionCanvas.tsx         (center: inline WYSIWYG editing)
+│   ├── QuestionContextPanel.tsx   (right: type, validation, randomization)
+│   ├── QuestionRenderer.tsx       (renders each question type)
+│   ├── question-types/
+│   │   ├── MultipleChoice.tsx
+│   │   ├── TextEntry.tsx
+│   │   ├── MatrixTable.tsx
+│   │   ├── SliderQuestion.tsx
+│   │   ├── RankOrder.tsx
+│   │   └── ConstantSum.tsx
+├── flow/
+│   ├── FlowCanvas.tsx             (visual nested-list / node-based flow)
+│   ├── ConditionBuilder.tsx       (dropdown rule rows)
+│   └── LogicBadge.tsx             (GitBranch icon on questions with logic)
+├── distribution/
+│   ├── AnonymousLinkTab.tsx       (URL + QR code + copy)
+│   ├── EmailComposerTab.tsx       (rich text + piped text insertion)
+│   └── ContactListTab.tsx         (data table + CSV upload)
+├── results/
+│   ├── ReportsDashboard.tsx       (Recharts widgets grid)
+│   ├── ResponseDataGrid.tsx       (raw data table, variable name toggle)
+│   ├── StatsSummary.tsx           (mean, SD, n calculations)
+│   └── ExportEngine.tsx           (CSV, TSV, XLSX export)
+├── respond/
+│   ├── RespondentForm.tsx         (public form with logic evaluation)
+│   └── ProgressIndicator.tsx
+
+src/hooks/
+├── useSurveyStore.ts              (Zustand store for survey builder state)
+
+supabase/functions/
+├── survey-respond/index.ts        (anonymous response submission, verify_jwt=false)
+├── survey-export-datamind/index.ts (push responses into DataMind conversation)
+```
 
 ---
 
-## Resumo das Lacunas por Norma
+## Implementation Phases
 
-| Requisito | CEP 466/2012 | LGPD | GCP-ICH | Status Atual |
-|-----------|:---:|:---:|:---:|:---:|
-| Via do TCLE ao participante | Sim | - | Sim | Falta |
-| IP na assinatura | Sim | Sim | Sim | Falta |
-| Revogação de consentimento | Sim | Sim | Sim | Falta |
-| Trilha de auditoria | Sim | - | Sim | Falta |
-| Versionamento do TCLE | Sim | - | Sim | Falta |
-| Exclusão/anonimização de dados | - | Sim | - | Falta |
-| Base legal no documento | - | Sim | - | Falta |
+### Phase 1: Foundation (Database + Routing + Project List)
+- Create all database tables with RLS policies via migration tool
+- Add routes: `/surveys`, `/surveys/:id/build`, `/surveys/:id/flow`, `/surveys/:id/distribute`, `/surveys/:id/results`, `/survey/respond/:token`
+- Add "Surveys" nav link in AppSidebar (ClipboardList icon)
+- Build `SurveyProjectList` with status badges, response counts, sparkline trends, search/filter, "Create Survey" button
+
+### Phase 2: Survey Builder (Core Engine)
+- Implement Zustand store (`useSurveyStore`) managing the nested survey object (blocks → questions → choices/matrix)
+- Build 3-pane layout: BlockSidebar | QuestionCanvas | QuestionContextPanel
+- Implement all 6 question types with inline editing
+- Drag-and-drop reordering for blocks and questions
+- Auto-save to Supabase on changes (debounced)
+
+### Phase 3: Logic Engine & Survey Flow
+- Build ConditionBuilder component (question selector → operator → value → action)
+- Visual flow editor showing block sequence with branch indicators
+- Extend Zustand store with `logicRules` array
+- Preview mode that evaluates logic rules in real-time
+- GitBranch badges on questions with active logic
+
+### Phase 4: Distribution Module
+- Anonymous link generation with unique token + QR code (via canvas/SVG)
+- Email composer with piped text insertion (`{{Contact.FirstName}}`, etc.)
+- Contact list management table with CSV upload
+- Schedule send UI (mock for now, real via edge function later)
+- `survey-respond` edge function for anonymous submissions (no JWT)
+
+### Phase 5: Data & Analysis + DataMind Integration
+- Reports dashboard with Recharts: bar charts, donut charts, stacked bars for Likert
+- Statistical calculations: mean, SD, confidence intervals
+- Raw data grid with question text / variable name toggle
+- Export engine: CSV, TSV, XLSX (using existing xlsx dependency)
+- **DataMind integration**: "Analyze in DataMind" button that creates a new DataMind conversation with survey responses auto-loaded as a CSV file in the `datamind-files` bucket, enabling immediate analysis
+
+### Phase 6: Respondent-Facing Form
+- Public page at `/survey/respond/:token` (no auth required)
+- Progress bar, one-block-at-a-time or all-at-once modes
+- Logic evaluation engine to show/hide questions dynamically
+- Mobile-responsive form design
+- Submission via `survey-respond` edge function
+
+---
+
+## DataMind Integration Detail
+
+The key differentiator: a single click from Survey Results exports all responses as a structured CSV into DataMind. The `survey-export-datamind` edge function:
+1. Queries `survey_answers` joined with `survey_questions` for headers
+2. Generates CSV with proper variable names
+3. Uploads to `datamind-files` bucket
+4. Creates a new `datamind_conversations` entry with an initial system message referencing the file
+5. Redirects user to `/datamind/:newConversationId`
+
+---
+
+## Design System
+
+Consistent with existing ScholarAI design: white backgrounds, `bg-muted/50` panels, primary blue accents, shadcn/ui components throughout. The builder uses `ResizablePanelGroup` for the 3-pane layout (already in the project). Question cards use the existing `Card` component with subtle borders.
 

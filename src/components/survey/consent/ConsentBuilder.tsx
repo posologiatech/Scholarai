@@ -9,16 +9,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Plus,
   Trash2,
   GripVertical,
   Video,
-  FileText,
   ShieldCheck,
   Save,
+  AlertTriangle,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface ConsentSection {
   id: string;
@@ -54,6 +62,9 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
   const [audioUrl, setAudioUrl] = useState("");
   const [requireSignature, setRequireSignature] = useState(true);
   const [consentId, setConsentId] = useState<string | null>(null);
+  const [currentVersion, setCurrentVersion] = useState(1);
+  const [showVersionWarning, setShowVersionWarning] = useState(false);
+  const [hasExistingSignatures, setHasExistingSignatures] = useState(false);
 
   const { data: existing, isLoading } = useQuery({
     queryKey: ["study-consent", surveyId],
@@ -68,6 +79,20 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
     enabled: !!surveyId,
   });
 
+  // Check if there are existing signatures for this consent
+  const { data: signatureCount = 0 } = useQuery({
+    queryKey: ["consent-signature-count", consentId],
+    queryFn: async () => {
+      if (!consentId) return 0;
+      const { count } = await supabase
+        .from("consent_signatures")
+        .select("*", { count: "exact", head: true })
+        .eq("consent_id", consentId);
+      return count || 0;
+    },
+    enabled: !!consentId,
+  });
+
   useEffect(() => {
     if (existing) {
       setConsentId(existing.id);
@@ -76,44 +101,84 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
       setVideoUrl(existing.video_url || "");
       setAudioUrl(existing.audio_url || "");
       setRequireSignature(existing.require_signature);
+      setCurrentVersion((existing as any).version || 1);
     }
   }, [existing]);
 
+  useEffect(() => {
+    setHasExistingSignatures(signatureCount > 0);
+  }, [signatureCount]);
+
+  const doSave = async (bumpVersion: boolean) => {
+    const newVersion = bumpVersion ? currentVersion + 1 : currentVersion;
+
+    const payload: any = {
+      survey_id: surveyId,
+      user_id: user!.id,
+      title,
+      sections: sections as any,
+      video_url: videoUrl || null,
+      audio_url: audioUrl || null,
+      require_signature: requireSignature,
+      updated_at: new Date().toISOString(),
+      version: newVersion,
+    };
+
+    if (consentId) {
+      const { error } = await supabase
+        .from("study_consents")
+        .update(payload)
+        .eq("id", consentId);
+      if (error) throw error;
+    } else {
+      const { data, error } = await supabase
+        .from("study_consents")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (error) throw error;
+      setConsentId(data.id);
+    }
+
+    setCurrentVersion(newVersion);
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
-        survey_id: surveyId,
-        user_id: user!.id,
-        title,
-        sections: sections as any,
-        video_url: videoUrl || null,
-        audio_url: audioUrl || null,
-        require_signature: requireSignature,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (consentId) {
-        const { error } = await supabase
-          .from("study_consents")
-          .update(payload)
-          .eq("id", consentId);
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase
-          .from("study_consents")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (error) throw error;
-        setConsentId(data.id);
+      // If there are existing signatures, warn about versioning
+      if (hasExistingSignatures && consentId) {
+        setShowVersionWarning(true);
+        return;
       }
+      await doSave(false);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["study-consent", surveyId] });
-      toast.success(locale === "pt" ? "TCLE salvo!" : "Consent saved!");
+      if (!showVersionWarning) {
+        queryClient.invalidateQueries({ queryKey: ["study-consent", surveyId] });
+        toast.success(locale === "pt" ? "TCLE salvo!" : "Consent saved!");
+      }
     },
     onError: () => toast.error(locale === "pt" ? "Erro ao salvar" : "Save failed"),
   });
+
+  const handleVersionedSave = async (bump: boolean) => {
+    setShowVersionWarning(false);
+    try {
+      await doSave(bump);
+      queryClient.invalidateQueries({ queryKey: ["study-consent", surveyId] });
+      toast.success(
+        locale === "pt"
+          ? bump
+            ? `TCLE salvo como versão ${currentVersion + 1}!`
+            : "TCLE salvo (mesma versão)!"
+          : bump
+            ? `Consent saved as version ${currentVersion + 1}!`
+            : "Consent saved (same version)!"
+      );
+    } catch {
+      toast.error(locale === "pt" ? "Erro ao salvar" : "Save failed");
+    }
+  };
 
   const addSection = useCallback(() => {
     setSections((prev) => [
@@ -148,12 +213,27 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
             <h2 className="text-lg font-semibold">
               {locale === "pt" ? "Termo de Consentimento Livre e Esclarecido" : "Informed Consent Form"}
             </h2>
+            <Badge variant="outline" className="ml-2 text-xs">
+              v{currentVersion}
+            </Badge>
           </div>
           <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
             <Save className="h-4 w-4 mr-1" />
             {locale === "pt" ? "Salvar TCLE" : "Save Consent"}
           </Button>
         </div>
+
+        {/* Signature count info */}
+        {hasExistingSignatures && (
+          <div className="flex items-center gap-2 p-3 border rounded-lg bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200 text-sm">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>
+              {locale === "pt"
+                ? `${signatureCount} participante(s) já assinaram a versão ${currentVersion}. Alterações criarão uma nova versão.`
+                : `${signatureCount} participant(s) already signed version ${currentVersion}. Changes will create a new version.`}
+            </span>
+          </div>
+        )}
 
         {/* Title */}
         <div className="space-y-2">
@@ -269,6 +349,31 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
           ))}
         </div>
       </div>
+
+      {/* Version warning dialog */}
+      <Dialog open={showVersionWarning} onOpenChange={setShowVersionWarning}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              {locale === "pt" ? "Versionamento do TCLE" : "Consent Versioning"}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {locale === "pt"
+              ? `Existem ${signatureCount} assinatura(s) na versão ${currentVersion}. Conforme exigência do CEP, alterações no TCLE após assinaturas devem gerar uma nova versão. Deseja criar a versão ${currentVersion + 1}?`
+              : `There are ${signatureCount} signature(s) on version ${currentVersion}. Per ethics requirements, changes after signatures must create a new version. Create version ${currentVersion + 1}?`}
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => handleVersionedSave(false)}>
+              {locale === "pt" ? "Salvar sem versionar" : "Save without versioning"}
+            </Button>
+            <Button onClick={() => handleVersionedSave(true)}>
+              {locale === "pt" ? `Criar v${currentVersion + 1}` : `Create v${currentVersion + 1}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

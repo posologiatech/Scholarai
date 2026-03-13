@@ -13,11 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Plus, Search, Users, UserCircle, FileText } from "lucide-react";
+import { Plus, Search, Users, UserCircle, FileText, ShieldOff, AlertTriangle } from "lucide-react";
 import ParticipantDetail from "./ParticipantDetail";
 
 interface Participant {
@@ -40,6 +41,7 @@ const statusColors: Record<string, string> = {
   completed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   withdrawn: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   screening: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  anonymized: "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400",
 };
 
 const ParticipantList = ({ surveyId }: ParticipantListProps) => {
@@ -51,6 +53,7 @@ const ParticipantList = ({ surveyId }: ParticipantListProps) => {
   const [newCode, setNewCode] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [anonymizeTarget, setAnonymizeTarget] = useState<Participant | null>(null);
 
   const { data: participants = [], isLoading } = useQuery({
     queryKey: ["study-participants", surveyId],
@@ -84,6 +87,50 @@ const ParticipantList = ({ surveyId }: ParticipantListProps) => {
       toast.success(locale === "pt" ? "Participante adicionado!" : "Participant added!");
     },
     onError: () => toast.error(locale === "pt" ? "Erro ao adicionar" : "Failed to add"),
+  });
+
+  const anonymizeMutation = useMutation({
+    mutationFn: async (participant: Participant) => {
+      // Anonymize consent signature data
+      if (participant.consent_signature_id) {
+        await supabase
+          .from("consent_signatures")
+          .update({
+            respondent_name: "[DADOS REMOVIDOS]",
+            respondent_email: null,
+            signature_data: null,
+            ip_address: "[REMOVIDO]",
+          })
+          .eq("id", participant.consent_signature_id);
+      }
+
+      // Update participant status
+      await supabase
+        .from("study_participants")
+        .update({
+          status: "anonymized",
+          metadata: { anonymized_at: new Date().toISOString(), notes: "[DADOS REMOVIDOS]" },
+        })
+        .eq("id", participant.id);
+
+      // Audit log
+      await supabase.from("study_audit_log").insert({
+        survey_id: surveyId,
+        participant_id: participant.id,
+        action: "data_deleted",
+        actor_id: user!.id,
+        details: {
+          participant_code: participant.participant_code,
+          reason: "LGPD Art. 18 - Solicitação de exclusão de dados",
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["study-participants", surveyId] });
+      setAnonymizeTarget(null);
+      toast.success(locale === "pt" ? "Dados anonimizados com sucesso!" : "Data anonymized successfully!");
+    },
+    onError: () => toast.error(locale === "pt" ? "Erro ao anonimizar" : "Anonymization failed"),
   });
 
   const filtered = participants.filter((p) =>
@@ -196,6 +243,9 @@ const ParticipantList = ({ surveyId }: ParticipantListProps) => {
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">
                     {locale === "pt" ? "Cadastro" : "Registered"}
                   </th>
+                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                    {locale === "pt" ? "Ações" : "Actions"}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -226,6 +276,24 @@ const ParticipantList = ({ surveyId }: ParticipantListProps) => {
                     <td className="px-4 py-3 text-muted-foreground">
                       {new Date(p.created_at).toLocaleDateString()}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      {p.status !== "anonymized" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive h-7 px-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAnonymizeTarget(p);
+                          }}
+                        >
+                          <ShieldOff className="h-3.5 w-3.5 mr-1" />
+                          <span className="text-xs">
+                            {locale === "pt" ? "Anonimizar" : "Anonymize"}
+                          </span>
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -233,6 +301,42 @@ const ParticipantList = ({ surveyId }: ParticipantListProps) => {
           </div>
         )}
       </div>
+
+      {/* Anonymization confirmation dialog */}
+      <Dialog open={!!anonymizeTarget} onOpenChange={() => setAnonymizeTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              {locale === "pt" ? "Anonimizar Dados (LGPD Art. 18)" : "Anonymize Data (LGPD Art. 18)"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              {locale === "pt"
+                ? `Esta ação irá remover permanentemente os dados pessoais do participante ${anonymizeTarget?.participant_code} (nome, e-mail, assinatura, IP). Os dados estatísticos anônimos serão mantidos.`
+                : `This will permanently remove personal data for participant ${anonymizeTarget?.participant_code} (name, email, signature, IP). Anonymous statistical data will be preserved.`}
+            </p>
+            <p className="font-medium text-destructive">
+              {locale === "pt"
+                ? "Esta ação é irreversível."
+                : "This action is irreversible."}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAnonymizeTarget(null)}>
+              {locale === "pt" ? "Cancelar" : "Cancel"}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => anonymizeTarget && anonymizeMutation.mutate(anonymizeTarget)}
+              disabled={anonymizeMutation.isPending}
+            >
+              {locale === "pt" ? "Confirmar Anonimização" : "Confirm Anonymization"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

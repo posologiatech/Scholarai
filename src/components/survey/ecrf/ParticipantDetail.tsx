@@ -1,15 +1,18 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Calendar, FileText, UserCircle, BrainCircuit, Loader2, Download } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ArrowLeft, Calendar, FileText, UserCircle, BrainCircuit, Loader2, Download, ShieldOff, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import DocumentUpload from "./DocumentUpload";
 
 interface ParticipantDetailProps {
@@ -27,9 +30,68 @@ interface ParticipantDetailProps {
 
 const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailProps) => {
   const { locale } = useLanguage();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [synthesisOpen, setSynthesisOpen] = useState(false);
   const [synthesis, setSynthesis] = useState("");
   const [synthesisLoading, setSynthesisLoading] = useState(false);
+  const [revokeOpen, setRevokeOpen] = useState(false);
+  const [revokeReason, setRevokeReason] = useState("");
+
+  // Get consent signature details (including revocation status)
+  const { data: consentSig } = useQuery({
+    queryKey: ["consent-signature-detail", participant.consent_signature_id],
+    queryFn: async () => {
+      if (!participant.consent_signature_id) return null;
+      const { data } = await supabase
+        .from("consent_signatures")
+        .select("*")
+        .eq("id", participant.consent_signature_id)
+        .single();
+      return data;
+    },
+    enabled: !!participant.consent_signature_id,
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: async () => {
+      if (!participant.consent_signature_id) throw new Error("No consent to revoke");
+
+      // Mark consent as revoked
+      await supabase
+        .from("consent_signatures")
+        .update({
+          revoked_at: new Date().toISOString(),
+          revocation_reason: revokeReason || "Solicitação do participante",
+        })
+        .eq("id", participant.consent_signature_id);
+
+      // Update participant status
+      await supabase
+        .from("study_participants")
+        .update({ status: "withdrawn" })
+        .eq("id", participant.id);
+
+      // Audit log
+      await supabase.from("study_audit_log").insert({
+        survey_id: surveyId,
+        participant_id: participant.id,
+        action: "consent_revoked",
+        actor_id: user!.id,
+        details: {
+          participant_code: participant.participant_code,
+          reason: revokeReason || "Solicitação do participante",
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["study-participants", surveyId] });
+      queryClient.invalidateQueries({ queryKey: ["consent-signature-detail"] });
+      setRevokeOpen(false);
+      toast.success(locale === "pt" ? "Consentimento revogado" : "Consent revoked");
+    },
+    onError: () => toast.error(locale === "pt" ? "Erro ao revogar" : "Revocation failed"),
+  });
 
   const handleGenerateSynthesis = async () => {
     setSynthesisLoading(true);
@@ -98,6 +160,9 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
     },
   });
 
+  const isRevoked = !!(consentSig as any)?.revoked_at;
+  const isAnonymized = participant.status === "anonymized";
+
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -119,6 +184,29 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
           </Badge>
         </div>
 
+        {/* Revocation/Anonymization banners */}
+        {isRevoked && (
+          <div className="flex items-center gap-2 p-3 border rounded-lg bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-200 text-sm">
+            <ShieldOff className="h-4 w-4 shrink-0" />
+            <span>
+              {locale === "pt"
+                ? `Consentimento revogado em ${new Date((consentSig as any).revoked_at).toLocaleString("pt-BR")}. Motivo: ${(consentSig as any).revocation_reason || "Não informado"}`
+                : `Consent revoked on ${new Date((consentSig as any).revoked_at).toLocaleString("en-US")}. Reason: ${(consentSig as any).revocation_reason || "Not specified"}`}
+            </span>
+          </div>
+        )}
+
+        {isAnonymized && (
+          <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted text-muted-foreground text-sm">
+            <ShieldOff className="h-4 w-4 shrink-0" />
+            <span>
+              {locale === "pt"
+                ? "Dados pessoais removidos conforme LGPD Art. 18"
+                : "Personal data removed per LGPD Art. 18"}
+            </span>
+          </div>
+        )}
+
         {/* Info cards */}
         <div className="grid grid-cols-3 gap-4">
           <Card>
@@ -126,10 +214,15 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
               <FileText className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
               <p className="text-xs text-muted-foreground">TCLE</p>
               <p className="text-sm font-medium mt-1">
-                {participant.consent_signature_id
-                  ? locale === "pt" ? "✓ Assinado" : "✓ Signed"
-                  : locale === "pt" ? "Pendente" : "Pending"}
+                {isRevoked
+                  ? locale === "pt" ? "✗ Revogado" : "✗ Revoked"
+                  : participant.consent_signature_id
+                    ? locale === "pt" ? "✓ Assinado" : "✓ Signed"
+                    : locale === "pt" ? "Pendente" : "Pending"}
               </p>
+              {(consentSig as any)?.consent_version && (
+                <p className="text-xs text-muted-foreground mt-0.5">v{(consentSig as any).consent_version}</p>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -151,6 +244,28 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
             </CardContent>
           </Card>
         </div>
+
+        {/* Revoke consent button */}
+        {participant.consent_signature_id && !isRevoked && !isAnonymized && (
+          <Card>
+            <CardContent className="pt-6 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">
+                  {locale === "pt" ? "Revogação de Consentimento" : "Consent Revocation"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {locale === "pt"
+                    ? "LGPD Art. 8° §5° / CEP Res. 466/2012 — O participante pode se retirar a qualquer momento"
+                    : "LGPD Art. 8 §5 / IRB Res. 466/2012 — Participant may withdraw at any time"}
+                </p>
+              </div>
+              <Button variant="outline" className="text-destructive border-destructive/30" onClick={() => setRevokeOpen(true)}>
+                <ShieldOff className="h-4 w-4 mr-1" />
+                {locale === "pt" ? "Revogar" : "Revoke"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Visits tabs */}
         {visits.length > 0 ? (
@@ -205,7 +320,7 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
         )}
 
         {/* Notes */}
-        {participant.metadata?.notes && (
+        {participant.metadata?.notes && participant.metadata.notes !== "[DADOS REMOVIDOS]" && (
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">
@@ -221,24 +336,26 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
         )}
 
         {/* AI Clinical Synthesis */}
-        <Card>
-          <CardContent className="pt-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">
-                {locale === "pt" ? "Síntese Clínica com IA" : "AI Clinical Synthesis"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {locale === "pt"
-                  ? "Gera um rascunho de evolução clínica a partir dos dados coletados"
-                  : "Generates a clinical evolution draft from collected data"}
-              </p>
-            </div>
-            <Button onClick={handleGenerateSynthesis} disabled={synthesisLoading} className="gap-1.5">
-              {synthesisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BrainCircuit className="h-4 w-4" />}
-              {locale === "pt" ? "Gerar Síntese" : "Generate Synthesis"}
-            </Button>
-          </CardContent>
-        </Card>
+        {!isAnonymized && (
+          <Card>
+            <CardContent className="pt-6 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">
+                  {locale === "pt" ? "Síntese Clínica com IA" : "AI Clinical Synthesis"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {locale === "pt"
+                    ? "Gera um rascunho de evolução clínica a partir dos dados coletados"
+                    : "Generates a clinical evolution draft from collected data"}
+                </p>
+              </div>
+              <Button onClick={handleGenerateSynthesis} disabled={synthesisLoading} className="gap-1.5">
+                {synthesisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BrainCircuit className="h-4 w-4" />}
+                {locale === "pt" ? "Gerar Síntese" : "Generate Synthesis"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Synthesis Dialog */}
         <Dialog open={synthesisOpen} onOpenChange={setSynthesisOpen}>
@@ -271,6 +388,41 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Revoke consent dialog */}
+        <Dialog open={revokeOpen} onOpenChange={setRevokeOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                {locale === "pt" ? "Revogar Consentimento" : "Revoke Consent"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {locale === "pt"
+                  ? "A revogação marcará o participante como 'withdrawn' e registrará na trilha de auditoria. Os dados coletados serão mantidos para fins estatísticos, mas o participante não poderá mais participar."
+                  : "Revocation will mark the participant as 'withdrawn' and log it in the audit trail. Collected data will be kept for statistical purposes, but the participant can no longer participate."}
+              </p>
+              <div className="space-y-2">
+                <Label>{locale === "pt" ? "Motivo (opcional)" : "Reason (optional)"}</Label>
+                <Input
+                  value={revokeReason}
+                  onChange={(e) => setRevokeReason(e.target.value)}
+                  placeholder={locale === "pt" ? "Solicitação do participante" : "Participant request"}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRevokeOpen(false)}>
+                {locale === "pt" ? "Cancelar" : "Cancel"}
+              </Button>
+              <Button variant="destructive" onClick={() => revokeMutation.mutate()} disabled={revokeMutation.isPending}>
+                {locale === "pt" ? "Confirmar Revogação" : "Confirm Revocation"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
