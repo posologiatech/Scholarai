@@ -95,3 +95,6 @@ verify_jwt = false
 
 [functions.clinical-synthesis]
 verify_jwt = false
+
+[functions.consent-sign]
+verify_jwt = false

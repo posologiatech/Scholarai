@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, ChevronRight, ShieldCheck } from "lucide-react";
 import SignatureCanvas from "./SignatureCanvas";
-import jsPDF from "jspdf";
 
 interface ConsentSection {
   id: string;
@@ -46,7 +45,7 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
   const [completed, setCompleted] = useState(false);
 
   const sections = consent.sections || [];
-  const totalSteps = sections.length + 1; // sections + signature step
+  const totalSteps = sections.length + 1;
   const isOnSignatureStep = currentStep >= sections.length;
   const progress = ((currentStep + 1) / totalSteps) * 100;
 
@@ -65,51 +64,6 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
   const handleSubmitConsent = async () => {
     setSubmitting(true);
     try {
-      // Generate PDF
-      const pdf = new jsPDF();
-      pdf.setFontSize(16);
-      pdf.text(consent.title, 20, 20);
-      pdf.setFontSize(10);
-      pdf.text(`Data: ${new Date().toLocaleString("pt-BR")}`, 20, 30);
-      pdf.text(`Participante: ${name}`, 20, 37);
-      if (email) pdf.text(`Email: ${email}`, 20, 44);
-
-      let yPos = 55;
-      sections.forEach((section, idx) => {
-        if (yPos > 260) { pdf.addPage(); yPos = 20; }
-        pdf.setFontSize(12);
-        pdf.text(`${idx + 1}. ${section.title}`, 20, yPos);
-        yPos += 7;
-        pdf.setFontSize(9);
-        const lines = pdf.splitTextToSize(section.content_html, 170);
-        pdf.text(lines, 20, yPos);
-        yPos += lines.length * 5 + 5;
-        pdf.setFontSize(8);
-        pdf.text("✓ Li e compreendi esta seção", 25, yPos);
-        yPos += 10;
-      });
-
-      // Add signature image
-      if (signatureData) {
-        if (yPos > 220) { pdf.addPage(); yPos = 20; }
-        pdf.text("Assinatura:", 20, yPos);
-        yPos += 5;
-        pdf.addImage(signatureData, "PNG", 20, yPos, 80, 30);
-        yPos += 35;
-      }
-
-      pdf.setFontSize(8);
-      pdf.text(`Timestamp: ${new Date().toISOString()}`, 20, yPos);
-
-      const pdfBlob = pdf.output("blob");
-      const pdfFileName = `consent_${consent.id}_${Date.now()}.pdf`;
-
-      // Upload PDF to storage
-      const { error: uploadError } = await supabase.storage
-        .from("consents")
-        .upload(pdfFileName, pdfBlob, { contentType: "application/pdf" });
-
-      // Save signature record
       const sectionConfirmations = Object.entries(confirmations)
         .filter(([, v]) => v)
         .map(([sectionId]) => ({
@@ -117,24 +71,32 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
           confirmed_at: new Date().toISOString(),
         }));
 
-      const { data: sig, error: sigError } = await supabase
-        .from("consent_signatures")
-        .insert({
-          consent_id: consent.id,
-          respondent_name: name,
-          respondent_email: email || null,
-          signature_data: signatureData,
-          user_agent: navigator.userAgent,
-          section_confirmations: sectionConfirmations as any,
-          pdf_path: uploadError ? null : pdfFileName,
-        })
-        .select("id")
-        .single();
+      // Call edge function for server-side IP capture, PDF generation, and email
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/consent-sign`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
+            consentId: consent.id,
+            respondentName: name,
+            respondentEmail: email || null,
+            signatureData,
+            sectionConfirmations,
+            consentTitle: consent.title,
+            sections: sections.map((s) => ({ title: s.title, content_html: s.content_html })),
+          }),
+        }
+      );
 
-      if (sigError) throw sigError;
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to sign consent");
 
       setCompleted(true);
-      onConsentComplete(sig.id);
+      onConsentComplete(result.signatureId);
     } catch (err: any) {
       toast.error(err.message || "Erro ao registrar consentimento");
     } finally {
@@ -145,14 +107,18 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
   if (completed) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12 text-center space-y-4">
-        <CheckCircle2 className="h-16 w-16 text-[hsl(var(--success))] mx-auto" />
+        <CheckCircle2 className="h-16 w-16 text-emerald-500 mx-auto" />
         <h2 className="text-xl font-semibold">
           {locale === "pt" ? "Consentimento Registrado!" : "Consent Recorded!"}
         </h2>
         <p className="text-sm text-muted-foreground">
           {locale === "pt"
-            ? "Aguarde, você será redirecionado ao questionário..."
-            : "Please wait, you will be redirected to the questionnaire..."}
+            ? email
+              ? "Uma cópia do TCLE foi enviada ao seu e-mail. Aguarde, você será redirecionado ao questionário..."
+              : "Aguarde, você será redirecionado ao questionário..."
+            : email
+              ? "A copy of the consent was sent to your email. Please wait, redirecting..."
+              : "Please wait, you will be redirected to the questionnaire..."}
         </p>
       </div>
     );
@@ -244,8 +210,13 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
                 <Input value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>{locale === "pt" ? "E-mail (para receber cópia)" : "Email (to receive copy)"}</Label>
+                <Label>{locale === "pt" ? "E-mail (para receber cópia do TCLE)" : "Email (to receive consent copy)"}</Label>
                 <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <p className="text-xs text-muted-foreground">
+                  {locale === "pt"
+                    ? "Conforme Resolução 466/2012, você receberá uma cópia deste termo por e-mail."
+                    : "Per regulation, you will receive a copy of this consent via email."}
+                </p>
               </div>
 
               {consent.require_signature && (
@@ -254,6 +225,23 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
                   <SignatureCanvas onSignatureChange={setSignatureData} />
                 </div>
               )}
+
+              {/* Legal basis notice */}
+              <div className="p-3 border rounded-lg bg-muted/30 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">
+                  {locale === "pt" ? "Base Legal e Direitos" : "Legal Basis & Rights"}
+                </p>
+                <p>
+                  {locale === "pt"
+                    ? "O tratamento dos seus dados é fundamentado no Art. 7°, inciso IV da LGPD (Lei 13.709/2018) — pesquisa científica com consentimento informado."
+                    : "Data processing is based on LGPD Art. 7, IV — scientific research with informed consent."}
+                </p>
+                <p>
+                  {locale === "pt"
+                    ? "Você pode revogar este consentimento a qualquer momento, conforme Art. 8° §5° da LGPD e Resolução CNS 466/2012, sem qualquer prejuízo."
+                    : "You may revoke this consent at any time per LGPD Art. 8 §5 and Resolution CNS 466/2012, without any penalty."}
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
