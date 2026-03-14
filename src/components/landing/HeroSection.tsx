@@ -93,8 +93,8 @@ const HeroSection = () => {
               className="mb-8 max-w-lg text-base leading-relaxed text-muted-foreground md:text-lg"
             >
               {pt
-                ? "Busca semântica multi-fonte, revisão sistemática com Active Learning, avaliação de qualidade metodológica e relatórios PRISMA — tudo em uma plataforma."
-                : "Multi-source semantic search, systematic review with Active Learning, methodological quality assessment, and PRISMA reports — all in one platform."}
+                ? "Busca semântica, revisão sistemática com Active Learning, pesquisas acadêmicas, TCLE digital com conformidade CEP/LGPD e pesquisa clínica — tudo em uma plataforma."
+                : "Semantic search, systematic review with Active Learning, academic surveys, digital consent with CEP/LGPD compliance, and clinical research — all in one platform."}
             </motion.p>
 
             {/* Feature pills */}
@@ -105,8 +105,8 @@ const HeroSection = () => {
               className="mb-8 flex flex-wrap gap-2"
             >
               {(pt
-                ? ["Busca Booleana", "Active Learning", "PRISMA 2020", "Importação RIS/BibTeX", "Avaliação de Qualidade", "DataMind"]
-                : ["Boolean Search", "Active Learning", "PRISMA 2020", "RIS/BibTeX Import", "Quality Assessment", "DataMind"]
+                ? ["Busca Booleana", "Active Learning", "PRISMA 2020", "Surveys", "TCLE Digital", "CEP/LGPD", "eCRF Clínico", "DataMind"]
+                : ["Boolean Search", "Active Learning", "PRISMA 2020", "Surveys", "Digital Consent", "CEP/LGPD", "Clinical eCRF", "DataMind"]
               ).map((pill) => (
                 <span
                   key={pill}

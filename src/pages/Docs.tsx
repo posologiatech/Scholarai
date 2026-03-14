@@ -8,7 +8,8 @@ import {
   ArrowRight, Layers, Settings, Users, Upload, BrainCircuit, GitBranch,
   Database, PenTool, Filter, Network, AlertTriangle, BookMarked, FlaskConical,
   MessageSquare, Share2, LayoutDashboard, Workflow, ClipboardCheck, FileSearch,
-  ClipboardList, QrCode, GripVertical, Wand2,
+  ClipboardList, QrCode, GripVertical, Wand2, Shield, FileSignature, UserX,
+  Stethoscope,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -507,6 +508,116 @@ const Docs = () => {
       ],
     },
     {
+      id: "consent-tcle",
+      icon: FileSignature,
+      title: pt ? "TCLE / Consentimento" : "Informed Consent (TCLE)",
+      category: pt ? "Pesquisa Clínica" : "Clinical Research",
+      content: [
+        {
+          heading: pt ? "Consentimento digital etapizado" : "Step-by-step digital consent",
+          body: pt
+            ? "O módulo de TCLE (Termo de Consentimento Livre e Esclarecido) apresenta as seções do consentimento de forma etapizada, exigindo que o participante confirme 'Li e compreendi' para cada seção antes de prosseguir. Suporta mídia embutida (vídeo e áudio) para consentimentos acessíveis. Ao final, o participante assina digitalmente via canvas (toque/mouse)."
+            : "The TCLE (Informed Consent) module presents consent sections step-by-step, requiring the participant to confirm 'I have read and understood' for each section before proceeding. Supports embedded media (video and audio) for accessible consents. At the end, the participant signs digitally via canvas (touch/mouse).",
+        },
+        {
+          heading: pt ? "Assinatura com captura de IP server-side" : "Signature with server-side IP capture",
+          body: pt
+            ? "A assinatura é processada por uma Edge Function (consent-sign) que captura o IP real do participante via headers do servidor, gera um hash SHA-256 de integridade (nome + timestamp + IP), salva o registro com todos os metadados (IP, user agent, timestamp) e envia automaticamente uma cópia por e-mail ao participante — atendendo à Resolução CNS 466/2012."
+            : "The signature is processed by an Edge Function (consent-sign) that captures the participant's real IP via server headers, generates a SHA-256 integrity hash (name + timestamp + IP), saves the record with all metadata (IP, user agent, timestamp), and automatically sends a copy by email to the participant — complying with CNS Resolution 466/2012.",
+          tip: pt
+            ? "O participante recebe automaticamente uma cópia do TCLE por e-mail com todos os dados da assinatura, conforme exigido pelo CEP."
+            : "The participant automatically receives a copy of the consent form by email with all signature data, as required by the ethics committee.",
+        },
+        {
+          heading: pt ? "Versionamento de termos" : "Terms versioning",
+          body: pt
+            ? "Ao editar um TCLE que já possui assinaturas, o sistema detecta automaticamente e solicita a criação de uma nova versão (ex: v1 → v2). O campo consent_version na tabela consent_signatures registra qual versão cada participante assinou. Versões anteriores são preservadas e auditáveis."
+            : "When editing a consent form that already has signatures, the system automatically detects this and prompts for a new version (e.g., v1 → v2). The consent_version field in the consent_signatures table records which version each participant signed. Previous versions are preserved and auditable.",
+        },
+        {
+          heading: pt ? "Revogação de consentimento" : "Consent revocation",
+          body: pt
+            ? "Participantes podem revogar seu consentimento a qualquer momento (LGPD Art. 8° §5°). O pesquisador registra a revogação com motivo no painel de detalhes do participante, que marca o status como 'withdrawn' e registra na trilha de auditoria. Após a revogação, o pesquisador pode anonimizar os dados pessoais do participante."
+            : "Participants can revoke their consent at any time (LGPD Art. 8° §5°). The researcher records the revocation with reason in the participant detail panel, which marks the status as 'withdrawn' and logs it in the audit trail. After revocation, the researcher can anonymize the participant's personal data.",
+        },
+      ],
+    },
+    {
+      id: "ecrf",
+      icon: Stethoscope,
+      title: pt ? "eCRF / Pesquisa Clínica" : "eCRF / Clinical Research",
+      category: pt ? "Pesquisa Clínica" : "Clinical Research",
+      content: [
+        {
+          heading: pt ? "Formulário eletrônico de relato de caso" : "Electronic case report form",
+          body: pt
+            ? "O eCRF permite coleta de dados longitudinal com visitas programadas (T0 Baseline, T1 Follow-up, T2...). Cada visita tem um rótulo e um intervalo-alvo em dias. Os participantes são gerenciados com códigos anônimos e metadados clínicos personalizáveis."
+            : "The eCRF enables longitudinal data collection with scheduled visits (T0 Baseline, T1 Follow-up, T2...). Each visit has a label and target day interval. Participants are managed with anonymous codes and customizable clinical metadata.",
+        },
+        {
+          heading: pt ? "Validação clínica em tempo real" : "Real-time clinical validation",
+          body: pt
+            ? "Templates de validação clínica verificam automaticamente ranges fisiológicos (ex: PA sistólica 60-250 mmHg, IMC 10-80 kg/m²) durante a digitação. Alertas visuais indicam valores fora do range esperado, permitindo correção imediata ou justificativa."
+            : "Clinical validation templates automatically check physiological ranges (e.g., systolic BP 60-250 mmHg, BMI 10-80 kg/m²) during data entry. Visual alerts indicate out-of-range values, allowing immediate correction or justification.",
+        },
+        {
+          heading: pt ? "Upload de documentos" : "Document upload",
+          body: pt
+            ? "Faça upload de documentos clínicos (PDFs, imagens, laudos) vinculados a participantes e visitas específicas. Os arquivos são armazenados de forma segura no bucket privado 'study-documents' com RLS."
+            : "Upload clinical documents (PDFs, images, reports) linked to specific participants and visits. Files are securely stored in the private 'study-documents' bucket with RLS.",
+        },
+      ],
+    },
+    {
+      id: "compliance",
+      icon: Shield,
+      title: pt ? "Conformidade CEP/LGPD" : "CEP/LGPD Compliance",
+      category: pt ? "Pesquisa Clínica" : "Clinical Research",
+      content: [
+        {
+          heading: pt ? "Trilha de auditoria (GCP/ICH)" : "Audit trail (GCP/ICH)",
+          body: pt
+            ? "Todas as ações relevantes são registradas na tabela study_audit_log: assinatura de consentimento, revogação, exportação de dados, modificações e exclusões. Cada registro inclui ator, timestamp, IP e detalhes da ação. A aba 'Auditoria' no painel de resultados permite visualizar e filtrar todos os eventos com ícones coloridos por tipo de ação."
+            : "All relevant actions are logged in the study_audit_log table: consent signature, revocation, data export, modifications, and deletions. Each record includes actor, timestamp, IP, and action details. The 'Audit' tab in the results panel lets you view and filter all events with color-coded icons by action type.",
+        },
+        {
+          heading: pt ? "Anonimização de dados (LGPD Art. 18)" : "Data anonymization (LGPD Art. 18)",
+          body: pt
+            ? "O botão 'Anonimizar' na lista de participantes permite remover irreversivelmente os dados pessoais (nome, e-mail, assinatura, IP) substituindo-os por '[DADOS REMOVIDOS]'. Os dados estatísticos e respostas anônimas são preservados para análise. Cada anonimização é registrada na trilha de auditoria."
+            : "The 'Anonymize' button in the participant list allows irreversible removal of personal data (name, email, signature, IP) by replacing them with '[DATA REMOVED]'. Statistical data and anonymous responses are preserved for analysis. Each anonymization is logged in the audit trail.",
+          tip: pt
+            ? "A anonimização é irreversível. Use apenas quando o participante solicitar exclusão de dados ou ao encerrar o estudo."
+            : "Anonymization is irreversible. Use only when the participant requests data deletion or when closing the study.",
+        },
+        {
+          heading: pt ? "Requisitos atendidos" : "Requirements met",
+          body: pt
+            ? "O sistema atende aos seguintes requisitos regulatórios: Resolução CNS 466/2012 (via do TCLE ao participante, consentimento informado), LGPD Art. 7° e 8° (base legal, revogação), LGPD Art. 16 e 18 (exclusão e anonimização de dados), GCP/ICH (trilha de auditoria completa), e boas práticas de pesquisa clínica (versionamento de documentos, validação de dados)."
+            : "The system meets the following regulatory requirements: CNS Resolution 466/2012 (consent copy to participant, informed consent), LGPD Art. 7 and 8 (legal basis, revocation), LGPD Art. 16 and 18 (data deletion and anonymization), GCP/ICH (complete audit trail), and clinical research best practices (document versioning, data validation).",
+        },
+      ],
+    },
+    {
+      id: "anonymization",
+      icon: UserX,
+      title: pt ? "Anonimização & Exclusão" : "Anonymization & Deletion",
+      category: pt ? "Pesquisa Clínica" : "Clinical Research",
+      content: [
+        {
+          heading: pt ? "Direito de exclusão de dados" : "Right to data deletion",
+          body: pt
+            ? "A LGPD garante ao titular o direito de solicitar a exclusão de seus dados pessoais. No ScholarAI, isso é implementado através da funcionalidade de anonimização que substitui nome, e-mail, assinatura digital e endereço IP por marcadores genéricos, preservando apenas os dados estatísticos não-identificáveis."
+            : "LGPD guarantees data subjects the right to request deletion of their personal data. In ScholarAI, this is implemented through the anonymization feature that replaces name, email, digital signature, and IP address with generic markers, preserving only non-identifiable statistical data.",
+        },
+        {
+          heading: pt ? "Processo de anonimização" : "Anonymization process",
+          body: pt
+            ? "1) Acesse a lista de participantes na aba eCRF; 2) Localize o participante e clique no ícone de anonimização; 3) Confirme a ação no diálogo (informando que é irreversível); 4) O sistema substitui os dados pessoais na tabela consent_signatures, registra o evento na trilha de auditoria e atualiza o status do participante. Os dados de respostas permanecem vinculados ao código anônimo do participante."
+            : "1) Go to the participant list in the eCRF tab; 2) Find the participant and click the anonymization icon; 3) Confirm the action in the dialog (noting it's irreversible); 4) The system replaces personal data in the consent_signatures table, logs the event in the audit trail, and updates the participant status. Response data remains linked to the participant's anonymous code.",
+        },
+      ],
+    },
+    {
       id: "export",
       icon: Download,
       title: pt ? "Exportação" : "Export",
@@ -567,8 +678,8 @@ const Docs = () => {
             </h1>
             <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
               {pt
-                ? "Guia completo de todas as funcionalidades do ScholarAI — busca, revisão sistemática, DataMind, pesquisas, colaboração e mais."
-                : "Complete guide to all ScholarAI features — search, systematic review, DataMind, surveys, collaboration and more."}
+                ? "Guia completo de todas as funcionalidades do ScholarAI — busca, revisão sistemática, DataMind, pesquisas, pesquisa clínica, conformidade CEP/LGPD e mais."
+                : "Complete guide to all ScholarAI features — search, systematic review, DataMind, surveys, clinical research, CEP/LGPD compliance and more."}
             </p>
 
             {/* Search */}
