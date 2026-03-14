@@ -107,6 +107,38 @@ const FeaturesSection = () => {
         : "Generate professional BioRender-style scientific diagrams with AI for your publications.",
       badge: null,
     },
+    {
+      icon: ClipboardList,
+      title: pt ? "Pesquisas Acadêmicas (Surveys)" : "Academic Surveys",
+      desc: pt
+        ? "Construtor de questionários com 6 tipos de questão, lógica condicional, distribuição via QR Code e análise integrada ao DataMind."
+        : "Survey builder with 6 question types, conditional logic, QR Code distribution, and DataMind-integrated analysis.",
+      badge: null,
+    },
+    {
+      icon: FileSignature,
+      title: pt ? "TCLE & Pesquisa Clínica" : "Consent & Clinical Research",
+      desc: pt
+        ? "Consentimento digital com assinatura, eCRF longitudinal com visitas (T0, T1...), validação clínica em tempo real e geração de PDF com hash de integridade."
+        : "Digital consent with signature, longitudinal eCRF with visits (T0, T1...), real-time clinical validation, and PDF generation with integrity hash.",
+      badge: "NEW",
+    },
+    {
+      icon: Shield,
+      title: pt ? "Conformidade CEP/LGPD" : "CEP/LGPD Compliance",
+      desc: pt
+        ? "Trilha de auditoria GCP/ICH, captura de IP server-side, versionamento de TCLE, revogação de consentimento e envio automático de cópia ao participante."
+        : "GCP/ICH audit trail, server-side IP capture, consent versioning, consent revocation, and automatic copy delivery to participants.",
+      badge: "NEW",
+    },
+    {
+      icon: UserX,
+      title: pt ? "Anonimização de Dados" : "Data Anonymization",
+      desc: pt
+        ? "Exclusão de dados pessoais (LGPD Art. 18) com preservação de dados estatísticos anônimos e registro completo na trilha de auditoria."
+        : "Personal data deletion (LGPD Art. 18) with anonymous statistical data preservation and full audit trail logging.",
+      badge: "NEW",
+    },
   ];
 
   return (
