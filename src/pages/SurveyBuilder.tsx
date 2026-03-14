@@ -191,6 +191,10 @@ const SurveyBuilder = () => {
               <Users className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Participantes" : "Participants"}
             </TabsTrigger>
+            <TabsTrigger value="compliance" className="text-xs" onClick={() => navigate(`/surveys/${id}/compliance`)}>
+              <FileText className="h-3 w-3 mr-1" />
+              {locale === "pt" ? "Conformidade" : "Compliance"}
+            </TabsTrigger>
             <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
               <GitBranch className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Fluxo" : "Flow"}
