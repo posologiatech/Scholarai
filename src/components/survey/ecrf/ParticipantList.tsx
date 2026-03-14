@@ -233,6 +233,25 @@ const ParticipantList = ({ surveyId }: ParticipantListProps) => {
           </Dialog>
         </div>
 
+        {/* Re-consent alert (Art. 4.3-9 CONEP) */}
+        {outdatedSignatures.length > 0 && (
+          <div className="flex items-start gap-3 p-4 border rounded-lg bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200 text-sm">
+            <RefreshCw className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-medium">
+                {locale === "pt"
+                  ? `${outdatedSignatures.length} participante(s) assinaram uma versão anterior do TCLE (v${((currentConsent as any)?.version || 1) - 1}). A versão atual é v${(currentConsent as any)?.version || 1}.`
+                  : `${outdatedSignatures.length} participant(s) signed an older consent version (v${((currentConsent as any)?.version || 1) - 1}). Current version is v${(currentConsent as any)?.version || 1}.`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {locale === "pt"
+                  ? "Conforme Art. 4.3-9 do Ofício Circular CONEP nº 23/2022, quando há alterações no TCLE, os participantes devem ser notificados e re-consentir na nova versão."
+                  : "Per Art. 4.3-9 CONEP Circular, when the consent is updated, participants must be notified and re-consent to the new version."}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Search */}
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
