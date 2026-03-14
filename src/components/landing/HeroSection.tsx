@@ -105,8 +105,8 @@ const HeroSection = () => {
               className="mb-8 flex flex-wrap gap-2"
             >
               {(pt
-                ? ["Busca Booleana", "Active Learning", "PRISMA 2020", "Importação RIS/BibTeX", "Avaliação de Qualidade", "DataMind"]
-                : ["Boolean Search", "Active Learning", "PRISMA 2020", "RIS/BibTeX Import", "Quality Assessment", "DataMind"]
+                ? ["Busca Booleana", "Active Learning", "PRISMA 2020", "Surveys", "TCLE Digital", "CEP/LGPD", "eCRF Clínico", "DataMind"]
+                : ["Boolean Search", "Active Learning", "PRISMA 2020", "Surveys", "Digital Consent", "CEP/LGPD", "Clinical eCRF", "DataMind"]
               ).map((pill) => (
                 <span
                   key={pill}

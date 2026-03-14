@@ -18,6 +18,11 @@ const ComparisonSection = () => {
     { name: pt ? "Análise de dados (Python/R)" : "Data analysis (Python/R)", scholar: true, elicit: false, covidence: false, rayyan: false },
     { name: pt ? "Grafo de conhecimento" : "Knowledge graph", scholar: true, elicit: false, covidence: false, rayyan: false },
     { name: pt ? "Gratuito para pesquisadores" : "Free for researchers", scholar: true, elicit: "partial" as any, covidence: false, rayyan: true },
+    { name: pt ? "Surveys acadêmicos integrados" : "Integrated academic surveys", scholar: true, elicit: false, covidence: false, rayyan: false },
+    { name: pt ? "TCLE digital com assinatura" : "Digital consent with signature", scholar: true, elicit: false, covidence: false, rayyan: false },
+    { name: pt ? "Conformidade CEP/LGPD" : "CEP/LGPD compliance", scholar: true, elicit: false, covidence: false, rayyan: false },
+    { name: pt ? "eCRF clínico longitudinal" : "Longitudinal clinical eCRF", scholar: true, elicit: false, covidence: false, rayyan: false },
+    { name: pt ? "Trilha de auditoria (GCP/ICH)" : "Audit trail (GCP/ICH)", scholar: true, elicit: false, covidence: false, rayyan: false },
   ];
 
   const CellIcon = ({ val }: { val: boolean | "partial" }) => {
