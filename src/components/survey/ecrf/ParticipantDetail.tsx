@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Calendar, FileText, UserCircle, BrainCircuit, Loader2, Download, ShieldOff, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Calendar, FileText, UserCircle, BrainCircuit, Loader2, Download, ShieldOff, AlertTriangle, PenLine, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -37,8 +37,8 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
   const [synthesisLoading, setSynthesisLoading] = useState(false);
   const [revokeOpen, setRevokeOpen] = useState(false);
   const [revokeReason, setRevokeReason] = useState("");
+  const [cosignOpen, setCosignOpen] = useState(false);
 
-  // Get consent signature details (including revocation status)
   const { data: consentSig } = useQuery({
     queryKey: ["consent-signature-detail", participant.consent_signature_id],
     queryFn: async () => {
@@ -56,8 +56,6 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
   const revokeMutation = useMutation({
     mutationFn: async () => {
       if (!participant.consent_signature_id) throw new Error("No consent to revoke");
-
-      // Mark consent as revoked
       await supabase
         .from("consent_signatures")
         .update({
@@ -65,14 +63,10 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
           revocation_reason: revokeReason || "Solicitação do participante",
         })
         .eq("id", participant.consent_signature_id);
-
-      // Update participant status
       await supabase
         .from("study_participants")
         .update({ status: "withdrawn" })
         .eq("id", participant.id);
-
-      // Audit log
       await supabase.from("study_audit_log").insert({
         survey_id: surveyId,
         participant_id: participant.id,
@@ -93,6 +87,39 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
     onError: () => toast.error(locale === "pt" ? "Erro ao revogar" : "Revocation failed"),
   });
 
+  // Co-signature mutation (Art. 4.3-7 CONEP)
+  const cosignMutation = useMutation({
+    mutationFn: async () => {
+      if (!participant.consent_signature_id) throw new Error("No consent to co-sign");
+      const { error } = await supabase
+        .from("consent_signatures")
+        .update({
+          researcher_name: user?.email || "Pesquisador",
+          researcher_signed_at: new Date().toISOString(),
+          researcher_ip: "server-side",
+        } as any)
+        .eq("id", participant.consent_signature_id);
+      if (error) throw error;
+
+      await supabase.from("study_audit_log").insert({
+        survey_id: surveyId,
+        participant_id: participant.id,
+        action: "researcher_cosigned",
+        actor_id: user!.id,
+        details: {
+          participant_code: participant.participant_code,
+          researcher_email: user?.email,
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["consent-signature-detail"] });
+      setCosignOpen(false);
+      toast.success(locale === "pt" ? "Co-assinatura registrada!" : "Co-signature recorded!");
+    },
+    onError: () => toast.error(locale === "pt" ? "Erro ao co-assinar" : "Co-signature failed"),
+  });
+
   const handleGenerateSynthesis = async () => {
     setSynthesisLoading(true);
     setSynthesisOpen(true);
@@ -100,7 +127,6 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
-
       const { data, error } = await supabase.functions.invoke("clinical-synthesis", {
         body: { participantId: participant.id, surveyId },
       });
@@ -162,6 +188,7 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
 
   const isRevoked = !!(consentSig as any)?.revoked_at;
   const isAnonymized = participant.status === "anonymized";
+  const hasCosignature = !!(consentSig as any)?.researcher_signed_at;
 
   return (
     <div className="h-full overflow-auto">
@@ -184,9 +211,9 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
           </Badge>
         </div>
 
-        {/* Revocation/Anonymization banners */}
+        {/* Banners */}
         {isRevoked && (
-          <div className="flex items-center gap-2 p-3 border rounded-lg bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-200 text-sm">
+          <div className="flex items-center gap-2 p-3 border rounded-lg bg-destructive/10 text-destructive text-sm">
             <ShieldOff className="h-4 w-4 shrink-0" />
             <span>
               {locale === "pt"
@@ -227,6 +254,28 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
           </Card>
           <Card>
             <CardContent className="pt-4 text-center">
+              <PenLine className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+              <p className="text-xs text-muted-foreground">
+                {locale === "pt" ? "Co-assinatura" : "Co-signature"}
+              </p>
+              <p className="text-sm font-medium mt-1">
+                {hasCosignature ? (
+                  <Badge variant="default" className="text-[10px]">
+                    <CheckCircle2 className="h-3 w-3 mr-0.5" />
+                    {locale === "pt" ? "Assinado" : "Signed"}
+                  </Badge>
+                ) : participant.consent_signature_id && !isRevoked ? (
+                  <Badge variant="outline" className="text-[10px] text-amber-600">
+                    {locale === "pt" ? "Pendente" : "Pending"}
+                  </Badge>
+                ) : (
+                  "—"
+                )}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 text-center">
               <Calendar className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
               <p className="text-xs text-muted-foreground">
                 {locale === "pt" ? "Visitas" : "Visits"}
@@ -234,16 +283,41 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
               <p className="text-sm font-medium mt-1">{visits.length} {locale === "pt" ? "configuradas" : "configured"}</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-4 text-center">
-              <FileText className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-              <p className="text-xs text-muted-foreground">
-                {locale === "pt" ? "Documentos" : "Documents"}
-              </p>
-              <p className="text-sm font-medium mt-1">{documents.length}</p>
+        </div>
+
+        {/* Co-signature card (Art. 4.3-7 CONEP) */}
+        {participant.consent_signature_id && !isRevoked && !isAnonymized && !hasCosignature && (
+          <Card className="border-primary/20">
+            <CardContent className="pt-6 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">
+                  {locale === "pt" ? "Co-assinatura do Pesquisador" : "Researcher Co-signature"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {locale === "pt"
+                    ? "Conforme Art. 4.3-7 do Ofício Circular CONEP nº 23/2022, o TCLE eletrônico deve ser assinado pelo participante E pelo pesquisador."
+                    : "Per CONEP Circular Art. 4.3-7, electronic consent must be signed by both participant and researcher."}
+                </p>
+              </div>
+              <Button onClick={() => setCosignOpen(true)} className="shrink-0">
+                <PenLine className="h-4 w-4 mr-1" />
+                {locale === "pt" ? "Assinar como Pesquisador" : "Sign as Researcher"}
+              </Button>
             </CardContent>
           </Card>
-        </div>
+        )}
+
+        {/* Co-signed confirmation */}
+        {hasCosignature && (
+          <div className="flex items-center gap-2 p-3 border rounded-lg bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-200 text-sm">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span>
+              {locale === "pt"
+                ? `Documento co-assinado pelo pesquisador (${(consentSig as any).researcher_name}) em ${new Date((consentSig as any).researcher_signed_at).toLocaleString("pt-BR")}`
+                : `Document co-signed by researcher (${(consentSig as any).researcher_name}) on ${new Date((consentSig as any).researcher_signed_at).toLocaleString("en-US")}`}
+            </span>
+          </div>
+        )}
 
         {/* Revoke consent button */}
         {participant.consent_signature_id && !isRevoked && !isAnonymized && (
@@ -290,7 +364,6 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
                         {locale === "pt" ? "Dias após baseline:" : "Days after baseline:"} {visit.target_days}
                       </p>
                     )}
-
                     <DocumentUpload
                       participantId={participant.id}
                       visitId={visit.id}
@@ -309,7 +382,6 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
                   ? "Nenhuma visita configurada para este estudo. Configure as visitas na aba Visitas do builder."
                   : "No visits configured for this study. Configure visits in the builder's Visits tab."}
               </p>
-
               <DocumentUpload
                 participantId={participant.id}
                 visitId={null}
@@ -403,8 +475,8 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 {locale === "pt"
-                  ? "A revogação marcará o participante como 'withdrawn' e registrará na trilha de auditoria. Os dados coletados serão mantidos para fins estatísticos, mas o participante não poderá mais participar."
-                  : "Revocation will mark the participant as 'withdrawn' and log it in the audit trail. Collected data will be kept for statistical purposes, but the participant can no longer participate."}
+                  ? "A revogação marcará o participante como 'withdrawn' e registrará na trilha de auditoria."
+                  : "Revocation will mark the participant as 'withdrawn' and log it in the audit trail."}
               </p>
               <div className="space-y-2">
                 <Label>{locale === "pt" ? "Motivo (opcional)" : "Reason (optional)"}</Label>
@@ -421,6 +493,40 @@ const ParticipantDetail = ({ participant, surveyId, onBack }: ParticipantDetailP
               </Button>
               <Button variant="destructive" onClick={() => revokeMutation.mutate()} disabled={revokeMutation.isPending}>
                 {locale === "pt" ? "Confirmar Revogação" : "Confirm Revocation"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Co-signature dialog */}
+        <Dialog open={cosignOpen} onOpenChange={setCosignOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <PenLine className="h-5 w-5 text-primary" />
+                {locale === "pt" ? "Co-assinatura do Pesquisador" : "Researcher Co-signature"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {locale === "pt"
+                  ? "Conforme o Ofício Circular CONEP nº 23/2022 (Art. 4.3-7), o TCLE eletrônico deve conter a assinatura do pesquisador responsável. Ao confirmar, sua identidade será registrada junto ao documento."
+                  : "Per CONEP Circular nº 23/2022 (Art. 4.3-7), electronic consent must contain the researcher's signature. By confirming, your identity will be recorded alongside the document."}
+              </p>
+              <div className="p-3 border rounded-lg bg-muted/50 text-sm space-y-1">
+                <p><strong>{locale === "pt" ? "Pesquisador:" : "Researcher:"}</strong> {user?.email}</p>
+                <p><strong>{locale === "pt" ? "Participante:" : "Participant:"}</strong> {participant.participant_code}</p>
+                <p><strong>{locale === "pt" ? "Data/Hora:" : "Date/Time:"}</strong> {new Date().toLocaleString()}</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCosignOpen(false)}>
+                {locale === "pt" ? "Cancelar" : "Cancel"}
+              </Button>
+              <Button onClick={() => cosignMutation.mutate()} disabled={cosignMutation.isPending}>
+                {cosignMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                <PenLine className="h-4 w-4 mr-1" />
+                {locale === "pt" ? "Confirmar Co-assinatura" : "Confirm Co-signature"}
               </Button>
             </DialogFooter>
           </DialogContent>

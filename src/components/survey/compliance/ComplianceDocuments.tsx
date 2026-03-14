@@ -704,6 +704,40 @@ Após assinar, o participante receberá por e-mail:
               </div>
             </CardContent>
           </Card>
+
+          {/* CEP Draft (Art. 4.3-8 CONEP) */}
+          <Card className="border-amber-500/20">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-amber-500/10">
+                      <FileText className="h-5 w-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm">
+                        {isPt ? "Rascunho do TCLE para o CEP" : "Consent Draft for Ethics Committee"}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {isPt
+                          ? "Documento com marca d'água para apreciação do CEP antes da aplicação (Art. 4.3-8 CONEP). Texto copiável conforme Art. 5.3."
+                          : "Watermarked draft for ethics review before deployment (Art. 4.3-8 CONEP). Copyable text per Art. 5.3."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="text-[10px]">Art. 4.3-8</Badge>
+                    <Badge variant="outline" className="text-[10px]">Art. 5.3</Badge>
+                    <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30">RASCUNHO</Badge>
+                  </div>
+                </div>
+                <Button variant="outline" onClick={generateCEPDraft} className="shrink-0" disabled={!consent}>
+                  <Download className="h-4 w-4 mr-1" />
+                  {isPt ? "Gerar Rascunho" : "Generate Draft"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Stats */}
