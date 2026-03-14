@@ -18,7 +18,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Plus, Search, Users, UserCircle, FileText, ShieldOff, AlertTriangle } from "lucide-react";
+import { Plus, Search, Users, UserCircle, FileText, ShieldOff, AlertTriangle, RefreshCw } from "lucide-react";
 import ParticipantDetail from "./ParticipantDetail";
 
 interface Participant {
