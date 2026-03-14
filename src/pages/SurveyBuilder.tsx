@@ -28,12 +28,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText } from "lucide-react";
 import { toast } from "sonner";
 
-type BuilderView = "build" | "consent" | "visits" | "participants" | "flow" | "distribute" | "results" | "preview";
+type BuilderView = "build" | "consent" | "visits" | "participants" | "compliance" | "flow" | "distribute" | "results" | "preview";
 
 const getViewFromPath = (pathname: string): BuilderView => {
   if (pathname.endsWith("/consent")) return "consent";
   if (pathname.endsWith("/visits")) return "visits";
   if (pathname.endsWith("/participants")) return "participants";
+  if (pathname.endsWith("/compliance")) return "compliance";
   if (pathname.endsWith("/flow")) return "flow";
   if (pathname.endsWith("/distribute")) return "distribute";
   if (pathname.endsWith("/results")) return "results";
