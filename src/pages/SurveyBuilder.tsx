@@ -16,6 +16,7 @@ import SurveyPreviewPanel from "@/components/survey/preview/SurveyPreviewPanel";
 import ConsentBuilder from "@/components/survey/consent/ConsentBuilder";
 import VisitManager from "@/components/survey/ecrf/VisitManager";
 import ParticipantList from "@/components/survey/ecrf/ParticipantList";
+import ComplianceDocuments from "@/components/survey/compliance/ComplianceDocuments";
 import {
   ResizablePanelGroup,
   ResizablePanel,
