@@ -20,6 +20,7 @@ Deno.serve(async (req) => {
       sectionConfirmations,
       consentTitle,
       sections,
+      paperAccessInfo,
     } = await req.json();
 
     if (!consentId || !respondentName) {
@@ -29,7 +30,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Capture real IP server-side
     const ipAddress =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("cf-connecting-ip") ||
@@ -44,21 +44,17 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Get consent version
     const { data: consentData } = await supabaseAdmin
       .from("study_consents")
-      .select("version, survey_id")
+      .select("version, survey_id, researcher_name, researcher_email, researcher_phone, contact_hours, paper_access_info")
       .eq("id", consentId)
       .single();
 
     const consentVersion = consentData?.version || 1;
     const surveyId = consentData?.survey_id;
 
-    // Upload a simple text-based PDF placeholder (server-side)
-    // In production you'd use a PDF library; here we store metadata
     const pdfFileName = `consent_${consentId}_${Date.now()}.pdf`;
 
-    // Build PDF content as text (lightweight server-side)
     const pdfContent = [
       `TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO`,
       `Título: ${consentTitle || "TCLE"}`,
@@ -77,6 +73,17 @@ Deno.serve(async (req) => {
       `O participante tem o direito de revogar este consentimento a`,
       `qualquer momento, conforme Art. 8° §5° da LGPD e Resolução`,
       `CNS 466/2012, sem qualquer prejuízo.`,
+      ``,
+      `--- CONTATO DO PESQUISADOR ---`,
+      consentData?.researcher_name ? `Pesquisador: ${consentData.researcher_name}` : "",
+      consentData?.researcher_email ? `E-mail: ${consentData.researcher_email}` : "",
+      consentData?.researcher_phone ? `Telefone: ${consentData.researcher_phone}` : "",
+      consentData?.contact_hours ? `Horários: ${consentData.contact_hours}` : "",
+      ``,
+      `--- ACESSO EM PAPEL ---`,
+      consentData?.paper_access_info || paperAccessInfo
+        ? `Para solicitar via impressa:\n${consentData?.paper_access_info || paperAccessInfo}`
+        : "Consulte o pesquisador responsável para solicitar via impressa.",
       ``,
       `--- SEÇÕES CONSENTIDAS ---`,
       ...(sections || []).map(
@@ -98,7 +105,6 @@ Deno.serve(async (req) => {
       .from("consents")
       .upload(pdfFileName, pdfBlob, { contentType: "text/plain" });
 
-    // Insert consent signature with real IP
     const { data: sig, error: sigError } = await supabaseAdmin
       .from("consent_signatures")
       .insert({
@@ -130,10 +136,32 @@ Deno.serve(async (req) => {
       ip_address: ipAddress,
     });
 
+    // Build revocation link
+    const baseUrl = Deno.env.get("SITE_URL") || "https://arca-research.lovable.app";
+    const revokeLink = `${baseUrl}/consent/revoke/${sig.id}`;
+
     // Send email copy to participant via Resend
     const resendKey = Deno.env.get("RESEND_API_KEY");
     if (resendKey && respondentEmail) {
       try {
+        const researcherContactHtml = consentData?.researcher_name
+          ? `
+            <h3>Contato do Pesquisador Responsável</h3>
+            <p>${consentData.researcher_name}</p>
+            ${consentData.researcher_email ? `<p>E-mail: ${consentData.researcher_email}</p>` : ""}
+            ${consentData.researcher_phone ? `<p>Telefone: ${consentData.researcher_phone}</p>` : ""}
+            ${consentData.contact_hours ? `<p>Horários: ${consentData.contact_hours}</p>` : ""}
+          `
+          : "";
+
+        const paperAccessHtml = consentData?.paper_access_info || paperAccessInfo
+          ? `
+            <h3>Acesso à Via Impressa</h3>
+            <p>Você tem o direito de solicitar uma via impressa do TCLE. Para isso, entre em contato:</p>
+            <p style="white-space:pre-wrap;">${consentData?.paper_access_info || paperAccessInfo}</p>
+          `
+          : "";
+
         await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
@@ -151,19 +179,23 @@ Deno.serve(async (req) => {
               <p><strong>Data:</strong> ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>
               <p><strong>Versão do TCLE:</strong> ${consentVersion}</p>
               <p><strong>IP registrado:</strong> ${ipAddress}</p>
+              ${researcherContactHtml}
               <hr/>
               <h3>Base Legal</h3>
               <p>O tratamento dos seus dados é fundamentado no Art. 7°, inciso IV da LGPD (Lei 13.709/2018) — pesquisa científica com consentimento informado.</p>
               <h3>Direito de Revogação</h3>
-              <p>Você pode revogar este consentimento a qualquer momento, conforme Art. 8° §5° da LGPD e Resolução CNS 466/2012, sem qualquer prejuízo.</p>
+              <p>Você pode revogar este consentimento a qualquer momento, sem qualquer prejuízo.</p>
+              <p><strong><a href="${revokeLink}">Clique aqui para revogar seu consentimento</a></strong></p>
+              <p style="font-size:12px;color:#666;">Guarde este link. Ele permite que você revogue seu consentimento de forma autônoma, conforme Art. 5.4 do Ofício Circular CONEP nº 23/2022.</p>
+              ${paperAccessHtml}
               <hr/>
+              <p><a href="https://arca-research.lovable.app/participant-privacy">Política de Privacidade para Participantes</a></p>
               <p style="font-size:12px;color:#666;">Este e-mail foi enviado automaticamente. Guarde-o como comprovante.</p>
             `,
           }),
         });
       } catch (emailErr) {
         console.error("Failed to send consent email:", emailErr);
-        // Don't fail the consent process if email fails
       }
     }
 

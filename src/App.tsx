@@ -54,7 +54,7 @@ import SurveyRespond from "./pages/SurveyRespond";
 import Pricing from "./pages/Pricing";
 import MyPlan from "./pages/MyPlan";
 import ParticipantPrivacy from "./pages/ParticipantPrivacy";
-
+import ConsentRevoke from "./pages/ConsentRevoke";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -123,6 +123,7 @@ const App = () => (
               <Route path="/surveys/:id/results" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/preview" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/survey/respond/:token" element={<SurveyRespond />} />
+              <Route path="/consent/revoke/:signatureId" element={<ConsentRevoke />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

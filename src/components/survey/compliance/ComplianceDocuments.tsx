@@ -389,6 +389,117 @@ https://arca-research.lovable.app
     toast.success(isPt ? "TCLE completo gerado com metadados legais!" : "Complete consent form generated!");
   };
 
+  // CEP Draft Export (Art. 4.3-8 CONEP)
+  const generateCEPDraft = () => {
+    if (!consent) {
+      toast.error(isPt ? "Crie o TCLE primeiro na aba TCLE" : "Create the consent form first");
+      return;
+    }
+
+    const today = new Date().toLocaleDateString("pt-BR");
+    const sections = (consent.sections as any[]) || [];
+    const respondUrl = `${window.location.origin}/survey/respond/[TOKEN]`;
+
+    const content = `
+╔═══════════════════════════════════════════════════════╗
+║  [RASCUNHO - PARA APRECIAÇÃO DO CEP]                 ║
+║  Este documento NÃO é definitivo.                    ║
+║  Sujeito a alterações após parecer do Comitê.        ║
+╚═══════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════
+    TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO
+         (Rascunho para Apreciação do CEP)
+═══════════════════════════════════════════════════════
+
+Título: ${consent.title || "TCLE"}
+Versão: ${(consent as any).version || 1}
+Data de geração do rascunho: ${today}
+
+${projectTitle ? `Projeto: ${projectTitle}` : ""}
+${researcherName ? `Pesquisador Responsável: ${researcherName}` : ""}
+${institution ? `Instituição: ${institution}` : ""}
+${researcherEmail ? `Contato do Pesquisador: ${researcherEmail}` : ""}
+
+FORMATO DE APRESENTAÇÃO AO PARTICIPANTE:
+O TCLE será apresentado de forma etapizada (seção por seção)
+na plataforma ARCA, conforme o Ofício Circular CONEP nº 23/2022.
+
+Link de acesso (será gerado para cada participante):
+${respondUrl}
+
+O participante poderá acessar o TCLE pelo link acima, que será
+personalizado e único para cada participante convidado.
+
+───────────────────────────────────────────────────────
+            SEÇÕES DO TCLE (na ordem de exibição)
+───────────────────────────────────────────────────────
+
+[RASCUNHO] AVISO DE PRIVACIDADE DO LOCAL
+Antes de iniciar, o participante será solicitado a confirmar
+que se encontra em local privado e seguro, conforme Art. 2.2-VII.
+
+${sections.map((s: any, i: number) => `
+[RASCUNHO] ${i + 1}. ${s.title || "Seção " + (i + 1)}
+
+${s.content_html || "[Conteúdo a ser preenchido]"}
+
+${s.require_checkbox ? "☐ Declaro que li e compreendi esta seção" : ""}
+`).join("\n───────────────────────────────────────────────────────\n")}
+
+───────────────────────────────────────────────────────
+              ETAPA FINAL: ASSINATURA
+───────────────────────────────────────────────────────
+
+${consent.require_signature ? "Assinatura digital em canvas: EXIGIDA" : "Assinatura digital: NÃO EXIGIDA"}
+Nome completo: OBRIGATÓRIO
+E-mail para cópia: OPCIONAL (recomendado)
+
+INFORMAÇÕES DE CONTATO DO PESQUISADOR (exibidas durante todo o processo):
+${(consent as any).researcher_name || researcherName || "[A ser preenchido]"}
+${(consent as any).researcher_email || researcherEmail || "[A ser preenchido]"}
+${(consent as any).researcher_phone || "[A ser preenchido]"}
+Horários: ${(consent as any).contact_hours || "[A ser preenchido]"}
+
+ACESSO EM PAPEL (Art. 2.3-I):
+${(consent as any).paper_access_info || "[Endereço/contato para solicitação de via impressa — a ser preenchido]"}
+
+───────────────────────────────────────────────────────
+         RECURSOS DE SEGURANÇA DA PLATAFORMA
+───────────────────────────────────────────────────────
+
+• Criptografia TLS 1.3 (trânsito) e AES-256 (repouso)
+• Captura de IP via servidor (Edge Function)
+• Hash de integridade SHA-256
+• Trilha de auditoria GCP-ICH
+• Versionamento automático do TCLE
+• Link de auto-revogação enviado ao participante
+• Co-assinatura do pesquisador (Art. 4.3-7)
+
+───────────────────────────────────────────────────────
+              FUNCIONALIDADES PÓS-ASSINATURA
+───────────────────────────────────────────────────────
+
+Após assinar, o participante receberá por e-mail:
+1. Cópia completa do TCLE assinado
+2. Link para auto-revogação do consentimento
+3. Informações de contato do pesquisador
+4. Link para a Política de Privacidade
+
+╔═══════════════════════════════════════════════════════╗
+║  [RASCUNHO - PARA APRECIAÇÃO DO CEP]                 ║
+║  Conforme Art. 4.3-8 do Ofício Circular CONEP        ║
+║  nº 23/2022, este documento é apresentado ao CEP     ║
+║  para apreciação antes da aplicação definitiva.       ║
+║                                                       ║
+║  O texto acima pode ser copiado (Art. 5.3).          ║
+╚═══════════════════════════════════════════════════════╝
+`;
+
+    downloadTextFile(content, `RASCUNHO_CEP_TCLE_${surveyId.slice(0, 8)}.txt`);
+    toast.success(isPt ? "Rascunho para CEP gerado!" : "CEP draft generated!");
+  };
+
   const downloadTextFile = (content: string, filename: string) => {
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -589,6 +700,40 @@ https://arca-research.lovable.app
                 <Button onClick={generateComplianceCertificate} className="shrink-0">
                   <Download className="h-4 w-4 mr-1" />
                   {isPt ? "Gerar" : "Generate"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* CEP Draft (Art. 4.3-8 CONEP) */}
+          <Card className="border-amber-500/20">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-amber-500/10">
+                      <FileText className="h-5 w-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm">
+                        {isPt ? "Rascunho do TCLE para o CEP" : "Consent Draft for Ethics Committee"}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {isPt
+                          ? "Documento com marca d'água para apreciação do CEP antes da aplicação (Art. 4.3-8 CONEP). Texto copiável conforme Art. 5.3."
+                          : "Watermarked draft for ethics review before deployment (Art. 4.3-8 CONEP). Copyable text per Art. 5.3."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="text-[10px]">Art. 4.3-8</Badge>
+                    <Badge variant="outline" className="text-[10px]">Art. 5.3</Badge>
+                    <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30">RASCUNHO</Badge>
+                  </div>
+                </div>
+                <Button variant="outline" onClick={generateCEPDraft} className="shrink-0" disabled={!consent}>
+                  <Download className="h-4 w-4 mr-1" />
+                  {isPt ? "Gerar Rascunho" : "Generate Draft"}
                 </Button>
               </div>
             </CardContent>
