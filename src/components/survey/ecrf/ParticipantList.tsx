@@ -69,6 +69,35 @@ const ParticipantList = ({ surveyId }: ParticipantListProps) => {
     enabled: !!surveyId,
   });
 
+  // Re-consent check (Art. 4.3-9 CONEP) - detect version mismatch
+  const { data: currentConsent } = useQuery({
+    queryKey: ["study-consent-version", surveyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("study_consents")
+        .select("id, version")
+        .eq("survey_id", surveyId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!surveyId,
+  });
+
+  const { data: outdatedSignatures = [] } = useQuery({
+    queryKey: ["outdated-signatures", surveyId, currentConsent?.id, currentConsent?.version],
+    queryFn: async () => {
+      if (!currentConsent?.id) return [];
+      const { data } = await supabase
+        .from("consent_signatures")
+        .select("id, respondent_name, respondent_email, consent_version")
+        .eq("consent_id", currentConsent.id)
+        .lt("consent_version", (currentConsent as any).version || 1)
+        .is("revoked_at", null);
+      return data || [];
+    },
+    enabled: !!currentConsent?.id && ((currentConsent as any)?.version || 1) > 1,
+  });
+
   const addMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("study_participants").insert({
