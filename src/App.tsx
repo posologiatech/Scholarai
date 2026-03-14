@@ -53,6 +53,7 @@ import SurveyBuilder from "./pages/SurveyBuilder";
 import SurveyRespond from "./pages/SurveyRespond";
 import Pricing from "./pages/Pricing";
 import MyPlan from "./pages/MyPlan";
+import ParticipantPrivacy from "./pages/ParticipantPrivacy";
 
 const queryClient = new QueryClient();
 
@@ -85,6 +86,7 @@ const App = () => (
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/pricing" element={<Pricing />} />
+              <Route path="/participant-privacy" element={<ParticipantPrivacy />} />
               <Route path="/my-plan" element={<ProtectedRoute><MyPlan /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
@@ -115,6 +117,7 @@ const App = () => (
               <Route path="/surveys/:id/consent" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/visits" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/participants" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
+              <Route path="/surveys/:id/compliance" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/flow" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/distribute" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/results" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
