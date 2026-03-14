@@ -1,6 +1,7 @@
 import {
   Search, Table, FileText, ClipboardCheck, ShieldCheck, Palette,
   BrainCircuit, Network, GitBranch, Filter, FlaskConical, BookOpen,
+  ClipboardList, Shield, UserX, FileSignature,
 } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import AnimatedSection from "./AnimatedSection";
