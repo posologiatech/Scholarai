@@ -221,6 +221,9 @@ export type Database = {
           id: string
           ip_address: string | null
           pdf_path: string | null
+          researcher_ip: string | null
+          researcher_name: string | null
+          researcher_signed_at: string | null
           respondent_email: string | null
           respondent_name: string
           revocation_reason: string | null
@@ -236,6 +239,9 @@ export type Database = {
           id?: string
           ip_address?: string | null
           pdf_path?: string | null
+          researcher_ip?: string | null
+          researcher_name?: string | null
+          researcher_signed_at?: string | null
           respondent_email?: string | null
           respondent_name: string
           revocation_reason?: string | null
@@ -251,6 +257,9 @@ export type Database = {
           id?: string
           ip_address?: string | null
           pdf_path?: string | null
+          researcher_ip?: string | null
+          researcher_name?: string | null
+          researcher_signed_at?: string | null
           respondent_email?: string | null
           respondent_name?: string
           revocation_reason?: string | null
@@ -1213,9 +1222,14 @@ export type Database = {
       study_consents: {
         Row: {
           audio_url: string | null
+          contact_hours: string | null
           created_at: string
           id: string
+          paper_access_info: string | null
           require_signature: boolean
+          researcher_email: string | null
+          researcher_name: string | null
+          researcher_phone: string | null
           sections: Json
           survey_id: string
           title: string
@@ -1226,9 +1240,14 @@ export type Database = {
         }
         Insert: {
           audio_url?: string | null
+          contact_hours?: string | null
           created_at?: string
           id?: string
+          paper_access_info?: string | null
           require_signature?: boolean
+          researcher_email?: string | null
+          researcher_name?: string | null
+          researcher_phone?: string | null
           sections?: Json
           survey_id: string
           title?: string
@@ -1239,9 +1258,14 @@ export type Database = {
         }
         Update: {
           audio_url?: string | null
+          contact_hours?: string | null
           created_at?: string
           id?: string
+          paper_access_info?: string | null
           require_signature?: boolean
+          researcher_email?: string | null
+          researcher_name?: string | null
+          researcher_phone?: string | null
           sections?: Json
           survey_id?: string
           title?: string
