@@ -678,8 +678,8 @@ const Docs = () => {
             </h1>
             <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
               {pt
-                ? "Guia completo de todas as funcionalidades do ScholarAI — busca, revisão sistemática, DataMind, pesquisas, colaboração e mais."
-                : "Complete guide to all ScholarAI features — search, systematic review, DataMind, surveys, collaboration and more."}
+                ? "Guia completo de todas as funcionalidades do ScholarAI — busca, revisão sistemática, DataMind, pesquisas, pesquisa clínica, conformidade CEP/LGPD e mais."
+                : "Complete guide to all ScholarAI features — search, systematic review, DataMind, surveys, clinical research, CEP/LGPD compliance and more."}
             </p>
 
             {/* Search */}
