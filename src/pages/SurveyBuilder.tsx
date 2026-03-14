@@ -132,6 +132,8 @@ const SurveyBuilder = () => {
         return <VisitManager surveyId={id!} />;
       case "participants":
         return <ParticipantList surveyId={id!} />;
+      case "compliance":
+        return <ComplianceDocuments surveyId={id!} />;
       case "flow":
         return <FlowCanvas />;
       case "distribute":
