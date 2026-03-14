@@ -24,6 +24,8 @@ import {
   Mail,
   Clock,
   MapPin,
+  BookOpen,
+  CheckCircle2,
 } from "lucide-react";
 import {
   Dialog,
@@ -87,6 +89,49 @@ const defaultSections: ConsentSection[] = [
   { id: genId(), title: "Participação Voluntária", content_html: "", require_checkbox: true },
 ];
 
+// Readability analysis (Art. 2.1-II CONEP)
+function analyzeReadability(text: string): { score: number; level: string; suggestions: string[] } {
+  if (!text || text.trim().length < 10) return { score: 0, level: "—", suggestions: [] };
+
+  const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 0);
+  const words = text.split(/\s+/).filter((w) => w.length > 0);
+  const syllables = words.reduce((sum, w) => sum + countSyllables(w), 0);
+
+  const avgWordsPerSentence = sentences.length > 0 ? words.length / sentences.length : 0;
+  const avgSyllablesPerWord = words.length > 0 ? syllables / words.length : 0;
+
+  // Simplified Flesch Reading Ease adapted for Portuguese
+  const score = Math.max(0, Math.min(100, 206.835 - 1.015 * avgWordsPerSentence - 84.6 * avgSyllablesPerWord));
+
+  let level: string;
+  const suggestions: string[] = [];
+
+  if (score >= 70) level = "Fácil";
+  else if (score >= 50) level = "Moderado";
+  else {
+    level = "Difícil";
+    suggestions.push("Considere simplificar frases longas e usar palavras mais curtas.");
+  }
+
+  if (avgWordsPerSentence > 25) suggestions.push("Frases muito longas (média > 25 palavras). Divida em frases menores.");
+  if (avgSyllablesPerWord > 2.5) suggestions.push("Muitas palavras complexas. Use sinônimos mais simples quando possível.");
+
+  const jargonPatterns = /\b(randomiz|aleatorizad|placebo|double-blind|duplo-cego|coorte|longitudinal|transversal|metodolog|epidemiolog)\w*/gi;
+  const jargonMatches = text.match(jargonPatterns);
+  if (jargonMatches && jargonMatches.length > 3) {
+    suggestions.push(`${jargonMatches.length} termos técnicos encontrados. Explique cada termo em linguagem acessível.`);
+  }
+
+  return { score: Math.round(score), level, suggestions };
+}
+
+function countSyllables(word: string): number {
+  const w = word.toLowerCase().replace(/[^a-záàâãéèêíïóôõúüç]/g, "");
+  if (w.length <= 2) return 1;
+  const vowelGroups = w.match(/[aáàâãeéèêiíoóôõuúü]+/g);
+  return vowelGroups ? Math.max(1, vowelGroups.length) : 1;
+}
+
 const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
   const { user } = useAuth();
   const { locale } = useLanguage();
@@ -101,6 +146,7 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
   const [currentVersion, setCurrentVersion] = useState(1);
   const [showVersionWarning, setShowVersionWarning] = useState(false);
   const [hasExistingSignatures, setHasExistingSignatures] = useState(false);
+  const [showReadability, setShowReadability] = useState(false);
 
   // Researcher contact fields (Art. 2.2-V/VI CONEP)
   const [researcherName, setResearcherName] = useState("");
@@ -141,7 +187,6 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
       setConsentId(existing.id);
       setTitle(existing.title);
       const loadedSections = (existing.sections as any as ConsentSection[]) || defaultSections;
-      // Ensure virtual risks section exists
       const hasVirtualRisks = loadedSections.some(
         (s) => s.is_required && s.title === "Riscos do Ambiente Virtual"
       );
@@ -263,6 +308,10 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
   }, []);
 
+  // Compute readability for all sections
+  const fullText = sections.map((s) => s.content_html).join(" ");
+  const readability = analyzeReadability(fullText);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -285,11 +334,38 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
               v{currentVersion}
             </Badge>
           </div>
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            <Save className="h-4 w-4 mr-1" />
-            {locale === "pt" ? "Salvar TCLE" : "Save Consent"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowReadability(true)}>
+              <BookOpen className="h-4 w-4 mr-1" />
+              {locale === "pt" ? "Legibilidade" : "Readability"}
+            </Button>
+            <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              <Save className="h-4 w-4 mr-1" />
+              {locale === "pt" ? "Salvar TCLE" : "Save Consent"}
+            </Button>
+          </div>
         </div>
+
+        {/* Readability indicator (Art. 2.1-II CONEP) */}
+        {fullText.trim().length > 50 && (
+          <div className={`flex items-center gap-2 p-3 border rounded-lg text-sm ${
+            readability.score >= 70 ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800" :
+            readability.score >= 50 ? "bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800" :
+            "bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-200 border-red-200 dark:border-red-800"
+          }`}>
+            <BookOpen className="h-4 w-4 shrink-0" />
+            <span>
+              {locale === "pt"
+                ? `Legibilidade: ${readability.level} (${readability.score}/100) — Art. 2.1-II CONEP`
+                : `Readability: ${readability.level} (${readability.score}/100) — Art. 2.1-II CONEP`}
+            </span>
+            {readability.suggestions.length > 0 && (
+              <Button variant="ghost" size="sm" className="h-6 text-xs ml-auto" onClick={() => setShowReadability(true)}>
+                {locale === "pt" ? "Ver sugestões" : "See suggestions"}
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Signature count info */}
         {hasExistingSignatures && (
@@ -458,62 +534,77 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
             </Button>
           </div>
 
-          {sections.map((section, idx) => (
-            <Card key={section.id} className={section.is_required ? "relative border-primary/30" : "relative"}>
-              <CardContent className="pt-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="text-xs font-bold text-muted-foreground w-6">{idx + 1}.</span>
-                  <Input
-                    value={section.title}
-                    onChange={(e) => updateSection(section.id, { title: e.target.value })}
-                    placeholder={locale === "pt" ? "Título da seção" : "Section title"}
-                    className="font-medium"
-                    disabled={section.is_required}
+          {sections.map((section, idx) => {
+            const sectionReadability = analyzeReadability(section.content_html);
+            return (
+              <Card key={section.id} className={section.is_required ? "relative border-primary/30" : "relative"}>
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-xs font-bold text-muted-foreground w-6">{idx + 1}.</span>
+                    <Input
+                      value={section.title}
+                      onChange={(e) => updateSection(section.id, { title: e.target.value })}
+                      placeholder={locale === "pt" ? "Título da seção" : "Section title"}
+                      className="font-medium"
+                      disabled={section.is_required}
+                    />
+                    {section.is_required ? (
+                      <Badge variant="secondary" className="shrink-0 text-[10px] gap-1">
+                        <Lock className="h-3 w-3" />
+                        {locale === "pt" ? "Obrigatória (CONEP)" : "Required (CONEP)"}
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeSection(section.id, section.is_required)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+
+                  <Textarea
+                    value={section.content_html}
+                    onChange={(e) => updateSection(section.id, { content_html: e.target.value })}
+                    placeholder={
+                      locale === "pt"
+                        ? "Conteúdo desta seção do TCLE..."
+                        : "Content of this consent section..."
+                    }
+                    rows={section.is_required ? 6 : 4}
                   />
-                  {section.is_required ? (
-                    <Badge variant="secondary" className="shrink-0 text-[10px] gap-1">
-                      <Lock className="h-3 w-3" />
-                      {locale === "pt" ? "Obrigatória (CONEP)" : "Required (CONEP)"}
-                    </Badge>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => removeSection(section.id, section.is_required)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+
+                  {/* Per-section readability (Art. 2.1-II) */}
+                  {section.content_html.trim().length > 30 && (
+                    <div className={`flex items-center gap-1.5 text-[10px] px-2 py-1 rounded ${
+                      sectionReadability.score >= 70 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400" :
+                      sectionReadability.score >= 50 ? "bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400" :
+                      "bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400"
+                    }`}>
+                      <BookOpen className="h-3 w-3" />
+                      {sectionReadability.level} ({sectionReadability.score}/100)
+                    </div>
                   )}
-                </div>
 
-                <Textarea
-                  value={section.content_html}
-                  onChange={(e) => updateSection(section.id, { content_html: e.target.value })}
-                  placeholder={
-                    locale === "pt"
-                      ? "Conteúdo desta seção do TCLE..."
-                      : "Content of this consent section..."
-                  }
-                  rows={section.is_required ? 6 : 4}
-                />
-
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={section.require_checkbox}
-                    onCheckedChange={(v) => updateSection(section.id, { require_checkbox: v })}
-                    disabled={section.is_required}
-                  />
-                  <Label className="text-xs">
-                    {locale === "pt"
-                      ? 'Exigir checkbox "Li e compreendi"'
-                      : 'Require "I have read and understood" checkbox'}
-                  </Label>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={section.require_checkbox}
+                      onCheckedChange={(v) => updateSection(section.id, { require_checkbox: v })}
+                      disabled={section.is_required}
+                    />
+                    <Label className="text-xs">
+                      {locale === "pt"
+                        ? 'Exigir checkbox "Li e compreendi"'
+                        : 'Require "I have read and understood" checkbox'}
+                    </Label>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
 
@@ -539,6 +630,71 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
               {locale === "pt" ? `Criar v${currentVersion + 1}` : `Create v${currentVersion + 1}`}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Readability analysis dialog (Art. 2.1-II CONEP) */}
+      <Dialog open={showReadability} onOpenChange={setShowReadability}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" />
+              {locale === "pt" ? "Análise de Legibilidade (Art. 2.1-II CONEP)" : "Readability Analysis (Art. 2.1-II CONEP)"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {locale === "pt"
+                ? "O Ofício Circular CONEP nº 23/2022 exige que o TCLE seja redigido em linguagem acessível ao participante. Esta análise avalia a complexidade do texto."
+                : "CONEP Circular nº 23/2022 requires consent to be written in accessible language. This analysis evaluates text complexity."}
+            </p>
+
+            {/* Overall score */}
+            <div className={`p-4 rounded-lg text-center ${
+              readability.score >= 70 ? "bg-emerald-50 dark:bg-emerald-950/20" :
+              readability.score >= 50 ? "bg-amber-50 dark:bg-amber-950/20" :
+              "bg-red-50 dark:bg-red-950/20"
+            }`}>
+              <p className="text-3xl font-bold">{readability.score}<span className="text-sm font-normal">/100</span></p>
+              <p className="text-sm font-medium mt-1">{readability.level}</p>
+            </div>
+
+            {/* Per-section scores */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium">{locale === "pt" ? "Por seção:" : "Per section:"}</p>
+              {sections.filter((s) => s.content_html.trim().length > 10).map((s) => {
+                const r = analyzeReadability(s.content_html);
+                return (
+                  <div key={s.id} className="flex items-center justify-between text-xs p-2 border rounded">
+                    <span className="truncate max-w-[200px]">{s.title || "—"}</span>
+                    <Badge variant={r.score >= 70 ? "default" : r.score >= 50 ? "secondary" : "destructive"} className="text-[10px]">
+                      {r.level} ({r.score})
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Suggestions */}
+            {readability.suggestions.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{locale === "pt" ? "Sugestões:" : "Suggestions:"}</p>
+                {readability.suggestions.map((s, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <AlertTriangle className="h-3 w-3 text-amber-500 mt-0.5 shrink-0" />
+                    <span>{s}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {readability.suggestions.length === 0 && readability.score >= 70 && (
+              <div className="flex items-center gap-2 text-sm text-emerald-600">
+                <CheckCircle2 className="h-4 w-4" />
+                {locale === "pt" ? "O texto está em nível de legibilidade adequado." : "Text readability is adequate."}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
