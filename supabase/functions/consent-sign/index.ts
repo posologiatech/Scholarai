@@ -12,6 +12,51 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const body = await req.json();
+
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Handle access logging (Art. 5.2 CONEP)
+    if (body.action === "log_access") {
+      const { consentId } = body;
+      if (!consentId) {
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const ipAddress =
+        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+        req.headers.get("cf-connecting-ip") ||
+        "unknown";
+
+      const { data: consentData } = await supabaseAdmin
+        .from("study_consents")
+        .select("survey_id")
+        .eq("id", consentId)
+        .single();
+
+      if (consentData?.survey_id) {
+        await supabaseAdmin.from("study_audit_log").insert({
+          survey_id: consentData.survey_id,
+          action: "consent_document_accessed",
+          details: {
+            consent_id: consentId,
+            user_agent: req.headers.get("user-agent") || "",
+          },
+          ip_address: ipAddress,
+        });
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Regular consent signing flow
     const {
       consentId,
       respondentName,
@@ -21,7 +66,9 @@ Deno.serve(async (req) => {
       consentTitle,
       sections,
       paperAccessInfo,
-    } = await req.json();
+      readingTimes,
+      receiptConfirmed,
+    } = body;
 
     if (!consentId || !respondentName) {
       return new Response(
@@ -39,11 +86,6 @@ Deno.serve(async (req) => {
     const userAgent = req.headers.get("user-agent") || "";
     const signedAt = new Date().toISOString();
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
     const { data: consentData } = await supabaseAdmin
       .from("study_consents")
       .select("version, survey_id, researcher_name, researcher_email, researcher_phone, contact_hours, paper_access_info")
@@ -54,6 +96,13 @@ Deno.serve(async (req) => {
     const surveyId = consentData?.survey_id;
 
     const pdfFileName = `consent_${consentId}_${Date.now()}.pdf`;
+
+    // Build reading times summary
+    const readingTimeSummary = readingTimes
+      ? Object.entries(readingTimes)
+          .map(([sectionId, seconds]) => `  ${sectionId}: ${seconds}s`)
+          .join("\n")
+      : "Não registrado";
 
     const pdfContent = [
       `TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO`,
@@ -84,6 +133,12 @@ Deno.serve(async (req) => {
       consentData?.paper_access_info || paperAccessInfo
         ? `Para solicitar via impressa:\n${consentData?.paper_access_info || paperAccessInfo}`
         : "Consulte o pesquisador responsável para solicitar via impressa.",
+      ``,
+      `--- TEMPO DE LEITURA POR SEÇÃO (Art. 2.2-IV CONEP) ---`,
+      readingTimeSummary,
+      ``,
+      `--- CONFIRMAÇÃO DE RECEBIMENTO (Art. 5.1 CONEP) ---`,
+      receiptConfirmed ? "✓ Participante confirmou recebimento de todas as informações" : "Não confirmado",
       ``,
       `--- SEÇÕES CONSENTIDAS ---`,
       ...(sections || []).map(
@@ -132,6 +187,8 @@ Deno.serve(async (req) => {
         consent_version: consentVersion,
         signature_id: sig.id,
         respondent_name: respondentName,
+        reading_times: readingTimes || {},
+        receipt_confirmed: !!receiptConfirmed,
       },
       ip_address: ipAddress,
     });

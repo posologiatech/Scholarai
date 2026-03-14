@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { CheckCircle2, ChevronRight, ShieldCheck, ShieldAlert, Phone, Mail, Clock, FileText } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronRight,
+  ShieldCheck,
+  ShieldAlert,
+  Phone,
+  Mail,
+  Clock,
+  FileText,
+  ZoomIn,
+  ZoomOut,
+  Eye,
+  Timer,
+} from "lucide-react";
 import SignatureCanvas from "./SignatureCanvas";
 
 interface ConsentSection {
@@ -49,6 +62,18 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [receiptConfirmed, setReceiptConfirmed] = useState(false);
+
+  // Accessibility (Art. 2.1-III CONEP)
+  const [fontSize, setFontSize] = useState(14);
+  const [highContrast, setHighContrast] = useState(false);
+
+  // Reading time tracking (Art. 2.2-IV CONEP)
+  const [sectionTimestamps, setSectionTimestamps] = useState<Record<string, number>>({});
+  const sectionEnteredAt = useRef<number>(Date.now());
+
+  // Document access logging (Art. 5.2 CONEP)
+  const accessLogged = useRef(false);
 
   const sections = consent.sections || [];
   const totalSteps = sections.length + 1;
@@ -59,19 +84,51 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
 
   const hasResearcherContact = consent.researcher_name || consent.researcher_email || consent.researcher_phone;
 
+  // Log document access when consent loads (Art. 5.2)
+  useEffect(() => {
+    if (!accessLogged.current && consent.id) {
+      accessLogged.current = true;
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/consent-sign`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ action: "log_access", consentId: consent.id }),
+      }).catch(() => {}); // fire and forget
+    }
+  }, [consent.id]);
+
+  // Track time per section
+  useEffect(() => {
+    sectionEnteredAt.current = Date.now();
+  }, [currentStep]);
+
+  const recordSectionTime = useCallback(() => {
+    const elapsed = Math.round((Date.now() - sectionEnteredAt.current) / 1000);
+    const sectionId = currentSection?.id || "signature";
+    setSectionTimestamps((prev) => ({
+      ...prev,
+      [sectionId]: (prev[sectionId] || 0) + elapsed,
+    }));
+  }, [currentSection]);
+
   const canProceed = useCallback(() => {
     if (isOnSignatureStep) {
       if (!name.trim()) return false;
       if (consent.require_signature && !signatureData) return false;
+      if (!receiptConfirmed) return false;
       return true;
     }
     if (currentSection?.require_checkbox && !confirmations[currentSection.id]) return false;
     return true;
-  }, [isOnSignatureStep, currentSection, confirmations, name, signatureData, consent.require_signature]);
+  }, [isOnSignatureStep, currentSection, confirmations, name, signatureData, consent.require_signature, receiptConfirmed]);
 
   const handleSubmitConsent = async () => {
     setSubmitting(true);
     try {
+      recordSectionTime();
+
       const sectionConfirmations = Object.entries(confirmations)
         .filter(([, v]) => v)
         .map(([sectionId]) => ({
@@ -96,6 +153,8 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
             consentTitle: consent.title,
             sections: sections.map((s) => ({ title: s.title, content_html: s.content_html })),
             paperAccessInfo: consent.paper_access_info || null,
+            readingTimes: sectionTimestamps,
+            receiptConfirmed: true,
           }),
         }
       );
@@ -131,6 +190,49 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
       </div>
     );
   }
+
+  // Accessibility controls bar
+  const AccessibilityBar = () => (
+    <div className="flex items-center gap-2 p-2 border rounded-lg bg-muted/30 text-xs">
+      <Eye className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      <span className="text-muted-foreground shrink-0">
+        {locale === "pt" ? "Acessibilidade:" : "Accessibility:"}
+      </span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6"
+        onClick={() => setFontSize((f) => Math.max(12, f - 2))}
+        title={locale === "pt" ? "Diminuir fonte" : "Decrease font"}
+      >
+        <ZoomOut className="h-3 w-3" />
+      </Button>
+      <span className="text-xs font-mono w-8 text-center">{fontSize}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6"
+        onClick={() => setFontSize((f) => Math.min(24, f + 2))}
+        title={locale === "pt" ? "Aumentar fonte" : "Increase font"}
+      >
+        <ZoomIn className="h-3 w-3" />
+      </Button>
+      <Button
+        variant={highContrast ? "default" : "ghost"}
+        size="sm"
+        className="h-6 text-[10px] px-2"
+        onClick={() => setHighContrast((c) => !c)}
+      >
+        {locale === "pt" ? "Alto Contraste" : "High Contrast"}
+      </Button>
+    </div>
+  );
+
+  const contentStyle = {
+    fontSize: `${fontSize}px`,
+    lineHeight: "1.7",
+    ...(highContrast ? { color: "hsl(var(--foreground))", fontWeight: 500 } : {}),
+  };
 
   // Privacy location screen (Art. 2.2-VII CONEP)
   if (showPrivacyScreen) {
@@ -184,7 +286,6 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
           </CardContent>
         </Card>
 
-        {/* Researcher contact card visible from the start */}
         {hasResearcherContact && (
           <ResearcherContactCard consent={consent} locale={locale} />
         )}
@@ -193,7 +294,7 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <div className={`max-w-2xl mx-auto px-4 py-6 space-y-6 ${highContrast ? "bg-background text-foreground" : ""}`}>
       {/* Header */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
@@ -201,10 +302,20 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
           <h1 className="text-lg font-semibold">{consent.title}</h1>
         </div>
         <Progress value={progress} className="h-2" />
-        <p className="text-xs text-muted-foreground">
-          {locale === "pt" ? "Etapa" : "Step"} {currentStep + 1} / {totalSteps}
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {locale === "pt" ? "Etapa" : "Step"} {currentStep + 1} / {totalSteps}
+          </p>
+          {/* Reading time indicator (Art. 2.2-IV) */}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Timer className="h-3 w-3" />
+            {Math.round((Date.now() - sectionEnteredAt.current) / 1000)}s
+          </div>
+        </div>
       </div>
+
+      {/* Accessibility controls (Art. 2.1-III CONEP) */}
+      <AccessibilityBar />
 
       {/* Researcher contact card - always visible (Art. 2.2-V/VI) */}
       {hasResearcherContact && (
@@ -244,7 +355,10 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="prose prose-sm max-w-none text-foreground/90 whitespace-pre-wrap">
+            <div
+              className="prose prose-sm max-w-none whitespace-pre-wrap"
+              style={contentStyle}
+            >
               {currentSection.content_html}
             </div>
 
@@ -299,6 +413,20 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
                 </div>
               )}
 
+              {/* Receipt confirmation (Art. 5.1 CONEP) */}
+              <div className="flex items-start gap-3 p-3 border rounded-lg bg-primary/5">
+                <Checkbox
+                  id="receipt-confirm"
+                  checked={receiptConfirmed}
+                  onCheckedChange={(v) => setReceiptConfirmed(!!v)}
+                />
+                <Label htmlFor="receipt-confirm" className="text-sm leading-relaxed cursor-pointer">
+                  {locale === "pt"
+                    ? "Confirmo que recebi todas as informações necessárias para tomar minha decisão e que desejo receber uma cópia deste termo (Art. 5.1, Ofício Circular CONEP nº 23/2022)."
+                    : "I confirm I received all necessary information to make my decision and wish to receive a copy of this consent (Art. 5.1, CONEP Circular nº 23/2022)."}
+                </Label>
+              </div>
+
               {/* Paper access notice (Art. 2.3-I CONEP) */}
               {consent.paper_access_info && (
                 <div className="p-3 border rounded-lg bg-muted/30 text-xs text-muted-foreground space-y-1">
@@ -341,7 +469,10 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
         <Button
           variant="outline"
           disabled={currentStep === 0}
-          onClick={() => setCurrentStep((p) => p - 1)}
+          onClick={() => {
+            recordSectionTime();
+            setCurrentStep((p) => p - 1);
+          }}
         >
           {locale === "pt" ? "Voltar" : "Back"}
         </Button>
@@ -356,7 +487,13 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
             {locale === "pt" ? "Aceitar e Assinar" : "Accept & Sign"}
           </Button>
         ) : (
-          <Button onClick={() => setCurrentStep((p) => p + 1)} disabled={!canProceed()}>
+          <Button
+            onClick={() => {
+              recordSectionTime();
+              setCurrentStep((p) => p + 1);
+            }}
+            disabled={!canProceed()}
+          >
             {locale === "pt" ? "Próximo" : "Next"}
             <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
