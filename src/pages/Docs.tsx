@@ -8,7 +8,8 @@ import {
   ArrowRight, Layers, Settings, Users, Upload, BrainCircuit, GitBranch,
   Database, PenTool, Filter, Network, AlertTriangle, BookMarked, FlaskConical,
   MessageSquare, Share2, LayoutDashboard, Workflow, ClipboardCheck, FileSearch,
-  ClipboardList, QrCode, GripVertical, Wand2,
+  ClipboardList, QrCode, GripVertical, Wand2, Shield, FileSignature, UserX,
+  Stethoscope,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
