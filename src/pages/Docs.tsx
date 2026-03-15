@@ -645,6 +645,257 @@ const Docs = () => {
         },
       ],
     },
+    // ========== TECHNICAL DOCUMENTATION ==========
+    {
+      id: "tech-architecture",
+      icon: Blocks,
+      title: pt ? "Arquitetura Geral" : "System Architecture",
+      category: pt ? "Técnico" : "Technical",
+      content: [
+        {
+          heading: pt ? "Visão geral da arquitetura" : "Architecture overview",
+          body: pt
+            ? "O ScholarAI é uma Single Page Application (SPA) construída com React 18 + TypeScript + Vite como bundler. O frontend roda inteiramente no navegador e se comunica com o backend via Supabase (PostgreSQL + Edge Functions + Auth + Storage). Não há servidor Node.js próprio — toda a lógica de backend é executada em Supabase Edge Functions (Deno runtime). A execução de código Python/R para análise de dados ocorre no navegador via WebAssembly (Pyodide / WebR) em Web Workers dedicados."
+            : "ScholarAI is a Single Page Application (SPA) built with React 18 + TypeScript + Vite as bundler. The frontend runs entirely in the browser and communicates with the backend via Supabase (PostgreSQL + Edge Functions + Auth + Storage). There is no custom Node.js server — all backend logic runs in Supabase Edge Functions (Deno runtime). Python/R code execution for data analysis runs in the browser via WebAssembly (Pyodide / WebR) in dedicated Web Workers.",
+        },
+        {
+          heading: pt ? "Fluxo de dados" : "Data flow",
+          body: pt
+            ? "1) O usuário interage com o React frontend; 2) Chamadas autenticadas são feitas ao Supabase usando o JWT do usuário (access_token obtido via supabase.auth.getSession()); 3) Para operações simples (CRUD), o Supabase Client SDK acessa diretamente o PostgreSQL via PostgREST com RLS (Row-Level Security); 4) Para operações complexas (IA, APIs externas), Edge Functions são invocadas via supabase.functions.invoke(); 5) Edge Functions usam o SUPABASE_SERVICE_ROLE_KEY para operações privilegiadas e chamam APIs externas (OpenAI, Semantic Scholar, etc.)."
+            : "1) User interacts with React frontend; 2) Authenticated calls go to Supabase using the user's JWT (access_token from supabase.auth.getSession()); 3) For simple operations (CRUD), Supabase Client SDK accesses PostgreSQL directly via PostgREST with RLS (Row-Level Security); 4) For complex operations (AI, external APIs), Edge Functions are invoked via supabase.functions.invoke(); 5) Edge Functions use SUPABASE_SERVICE_ROLE_KEY for privileged operations and call external APIs (OpenAI, Semantic Scholar, etc.).",
+        },
+        {
+          heading: pt ? "Padrão de autenticação em Edge Functions" : "Edge Function auth pattern",
+          body: pt
+            ? "IMPORTANTE: Chamadas do frontend para Edge Functions devem obrigatoriamente usar o JWT dinâmico do usuário (access_token) no header 'Authorization: Bearer <token>', obtido via supabase.auth.getSession(). O uso da chave anônima estática (VITE_SUPABASE_PUBLISHABLE_KEY) para essas chamadas é proibido, pois causa erros 401 Unauthorized. Dentro da Edge Function, o service_role_key é usado para criar um client com permissões elevadas quando necessário."
+            : "IMPORTANT: Frontend calls to Edge Functions must use the user's dynamic JWT (access_token) in the 'Authorization: Bearer <token>' header, obtained via supabase.auth.getSession(). Using the static anon key (VITE_SUPABASE_PUBLISHABLE_KEY) for these calls is prohibited as it causes 401 Unauthorized errors. Inside the Edge Function, the service_role_key creates an elevated-permission client when needed.",
+          tip: pt
+            ? "Nunca exponha o SERVICE_ROLE_KEY no frontend. Ele só deve existir como secret nas Edge Functions."
+            : "Never expose the SERVICE_ROLE_KEY on the frontend. It should only exist as a secret in Edge Functions.",
+        },
+      ],
+    },
+    {
+      id: "tech-stack",
+      icon: Code,
+      title: pt ? "Stack Tecnológico" : "Technology Stack",
+      category: pt ? "Técnico" : "Technical",
+      content: [
+        {
+          heading: pt ? "Frontend" : "Frontend",
+          body: pt
+            ? "• React 18 — biblioteca de UI com hooks e componentes funcionais\n• TypeScript — tipagem estática em todo o projeto\n• Vite — bundler ultrarrápido com HMR\n• Tailwind CSS — estilização utility-first com design tokens semânticos (HSL) definidos em index.css\n• shadcn/ui — componentes acessíveis baseados em Radix UI (Button, Dialog, Table, Sheet, Tabs, etc.)\n• React Router DOM — roteamento SPA com rotas protegidas\n• Framer Motion — animações fluídas\n• Recharts — gráficos interativos (forest plots, funnel plots, dashboards)\n• Lucide React — ícones consistentes\n• TanStack React Query — gerenciamento de estado assíncrono e cache\n• Sonner — sistema de toasts/notificações"
+            : "• React 18 — UI library with hooks and functional components\n• TypeScript — static typing throughout the project\n• Vite — ultra-fast bundler with HMR\n• Tailwind CSS — utility-first styling with semantic design tokens (HSL) in index.css\n• shadcn/ui — accessible components based on Radix UI (Button, Dialog, Table, Sheet, Tabs, etc.)\n• React Router DOM — SPA routing with protected routes\n• Framer Motion — fluid animations\n• Recharts — interactive charts (forest plots, funnel plots, dashboards)\n• Lucide React — consistent icons\n• TanStack React Query — async state management and caching\n• Sonner — toast/notification system",
+        },
+        {
+          heading: pt ? "Backend (Supabase)" : "Backend (Supabase)",
+          body: pt
+            ? "• Supabase — plataforma BaaS (Backend-as-a-Service) com PostgreSQL 15\n• PostgREST — API REST automática sobre o PostgreSQL\n• Supabase Auth — autenticação com email/senha, magic links e OAuth\n• Supabase Storage — armazenamento de arquivos (PDFs, ilustrações, documentos clínicos) em buckets privados e públicos\n• Supabase Edge Functions — funções serverless em Deno runtime para lógica de backend\n• Row-Level Security (RLS) — políticas de segurança no nível de linha do banco de dados\n• pgvector — extensão para busca por similaridade vetorial (embeddings de artigos)"
+            : "• Supabase — BaaS platform with PostgreSQL 15\n• PostgREST — automatic REST API over PostgreSQL\n• Supabase Auth — authentication with email/password, magic links, and OAuth\n• Supabase Storage — file storage (PDFs, illustrations, clinical docs) in private and public buckets\n• Supabase Edge Functions — serverless functions on Deno runtime for backend logic\n• Row-Level Security (RLS) — row-level database security policies\n• pgvector — extension for vector similarity search (paper embeddings)",
+        },
+        {
+          heading: pt ? "Execução de código no navegador" : "In-browser code execution",
+          body: pt
+            ? "• Pyodide (WebAssembly) — runtime Python completo no navegador para análise de dados via DataMind. Roda em Web Worker dedicado (public/pyodide-worker.js) com pacotes pré-instalados: pandas, matplotlib, seaborn, scikit-learn, scipy, openpyxl. O código é executado em sandbox isolada com protocolo de serialização de tabelas (__DATATABLE_START__ / __DATATABLE_END__) e captura de gráficos como base64.\n• WebR — runtime R no navegador para análises estatísticas. Também executa em Web Worker dedicado (public/webr-worker.js)."
+            : "• Pyodide (WebAssembly) — full Python runtime in the browser for DataMind data analysis. Runs in a dedicated Web Worker (public/pyodide-worker.js) with pre-installed packages: pandas, matplotlib, seaborn, scikit-learn, scipy, openpyxl. Code executes in an isolated sandbox with table serialization protocol (__DATATABLE_START__ / __DATATABLE_END__) and chart capture as base64.\n• WebR — R runtime in the browser for statistical analyses. Also runs in a dedicated Web Worker (public/webr-worker.js).",
+        },
+        {
+          heading: pt ? "Internacionalização" : "Internationalization",
+          body: pt
+            ? "O sistema é bilíngue (PT/EN) usando um LanguageContext customizado (src/i18n/LanguageContext.tsx) com dicionário de traduções (src/i18n/translations.ts). O idioma é detectado automaticamente e pode ser alternado pelo usuário. Componentes usam o hook useLanguage() para acessar locale e a função t() de tradução."
+            : "The system is bilingual (PT/EN) using a custom LanguageContext (src/i18n/LanguageContext.tsx) with translation dictionary (src/i18n/translations.ts). Language is auto-detected and can be toggled by the user. Components use the useLanguage() hook to access locale and the t() translation function.",
+        },
+      ],
+    },
+    {
+      id: "tech-database",
+      icon: Database,
+      title: pt ? "Estrutura do Banco de Dados" : "Database Structure",
+      category: pt ? "Técnico" : "Technical",
+      content: [
+        {
+          heading: pt ? "Tabelas principais — Pesquisa" : "Core tables — Research",
+          body: pt
+            ? "• papers — artigos científicos com metadados (título, abstract, DOI, autores, ano, journal, contadores de citações)\n• paper_chunks — chunks de texto com embeddings vetoriais (pgvector) para busca semântica e RAG\n• saved_searches — pesquisas salvas na biblioteca com papers, colunas e dados extraídos em JSONB\n• extraction_cache — cache de valores extraídos por IA (paper_id + column_name → extracted_value)\n• citation_classifications — classificações de citações (supporting, contrasting, mentioning) com contexto e confiança\n• reports — relatórios de síntese gerados pela IA\n• uploaded_papers — PDFs enviados pelo usuário com texto extraído"
+            : "• papers — scientific papers with metadata (title, abstract, DOI, authors, year, journal, citation counters)\n• paper_chunks — text chunks with vector embeddings (pgvector) for semantic search and RAG\n• saved_searches — library saved searches with papers, columns, and extracted data in JSONB\n• extraction_cache — AI-extracted values cache (paper_id + column_name → extracted_value)\n• citation_classifications — citation classifications (supporting, contrasting, mentioning) with context and confidence\n• reports — AI-generated synthesis reports\n• uploaded_papers — user-uploaded PDFs with extracted text",
+        },
+        {
+          heading: pt ? "Tabelas — Revisão Sistemática" : "Tables — Systematic Review",
+          body: pt
+            ? "• systematic_reviews — revisões com pergunta de pesquisa, papers, critérios de triagem, resultados de extração e relatório. Usa JSONB para flexibilidade.\n• screening_decisions — decisões de triagem por artigo (include/exclude/maybe) com score de inclusão e resultados por critério"
+            : "• systematic_reviews — reviews with research question, papers, screening criteria, extraction results, and report. Uses JSONB for flexibility.\n• screening_decisions — per-paper screening decisions (include/exclude/maybe) with inclusion score and per-criteria results",
+        },
+        {
+          heading: pt ? "Tabelas — DataMind" : "Tables — DataMind",
+          body: pt
+            ? "• datamind_conversations — sessões de análise\n• datamind_messages — mensagens com code_block e output (tipo + conteúdo)\n• datamind_files — arquivos enviados com schema_info e preview_data\n• datamind_checkpoints — versionamento (snapshots de mensagens e arquivos)\n• datamind_pipelines / datamind_pipeline_steps — pipelines reproduzíveis\n• datamind_dashboards / datamind_dashboard_items — dashboards com posição/layout\n• datamind_conversation_shares — compartilhamento com permissões (view/edit)\n• datamind_comments — comentários em mensagens\n• datamind_cleaning_profiles — perfis de limpeza de dados\n• datamind_db_connections — conexões SQL externas (host, port, credentials criptografadas)"
+            : "• datamind_conversations — analysis sessions\n• datamind_messages — messages with code_block and output (type + content)\n• datamind_files — uploaded files with schema_info and preview_data\n• datamind_checkpoints — versioning (message and file snapshots)\n• datamind_pipelines / datamind_pipeline_steps — reproducible pipelines\n• datamind_dashboards / datamind_dashboard_items — dashboards with position/layout\n• datamind_conversation_shares — sharing with permissions (view/edit)\n• datamind_comments — message comments\n• datamind_cleaning_profiles — data cleaning profiles\n• datamind_db_connections — external SQL connections (host, port, encrypted credentials)",
+        },
+        {
+          heading: pt ? "Tabelas — Surveys e Pesquisa Clínica" : "Tables — Surveys & Clinical Research",
+          body: pt
+            ? "• surveys — pesquisas com status (draft/active/closed) e settings JSONB\n• survey_blocks / survey_questions — blocos e questões com tipos variados (multiple_choice, matrix, slider, rank_order, etc.)\n• survey_responses / survey_answers — respostas e dados de cada questão\n• survey_logic_rules — regras de skip/branch logic\n• survey_distributions / survey_contacts — distribuição por email e contatos\n• study_consents / consent_signatures — TCLE com versionamento e assinaturas digitais\n• study_participants — participantes com código anônimo e status\n• study_visits — visitas programadas para eCRF longitudinal\n• participant_documents — documentos clínicos vinculados\n• study_audit_log — trilha de auditoria GCP/ICH completa"
+            : "• surveys — surveys with status (draft/active/closed) and JSONB settings\n• survey_blocks / survey_questions — blocks and questions with varied types (multiple_choice, matrix, slider, rank_order, etc.)\n• survey_responses / survey_answers — responses and per-question data\n• survey_logic_rules — skip/branch logic rules\n• survey_distributions / survey_contacts — email distribution and contacts\n• study_consents / consent_signatures — informed consent with versioning and digital signatures\n• study_participants — participants with anonymous code and status\n• study_visits — scheduled visits for longitudinal eCRF\n• participant_documents — linked clinical documents\n• study_audit_log — complete GCP/ICH audit trail",
+        },
+        {
+          heading: pt ? "Tabelas — Sistema" : "Tables — System",
+          body: pt
+            ? "• user_roles — papéis de usuário (admin, moderator, user) usando enum app_role. Nunca armazenados na tabela de perfis por segurança.\n• user_approvals — aprovação manual de novos cadastros\n• subscriptions — assinaturas Stripe com plano, status e período\n• usage_tracking — rastreamento de uso por feature e período\n• ai_usage_log — log de uso de IA (provider, modelo, tokens, custo)\n• ai_api_keys — chaves de API de provedores de IA (apenas admins)\n• analytics_events — eventos de analytics (page views, ações)\n• workspaces / workspace_members / workspace_activity / workspace_annotations — espaços colaborativos com papéis (owner, advisor, coauthor, reviewer)\n• literature_alerts / alert_results — alertas de nova literatura\n• retraction_watches — monitoramento de retratações\n• illustrations — ilustrações científicas geradas"
+            : "• user_roles — user roles (admin, moderator, user) using app_role enum. Never stored on profile table for security.\n• user_approvals — manual approval of new registrations\n• subscriptions — Stripe subscriptions with plan, status, and period\n• usage_tracking — per-feature usage tracking\n• ai_usage_log — AI usage log (provider, model, tokens, cost)\n• ai_api_keys — AI provider API keys (admin only)\n• analytics_events — analytics events (page views, actions)\n• workspaces / workspace_members / workspace_activity / workspace_annotations — collaborative workspaces with roles (owner, advisor, coauthor, reviewer)\n• literature_alerts / alert_results — new literature alerts\n• retraction_watches — retraction monitoring\n• illustrations — generated scientific illustrations",
+        },
+        {
+          heading: pt ? "Funções e Enums do banco" : "Database functions and enums",
+          body: pt
+            ? "Enums: app_role (admin, moderator, user), workspace_role (owner, advisor, coauthor, reviewer). Funções: has_role() — verifica papel do usuário (SECURITY DEFINER para evitar recursão RLS); is_workspace_member() — verifica pertencimento a workspace; get_workspace_role() — retorna papel no workspace; create_workspace() — cria workspace e adiciona owner; match_paper_chunks() — busca vetorial de chunks por similaridade (pgvector); handle_new_user_approval() — trigger que cria registro de aprovação ao novo cadastro; update_paper_citation_counters() — trigger que atualiza contadores de citação."
+            : "Enums: app_role (admin, moderator, user), workspace_role (owner, advisor, coauthor, reviewer). Functions: has_role() — checks user role (SECURITY DEFINER to avoid RLS recursion); is_workspace_member() — checks workspace membership; get_workspace_role() — returns workspace role; create_workspace() — creates workspace and adds owner; match_paper_chunks() — vector chunk search by similarity (pgvector); handle_new_user_approval() — trigger creating approval record on new signup; update_paper_citation_counters() — trigger updating citation counters.",
+          tip: pt
+            ? "A função has_role() é SECURITY DEFINER para evitar loops infinitos nas políticas RLS que verificam papéis."
+            : "The has_role() function is SECURITY DEFINER to avoid infinite loops in RLS policies that check roles.",
+        },
+      ],
+    },
+    {
+      id: "tech-edge-functions",
+      icon: Server,
+      title: pt ? "Edge Functions (API)" : "Edge Functions (API)",
+      category: pt ? "Técnico" : "Technical",
+      content: [
+        {
+          heading: pt ? "Visão geral" : "Overview",
+          body: pt
+            ? "Edge Functions são funções serverless executadas no Deno runtime do Supabase. Cada function é um diretório em supabase/functions/ com um index.ts. São deployadas automaticamente. Todas usam CORS headers e retornam JSON. A configuração (verify_jwt, etc.) fica em supabase/config.toml."
+            : "Edge Functions are serverless functions running on Supabase's Deno runtime. Each function is a directory in supabase/functions/ with an index.ts. They are auto-deployed. All use CORS headers and return JSON. Configuration (verify_jwt, etc.) is in supabase/config.toml.",
+        },
+        {
+          heading: pt ? "Funções de busca e IA" : "Search and AI functions",
+          body: pt
+            ? "• search-papers — busca multi-fonte (Semantic Scholar, PubMed, OpenAlex, Europe PMC) com normalização de resultados\n• synthesize-papers — síntese com IA de múltiplos artigos em texto coerente com citações\n• extract-column — extração de dados de artigos por coluna com prompt customizado\n• extract-pdf — extração de texto de PDFs enviados\n• embed-papers — geração de embeddings vetoriais para chunks de artigos\n• chat-papers — chat contextual com RAG sobre artigos\n• classify-citations — classificação automática de citações (supporting/contrasting/mentioning)\n• check-references — verificação de referências contra bases de retratação\n• evaluate-question — avaliação de qualidade de perguntas de pesquisa\n• generate-illustration — geração de ilustrações científicas via IA\n• generate-knowledge-graph — geração de grafo de relações entre artigos\n• writing-assist — assistente de escrita acadêmica\n• fetch-full-text — busca de texto completo via Europe PMC / Unpaywall"
+            : "• search-papers — multi-source search (Semantic Scholar, PubMed, OpenAlex, Europe PMC) with result normalization\n• synthesize-papers — AI synthesis of multiple papers into coherent text with citations\n• extract-column — per-column data extraction with custom prompts\n• extract-pdf — text extraction from uploaded PDFs\n• embed-papers — vector embedding generation for paper chunks\n• chat-papers — contextual RAG chat about papers\n• classify-citations — automatic citation classification (supporting/contrasting/mentioning)\n• check-references — reference checking against retraction databases\n• evaluate-question — research question quality evaluation\n• generate-illustration — AI scientific illustration generation\n• generate-knowledge-graph — paper relationship graph generation\n• writing-assist — academic writing assistant\n• fetch-full-text — full text retrieval via Europe PMC / Unpaywall",
+        },
+        {
+          heading: pt ? "Funções de revisão sistemática" : "Systematic review functions",
+          body: pt
+            ? "• generate-screening-criteria — geração de critérios de inclusão/exclusão baseados na pergunta de pesquisa\n• screen-papers — triagem de artigos com IA usando critérios definidos\n• active-learning-screen — triagem adaptativa com Active Learning (re-ranking por probabilidade)\n• quality-assessment — avaliação de qualidade metodológica com checklists (CASP, Newcastle-Ottawa, etc.)\n• risk-of-bias — avaliação automatizada de risco de viés\n• meta-analysis — cálculos de meta-análise (tamanhos de efeito, forest plots)\n• generate-review-report — geração de relatório acadêmico de revisão\n• clinical-synthesis — síntese clínica para rascunhos de evolução"
+            : "• generate-screening-criteria — inclusion/exclusion criteria generation based on research question\n• screen-papers — AI paper screening using defined criteria\n• active-learning-screen — adaptive screening with Active Learning (probability re-ranking)\n• quality-assessment — methodological quality assessment with checklists (CASP, Newcastle-Ottawa, etc.)\n• risk-of-bias — automated risk of bias assessment\n• meta-analysis — meta-analysis calculations (effect sizes, forest plots)\n• generate-review-report — academic review report generation\n• clinical-synthesis — clinical synthesis for progress note drafts",
+        },
+        {
+          heading: pt ? "Funções de DataMind e utilidades" : "DataMind and utility functions",
+          body: pt
+            ? "• datamind-chat — chat conversacional com geração de código Python/R\n• datamind-execute — execução de código via E2B sandbox (fallback server-side)\n• datamind-db — operações NL-to-SQL em bancos externos\n• datamind-providers — lista provedores de IA disponíveis\n• export-to-sheets — exportação para Google Sheets\n• check-alerts — verificação periódica de alertas de literatura\n• send-contact — envio de formulário de contato via Resend\n• send-metrics-to-hub — envio de métricas para hub central\n• survey-respond / survey-generate-questions — resposta e geração de questões de survey\n• consent-sign / consent-revoke — assinatura e revogação de TCLE\n• create-checkout / check-subscription / customer-portal — integração Stripe"
+            : "• datamind-chat — conversational chat with Python/R code generation\n• datamind-execute — code execution via E2B sandbox (server-side fallback)\n• datamind-db — NL-to-SQL operations on external databases\n• datamind-providers — list available AI providers\n• export-to-sheets — Google Sheets export\n• check-alerts — periodic literature alert checking\n• send-contact — contact form sending via Resend\n• send-metrics-to-hub — metrics reporting to central hub\n• survey-respond / survey-generate-questions — survey response and question generation\n• consent-sign / consent-revoke — informed consent signature and revocation\n• create-checkout / check-subscription / customer-portal — Stripe integration",
+        },
+        {
+          heading: pt ? "Módulo compartilhado (_shared)" : "Shared module (_shared)",
+          body: pt
+            ? "O diretório supabase/functions/_shared/ contém módulos reutilizados:\n• ai-caller.ts — abstrai chamadas a provedores de IA (OpenAI, Anthropic, Google, etc.) buscando chaves da tabela ai_api_keys ou keys do usuário\n• auth.ts — helper de autenticação para Edge Functions\n• usage-tracker.ts — registra uso de IA na tabela ai_usage_log com tokens, custo e tipo de prompt"
+            : "The supabase/functions/_shared/ directory contains reusable modules:\n• ai-caller.ts — abstracts AI provider calls (OpenAI, Anthropic, Google, etc.) fetching keys from ai_api_keys table or user keys\n• auth.ts — authentication helper for Edge Functions\n• usage-tracker.ts — logs AI usage to ai_usage_log table with tokens, cost, and prompt type",
+        },
+      ],
+    },
+    {
+      id: "tech-security",
+      icon: Lock,
+      title: pt ? "Segurança e RLS" : "Security & RLS",
+      category: pt ? "Técnico" : "Technical",
+      content: [
+        {
+          heading: pt ? "Row-Level Security (RLS)" : "Row-Level Security (RLS)",
+          body: pt
+            ? "Todas as tabelas possuem RLS habilitado. As políticas seguem o princípio do menor privilégio:\n• Tabelas de usuário (searches, reports, alerts, etc.) — 'auth.uid() = user_id' para SELECT, INSERT, UPDATE, DELETE\n• Tabelas públicas (papers, paper_chunks) — SELECT aberto, INSERT/UPDATE restrito a service_role\n• Tabelas de admin (ai_api_keys) — todas as operações protegidas por has_role(auth.uid(), 'admin')\n• Tabelas de workspace — verificam pertencimento via is_workspace_member()\n• Tabelas de survey — owner-based com exceções para acesso anônimo (respondentes de survey)\n• Tabelas de consentimento — INSERT público (participantes), SELECT restrito ao owner do survey"
+            : "All tables have RLS enabled. Policies follow the principle of least privilege:\n• User tables (searches, reports, alerts, etc.) — 'auth.uid() = user_id' for SELECT, INSERT, UPDATE, DELETE\n• Public tables (papers, paper_chunks) — open SELECT, INSERT/UPDATE restricted to service_role\n• Admin tables (ai_api_keys) — all operations protected by has_role(auth.uid(), 'admin')\n• Workspace tables — check membership via is_workspace_member()\n• Survey tables — owner-based with exceptions for anonymous access (survey respondents)\n• Consent tables — public INSERT (participants), SELECT restricted to survey owner",
+        },
+        {
+          heading: pt ? "Papéis e autenticação" : "Roles and authentication",
+          body: pt
+            ? "Papéis são armazenados na tabela user_roles (NUNCA na tabela de perfis) com enum app_role. A verificação é feita via função has_role() (SECURITY DEFINER). O sistema usa aprovação manual: novos usuários são criados com status 'pendente' na tabela user_approvals e só acessam funcionalidades após aprovação por admin. O componente ProtectedRoute.tsx bloqueia rotas para usuários não aprovados."
+            : "Roles are stored in the user_roles table (NEVER in the profile table) with app_role enum. Verification uses the has_role() function (SECURITY DEFINER). The system uses manual approval: new users are created with 'pending' status in user_approvals and only access features after admin approval. The ProtectedRoute.tsx component blocks routes for unapproved users.",
+          tip: pt
+            ? "Nunca verifique status de admin via localStorage ou credenciais hardcoded no frontend — sempre use validação server-side."
+            : "Never check admin status via localStorage or hardcoded frontend credentials — always use server-side validation.",
+        },
+        {
+          heading: pt ? "Storage e buckets" : "Storage and buckets",
+          body: pt
+            ? "Cinco buckets de armazenamento:\n• papers (privado) — PDFs de artigos enviados pelo usuário\n• illustrations (público) — ilustrações científicas geradas\n• datamind-files (privado) — arquivos de análise do DataMind\n• consents (privado) — PDFs de consentimento assinados\n• study-documents (privado) — documentos clínicos de participantes\nBuckets privados exigem autenticação e são protegidos por políticas de storage."
+            : "Five storage buckets:\n• papers (private) — user-uploaded paper PDFs\n• illustrations (public) — generated scientific illustrations\n• datamind-files (private) — DataMind analysis files\n• consents (private) — signed consent PDFs\n• study-documents (private) — participant clinical documents\nPrivate buckets require authentication and are protected by storage policies.",
+        },
+      ],
+    },
+    {
+      id: "tech-apis",
+      icon: Key,
+      title: pt ? "APIs Externas" : "External APIs",
+      category: pt ? "Técnico" : "Technical",
+      content: [
+        {
+          heading: pt ? "APIs de busca acadêmica" : "Academic search APIs",
+          body: pt
+            ? "• Semantic Scholar API (api.semanticscholar.org) — busca semântica em 200M+ papers, dados de citações, embeddings, informações de autores. Usada como fonte principal.\n• PubMed / E-utilities (eutils.ncbi.nlm.nih.gov) — busca em literatura biomédica e ciências da saúde. API pública do NCBI.\n• OpenAlex API (api.openalex.org) — índice aberto de toda a literatura acadêmica. Acesso gratuito sem autenticação.\n• Europe PMC (europepmc.org/rest) — busca em literatura biomédica europeia com acesso a texto completo gratuito.\n• Unpaywall (api.unpaywall.org) — localização de versões Open Access de artigos via DOI."
+            : "• Semantic Scholar API (api.semanticscholar.org) — semantic search in 200M+ papers, citation data, embeddings, author info. Used as primary source.\n• PubMed / E-utilities (eutils.ncbi.nlm.nih.gov) — biomedical and health sciences literature search. NCBI public API.\n• OpenAlex API (api.openalex.org) — open index of all academic literature. Free access without authentication.\n• Europe PMC (europepmc.org/rest) — European biomedical literature search with free full text access.\n• Unpaywall (api.unpaywall.org) — Open Access version location via DOI.",
+        },
+        {
+          heading: pt ? "APIs de IA" : "AI APIs",
+          body: pt
+            ? "O sistema suporta múltiplos provedores de IA configuráveis:\n• OpenAI (GPT-4o, GPT-4o-mini) — provider principal para extração, síntese e chat\n• Anthropic (Claude) — alternativa para tarefas de raciocínio\n• Google (Gemini) — alternativa de custo menor\n• Groq — inferência ultrarrápida para tarefas simples\nAs chaves são armazenadas na tabela ai_api_keys (acessível apenas por admins) ou fornecidas pelo usuário. O módulo ai-caller.ts abstrai a seleção de provider e modelo."
+            : "The system supports multiple configurable AI providers:\n• OpenAI (GPT-4o, GPT-4o-mini) — primary provider for extraction, synthesis, and chat\n• Anthropic (Claude) — alternative for reasoning tasks\n• Google (Gemini) — lower cost alternative\n• Groq — ultra-fast inference for simple tasks\nKeys are stored in the ai_api_keys table (admin-only) or provided by the user. The ai-caller.ts module abstracts provider and model selection.",
+        },
+        {
+          heading: pt ? "Serviços de infraestrutura" : "Infrastructure services",
+          body: pt
+            ? "• Stripe — processamento de pagamentos e gestão de assinaturas (checkout, customer portal, webhooks)\n• Resend — envio de emails transacionais (confirmação de conta, cópia de TCLE, alertas)\n• E2B — sandbox de execução de código server-side (fallback quando Pyodide não é suficiente)\n• Google Sheets API — exportação direta de dados para planilhas"
+            : "• Stripe — payment processing and subscription management (checkout, customer portal, webhooks)\n• Resend — transactional email sending (account confirmation, consent copy, alerts)\n• E2B — server-side code execution sandbox (fallback when Pyodide is insufficient)\n• Google Sheets API — direct data export to spreadsheets",
+        },
+      ],
+    },
+    {
+      id: "tech-env-secrets",
+      icon: HardDrive,
+      title: pt ? "Variáveis de Ambiente" : "Environment Variables",
+      category: pt ? "Técnico" : "Technical",
+      content: [
+        {
+          heading: pt ? "Variáveis do frontend (.env)" : "Frontend variables (.env)",
+          body: pt
+            ? "• VITE_SUPABASE_URL — URL do projeto Supabase (auto-populada)\n• VITE_SUPABASE_PUBLISHABLE_KEY — chave anônima do Supabase (pública, segura para o frontend)\n• VITE_SUPABASE_PROJECT_ID — ID do projeto Supabase\nEstas são as ÚNICAS variáveis disponíveis no frontend. Nunca exponha chaves secretas aqui."
+            : "• VITE_SUPABASE_URL — Supabase project URL (auto-populated)\n• VITE_SUPABASE_PUBLISHABLE_KEY — Supabase anon key (public, safe for frontend)\n• VITE_SUPABASE_PROJECT_ID — Supabase project ID\nThese are the ONLY variables available on the frontend. Never expose secret keys here.",
+        },
+        {
+          heading: pt ? "Secrets das Edge Functions" : "Edge Function secrets",
+          body: pt
+            ? "Configurados no painel do Supabase (Settings > Edge Functions):\n• SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY — acesso ao Supabase (auto-configurados)\n• SUPABASE_DB_URL — URL de conexão direta ao PostgreSQL\n• DB_ENCRYPTION_KEY — chave para criptografia de dados sensíveis (senhas de DB)\n• RESEND_API_KEY — envio de emails via Resend\n• STRIPE_SECRET_KEY — integração de pagamentos Stripe\n• E2B_API_KEY — execução de código server-side\n• HUB_SERVICE_KEY / HUB_SERVICE_ID / HUB_METRICS_KEY — integração com hub de métricas\n• LOVABLE_API_KEY — integração com plataforma Lovable"
+            : "Configured in Supabase dashboard (Settings > Edge Functions):\n• SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY — Supabase access (auto-configured)\n• SUPABASE_DB_URL — direct PostgreSQL connection URL\n• DB_ENCRYPTION_KEY — encryption key for sensitive data (DB passwords)\n• RESEND_API_KEY — email sending via Resend\n• STRIPE_SECRET_KEY — Stripe payment integration\n• E2B_API_KEY — server-side code execution\n• HUB_SERVICE_KEY / HUB_SERVICE_ID / HUB_METRICS_KEY — metrics hub integration\n• LOVABLE_API_KEY — Lovable platform integration",
+          tip: pt
+            ? "Os valores das secrets nunca são exibidos na documentação. Consulte o painel do Supabase para gerenciá-las."
+            : "Secret values are never shown in documentation. Check the Supabase dashboard to manage them.",
+        },
+      ],
+    },
+    {
+      id: "tech-project-structure",
+      icon: Cpu,
+      title: pt ? "Estrutura do Projeto" : "Project Structure",
+      category: pt ? "Técnico" : "Technical",
+      content: [
+        {
+          heading: pt ? "Organização de diretórios" : "Directory organization",
+          body: pt
+            ? "src/\n├── components/          → Componentes React reutilizáveis\n│   ├── ui/              → Componentes shadcn/ui (button, dialog, table...)\n│   ├── app/             → Componentes do app (header, sidebar, onboarding...)\n│   ├── landing/         → Componentes da landing page\n│   ├── datamind/        → Componentes do DataMind\n│   ├── survey/          → Componentes de surveys (builder, flow, results, eCRF, consent, compliance)\n│   ├── knowledge-graph/ → Componentes do grafo de conhecimento\n│   └── meta-analysis/   → Componentes de meta-análise\n├── pages/               → Páginas/rotas do React Router\n├── hooks/               → Custom hooks (useAuth, useSubscription, usePyodide, useWebR...)\n├── i18n/                → Internacionalização (LanguageContext, translations)\n├── integrations/supabase/ → Client e tipos auto-gerados do Supabase\n├── lib/                 → Utilidades (analytics, parsers bibliográficos, formatos de referência)\n└── assets/              → Imagens e recursos estáticos"
+            : "src/\n├── components/          → Reusable React components\n│   ├── ui/              → shadcn/ui components (button, dialog, table...)\n│   ├── app/             → App components (header, sidebar, onboarding...)\n│   ├── landing/         → Landing page components\n│   ├── datamind/        → DataMind components\n│   ├── survey/          → Survey components (builder, flow, results, eCRF, consent, compliance)\n│   ├── knowledge-graph/ → Knowledge graph components\n│   └── meta-analysis/   → Meta-analysis components\n├── pages/               → React Router pages/routes\n├── hooks/               → Custom hooks (useAuth, useSubscription, usePyodide, useWebR...)\n├── i18n/                → Internationalization (LanguageContext, translations)\n├── integrations/supabase/ → Supabase client and auto-generated types\n├── lib/                 → Utilities (analytics, bibliographic parsers, reference formats)\n└── assets/              → Images and static resources",
+        },
+        {
+          heading: pt ? "Supabase functions" : "Supabase functions",
+          body: pt
+            ? "supabase/\n├── config.toml          → Configuração do projeto (project_id, verify_jwt por function)\n├── functions/\n│   ├── _shared/         → Módulos compartilhados (ai-caller, auth, usage-tracker)\n│   ├── search-papers/   → Cada function é um diretório com index.ts\n│   ├── synthesize-papers/\n│   ├── datamind-chat/\n│   └── ... (35+ functions)\n└── migrations/          → Migrações SQL versionadas"
+            : "supabase/\n├── config.toml          → Project configuration (project_id, verify_jwt per function)\n├── functions/\n│   ├── _shared/         → Shared modules (ai-caller, auth, usage-tracker)\n│   ├── search-papers/   → Each function is a directory with index.ts\n│   ├── synthesize-papers/\n│   ├── datamind-chat/\n│   └── ... (35+ functions)\n└── migrations/          → Versioned SQL migrations",
+        },
+        {
+          heading: pt ? "Configuração e build" : "Configuration and build",
+          body: pt
+            ? "• vite.config.ts — configuração do Vite com plugin React e aliases de path (@/)\n• tailwind.config.ts — configuração do Tailwind com tokens de design semânticos\n• tsconfig.app.json — configuração do TypeScript para o app\n• index.css — variáveis CSS customizadas (design tokens HSL para cores, gradientes, sombras)\n• components.json — configuração do shadcn/ui (aliases, estilo, cor base)\n• vitest.config.ts — configuração de testes unitários com Vitest"
+            : "• vite.config.ts — Vite configuration with React plugin and path aliases (@/)\n• tailwind.config.ts — Tailwind configuration with semantic design tokens\n• tsconfig.app.json — TypeScript configuration for the app\n• index.css — custom CSS variables (HSL design tokens for colors, gradients, shadows)\n• components.json — shadcn/ui configuration (aliases, style, base color)\n• vitest.config.ts — unit test configuration with Vitest",
+        },
+      ],
+    },
   ];
 
   // Group by category
