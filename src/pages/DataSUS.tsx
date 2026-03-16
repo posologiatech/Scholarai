@@ -3,7 +3,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { usePyodide } from "@/hooks/usePyodide";
 import { supabase } from "@/integrations/supabase/client";
-import AppSidebar from "@/components/app/AppSidebar";
+
 
 import DataSUSResults from "@/components/datasus/DataSUSResults";
 import { Button } from "@/components/ui/button";
