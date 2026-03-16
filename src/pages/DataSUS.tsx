@@ -151,7 +151,7 @@ export default function DataSUS() {
 
   // Save message to DB
   const saveMessage = async (convId: string, msg: ChatMessage) => {
-    await supabase.from("datasus_messages").insert({
+    await (supabase as any).from("datasus_messages").insert({
       id: msg.id,
       conversation_id: convId,
       role: msg.role,
