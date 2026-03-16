@@ -219,7 +219,7 @@ export default function DataSUS() {
     let convId = activeConvId;
     if (!convId) {
       const title = trimmed.length > 60 ? trimmed.slice(0, 57) + "..." : trimmed;
-      const { data: newConv } = await supabase
+      const { data: newConv } = await (supabase as any)
         .from("datasus_conversations")
         .insert({ user_id: user.id, title })
         .select("id, title, updated_at")
