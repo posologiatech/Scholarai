@@ -55,6 +55,7 @@ import Pricing from "./pages/Pricing";
 import MyPlan from "./pages/MyPlan";
 import ParticipantPrivacy from "./pages/ParticipantPrivacy";
 import ConsentRevoke from "./pages/ConsentRevoke";
+import DataSUSPage from "./pages/DataSUS";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -124,6 +125,7 @@ const App = () => (
               <Route path="/surveys/:id/preview" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/survey/respond/:token" element={<SurveyRespond />} />
               <Route path="/consent/revoke/:signatureId" element={<ConsentRevoke />} />
+              <Route path="/datasus" element={<ProtectedRoute><DataSUSPage /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
