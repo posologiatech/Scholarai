@@ -55,6 +55,7 @@ import Pricing from "./pages/Pricing";
 import MyPlan from "./pages/MyPlan";
 import ParticipantPrivacy from "./pages/ParticipantPrivacy";
 import ConsentRevoke from "./pages/ConsentRevoke";
+import DataSUSPage from "./pages/DataSUS";
 const queryClient = new QueryClient();
 
 const App = () => (
