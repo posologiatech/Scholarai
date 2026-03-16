@@ -101,3 +101,6 @@ verify_jwt = false
 
 [functions.consent-revoke]
 verify_jwt = false
+
+[functions.datasus-query]
+verify_jwt = false
