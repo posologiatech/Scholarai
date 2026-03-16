@@ -786,6 +786,92 @@ export type Database = {
         }
         Relationships: []
       }
+      datasus_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      datasus_messages: {
+        Row: {
+          code: string | null
+          content: string
+          conversation_id: string
+          created_at: string
+          data_source: string | null
+          disease: string | null
+          error: string | null
+          explanation: string | null
+          id: string
+          images: Json | null
+          location: string | null
+          period: string | null
+          role: string
+          stdout: string | null
+          tables_data: Json | null
+        }
+        Insert: {
+          code?: string | null
+          content?: string
+          conversation_id: string
+          created_at?: string
+          data_source?: string | null
+          disease?: string | null
+          error?: string | null
+          explanation?: string | null
+          id?: string
+          images?: Json | null
+          location?: string | null
+          period?: string | null
+          role?: string
+          stdout?: string | null
+          tables_data?: Json | null
+        }
+        Update: {
+          code?: string | null
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          data_source?: string | null
+          disease?: string | null
+          error?: string | null
+          explanation?: string | null
+          id?: string
+          images?: Json | null
+          location?: string | null
+          period?: string | null
+          role?: string
+          stdout?: string | null
+          tables_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datasus_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "datasus_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       extraction_cache: {
         Row: {
           citation_context: string | null
