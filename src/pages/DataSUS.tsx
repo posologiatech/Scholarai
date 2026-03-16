@@ -134,7 +134,7 @@ export default function DataSUS() {
   };
 
   const deleteConversation = async (id: string) => {
-    await supabase.from("datasus_conversations").delete().eq("id", id);
+    await (supabase as any).from("datasus_conversations").delete().eq("id", id);
     if (activeConvId === id) {
       setActiveConvId(null);
       setMessages([]);
