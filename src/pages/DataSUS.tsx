@@ -70,6 +70,7 @@ export default function DataSUS() {
   const { locale } = useLanguage();
   const { user } = useAuth();
   const pyodide = usePyodide();
+  const pyodideStatusRef = useRef(pyodide.status);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -78,6 +79,10 @@ export default function DataSUS() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isPt = locale === "pt";
+
+  useEffect(() => {
+    pyodideStatusRef.current = pyodide.status;
+  }, [pyodide.status]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -170,15 +175,18 @@ export default function DataSUS() {
       // Initialize Pyodide if needed
       if (pyodide.status === "idle") {
         pyodide.init();
-        // Wait for ready
         await new Promise<void>((resolve) => {
           const interval = setInterval(() => {
-            if (pyodide.status === "ready" || pyodide.status === "error") {
+            if (pyodideStatusRef.current === "ready" || pyodideStatusRef.current === "error") {
               clearInterval(interval);
               resolve();
             }
           }, 500);
         });
+      }
+
+      if (pyodideStatusRef.current === "error") {
+        throw new Error(isPt ? "Falha ao inicializar Pyodide" : "Failed to initialize Pyodide");
       }
 
       // Run the code
