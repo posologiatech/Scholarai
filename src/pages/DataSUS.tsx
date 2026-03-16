@@ -416,7 +416,6 @@ export default function DataSUS() {
         <AppSidebar>{content}</AppSidebar>
       </div>
       <div className="md:hidden">
-        <MobileNav />
         {content}
       </div>
     </>
