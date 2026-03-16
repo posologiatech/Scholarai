@@ -233,7 +233,7 @@ export default function DataSUS() {
       setConversations((prev) => [newConv, ...prev]);
     } else {
       // Update timestamp
-      await supabase.from("datasus_conversations").update({ updated_at: new Date().toISOString() }).eq("id", convId);
+      await (supabase as any).from("datasus_conversations").update({ updated_at: new Date().toISOString() }).eq("id", convId);
     }
 
     const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: trimmed };
