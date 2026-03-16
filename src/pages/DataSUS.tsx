@@ -102,7 +102,7 @@ export default function DataSUS() {
   // Load messages when selecting a conversation
   const selectConversation = async (id: string) => {
     setActiveConvId(id);
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("datasus_messages")
       .select("*")
       .eq("conversation_id", id)
