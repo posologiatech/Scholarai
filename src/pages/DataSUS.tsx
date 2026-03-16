@@ -175,15 +175,18 @@ export default function DataSUS() {
       // Initialize Pyodide if needed
       if (pyodide.status === "idle") {
         pyodide.init();
-        // Wait for ready
         await new Promise<void>((resolve) => {
           const interval = setInterval(() => {
-            if (pyodide.status === "ready" || pyodide.status === "error") {
+            if (pyodideStatusRef.current === "ready" || pyodideStatusRef.current === "error") {
               clearInterval(interval);
               resolve();
             }
           }, 500);
         });
+      }
+
+      if (pyodideStatusRef.current === "error") {
+        throw new Error(isPt ? "Falha ao inicializar Pyodide" : "Failed to initialize Pyodide");
       }
 
       // Run the code
