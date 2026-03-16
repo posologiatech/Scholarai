@@ -81,6 +81,10 @@ export default function DataSUS() {
   const isPt = locale === "pt";
 
   useEffect(() => {
+    pyodideStatusRef.current = pyodide.status;
+  }, [pyodide.status]);
+
+  useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
