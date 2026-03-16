@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePyodide } from "@/hooks/usePyodide";
 import { supabase } from "@/integrations/supabase/client";
 import AppSidebar from "@/components/app/AppSidebar";
-import MobileNav from "@/components/app/MobileNav";
+
 import DataSUSResults from "@/components/datasus/DataSUSResults";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
