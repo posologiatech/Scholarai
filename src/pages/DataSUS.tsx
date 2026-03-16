@@ -418,14 +418,5 @@ export default function DataSUS() {
     </div>
   );
 
-  return (
-    <>
-      <div className="hidden md:block">
-        <AppSidebar>{content}</AppSidebar>
-      </div>
-      <div className="md:hidden">
-        {content}
-      </div>
-    </>
-  );
+  return content;
 }
