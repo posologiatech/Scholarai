@@ -70,6 +70,7 @@ export default function DataSUS() {
   const { locale } = useLanguage();
   const { user } = useAuth();
   const pyodide = usePyodide();
+  const pyodideStatusRef = useRef(pyodide.status);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
