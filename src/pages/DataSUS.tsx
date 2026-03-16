@@ -92,7 +92,7 @@ export default function DataSUS() {
   }, [user]);
 
   const loadConversations = async () => {
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("datasus_conversations")
       .select("id, title, updated_at")
       .order("updated_at", { ascending: false });
