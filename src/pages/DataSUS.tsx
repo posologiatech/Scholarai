@@ -3,7 +3,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { usePyodide } from "@/hooks/usePyodide";
 import { supabase } from "@/integrations/supabase/client";
-import AppSidebar from "@/components/app/AppSidebar";
+
 
 import DataSUSResults from "@/components/datasus/DataSUSResults";
 import { Button } from "@/components/ui/button";
@@ -418,14 +418,5 @@ export default function DataSUS() {
     </div>
   );
 
-  return (
-    <>
-      <div className="hidden md:block">
-        <AppSidebar>{content}</AppSidebar>
-      </div>
-      <div className="md:hidden">
-        {content}
-      </div>
-    </>
-  );
+  return content;
 }
