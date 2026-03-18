@@ -270,7 +270,7 @@ async function searchOpenAlex(query: string, limit = 10, filters?: SearchFilters
         abstract = words.map(([w]) => w).join(' ');
       }
 
-      const doi = w.doi ? w.doi.replace('https://doi.org/', '') : undefined;
+      const doi = normalizeDoi(w.doi);
       const oaId = w.id?.replace('https://openalex.org/', '') || '';
 
       return {
