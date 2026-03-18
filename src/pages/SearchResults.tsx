@@ -615,7 +615,7 @@ const SearchResults = () => {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
                   paper.source === "semantic_scholar" ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400" :
                   paper.source === "pubmed" ? "bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400" :
@@ -625,6 +625,23 @@ const SearchResults = () => {
                 }`}>
                   {sourceLabel(paper.source)}
                 </span>
+                {/* Availability badge */}
+                {paper.openAccess ? (
+                  <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
+                    <FileText className="h-2.5 w-2.5" />
+                    {locale === "pt" ? "Texto completo" : "Full text"}
+                  </span>
+                ) : paper.url || paper.doi ? (
+                  <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:text-sky-400">
+                    <FileText className="h-2.5 w-2.5" />
+                    {locale === "pt" ? "Link PDF disponível" : "PDF link available"}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                    <FileText className="h-2.5 w-2.5" />
+                    {locale === "pt" ? "Apenas abstract" : "Abstract only"}
+                  </span>
+                )}
                 <CitationBadge paperId={paper.id} compact />
               </div>
             </div>
