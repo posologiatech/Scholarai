@@ -40,6 +40,8 @@ interface ChatMessage {
   tables?: ParsedTable[];
   error?: string | null;
   isLoading?: boolean;
+  isRealData?: boolean;
+  dataSourceDetail?: string;
 }
 
 function parseTables(stdout: string): { cleanStdout: string; tables: ParsedTable[] } {
@@ -235,6 +237,7 @@ export default function DataSUS() {
           explanation: data.explanation, dataSource: data.data_source,
           disease: data.disease_or_topic, location: data.location,
           period: data.period, code: data.code,
+          isRealData: data.is_real_data, dataSourceDetail: data.data_source_detail,
         } : m
       ));
 
@@ -260,6 +263,7 @@ export default function DataSUS() {
         disease: data.disease_or_topic, location: data.location,
         period: data.period, code: data.code, stdout: cleanStdout,
         images: result.images, tables, error: result.error,
+        isRealData: data.is_real_data, dataSourceDetail: data.data_source_detail,
       };
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
       await saveMessage(convId, finalMsg);
@@ -449,6 +453,8 @@ export default function DataSUS() {
                           images={msg.images || []}
                           tables={msg.tables || []}
                           error={msg.error || null}
+                          isRealData={msg.isRealData}
+                          dataSourceDetail={msg.dataSourceDetail}
                         />
                         <Button
                           variant="outline"

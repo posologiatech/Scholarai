@@ -22,11 +22,13 @@ interface DataSUSResultProps {
   images: string[];
   tables: Array<{ title: string; headers: string[]; rows: string[][] }>;
   error: string | null;
+  isRealData?: boolean;
+  dataSourceDetail?: string;
 }
 
 export default function DataSUSResults({
   explanation, dataSource, disease, location, period, code,
-  stdout, images, tables, error,
+  stdout, images, tables, error, isRealData, dataSourceDetail,
 }: DataSUSResultProps) {
   const [showCode, setShowCode] = useState(false);
   const [expandedTable, setExpandedTable] = useState<number | null>(null);
@@ -152,9 +154,11 @@ export default function DataSUSResults({
 
       {/* Source */}
       {(stdout || images.length > 0 || tables.length > 0) && (
-        <p className="text-[10px] text-muted-foreground/50 flex items-center gap-1.5">
-          <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground/30" />
-          Fonte: {dataSource}/DataSUS — Dados simulados com base em padrões epidemiológicos reais
+        <p className={`text-[10px] flex items-center gap-1.5 ${isRealData ? 'text-emerald-600/70 dark:text-emerald-400/70' : 'text-amber-600/70 dark:text-amber-400/70'}`}>
+          <span className={`inline-block h-1.5 w-1.5 rounded-full ${isRealData ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+          {isRealData
+            ? `Fonte: ${dataSourceDetail || `${dataSource}/DataSUS`} — Dados reais`
+            : `Fonte: ${dataSource}/DataSUS — Dados simulados com base em padrões epidemiológicos`}
         </p>
       )}
 
