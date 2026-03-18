@@ -198,7 +198,7 @@ async function searchPubMed(query: string, limit = 10, filters?: SearchFilters):
         year: isNaN(pubYear!) ? null : pubYear,
         abstract: abstracts[id] || '',
         source: 'pubmed' as const,
-        citationCount: undefined,
+        citationCount: item.pmcrefcount ? parseInt(item.pmcrefcount) : undefined,
         doi: doi || undefined,
         url: `https://pubmed.ncbi.nlm.nih.gov/${id}/`,
         journal: item.fulljournalname || item.source,
