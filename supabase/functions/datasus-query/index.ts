@@ -8,9 +8,247 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `Você é um especialista em epidemiologia e saúde pública brasileira, com profundo conhecimento do DataSUS, TabNet e dos sistemas de informação em saúde do Brasil (SINAN, SIM, SINASC, SIH, SIA).
+/* ── UF / Region mappings ── */
+const REGION_STATES: Record<string, string[]> = {
+  norte: ["12", "16", "13", "15", "11", "14", "17"],
+  nordeste: ["27", "29", "23", "21", "25", "26", "22", "24", "28"],
+  sudeste: ["32", "31", "33", "35"],
+  sul: ["41", "43", "42"],
+  "centro-oeste": ["53", "52", "51", "50"],
+};
+
+const STATE_NAME_TO_IBGE: Record<string, string> = {
+  acre: "12", alagoas: "27", amapa: "16", amazonas: "13", bahia: "29",
+  ceara: "23", "distrito federal": "53", "espirito santo": "32",
+  goias: "52", maranhao: "21", "mato grosso": "51",
+  "mato grosso do sul": "50", "minas gerais": "31", para: "15",
+  paraiba: "25", parana: "41", pernambuco: "26", piaui: "22",
+  "rio de janeiro": "33", "rio grande do norte": "24",
+  "rio grande do sul": "43", rondonia: "11", roraima: "14",
+  "santa catarina": "42", "sao paulo": "35", sergipe: "28",
+  tocantins: "17",
+  ac: "12", al: "27", ap: "16", am: "13", ba: "29", ce: "23",
+  df: "53", es: "32", go: "52", ma: "21", mt: "51", ms: "50",
+  mg: "31", pa: "15", pb: "25", pr: "41", pe: "26", pi: "22",
+  rj: "33", rn: "24", rs: "43", ro: "11", rr: "14", sc: "42",
+  sp: "35", se: "28", to: "17",
+};
+
+const STATE_IBGE_TO_NAME: Record<string, string> = {
+  "12": "Acre", "27": "Alagoas", "16": "Amapá", "13": "Amazonas",
+  "29": "Bahia", "23": "Ceará", "53": "Distrito Federal", "32": "Espírito Santo",
+  "52": "Goiás", "21": "Maranhão", "51": "Mato Grosso", "50": "Mato Grosso do Sul",
+  "31": "Minas Gerais", "15": "Pará", "25": "Paraíba", "41": "Paraná",
+  "26": "Pernambuco", "22": "Piauí", "33": "Rio de Janeiro", "24": "Rio Grande do Norte",
+  "43": "Rio Grande do Sul", "11": "Rondônia", "14": "Roraima", "42": "Santa Catarina",
+  "35": "São Paulo", "28": "Sergipe", "17": "Tocantins",
+};
+
+/* Capital geocodes for state-level InfoDengue queries */
+const STATE_CAPITAL_GEOCODE: Record<string, string> = {
+  "12": "1200401", "27": "2704302", "16": "1600303", "13": "1302603",
+  "29": "2927408", "23": "2304400", "53": "5300108", "32": "3205309",
+  "52": "5208707", "21": "2111300", "51": "5103403", "50": "5002704",
+  "31": "3106200", "15": "1501402", "25": "2507507", "41": "4106902",
+  "26": "2611606", "22": "2211001", "33": "3304557", "24": "2408102",
+  "43": "4314902", "11": "1100205", "14": "1400100", "42": "4205407",
+  "35": "3550308", "28": "2800308", "17": "1721000",
+};
+
+/* ── InfoDengue API helper ── */
+interface InfoDengueRecord {
+  data_iniSE: string;
+  SE: number;
+  casos_est: number;
+  casos: number;
+  nivel: number;
+  receptession: number;
+  p_rt1: number;
+  tempmin: number;
+  tempmed: number;
+  tempmax: number;
+  umidmin: number;
+  umidmed: number;
+  umidmax: number;
+}
+
+function mapDiseaseToInfoDengue(disease: string): string | null {
+  const lower = disease.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (lower.includes("dengue")) return "dengue";
+  if (lower.includes("chikungunya") || lower.includes("chik")) return "chikungunya";
+  if (lower.includes("zika")) return "zika";
+  return null;
+}
+
+function parseYears(period: string): { startYear: number; endYear: number } {
+  const currentYear = new Date().getFullYear();
+  const years = period.match(/\d{4}/g);
+  if (years && years.length >= 2) {
+    return { startYear: parseInt(years[0]), endYear: parseInt(years[years.length - 1]) };
+  }
+  if (years && years.length === 1) {
+    return { startYear: parseInt(years[0]), endYear: parseInt(years[0]) };
+  }
+  const lastN = period.match(/(?:últimos?|last)\s+(\d+)\s+anos?/i);
+  if (lastN) {
+    const n = parseInt(lastN[1]);
+    return { startYear: currentYear - n, endYear: currentYear - 1 };
+  }
+  return { startYear: currentYear - 5, endYear: currentYear - 1 };
+}
+
+function resolveStateCodes(location: string): string[] {
+  const lower = location.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // Check if it's a region
+  for (const [region, codes] of Object.entries(REGION_STATES)) {
+    if (lower.includes(region)) return codes;
+  }
+
+  // Check if it's "Brasil" / all
+  if (lower.includes("brasil") || lower === "br" || lower.includes("todo o pais") || lower.includes("todas")) {
+    return Object.keys(STATE_IBGE_TO_NAME);
+  }
+
+  // Check if it's a specific state
+  for (const [name, code] of Object.entries(STATE_NAME_TO_IBGE)) {
+    if (lower.includes(name)) return [code];
+  }
+
+  return [];
+}
+
+async function fetchInfoDengueByState(
+  disease: string,
+  stateCodes: string[],
+  startYear: number,
+  endYear: number
+): Promise<{ csv: string; rowCount: number; source: string } | null> {
+  try {
+    const allRecords: Array<{
+      ano: number;
+      semana_epi: number;
+      uf: string;
+      casos_estimados: number;
+      casos_notificados: number;
+      nivel_alerta: number;
+    }> = [];
+
+    // Fetch data for each state using its capital geocode
+    const fetchPromises = stateCodes.map(async (stateCode) => {
+      const geocode = STATE_CAPITAL_GEOCODE[stateCode];
+      if (!geocode) return;
+      const stateName = STATE_IBGE_TO_NAME[stateCode] || stateCode;
+
+      for (let year = startYear; year <= endYear; year++) {
+        try {
+          const url = `https://info.dengue.mat.br/api/alertcity?geocode=${geocode}&disease=${disease}&format=json&ew_start=1&ew_end=52&ey_start=${year}&ey_end=${year}`;
+          const resp = await fetch(url, {
+            headers: { "Accept": "application/json" },
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!resp.ok) continue;
+          const data: InfoDengueRecord[] = await resp.json();
+          for (const rec of data) {
+            const se = String(rec.SE);
+            const ano = parseInt(se.substring(0, 4));
+            const semana = parseInt(se.substring(4));
+            allRecords.push({
+              ano,
+              semana_epi: semana,
+              uf: stateName,
+              casos_estimados: Math.round(rec.casos_est || 0),
+              casos_notificados: rec.casos || 0,
+              nivel_alerta: rec.nivel || 0,
+            });
+          }
+        } catch (e) {
+          console.warn(`InfoDengue fetch failed for ${stateCode}/${year}:`, e);
+        }
+      }
+    });
+
+    await Promise.all(fetchPromises);
+
+    if (allRecords.length === 0) return null;
+
+    // Sort by year, week, state
+    allRecords.sort((a, b) => a.ano - b.ano || a.semana_epi - b.semana_epi || a.uf.localeCompare(b.uf));
+
+    // Build CSV
+    const csvLines = ["ano,semana_epi,uf,casos_estimados,casos_notificados,nivel_alerta"];
+    for (const r of allRecords) {
+      csvLines.push(`${r.ano},${r.semana_epi},${r.uf},${r.casos_estimados},${r.casos_notificados},${r.nivel_alerta}`);
+    }
+
+    return {
+      csv: csvLines.join("\n"),
+      rowCount: allRecords.length,
+      source: "InfoDengue (info.dengue.mat.br) — dados reais de vigilância epidemiológica",
+    };
+  } catch (e) {
+    console.error("InfoDengue fetch error:", e);
+    return null;
+  }
+}
+
+/* ── System prompts ── */
+const EXTRACTION_PROMPT = `Você é um especialista em epidemiologia brasileira. Interprete a pergunta do usuário e extraia os parâmetros para consulta ao DataSUS.
+
+Mapeamento de UFs (código IBGE):
+AC:12, AL:27, AP:16, AM:13, BA:29, CE:23, DF:53, ES:32, GO:52, MA:21, MT:51, MS:50, MG:31, PA:15, PB:25, PR:41, PE:26, PI:22, RJ:33, RN:24, RS:43, RO:11, RR:14, SC:42, SP:35, SE:28, TO:17
+
+Regiões: Norte, Nordeste, Sudeste, Sul, Centro-Oeste
+
+CID-10 comuns:
+A90:Dengue, A91:Dengue hemorrágica, A92.0:Chikungunya, A15:Tuberculose, A30:Hanseníase, U07.1:COVID-19, B50-B54:Malária, B57:Chagas, B55:Leishmaniose
+`;
+
+function buildAnalysisPrompt(realDataCsv: string, dataSource: string) {
+  return `Você é um especialista em epidemiologia brasileira. Gere código Python para analisar dados REAIS do DataSUS/InfoDengue.
+
+## DADOS REAIS DISPONÍVEIS
+Os dados reais já estão carregados. O código DEVE começar com:
+\`\`\`python
+import pandas as pd
+import io
+
+REAL_DATA_CSV = """${realDataCsv.substring(0, 50000)}"""
+
+df = pd.read_csv(io.StringIO(REAL_DATA_CSV))
+\`\`\`
+
+## Colunas disponíveis:
+- ano: ano da semana epidemiológica
+- semana_epi: número da semana epidemiológica
+- uf: nome do estado (capital como proxy)
+- casos_estimados: casos estimados pelo modelo (nowcasting)
+- casos_notificados: casos oficialmente notificados
+- nivel_alerta: nível de alerta (1=verde, 2=amarelo, 3=laranja, 4=vermelho)
+
+## Regras:
+1. Use SEMPRE f-strings para formatação (NUNCA use .format())
+2. Use pandas para manipulação e agregação
+3. Use matplotlib/seaborn para gráficos com plt.show()
+4. Imprima dados tabulares com print() e show_table(df, "titulo")
+5. Sempre inclua tratamento de erros com try/except
+6. Crie visualizações claras com títulos em português
+7. Use variáveis intermediárias para textos longos
+8. Ao final, imprima uma interpretação epidemiológica dos resultados
+9. Fonte dos dados: ${dataSource}
+10. IMPORTANTE: Estes são dados REAIS. Mencione isso na interpretação.
+11. Para agregação anual, some os casos por ano e UF
+12. Configure matplotlib para fontes sem serifa: plt.rcParams['font.family'] = 'DejaVu Sans'
+`;
+}
+
+const SIMULATED_PROMPT = `Você é um especialista em epidemiologia e saúde pública brasileira, com profundo conhecimento do DataSUS, TabNet e dos sistemas de informação em saúde do Brasil (SINAN, SIM, SINASC, SIH, SIA).
 
 Sua tarefa é interpretar perguntas de pesquisadores sobre dados epidemiológicos e gerar código Python para análise.
+
+IMPORTANTE: Não foi possível obter dados reais da API para esta consulta específica. Gere dados SIMULADOS realistas baseados em padrões epidemiológicos conhecidos do Brasil. Deixe CLARO no output que os dados são simulados.
 
 ## Regras para geração de código:
 1. Use SEMPRE f-strings para formatação (NUNCA use .format())
@@ -23,6 +261,7 @@ Sua tarefa é interpretar perguntas de pesquisadores sobre dados epidemiológico
 8. Crie visualizações claras com títulos em português
 9. Use variáveis intermediárias para textos longos
 10. Ao final, imprima uma interpretação epidemiológica dos resultados
+11. SEMPRE adicione um print dizendo "⚠️ NOTA: Estes dados são SIMULADOS com base em padrões epidemiológicos conhecidos."
 
 ## Padrões epidemiológicos conhecidos:
 - Dengue: sazonalidade jan-mai, picos em anos epidêmicos (2015, 2019, 2024)
@@ -32,12 +271,6 @@ Sua tarefa é interpretar perguntas de pesquisadores sobre dados epidemiológico
 
 ## Mapeamento de UFs (código IBGE):
 AC:12, AL:27, AP:16, AM:13, BA:29, CE:23, DF:53, ES:32, GO:52, MA:21, MT:51, MS:50, MG:31, PA:15, PB:25, PR:41, PE:26, PI:22, RJ:33, RN:24, RS:43, RO:11, RR:14, SC:42, SP:35, SE:28, TO:17
-
-## Cidades principais:
-São Paulo:355030, Rio de Janeiro:330455, Brasília:530010, Salvador:292740, Fortaleza:230440, Belo Horizonte:310620, Manaus:130260, Curitiba:410690, Recife:261160, Natal:240810, Porto Alegre:431490
-
-## CID-10 comuns:
-A90:Dengue, A91:Dengue hemorrágica, A92.0:Chikungunya, A15:Tuberculose, A30:Hanseníase, U07.1:COVID-19, B50-B54:Malária, B57:Chagas, B55:Leishmaniose
 `;
 
 serve(async (req) => {
@@ -58,63 +291,56 @@ serve(async (req) => {
 
     const chatMessages = messages || [{ role: "user", content: query }];
 
-    // Use tool calling to extract parameters and generate code
-    const aiResponse = await callAI({
+    /* ── Step 1: Extract parameters via AI ── */
+    const extractionResponse = await callAI({
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: EXTRACTION_PROMPT },
         ...chatMessages,
       ],
       tools: [
         {
           type: "function",
           function: {
-            name: "generate_datasus_analysis",
-            description: "Gera código Python para análise de dados epidemiológicos do DataSUS/TabNet. Use esta ferramenta sempre que o usuário fizer uma pergunta sobre dados de saúde do Brasil.",
+            name: "extract_query_params",
+            description: "Extrai parâmetros da pergunta do usuário sobre dados epidemiológicos do DataSUS.",
             parameters: {
               type: "object",
               properties: {
                 explanation: {
                   type: "string",
-                  description: "Explicação breve sobre o que será analisado e qual base de dados será consultada",
+                  description: "Explicação breve sobre o que será analisado",
                 },
                 data_source: {
                   type: "string",
                   enum: ["SINAN", "SIM", "SINASC", "SIH", "SIA"],
-                  description: "Sistema de informação do DataSUS a ser consultado",
+                  description: "Sistema de informação do DataSUS",
                 },
                 disease_or_topic: {
                   type: "string",
-                  description: "Agravo, doença ou tópico de saúde (ex: dengue, tuberculose, mortalidade infantil)",
+                  description: "Agravo, doença ou tópico (ex: dengue, tuberculose, mortalidade infantil)",
                 },
                 location: {
                   type: "string",
-                  description: "Localidade: UF, município, região ou Brasil inteiro",
+                  description: "Localidade: UF, município, região ou Brasil",
                 },
                 period: {
                   type: "string",
-                  description: "Período de análise (ex: 2019-2024, últimos 5 anos)",
-                },
-                python_code: {
-                  type: "string",
-                  description: "Código Python completo para gerar dados simulados realistas, análise e visualizações. Deve usar pandas, matplotlib/seaborn. Deve incluir interpretação epidemiológica.",
+                  description: "Período de análise (ex: 2017-2023, últimos 5 anos)",
                 },
               },
-              required: ["explanation", "data_source", "disease_or_topic", "python_code"],
+              required: ["explanation", "data_source", "disease_or_topic"],
               additionalProperties: false,
             },
           },
         },
       ],
-      tool_choice: { type: "function", function: { name: "generate_datasus_analysis" } },
+      tool_choice: { type: "function", function: { name: "extract_query_params" } },
       _userId: userId,
       _promptType: "datasus-query",
     } as any);
 
-    if (!aiResponse.ok) {
-      const status = aiResponse.status;
-      const errText = await aiResponse.text();
-      console.error(`AI response error ${status}:`, errText);
-
+    if (!extractionResponse.ok) {
+      const status = extractionResponse.status;
       if (status === 429) {
         return new Response(
           JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }),
@@ -123,43 +349,123 @@ serve(async (req) => {
       }
       if (status === 402) {
         return new Response(
-          JSON.stringify({ error: "Créditos de IA esgotados. Adicione créditos ao seu workspace." }),
+          JSON.stringify({ error: "Créditos de IA esgotados." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
       return new Response(
         JSON.stringify({ error: "Falha ao processar a consulta" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const data = await aiResponse.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    const extractionData = await extractionResponse.json();
+    const toolCall = extractionData.choices?.[0]?.message?.tool_calls?.[0];
 
     if (!toolCall) {
-      // If no tool call, return the text response
-      const textContent = data.choices?.[0]?.message?.content || "Não foi possível interpretar sua pergunta. Tente reformular.";
+      const textContent = extractionData.choices?.[0]?.message?.content || "Não foi possível interpretar sua pergunta. Tente reformular.";
       return new Response(
-        JSON.stringify({
-          type: "text",
-          content: textContent,
-        }),
+        JSON.stringify({ type: "text", content: textContent }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const args = JSON.parse(toolCall.function.arguments);
+    const params = JSON.parse(toolCall.function.arguments);
+    const { explanation, data_source, disease_or_topic, location, period } = params;
+    const locationStr = location || "Brasil";
+    const periodStr = period || "últimos 5 anos";
+
+    /* ── Step 2: Try to fetch real data ── */
+    let realData: { csv: string; rowCount: number; source: string } | null = null;
+    const infoDengueDisease = mapDiseaseToInfoDengue(disease_or_topic);
+
+    if (infoDengueDisease) {
+      const stateCodes = resolveStateCodes(locationStr);
+      if (stateCodes.length > 0) {
+        const { startYear, endYear } = parseYears(periodStr);
+        console.log(`Fetching InfoDengue: disease=${infoDengueDisease}, states=${stateCodes.length}, years=${startYear}-${endYear}`);
+        realData = await fetchInfoDengueByState(infoDengueDisease, stateCodes, startYear, endYear);
+        if (realData) {
+          console.log(`InfoDengue: got ${realData.rowCount} records`);
+        }
+      }
+    }
+
+    /* ── Step 3: Generate analysis code ── */
+    const isRealData = realData !== null;
+    const userQuestion = chatMessages[chatMessages.length - 1]?.content || "";
+
+    let codeGenerationPrompt: string;
+    if (isRealData) {
+      codeGenerationPrompt = buildAnalysisPrompt(realData!.csv, realData!.source);
+    } else {
+      codeGenerationPrompt = SIMULATED_PROMPT;
+    }
+
+    const codeResponse = await callAI({
+      messages: [
+        { role: "system", content: codeGenerationPrompt },
+        { role: "user", content: `Pergunta do pesquisador: ${userQuestion}\n\nParâmetros:\n- Fonte: ${data_source}\n- Agravo/tema: ${disease_or_topic}\n- Local: ${locationStr}\n- Período: ${periodStr}\n\nGere o código Python completo para análise e visualização.` },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "generate_analysis_code",
+            description: "Gera código Python para analisar dados epidemiológicos.",
+            parameters: {
+              type: "object",
+              properties: {
+                python_code: {
+                  type: "string",
+                  description: "Código Python completo para análise e visualização dos dados.",
+                },
+              },
+              required: ["python_code"],
+              additionalProperties: false,
+            },
+          },
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "generate_analysis_code" } },
+      _userId: userId,
+      _promptType: "datasus-analysis",
+    } as any);
+
+    if (!codeResponse.ok) {
+      return new Response(
+        JSON.stringify({ error: "Falha ao gerar código de análise" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const codeData = await codeResponse.json();
+    const codeToolCall = codeData.choices?.[0]?.message?.tool_calls?.[0];
+
+    let pythonCode = "";
+    if (codeToolCall) {
+      const codeArgs = JSON.parse(codeToolCall.function.arguments);
+      pythonCode = codeArgs.python_code;
+    } else {
+      // Fallback: try to extract code from content
+      const content = codeData.choices?.[0]?.message?.content || "";
+      const codeMatch = content.match(/```python\n?([\s\S]*?)```/);
+      pythonCode = codeMatch ? codeMatch[1] : content;
+    }
 
     return new Response(
       JSON.stringify({
         type: "analysis",
-        explanation: args.explanation,
-        data_source: args.data_source,
-        disease_or_topic: args.disease_or_topic,
-        location: args.location || "Brasil",
-        period: args.period || "",
-        code: args.python_code,
+        explanation: explanation + (isRealData
+          ? "\n\n📊 **Dados reais** obtidos da API InfoDengue (vigilância epidemiológica)."
+          : "\n\n⚠️ **Dados simulados** — não foi possível obter dados reais para esta consulta específica. Os valores são estimativas baseadas em padrões epidemiológicos conhecidos."),
+        data_source: data_source,
+        disease_or_topic: disease_or_topic,
+        location: locationStr,
+        period: periodStr,
+        code: pythonCode,
+        is_real_data: isRealData,
+        data_source_detail: isRealData ? realData!.source : "Dados simulados com base em padrões epidemiológicos",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
