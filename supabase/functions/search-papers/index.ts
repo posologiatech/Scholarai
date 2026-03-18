@@ -10,6 +10,17 @@ const corsHeaders = {
 
 type SourceType = 'semantic_scholar' | 'pubmed' | 'openalex' | 'clinical_trials' | 'europe_pmc' | 'crossref' | 'core';
 
+// ─── DOI normalizer ─────────────────────────────────────────────────
+function normalizeDoi(doi: string | undefined | null): string | undefined {
+  if (!doi) return undefined;
+  return doi
+    .toLowerCase()
+    .replace(/^https?:\/\/doi\.org\//i, '')
+    .replace(/^doi:\s*/i, '')
+    .replace(/[\s.;,]+$/, '')
+    .trim() || undefined;
+}
+
 interface Paper {
   id: string;
   title: string;
