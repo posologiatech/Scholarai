@@ -50,7 +50,7 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-papers`
 
 const ColumnsPanel = ({ suggestedColumns, onColumnsChange, papers = [], query = "", papersLoading = false }: ColumnsPanelProps) => {
   const { locale } = useLanguage();
-  const [activeTab, setActiveTab] = useState<"chat" | "columns">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "columns">("columns");
   const [newColumnName, setNewColumnName] = useState("");
 
   // Custom column prompt dialog
