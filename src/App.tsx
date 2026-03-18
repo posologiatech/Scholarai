@@ -68,6 +68,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <CookieBanner />
+            <OracleAgent />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
