@@ -85,6 +85,7 @@ const PaperReport = () => {
         doi: paperRow.doi || undefined,
         url: paperRow.url || undefined,
         journal: paperRow.journal || undefined,
+        citationCount: navState?.paperData?.citationCount,
       });
     } else if (navState?.paperData) {
       // Use data passed from search results
