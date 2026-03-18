@@ -63,7 +63,7 @@ interface Paper {
   authors: string[];
   year: number | null;
   abstract: string;
-  source: "semantic_scholar" | "pubmed" | "openalex" | "clinical_trials" | "europe_pmc";
+  source: "semantic_scholar" | "pubmed" | "openalex" | "clinical_trials" | "europe_pmc" | "crossref" | "core";
   citationCount?: number;
   doi?: string;
   url?: string;
@@ -103,6 +103,8 @@ const sourceLabel = (s: string) => {
     openalex: "OpenAlex",
     clinical_trials: "ClinicalTrials.gov",
     europe_pmc: "Europe PMC",
+    crossref: "CrossRef",
+    core: "CORE",
   };
   return labels[s] || s;
 };
@@ -623,6 +625,8 @@ const SearchResults = () => {
                   paper.source === "pubmed" ? "bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400" :
                   paper.source === "openalex" ? "bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400" :
                   paper.source === "clinical_trials" ? "bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400" :
+                  paper.source === "crossref" ? "bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400" :
+                  paper.source === "core" ? "bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400" :
                   "bg-teal-50 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400"
                 }`}>
                   {sourceLabel(paper.source)}
@@ -932,6 +936,8 @@ const SearchResults = () => {
                       { value: "openalex", label: "OpenAlex" },
                       { value: "clinical_trials", label: "ClinicalTrials.gov" },
                       { value: "europe_pmc", label: "Europe PMC" },
+                      { value: "crossref", label: "CrossRef" },
+                      { value: "core", label: "CORE" },
                     ].map((src) => (
                       <label key={src.value} className="flex items-center justify-between cursor-pointer rounded-md px-2 py-1.5 hover:bg-muted">
                         <div className="flex items-center gap-2">
@@ -1091,7 +1097,7 @@ const SearchResults = () => {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="mt-3 text-sm font-medium">{t("search.loading")}</p>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              {["Semantic Scholar", "PubMed", "OpenAlex", "Europe PMC"].map((source, i) => (
+              {["Semantic Scholar", "PubMed", "OpenAlex", "ClinicalTrials.gov", "Europe PMC", "CrossRef", "CORE"].map((source, i) => (
                 <span
                   key={source}
                   className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground animate-pulse"

@@ -8,7 +8,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-type SourceType = 'semantic_scholar' | 'pubmed' | 'openalex' | 'clinical_trials' | 'europe_pmc';
+type SourceType = 'semantic_scholar' | 'pubmed' | 'openalex' | 'clinical_trials' | 'europe_pmc' | 'crossref' | 'core';
 
 interface Paper {
   id: string;
@@ -392,6 +392,106 @@ async function searchEuropePMC(query: string, limit = 10, filters?: SearchFilter
   }
 }
 
+// ─── CrossRef ───────────────────────────────────────────────────────
+async function searchCrossRef(query: string, limit = 10, filters?: SearchFilters): Promise<Paper[]> {
+  try {
+    let url = `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=${limit}&select=DOI,title,author,published-print,published-online,abstract,is-referenced-by-count,container-title,link&mailto=scholarai@research.app`;
+
+    if (filters?.yearMin || filters?.yearMax) {
+      const min = filters.yearMin || 1900;
+      const max = filters.yearMax || new Date().getFullYear();
+      url += `&filter=from-pub-date:${min},until-pub-date:${max}`;
+    }
+
+    if (filters?.openAccessOnly) {
+      url += (url.includes('&filter=') ? ',' : '&filter=') + 'has-license:true';
+    }
+
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'ScholarAI/1.0 (mailto:scholarai@research.app)' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      console.error('[CrossRef] Status:', res.status);
+      return [];
+    }
+    const data = await res.json();
+    return (data.message?.items || []).map((item: any) => {
+      const pubDate = item['published-print']?.['date-parts']?.[0] || item['published-online']?.['date-parts']?.[0];
+      const year = pubDate?.[0] || null;
+      const authors = (item.author || []).map((a: any) => `${a.given || ''} ${a.family || ''}`.trim());
+      const abstractRaw = item.abstract || '';
+      const abstract = abstractRaw.replace(/<[^>]+>/g, '').trim();
+      const hasFullText = (item.link || []).some((l: any) => l['content-type']?.includes('pdf') || l['content-type']?.includes('xml'));
+
+      return {
+        id: `cr_${item.DOI}`,
+        title: Array.isArray(item.title) ? item.title[0] || '' : item.title || '',
+        authors,
+        year,
+        abstract,
+        source: 'crossref' as const,
+        citationCount: item['is-referenced-by-count'],
+        doi: item.DOI,
+        url: `https://doi.org/${item.DOI}`,
+        journal: Array.isArray(item['container-title']) ? item['container-title'][0] : item['container-title'],
+        openAccess: hasFullText,
+      };
+    });
+  } catch (e) {
+    console.error('[CrossRef] Error:', e);
+    return [];
+  }
+}
+
+// ─── CORE ───────────────────────────────────────────────────────────
+async function searchCORE(query: string, limit = 10, filters?: SearchFilters): Promise<Paper[]> {
+  try {
+    const apiKey = Deno.env.get('CORE_API_KEY');
+    if (!apiKey) {
+      console.warn('[CORE] No API key configured, skipping');
+      return [];
+    }
+
+    let url = `https://api.core.ac.uk/v3/search/works?q=${encodeURIComponent(query)}&limit=${limit}`;
+
+    if (filters?.yearMin || filters?.yearMax) {
+      const min = filters.yearMin || 1900;
+      const max = filters.yearMax || new Date().getFullYear();
+      url += `&filter=yearPublished>=${min},yearPublished<=${max}`;
+    }
+
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      console.error('[CORE] Status:', res.status);
+      return [];
+    }
+    const data = await res.json();
+    return (data.results || []).map((item: any) => {
+      const authors = (item.authors || []).map((a: any) => a.name || '');
+      return {
+        id: `core_${item.id}`,
+        title: item.title || '',
+        authors,
+        year: item.yearPublished || null,
+        abstract: item.abstract || '',
+        source: 'core' as const,
+        citationCount: item.citationCount,
+        doi: item.doi,
+        url: item.downloadUrl || item.sourceFulltextUrls?.[0] || (item.doi ? `https://doi.org/${item.doi}` : `https://core.ac.uk/works/${item.id}`),
+        journal: item.publisher || item.journals?.[0]?.title,
+        openAccess: true, // CORE is exclusively open access
+      };
+    });
+  } catch (e) {
+    console.error('[CORE] Error:', e);
+    return [];
+  }
+}
+
 // ─── Translate query to English ─────────────────────────────────────
 async function translateToEnglish(query: string): Promise<string> {
   const nonEnglishPattern = /[àáâãéêíóôõúüç]|(\b(qual|quais|como|para|pode|causa|entre|sobre|efeito|tratamento|comparado|mulheres|homens|idosos|crianças|estudo|risco|aumenta|reduz|previne|segurança|eficácia|blocadores|diuréticos|grávidas)\b)/i;
@@ -525,6 +625,8 @@ const sourceMap: Record<string, (query: string, limit: number, filters?: SearchF
   openalex: searchOpenAlex,
   clinical_trials: searchClinicalTrials,
   europe_pmc: searchEuropePMC,
+  crossref: searchCrossRef,
+  core: searchCORE,
 };
 
 // ─── Main handler ───────────────────────────────────────────────────
@@ -539,7 +641,7 @@ Deno.serve(async (req) => {
   try {
     const {
       query: originalQuery,
-      sources = ['semantic_scholar', 'pubmed', 'openalex', 'clinical_trials', 'europe_pmc'],
+      sources = ['semantic_scholar', 'pubmed', 'openalex', 'clinical_trials', 'europe_pmc', 'crossref', 'core'],
       limit = 10,
       filters,
     } = await req.json();
