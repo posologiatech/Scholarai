@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 // AppSidebar provided by ProtectedRoute
 import { supabase } from "@/integrations/supabase/client";
