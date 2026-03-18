@@ -237,6 +237,7 @@ export default function DataSUS() {
           explanation: data.explanation, dataSource: data.data_source,
           disease: data.disease_or_topic, location: data.location,
           period: data.period, code: data.code,
+          isRealData: data.is_real_data, dataSourceDetail: data.data_source_detail,
         } : m
       ));
 
