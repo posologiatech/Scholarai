@@ -648,7 +648,7 @@ const SearchResults = () => {
                     {locale === "pt" ? "Apenas abstract" : "Abstract only"}
                   </span>
                 )}
-                <CitationBadge paperId={paper.id} compact />
+                <CitationBadge paperId={paper.id} doi={paper.doi} compact />
               </div>
             </div>
           );
