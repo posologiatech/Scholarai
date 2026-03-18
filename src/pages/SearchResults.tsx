@@ -103,6 +103,8 @@ const sourceLabel = (s: string) => {
     openalex: "OpenAlex",
     clinical_trials: "ClinicalTrials.gov",
     europe_pmc: "Europe PMC",
+    crossref: "CrossRef",
+    core: "CORE",
   };
   return labels[s] || s;
 };
