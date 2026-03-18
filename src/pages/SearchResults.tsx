@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import CitationBadge from "@/components/app/CitationBadge";
 import ResearchGaps from "@/components/app/ResearchGaps";
+import AIAnswerSection from "@/components/app/AIAnswerSection";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -761,493 +762,502 @@ const SearchResults = () => {
   return (
     <>
     <div className="flex min-h-screen flex-col bg-background">
-      
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        {/* Search bar */}
+        <div className="relative max-w-2xl">
+          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            value={newQuery}
+            onChange={(e) => setNewQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            className="w-full rounded-xl border border-border bg-card py-3 pl-12 pr-28 text-foreground shadow-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+          <Button
+            onClick={handleSearch}
+            size="sm"
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            {t("search.searchButton")}
+          </Button>
+        </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        <main className="flex-1 overflow-y-auto">
-          <div className="px-6 py-4 space-y-4">
-            {/* Search bar */}
-            <div className="relative max-w-2xl">
-              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+          {/* Sort */}
+          <button className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+            <ArrowUpDown className="h-3.5 w-3.5" />
+            <select
+              value={sorting.length > 0 ? sorting[0].id : "relevance"}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "relevance") {
+                  setSorting([]);
+                } else if (val === "year") {
+                  setSorting([{ id: "paper", desc: true }]);
+                } else if (val === "citations") {
+                  setSorting([{ id: "paper", desc: true }]);
+                }
+              }}
+              className="bg-transparent text-sm focus:outline-none cursor-pointer"
+            >
+              <option value="relevance">
+                {locale === "pt" ? "Mais relevante" : "Most relevant"}
+              </option>
+              <option value="year">
+                {locale === "pt" ? "Mais recente" : "Most recent"}
+              </option>
+              <option value="citations">
+                {locale === "pt" ? "Mais citado" : "Most cited"}
+              </option>
+            </select>
+          </button>
+
+          <div className="h-5 w-px bg-border" />
+
+          {/* Search in results */}
+          {showSearchInResults ? (
+            <div className="flex items-center gap-1.5">
+              <Search className="h-3.5 w-3.5 text-muted-foreground" />
               <input
                 type="text"
-                value={newQuery}
-                onChange={(e) => setNewQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                className="w-full rounded-xl border border-border bg-card py-3 pl-12 pr-28 text-foreground shadow-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                value={searchInResults}
+                onChange={(e) => setSearchInResults(e.target.value)}
+                placeholder={locale === "pt" ? "Buscar nos resultados..." : "Search in results..."}
+                className="w-40 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none border-b border-primary"
+                autoFocus
               />
-              <Button
-                onClick={handleSearch}
-                size="sm"
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-primary-foreground hover:bg-primary/90"
+              <button
+                onClick={() => { setShowSearchInResults(false); setSearchInResults(""); }}
+                className="text-muted-foreground hover:text-foreground"
               >
-                {t("search.searchButton")}
-              </Button>
+                <X className="h-3 w-3" />
+              </button>
             </div>
+          ) : (
+            <button
+              onClick={() => setShowSearchInResults(true)}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <Search className="h-3.5 w-3.5" />
+              <span>{locale === "pt" ? "Buscar" : "Search"}</span>
+            </button>
+          )}
 
-            {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
-              {/* Sort */}
+          <div className="h-5 w-px bg-border" />
+
+          {/* Filters */}
+          <Popover open={showFilters} onOpenChange={setShowFilters}>
+            <PopoverTrigger asChild>
               <button className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-                <ArrowUpDown className="h-3.5 w-3.5" />
-                <select
-                  value={sorting.length > 0 ? sorting[0].id : "relevance"}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "relevance") {
-                      setSorting([]);
-                    } else if (val === "year") {
-                      setSorting([{ id: "paper", desc: true }]);
-                    } else if (val === "citations") {
-                      setSorting([{ id: "paper", desc: true }]);
-                    }
-                  }}
-                  className="bg-transparent text-sm focus:outline-none cursor-pointer"
-                >
-                  <option value="relevance">
-                    {locale === "pt" ? "Mais relevante" : "Most relevant"}
-                  </option>
-                  <option value="year">
-                    {locale === "pt" ? "Mais recente" : "Most recent"}
-                  </option>
-                  <option value="citations">
-                    {locale === "pt" ? "Mais citado" : "Most cited"}
-                  </option>
-                </select>
-              </button>
-
-              <div className="h-5 w-px bg-border" />
-
-              {/* Search in results */}
-              {showSearchInResults ? (
-                <div className="flex items-center gap-1.5">
-                  <Search className="h-3.5 w-3.5 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={searchInResults}
-                    onChange={(e) => setSearchInResults(e.target.value)}
-                    placeholder={locale === "pt" ? "Buscar nos resultados..." : "Search in results..."}
-                    className="w-40 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none border-b border-primary"
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => { setShowSearchInResults(false); setSearchInResults(""); }}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowSearchInResults(true)}
-                  className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                >
-                  <Search className="h-3.5 w-3.5" />
-                  <span>{locale === "pt" ? "Buscar" : "Search"}</span>
-                </button>
-              )}
-
-              <div className="h-5 w-px bg-border" />
-
-              {/* Filters */}
-              <Popover open={showFilters} onOpenChange={setShowFilters}>
-                <PopoverTrigger asChild>
-                  <button className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-                    <Filter className="h-3.5 w-3.5" />
-                    <span>{locale === "pt" ? "Filtros" : "Filters"}</span>
-                    {activeFilterCount > 0 && (
-                      <span className="ml-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
-                        {activeFilterCount}
-                      </span>
-                    )}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-96 p-0 z-50 bg-card border border-border shadow-lg" align="start">
-                  <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                    <button
-                      onClick={handleClearAllFilters}
-                      className="text-sm text-muted-foreground hover:text-foreground"
-                    >
-                      {locale === "pt" ? "Limpar tudo" : "Clear all"}
-                    </button>
-                    <Button size="sm" onClick={handleApplyFilters}>
-                      {locale === "pt" ? "Aplicar filtros" : "Apply filters"}
-                    </Button>
-                  </div>
-
-                  <div className="max-h-[60vh] overflow-y-auto p-4 space-y-6">
-                    {/* Open Access */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-foreground">Open Access</span>
-                      <Switch
-                        checked={filters.hasPdf}
-                        onCheckedChange={(v) => setFilters((p) => ({ ...p, hasPdf: v }))}
-                      />
-                    </div>
-
-                    {/* Publication date */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-foreground">
-                        {locale === "pt" ? "Data de publicação" : "Publication date"}
-                      </h4>
-                      <Slider
-                        value={filters.yearRange}
-                        onValueChange={(v) => setFilters((p) => ({ ...p, yearRange: v as [number, number] }))}
-                        min={1990}
-                        max={currentYear}
-                        step={1}
-                        className="w-full"
-                      />
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>{filters.yearRange[0]}</span>
-                        <span>{filters.yearRange[1]}</span>
-                      </div>
-                    </div>
-
-                    {/* Min Citations */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-foreground">
-                        {locale === "pt" ? "Citações mínimas" : "Minimum citations"}
-                      </h4>
-                      <div className="flex items-center gap-3">
-                        <Slider
-                          value={[filters.minCitations]}
-                          onValueChange={(v) => setFilters((p) => ({ ...p, minCitations: v[0] }))}
-                          min={0}
-                          max={500}
-                          step={5}
-                          className="flex-1"
-                        />
-                        <span className="text-sm font-mono text-foreground w-10 text-right">{filters.minCitations}</span>
-                      </div>
-                    </div>
-
-                    {/* Source with counts */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-foreground">
-                        {locale === "pt" ? "Fonte" : "Source"}
-                      </h4>
-                      <div className="space-y-1.5">
-                        {[
-                          { value: "all", label: locale === "pt" ? "Todas as fontes" : "All sources" },
-                          { value: "semantic_scholar", label: "Semantic Scholar" },
-                          { value: "pubmed", label: "PubMed" },
-                          { value: "openalex", label: "OpenAlex" },
-                          { value: "clinical_trials", label: "ClinicalTrials.gov" },
-                          { value: "europe_pmc", label: "Europe PMC" },
-                        ].map((src) => (
-                          <label key={src.value} className="flex items-center justify-between cursor-pointer rounded-md px-2 py-1.5 hover:bg-muted">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="radio"
-                                name="source"
-                                checked={filters.sourceFilter === src.value}
-                                onChange={() => setFilters((p) => ({ ...p, sourceFilter: src.value }))}
-                                className="accent-primary"
-                              />
-                              <span className="text-sm text-foreground">{src.label}</span>
-                            </div>
-                            {src.value !== "all" && sourceCounts[src.value] !== undefined && (
-                              <span className="text-xs text-muted-foreground">{sourceCounts[src.value]}</span>
-                            )}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Study Type with counts */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-foreground">
-                        {locale === "pt" ? "Tipo de estudo" : "Study Type"}
-                      </h4>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {STUDY_TYPES.map((st) => (
-                          <label key={st.value} className="flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5 hover:bg-muted">
-                            <Checkbox
-                              checked={filters.studyTypes.includes(st.value)}
-                              onCheckedChange={() => toggleStudyType(st.value)}
-                            />
-                            <span className="text-sm text-foreground">{st.label}</span>
-                            {studyTypeCounts[st.label] && (
-                              <span className="text-xs text-muted-foreground">({studyTypeCounts[st.label]})</span>
-                            )}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Author search */}
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-foreground">
-                        {locale === "pt" ? "Buscar por autor" : "Search by author"}
-                      </h4>
-                      <Input
-                        value={filters.authorKeyword}
-                        onChange={(e) => setFilters((p) => ({ ...p, authorKeyword: e.target.value }))}
-                        placeholder={locale === "pt" ? "Nome do autor..." : "Author name..."}
-                        className="text-sm"
-                      />
-                    </div>
-
-                    {/* Abstract keywords */}
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-foreground">
-                        {locale === "pt" ? "Palavras-chave no abstract" : "Abstract Keywords"}
-                      </h4>
-                      <Input
-                        value={filters.abstractKeyword}
-                        onChange={(e) => setFilters((p) => ({ ...p, abstractKeyword: e.target.value }))}
-                        placeholder={locale === "pt" ? "Abstract contém..." : "Abstract contains..."}
-                        className="text-sm"
-                      />
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              <div className="h-5 w-px bg-border" />
-
-              {/* Add column */}
-              <button
-                onClick={() => setShowPanel(true)}
-                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>{locale === "pt" ? "Adicionar coluna" : "Add a column"}</span>
-              </button>
-
-              <div className="h-5 w-px bg-border" />
-
-              {/* Export */}
-              <button
-                onClick={handleExportPDF}
-                disabled={filtered.length === 0}
-                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>Export</span>
-              </button>
-
-              <div className="h-5 w-px bg-border" />
-
-              {/* Save to library */}
-              <button
-                onClick={handleSaveToLibrary}
-                disabled={savingToLibrary || filtered.length === 0}
-                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
-              >
-                {savingToLibrary ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <BookmarkPlus className="h-3.5 w-3.5" />
-                )}
-                <span>{locale === "pt" ? "Salvar na biblioteca" : "Save to library"}</span>
-              </button>
-
-              {/* Toggle panel - push right */}
-              <div className="ml-auto">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowPanel(!showPanel)}
-                  className="text-xs"
-                >
-                  {showPanel ? (
-                    <PanelRightClose className="mr-1.5 h-3.5 w-3.5" />
-                  ) : (
-                    <PanelRightOpen className="mr-1.5 h-3.5 w-3.5" />
-                  )}
-                  {locale === "pt" ? "Colunas" : "Columns"}
-                </Button>
-              </div>
-            </div>
-
-            {/* Active filter chips */}
-            {activeFilterChips.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  {locale === "pt" ? "Filtros ativos:" : "Active filters:"}
-                </span>
-                {activeFilterChips.map((chip, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
-                  >
-                    {chip.label}
-                    <button onClick={chip.onRemove} className="hover:text-destructive">
-                      <X className="h-3 w-3" />
-                    </button>
+                <Filter className="h-3.5 w-3.5" />
+                <span>{locale === "pt" ? "Filtros" : "Filters"}</span>
+                {activeFilterCount > 0 && (
+                  <span className="ml-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                    {activeFilterCount}
                   </span>
-                ))}
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-96 p-0 z-50 bg-card border border-border shadow-lg" align="start">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <button
                   onClick={handleClearAllFilters}
-                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                  className="text-sm text-muted-foreground hover:text-foreground"
                 >
                   {locale === "pt" ? "Limpar tudo" : "Clear all"}
                 </button>
+                <Button size="sm" onClick={handleApplyFilters}>
+                  {locale === "pt" ? "Aplicar filtros" : "Apply filters"}
+                </Button>
               </div>
-            )}
 
-            {/* Loading */}
-            {loading && (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="mt-3 text-sm font-medium">{t("search.loading")}</p>
-                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                  {["Semantic Scholar", "PubMed", "OpenAlex", "Europe PMC"].map((source, i) => (
-                    <span
-                      key={source}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground animate-pulse"
-                      style={{ animationDelay: `${i * 200}ms` }}
-                    >
-                      <Database className="h-3 w-3" />
-                      {source}
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-3 text-xs text-muted-foreground/60">
-                  {locale === "pt"
-                    ? "Consultando múltiplas bases de dados científicas..."
-                    : "Querying multiple scientific databases..."}
-                </p>
-              </div>
-            )}
-
-            {/* Error */}
-            {error && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-                <AlertCircle className="h-5 w-5 flex-shrink-0" />
-                {error}
-              </div>
-            )}
-
-            {/* Research Gaps */}
-            {!loading && !error && papers.length > 0 && (
-              <ResearchGaps
-                query={query}
-                papers={papers}
-                loading={loading}
-                onSuggestionClick={(suggestion) => {
-                  setNewQuery(suggestion);
-                  navigate(`/search?q=${encodeURIComponent(suggestion)}`);
-                }}
-              />
-            )}
-
-            {/* Table with virtualization */}
-            {!loading && !error && (
-              <div>
-                <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>{rows.length} {locale === "pt" ? "fontes" : "sources"}</span>
-                  {loadingColumns.size > 0 && (
-                    <span className="ml-2 inline-flex items-center gap-1.5 text-xs text-primary">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      {locale === "pt"
-                        ? `Extraindo coluna: ${Array.from(loadingColumns).join(", ")}`
-                        : `Extracting column: ${Array.from(loadingColumns).join(", ")}`}
-                    </span>
-                  )}
+              <div className="max-h-[60vh] overflow-y-auto p-4 space-y-6">
+                {/* Open Access */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">Open Access</span>
+                  <Switch
+                    checked={filters.hasPdf}
+                    onCheckedChange={(v) => setFilters((p) => ({ ...p, hasPdf: v }))}
+                  />
                 </div>
 
-                <div
-                  ref={tableContainerRef}
-                  className="overflow-auto rounded-lg border border-border"
-                  style={{ maxHeight: "calc(100vh - 280px)" }}
-                >
-                  <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
-                    <colgroup>
-                      {table.getHeaderGroups()[0]?.headers.map((header) => (
-                        <col
-                          key={header.id}
-                          style={{ width: header.getSize(), minWidth: header.getSize(), maxWidth: header.getSize() }}
-                        />
-                      ))}
-                    </colgroup>
-                    <thead className="sticky top-0 z-10 bg-card">
-                      {table.getHeaderGroups().map((headerGroup) => (
-                        <tr key={headerGroup.id} className="border-b border-border">
-                          {headerGroup.headers.map((header) => (
-                            <th
-                              key={header.id}
-                              className="relative py-3 px-3 text-left text-sm font-medium text-muted-foreground group overflow-hidden"
-                              style={{ width: header.getSize(), minWidth: header.getSize(), maxWidth: header.getSize() }}
-                            >
-                              {header.isPlaceholder
-                                ? null
-                                : flexRender(header.column.columnDef.header, header.getContext())}
-                              {/* Resize handle */}
-                              <div
-                                onMouseDown={header.getResizeHandler()}
-                                onTouchStart={header.getResizeHandler()}
-                                className={`absolute right-0 top-0 h-full w-1.5 cursor-col-resize opacity-0 group-hover:opacity-100 hover:bg-primary/30 transition-opacity ${
-                                  header.column.getIsResizing() ? "bg-primary/50 opacity-100" : ""
-                                }`}
-                              />
-                            </th>
-                          ))}
-                        </tr>
-                      ))}
-                    </thead>
-                    <tbody
-                      style={{
-                        height: `${rowVirtualizer.getTotalSize()}px`,
-                        position: "relative",
-                      }}
-                    >
-                      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                        const row = rows[virtualRow.index];
-                        return (
-                          <tr
-                            key={row.id}
-                            data-index={virtualRow.index}
-                            ref={(node) => rowVirtualizer.measureElement(node)}
-                            className="border-b border-border/50 hover:bg-muted/30"
-                            style={{
-                              position: "absolute",
-                              top: 0,
-                              left: 0,
-                              width: "100%",
-                              transform: `translateY(${virtualRow.start}px)`,
-                            }}
-                          >
-                            {row.getVisibleCells().map((cell) => {
-                              const size = cell.column.getSize();
-                              return (
-                                <td
-                                  key={cell.id}
-                                  className="px-3 py-4 align-top overflow-hidden"
-                                  style={{ width: size, minWidth: size, maxWidth: size }}
-                                >
-                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {rows.length === 0 && (
-                  <div className="py-12 text-center text-muted-foreground">
-                    <Search className="mx-auto h-10 w-10 opacity-30" />
-                    <p className="mt-3">{t("search.noResults")}</p>
+                {/* Publication date */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-foreground">
+                    {locale === "pt" ? "Data de publicação" : "Publication date"}
+                  </h4>
+                  <Slider
+                    value={filters.yearRange}
+                    onValueChange={(v) => setFilters((p) => ({ ...p, yearRange: v as [number, number] }))}
+                    min={1990}
+                    max={currentYear}
+                    step={1}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{filters.yearRange[0]}</span>
+                    <span>{filters.yearRange[1]}</span>
                   </div>
+                </div>
+
+                {/* Min Citations */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-foreground">
+                    {locale === "pt" ? "Citações mínimas" : "Minimum citations"}
+                  </h4>
+                  <div className="flex items-center gap-3">
+                    <Slider
+                      value={[filters.minCitations]}
+                      onValueChange={(v) => setFilters((p) => ({ ...p, minCitations: v[0] }))}
+                      min={0}
+                      max={500}
+                      step={5}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-mono text-foreground w-10 text-right">{filters.minCitations}</span>
+                  </div>
+                </div>
+
+                {/* Source with counts */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-foreground">
+                    {locale === "pt" ? "Fonte" : "Source"}
+                  </h4>
+                  <div className="space-y-1.5">
+                    {[
+                      { value: "all", label: locale === "pt" ? "Todas as fontes" : "All sources" },
+                      { value: "semantic_scholar", label: "Semantic Scholar" },
+                      { value: "pubmed", label: "PubMed" },
+                      { value: "openalex", label: "OpenAlex" },
+                      { value: "clinical_trials", label: "ClinicalTrials.gov" },
+                      { value: "europe_pmc", label: "Europe PMC" },
+                    ].map((src) => (
+                      <label key={src.value} className="flex items-center justify-between cursor-pointer rounded-md px-2 py-1.5 hover:bg-muted">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="source"
+                            checked={filters.sourceFilter === src.value}
+                            onChange={() => setFilters((p) => ({ ...p, sourceFilter: src.value }))}
+                            className="accent-primary"
+                          />
+                          <span className="text-sm text-foreground">{src.label}</span>
+                        </div>
+                        {src.value !== "all" && sourceCounts[src.value] !== undefined && (
+                          <span className="text-xs text-muted-foreground">{sourceCounts[src.value]}</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Study Type with counts */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-foreground">
+                    {locale === "pt" ? "Tipo de estudo" : "Study Type"}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {STUDY_TYPES.map((st) => (
+                      <label key={st.value} className="flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5 hover:bg-muted">
+                        <Checkbox
+                          checked={filters.studyTypes.includes(st.value)}
+                          onCheckedChange={() => toggleStudyType(st.value)}
+                        />
+                        <span className="text-sm text-foreground">{st.label}</span>
+                        {studyTypeCounts[st.label] && (
+                          <span className="text-xs text-muted-foreground">({studyTypeCounts[st.label]})</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Author search */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-foreground">
+                    {locale === "pt" ? "Buscar por autor" : "Search by author"}
+                  </h4>
+                  <Input
+                    value={filters.authorKeyword}
+                    onChange={(e) => setFilters((p) => ({ ...p, authorKeyword: e.target.value }))}
+                    placeholder={locale === "pt" ? "Nome do autor..." : "Author name..."}
+                    className="text-sm"
+                  />
+                </div>
+
+                {/* Abstract keywords */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-foreground">
+                    {locale === "pt" ? "Palavras-chave no abstract" : "Abstract Keywords"}
+                  </h4>
+                  <Input
+                    value={filters.abstractKeyword}
+                    onChange={(e) => setFilters((p) => ({ ...p, abstractKeyword: e.target.value }))}
+                    placeholder={locale === "pt" ? "Abstract contém..." : "Abstract contains..."}
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <div className="h-5 w-px bg-border" />
+
+          {/* Add column */}
+          <button
+            onClick={() => setShowPanel(true)}
+            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>{locale === "pt" ? "Adicionar coluna" : "Add a column"}</span>
+          </button>
+
+          <div className="h-5 w-px bg-border" />
+
+          {/* Export */}
+          <button
+            onClick={handleExportPDF}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Export</span>
+          </button>
+
+          <div className="h-5 w-px bg-border" />
+
+          {/* Save to library */}
+          <button
+            onClick={handleSaveToLibrary}
+            disabled={savingToLibrary || filtered.length === 0}
+            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
+          >
+            {savingToLibrary ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <BookmarkPlus className="h-3.5 w-3.5" />
+            )}
+            <span>{locale === "pt" ? "Salvar na biblioteca" : "Save to library"}</span>
+          </button>
+
+          {/* Toggle panel - push right */}
+          <div className="ml-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPanel(!showPanel)}
+              className="text-xs"
+            >
+              {showPanel ? (
+                <PanelRightClose className="mr-1.5 h-3.5 w-3.5" />
+              ) : (
+                <PanelRightOpen className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {locale === "pt" ? "Colunas" : "Columns"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Active filter chips */}
+        {activeFilterChips.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {locale === "pt" ? "Filtros ativos:" : "Active filters:"}
+            </span>
+            {activeFilterChips.map((chip, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
+              >
+                {chip.label}
+                <button onClick={chip.onRemove} className="hover:text-destructive">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            <button
+              onClick={handleClearAllFilters}
+              className="text-xs text-muted-foreground hover:text-foreground underline"
+            >
+              {locale === "pt" ? "Limpar tudo" : "Clear all"}
+            </button>
+          </div>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="mt-3 text-sm font-medium">{t("search.loading")}</p>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              {["Semantic Scholar", "PubMed", "OpenAlex", "Europe PMC"].map((source, i) => (
+                <span
+                  key={source}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground animate-pulse"
+                  style={{ animationDelay: `${i * 200}ms` }}
+                >
+                  <Database className="h-3 w-3" />
+                  {source}
+                </span>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground/60">
+              {locale === "pt"
+                ? "Consultando múltiplas bases de dados científicas..."
+                : "Querying multiple scientific databases..."}
+            </p>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+            <AlertCircle className="h-5 w-5 flex-shrink-0" />
+            {error}
+          </div>
+        )}
+
+        {/* Research Gaps - full width */}
+        {!loading && !error && papers.length > 0 && (
+          <ResearchGaps
+            query={query}
+            papers={papers}
+            loading={loading}
+            onSuggestionClick={(suggestion) => {
+              setNewQuery(suggestion);
+              navigate(`/search?q=${encodeURIComponent(suggestion)}`);
+            }}
+          />
+        )}
+
+        {/* AI Answer Section - full width */}
+        {!loading && !error && papers.length > 0 && (
+          <AIAnswerSection
+            query={query}
+            papers={papers}
+            loading={loading}
+          />
+        )}
+
+        {/* Table + Sidebar panel */}
+        {!loading && !error && (
+          <div className="flex gap-0 items-stretch">
+            {/* Table area */}
+            <div className="flex-1 min-w-0">
+              <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+                <span>{rows.length} {locale === "pt" ? "fontes" : "sources"}</span>
+                {loadingColumns.size > 0 && (
+                  <span className="ml-2 inline-flex items-center gap-1.5 text-xs text-primary">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {locale === "pt"
+                      ? `Extraindo coluna: ${Array.from(loadingColumns).join(", ")}`
+                      : `Extracting column: ${Array.from(loadingColumns).join(", ")}`}
+                  </span>
                 )}
+              </div>
+
+              <div
+                ref={tableContainerRef}
+                className="overflow-auto rounded-lg border border-border"
+                style={{ maxHeight: "calc(100vh - 340px)" }}
+              >
+                <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+                  <colgroup>
+                    {table.getHeaderGroups()[0]?.headers.map((header) => (
+                      <col
+                        key={header.id}
+                        style={{ width: header.getSize(), minWidth: header.getSize(), maxWidth: header.getSize() }}
+                      />
+                    ))}
+                  </colgroup>
+                  <thead className="sticky top-0 z-10 bg-card">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id} className="border-b border-border">
+                        {headerGroup.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            className="relative py-3 px-3 text-left text-sm font-medium text-muted-foreground group overflow-hidden"
+                            style={{ width: header.getSize(), minWidth: header.getSize(), maxWidth: header.getSize() }}
+                          >
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(header.column.columnDef.header, header.getContext())}
+                            {/* Resize handle */}
+                            <div
+                              onMouseDown={header.getResizeHandler()}
+                              onTouchStart={header.getResizeHandler()}
+                              className={`absolute right-0 top-0 h-full w-1.5 cursor-col-resize opacity-0 group-hover:opacity-100 hover:bg-primary/30 transition-opacity ${
+                                header.column.getIsResizing() ? "bg-primary/50 opacity-100" : ""
+                              }`}
+                            />
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody
+                    style={{
+                      height: `${rowVirtualizer.getTotalSize()}px`,
+                      position: "relative",
+                    }}
+                  >
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const row = rows[virtualRow.index];
+                      return (
+                        <tr
+                          key={row.id}
+                          data-index={virtualRow.index}
+                          ref={(node) => rowVirtualizer.measureElement(node)}
+                          className="border-b border-border/50 hover:bg-muted/30"
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            width: "100%",
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
+                        >
+                          {row.getVisibleCells().map((cell) => {
+                            const size = cell.column.getSize();
+                            return (
+                              <td
+                                key={cell.id}
+                                className="px-3 py-4 align-top overflow-hidden"
+                                style={{ width: size, minWidth: size, maxWidth: size }}
+                              >
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {rows.length === 0 && (
+                <div className="py-12 text-center text-muted-foreground">
+                  <Search className="mx-auto h-10 w-10 opacity-30" />
+                  <p className="mt-3">{t("search.noResults")}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Sidebar panel - aligned with table */}
+            {showPanel && papers.length > 0 && (
+              <div className="flex-shrink-0" style={{ height: "calc(100vh - 340px)" }}>
+                <ColumnsPanel
+                  suggestedColumns={columns}
+                  onColumnsChange={handleColumnsChange}
+                  papers={papers}
+                  query={query}
+                  papersLoading={loading}
+                />
               </div>
             )}
           </div>
-        </main>
-
-        {showPanel && !loading && papers.length > 0 && (
-          <ColumnsPanel
-            suggestedColumns={columns}
-            onColumnsChange={handleColumnsChange}
-            papers={papers}
-            query={query}
-            papersLoading={loading}
-          />
         )}
       </div>
     </div>
