@@ -597,6 +597,7 @@ const SearchResults = () => {
                           doi: paper.doi,
                           url: paper.url,
                           journal: paper.journal,
+                          citationCount: paper.citationCount,
                         },
                       },
                     });

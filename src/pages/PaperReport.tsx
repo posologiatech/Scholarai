@@ -282,12 +282,28 @@ const PaperReport = () => {
               </div>
 
               {/* Stats cards */}
+              {paper.citationCount != null && paper.citationCount > 0 && (
+                <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20">
+                  <CardContent className="pt-4 flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
+                      <span className="text-xl">📖</span>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{paper.citationCount.toLocaleString()}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {locale === "pt" ? "Citações bibliométricas (fontes externas)" : "Bibliometric citations (external sources)"}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="grid gap-4 sm:grid-cols-4">
                 <Card>
                   <CardContent className="pt-4 text-center">
                     <p className="text-3xl font-bold text-foreground">{total}</p>
                     <p className="text-sm text-muted-foreground">
-                      {locale === "pt" ? "Total de citações" : "Total citations"}
+                      {locale === "pt" ? "Classificadas por IA" : "AI-classified"}
                     </p>
                   </CardContent>
                 </Card>
