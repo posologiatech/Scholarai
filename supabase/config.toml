@@ -107,3 +107,6 @@ verify_jwt = false
 
 [functions.research-gaps]
 verify_jwt = false
+
+[functions.oracle-chat]
+verify_jwt = false

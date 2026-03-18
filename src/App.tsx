@@ -56,6 +56,7 @@ import MyPlan from "./pages/MyPlan";
 import ParticipantPrivacy from "./pages/ParticipantPrivacy";
 import ConsentRevoke from "./pages/ConsentRevoke";
 import DataSUSPage from "./pages/DataSUS";
+import OracleAgent from "./components/app/OracleAgent";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -67,6 +68,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <CookieBanner />
+            <OracleAgent />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
