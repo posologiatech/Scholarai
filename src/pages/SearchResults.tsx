@@ -586,7 +586,20 @@ const SearchResults = () => {
                   href={`/paper/${encodeURIComponent(paper.id)}`}
                   onClick={(e) => {
                     e.preventDefault();
-                    navigate(`/paper/${encodeURIComponent(paper.id)}`);
+                    navigate(`/paper/${encodeURIComponent(paper.id)}`, {
+                      state: {
+                        paperData: {
+                          id: paper.id,
+                          title: paper.title,
+                          authors: paper.authors,
+                          year: paper.year,
+                          abstract: paper.abstract,
+                          doi: paper.doi,
+                          url: paper.url,
+                          journal: paper.journal,
+                        },
+                      },
+                    });
                   }}
                 >
                   {paper.title}
@@ -648,7 +661,7 @@ const SearchResults = () => {
                     {locale === "pt" ? "Apenas abstract" : "Abstract only"}
                   </span>
                 )}
-                <CitationBadge paperId={paper.id} compact />
+                <CitationBadge paperId={paper.id} doi={paper.doi} compact />
               </div>
             </div>
           );
