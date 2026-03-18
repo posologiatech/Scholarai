@@ -750,6 +750,9 @@ Deno.serve(async (req) => {
     // Enrich papers that have no abstract (or very short ones) using DOI lookup
     await enrichMissingAbstracts(capped);
 
+    // Enrich papers missing citation counts via OpenAlex/CrossRef
+    await enrichMissingCitationCounts(capped);
+
     // Count papers per source for stats
     const sourceCounts: Record<string, number> = {};
     for (const p of capped) {
