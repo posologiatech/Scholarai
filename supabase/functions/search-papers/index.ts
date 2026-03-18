@@ -694,7 +694,10 @@ Deno.serve(async (req) => {
         authors: (richer.authors?.length || 0) >= (base.authors?.length || 0) ? richer.authors : base.authors,
         year: richer.year ?? base.year,
         abstract: richer.abstract || base.abstract,
-        citationCount: Math.max(base.citationCount ?? 0, incoming.citationCount ?? 0),
+        citationCount:
+          base.citationCount != null || incoming.citationCount != null
+            ? Math.max(base.citationCount ?? 0, incoming.citationCount ?? 0)
+            : undefined,
         doi: base.doi || incoming.doi,
         url: richer.url || base.url,
         journal: richer.journal || base.journal,
