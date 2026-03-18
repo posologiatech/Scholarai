@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.datasus-query]
 verify_jwt = false
+
+[functions.research-gaps]
+verify_jwt = false
