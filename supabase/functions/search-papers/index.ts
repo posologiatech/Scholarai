@@ -8,7 +8,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-type SourceType = 'semantic_scholar' | 'pubmed' | 'openalex' | 'clinical_trials' | 'europe_pmc';
+type SourceType = 'semantic_scholar' | 'pubmed' | 'openalex' | 'clinical_trials' | 'europe_pmc' | 'crossref' | 'core';
 
 interface Paper {
   id: string;
