@@ -45,6 +45,7 @@ interface ColumnsPanelProps {
   onColumnsChange: (columns: ColumnDef[]) => void;
   papers?: Paper[];
   query?: string;
+  papersLoading?: boolean;
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-papers`;
