@@ -63,12 +63,6 @@ const ColumnsPanel = ({ suggestedColumns, onColumnsChange, papers = [], query = 
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  
-  // Proactive synthesis state
-  const [synthesis, setSynthesis] = useState("");
-  const [synthLoading, setSynthLoading] = useState(false);
-  const [synthCopied, setSynthCopied] = useState(false);
-  const hasSynthesized = useRef(false);
 
   const customColumns = suggestedColumns.filter((c) => c.isCustom);
   const suggested = suggestedColumns.filter((c) => !c.isCustom);
