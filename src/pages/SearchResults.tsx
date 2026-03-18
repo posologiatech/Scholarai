@@ -1233,6 +1233,7 @@ const SearchResults = () => {
             onColumnsChange={handleColumnsChange}
             papers={papers}
             query={query}
+            papersLoading={loading}
           />
         )}
       </div>
