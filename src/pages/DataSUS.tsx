@@ -453,6 +453,8 @@ export default function DataSUS() {
                           images={msg.images || []}
                           tables={msg.tables || []}
                           error={msg.error || null}
+                          isRealData={msg.isRealData}
+                          dataSourceDetail={msg.dataSourceDetail}
                         />
                         <Button
                           variant="outline"
