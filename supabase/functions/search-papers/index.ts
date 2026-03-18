@@ -10,6 +10,17 @@ const corsHeaders = {
 
 type SourceType = 'semantic_scholar' | 'pubmed' | 'openalex' | 'clinical_trials' | 'europe_pmc' | 'crossref' | 'core';
 
+// ─── DOI normalizer ─────────────────────────────────────────────────
+function normalizeDoi(doi: string | undefined | null): string | undefined {
+  if (!doi) return undefined;
+  return doi
+    .toLowerCase()
+    .replace(/^https?:\/\/doi\.org\//i, '')
+    .replace(/^doi:\s*/i, '')
+    .replace(/[\s.;,]+$/, '')
+    .trim() || undefined;
+}
+
 interface Paper {
   id: string;
   title: string;
@@ -159,7 +170,16 @@ async function searchPubMed(query: string, limit = 10, filters?: SearchFilters):
       if (!item) return null;
       const authors = (item.authors || []).map((a: any) => a.name);
       const pubYear = item.pubdate ? parseInt(item.pubdate.substring(0, 4)) : null;
-      const doi = (item.elocationid || '').replace('doi: ', '');
+      // Extract DOI: prefer articleids field, fallback to elocationid
+      let rawDoi = '';
+      if (item.articleids) {
+        const doiEntry = (item.articleids as any[]).find((a: any) => a.idtype === 'doi');
+        if (doiEntry) rawDoi = doiEntry.value;
+      }
+      if (!rawDoi) {
+        rawDoi = (item.elocationid || '').replace('doi: ', '');
+      }
+      const doi = normalizeDoi(rawDoi);
       
       const types = pubTypes[id] || [];
       let studyType = '';
@@ -178,7 +198,7 @@ async function searchPubMed(query: string, limit = 10, filters?: SearchFilters):
         year: isNaN(pubYear!) ? null : pubYear,
         abstract: abstracts[id] || '',
         source: 'pubmed' as const,
-        citationCount: undefined,
+        citationCount: item.pmcrefcount ? parseInt(item.pmcrefcount) : undefined,
         doi: doi || undefined,
         url: `https://pubmed.ncbi.nlm.nih.gov/${id}/`,
         journal: item.fulljournalname || item.source,
@@ -250,7 +270,7 @@ async function searchOpenAlex(query: string, limit = 10, filters?: SearchFilters
         abstract = words.map(([w]) => w).join(' ');
       }
 
-      const doi = w.doi ? w.doi.replace('https://doi.org/', '') : undefined;
+      const doi = normalizeDoi(w.doi);
       const oaId = w.id?.replace('https://openalex.org/', '') || '';
 
       return {
@@ -580,6 +600,60 @@ async function enrichMissingAbstracts(papers: Paper[]): Promise<void> {
   }
 }
 
+// ─── Enrich missing citation counts ─────────────────────────────────
+async function enrichMissingCitationCounts(papers: Paper[]): Promise<void> {
+  const missing = papers.filter(p => p.citationCount == null && p.doi);
+  if (missing.length === 0) {
+    console.log(`[search-papers] All ${papers.length} papers already have citation counts`);
+    return;
+  }
+
+  console.log(`[search-papers] Enriching citation counts for ${missing.length}/${papers.length} papers`);
+  let enriched = 0;
+
+  const batchSize = 5;
+  for (let i = 0; i < missing.length; i += batchSize) {
+    const batch = missing.slice(i, i + batchSize);
+    await Promise.all(batch.map(async (paper) => {
+      const doi = normalizeDoi(paper.doi);
+      if (!doi) return;
+
+      try {
+        // Try OpenAlex first
+        const oaUrl = `https://api.openalex.org/works/doi:${encodeURIComponent(doi)}?select=cited_by_count&mailto=scholarai@research.app`;
+        const oaRes = await fetch(oaUrl, { signal: AbortSignal.timeout(6000) });
+        if (oaRes.ok) {
+          const oaData = await oaRes.json();
+          if (oaData.cited_by_count != null) {
+            paper.citationCount = oaData.cited_by_count;
+            enriched++;
+            return;
+          }
+        }
+      } catch { /* timeout or network error, try next */ }
+
+      try {
+        // Fallback: CrossRef
+        const crUrl = `https://api.crossref.org/works/${encodeURIComponent(doi)}?mailto=scholarai@research.app`;
+        const crRes = await fetch(crUrl, {
+          headers: { 'User-Agent': 'ScholarAI/1.0 (mailto:scholarai@research.app)' },
+          signal: AbortSignal.timeout(6000),
+        });
+        if (crRes.ok) {
+          const crData = await crRes.json();
+          const count = crData?.message?.['is-referenced-by-count'];
+          if (count != null) {
+            paper.citationCount = count;
+            enriched++;
+          }
+        }
+      } catch { /* skip */ }
+    }));
+  }
+
+  console.log(`[search-papers] Enriched citation counts: ${enriched}/${missing.length} papers`);
+}
+
 // ─── Persist papers to database ─────────────────────────────────────
 async function persistPapers(papers: Paper[]): Promise<void> {
   try {
@@ -710,7 +784,7 @@ Deno.serve(async (req) => {
     const unique: Paper[] = [];
 
     for (const p of papers) {
-      const key = p.doi ? p.doi.toLowerCase() : p.id;
+      const key = normalizeDoi(p.doi) || p.id;
       if (!seen.has(key)) {
         seen.set(key, p);
         unique.push(p);
@@ -729,6 +803,9 @@ Deno.serve(async (req) => {
 
     // Enrich papers that have no abstract (or very short ones) using DOI lookup
     await enrichMissingAbstracts(capped);
+
+    // Enrich papers missing citation counts via OpenAlex/CrossRef
+    await enrichMissingCitationCounts(capped);
 
     // Count papers per source for stats
     const sourceCounts: Record<string, number> = {};

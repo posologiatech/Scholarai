@@ -614,8 +614,12 @@ const SearchResults = () => {
                   <FileText className="h-3 w-3" />
                   {paper.journal || sourceLabel(paper.source)}
                   {paper.year && `, ${paper.year}`}
-                  {paper.citationCount != null && `, ${paper.citationCount} ${locale === "pt" ? "citações" : "citations"}`}
                 </span>
+                {paper.citationCount != null && paper.citationCount > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                    📖 {paper.citationCount} {locale === "pt" ? "citações" : "citations"}
+                  </span>
+                )}
                 {paper.doi && (
                   <a
                     href={`https://doi.org/${paper.doi}`}
