@@ -40,6 +40,8 @@ interface ChatMessage {
   tables?: ParsedTable[];
   error?: string | null;
   isLoading?: boolean;
+  isRealData?: boolean;
+  dataSourceDetail?: string;
 }
 
 function parseTables(stdout: string): { cleanStdout: string; tables: ParsedTable[] } {
