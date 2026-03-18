@@ -678,22 +678,50 @@ Deno.serve(async (req) => {
 
     console.log(`[search-papers] Raw results: ${papers.length} papers from ${sources.length} sources`);
 
-    // Deduplicate by DOI
+    // Deduplicate by DOI while preserving the richest metadata across sources
+    const mergePaper = (base: Paper, incoming: Paper): Paper => {
+      const baseAbstractLen = base.abstract?.length || 0;
+      const incomingAbstractLen = incoming.abstract?.length || 0;
+      const richer = incomingAbstractLen > baseAbstractLen ? incoming : base;
+
+      return {
+        ...richer,
+        // Keep source ordering stability from first occurrence
+        source: base.source,
+        // Preserve identifiers and merge best available metadata
+        id: base.id,
+        title: richer.title || base.title,
+        authors: (richer.authors?.length || 0) >= (base.authors?.length || 0) ? richer.authors : base.authors,
+        year: richer.year ?? base.year,
+        abstract: richer.abstract || base.abstract,
+        citationCount:
+          base.citationCount != null || incoming.citationCount != null
+            ? Math.max(base.citationCount ?? 0, incoming.citationCount ?? 0)
+            : undefined,
+        doi: base.doi || incoming.doi,
+        url: richer.url || base.url,
+        journal: richer.journal || base.journal,
+        openAccess: Boolean(base.openAccess || incoming.openAccess),
+        studyType: base.studyType || incoming.studyType,
+      };
+    };
+
     const seen = new Map<string, Paper>();
     const unique: Paper[] = [];
+
     for (const p of papers) {
       const key = p.doi ? p.doi.toLowerCase() : p.id;
       if (!seen.has(key)) {
         seen.set(key, p);
         unique.push(p);
-      } else {
-        const existing = seen.get(key)!;
-        if ((p.abstract?.length || 0) > (existing.abstract?.length || 0)) {
-          const idx = unique.indexOf(existing);
-          if (idx >= 0) unique[idx] = p;
-          seen.set(key, p);
-        }
+        continue;
       }
+
+      const existing = seen.get(key)!;
+      const merged = mergePaper(existing, p);
+      const idx = unique.indexOf(existing);
+      if (idx >= 0) unique[idx] = merged;
+      seen.set(key, merged);
     }
 
     // Cap to requested total after dedup
