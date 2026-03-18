@@ -730,7 +730,7 @@ Deno.serve(async (req) => {
     const unique: Paper[] = [];
 
     for (const p of papers) {
-      const key = p.doi ? p.doi.toLowerCase() : p.id;
+      const key = normalizeDoi(p.doi) || p.id;
       if (!seen.has(key)) {
         seen.set(key, p);
         unique.push(p);
