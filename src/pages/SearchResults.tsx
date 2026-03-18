@@ -625,6 +625,8 @@ const SearchResults = () => {
                   paper.source === "pubmed" ? "bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400" :
                   paper.source === "openalex" ? "bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400" :
                   paper.source === "clinical_trials" ? "bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400" :
+                  paper.source === "crossref" ? "bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400" :
+                  paper.source === "core" ? "bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400" :
                   "bg-teal-50 text-teal-600 dark:bg-teal-900/20 dark:text-teal-400"
                 }`}>
                   {sourceLabel(paper.source)}
