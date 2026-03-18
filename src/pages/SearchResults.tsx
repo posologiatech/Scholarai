@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import CitationBadge from "@/components/app/CitationBadge";
 import ResearchGaps from "@/components/app/ResearchGaps";
+import AIAnswerSection from "@/components/app/AIAnswerSection";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useSubscription } from "@/hooks/useSubscription";
