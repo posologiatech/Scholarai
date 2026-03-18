@@ -170,7 +170,16 @@ async function searchPubMed(query: string, limit = 10, filters?: SearchFilters):
       if (!item) return null;
       const authors = (item.authors || []).map((a: any) => a.name);
       const pubYear = item.pubdate ? parseInt(item.pubdate.substring(0, 4)) : null;
-      const doi = (item.elocationid || '').replace('doi: ', '');
+      // Extract DOI: prefer articleids field, fallback to elocationid
+      let rawDoi = '';
+      if (item.articleids) {
+        const doiEntry = (item.articleids as any[]).find((a: any) => a.idtype === 'doi');
+        if (doiEntry) rawDoi = doiEntry.value;
+      }
+      if (!rawDoi) {
+        rawDoi = (item.elocationid || '').replace('doi: ', '');
+      }
+      const doi = normalizeDoi(rawDoi);
       
       const types = pubTypes[id] || [];
       let studyType = '';
