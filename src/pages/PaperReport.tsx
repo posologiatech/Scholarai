@@ -155,15 +155,28 @@ const PaperReport = () => {
       const result = await resp.json();
       const count = result.count || 0;
 
+      // Always reload data - classifications may already exist in DB
+      await loadPaperData();
+
       if (count > 0) {
         toast.success(isPt ? `${count} citações classificadas!` : `${count} citations classified!`);
-        await loadPaperData();
       } else {
-        toast.warning(
-          isPt
-            ? "Nenhuma citação encontrada. O paper pode não ter texto completo indexado."
-            : "No citations found. The paper may not have full text indexed."
-        );
+        // Check if data was loaded from DB (already classified)
+        const { data: existingCheck } = await supabase
+          .from("citation_classifications")
+          .select("id")
+          .eq("paper_id", id)
+          .limit(1);
+        
+        if (existingCheck && existingCheck.length > 0) {
+          toast.success(isPt ? "Citações já classificadas carregadas!" : "Existing classifications loaded!");
+        } else {
+          toast.warning(
+            isPt
+              ? "Nenhuma citação encontrada. O paper pode não ter texto completo indexado."
+              : "No citations found. The paper may not have full text indexed."
+          );
+        }
       }
     } catch (err) {
       console.error("Classification failed:", err);
