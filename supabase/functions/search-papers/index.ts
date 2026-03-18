@@ -600,6 +600,60 @@ async function enrichMissingAbstracts(papers: Paper[]): Promise<void> {
   }
 }
 
+// ─── Enrich missing citation counts ─────────────────────────────────
+async function enrichMissingCitationCounts(papers: Paper[]): Promise<void> {
+  const missing = papers.filter(p => p.citationCount == null && p.doi);
+  if (missing.length === 0) {
+    console.log(`[search-papers] All ${papers.length} papers already have citation counts`);
+    return;
+  }
+
+  console.log(`[search-papers] Enriching citation counts for ${missing.length}/${papers.length} papers`);
+  let enriched = 0;
+
+  const batchSize = 5;
+  for (let i = 0; i < missing.length; i += batchSize) {
+    const batch = missing.slice(i, i + batchSize);
+    await Promise.all(batch.map(async (paper) => {
+      const doi = normalizeDoi(paper.doi);
+      if (!doi) return;
+
+      try {
+        // Try OpenAlex first
+        const oaUrl = `https://api.openalex.org/works/doi:${encodeURIComponent(doi)}?select=cited_by_count&mailto=scholarai@research.app`;
+        const oaRes = await fetch(oaUrl, { signal: AbortSignal.timeout(6000) });
+        if (oaRes.ok) {
+          const oaData = await oaRes.json();
+          if (oaData.cited_by_count != null) {
+            paper.citationCount = oaData.cited_by_count;
+            enriched++;
+            return;
+          }
+        }
+      } catch { /* timeout or network error, try next */ }
+
+      try {
+        // Fallback: CrossRef
+        const crUrl = `https://api.crossref.org/works/${encodeURIComponent(doi)}?mailto=scholarai@research.app`;
+        const crRes = await fetch(crUrl, {
+          headers: { 'User-Agent': 'ScholarAI/1.0 (mailto:scholarai@research.app)' },
+          signal: AbortSignal.timeout(6000),
+        });
+        if (crRes.ok) {
+          const crData = await crRes.json();
+          const count = crData?.message?.['is-referenced-by-count'];
+          if (count != null) {
+            paper.citationCount = count;
+            enriched++;
+          }
+        }
+      } catch { /* skip */ }
+    }));
+  }
+
+  console.log(`[search-papers] Enriched citation counts: ${enriched}/${missing.length} papers`);
+}
+
 // ─── Persist papers to database ─────────────────────────────────────
 async function persistPapers(papers: Paper[]): Promise<void> {
   try {
