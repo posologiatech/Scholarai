@@ -263,6 +263,7 @@ export default function DataSUS() {
         disease: data.disease_or_topic, location: data.location,
         period: data.period, code: data.code, stdout: cleanStdout,
         images: result.images, tables, error: result.error,
+        isRealData: data.is_real_data, dataSourceDetail: data.data_source_detail,
       };
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
       await saveMessage(convId, finalMsg);
