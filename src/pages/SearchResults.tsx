@@ -1095,7 +1095,7 @@ const SearchResults = () => {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="mt-3 text-sm font-medium">{t("search.loading")}</p>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              {["Semantic Scholar", "PubMed", "OpenAlex", "Europe PMC"].map((source, i) => (
+              {["Semantic Scholar", "PubMed", "OpenAlex", "ClinicalTrials.gov", "Europe PMC", "CrossRef", "CORE"].map((source, i) => (
                 <span
                   key={source}
                   className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground animate-pulse"
