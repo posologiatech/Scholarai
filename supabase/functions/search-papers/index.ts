@@ -625,6 +625,8 @@ const sourceMap: Record<string, (query: string, limit: number, filters?: SearchF
   openalex: searchOpenAlex,
   clinical_trials: searchClinicalTrials,
   europe_pmc: searchEuropePMC,
+  crossref: searchCrossRef,
+  core: searchCORE,
 };
 
 // ─── Main handler ───────────────────────────────────────────────────
