@@ -641,7 +641,7 @@ Deno.serve(async (req) => {
   try {
     const {
       query: originalQuery,
-      sources = ['semantic_scholar', 'pubmed', 'openalex', 'clinical_trials', 'europe_pmc'],
+      sources = ['semantic_scholar', 'pubmed', 'openalex', 'clinical_trials', 'europe_pmc', 'crossref', 'core'],
       limit = 10,
       filters,
     } = await req.json();
