@@ -63,7 +63,7 @@ interface Paper {
   authors: string[];
   year: number | null;
   abstract: string;
-  source: "semantic_scholar" | "pubmed" | "openalex" | "clinical_trials" | "europe_pmc";
+  source: "semantic_scholar" | "pubmed" | "openalex" | "clinical_trials" | "europe_pmc" | "crossref" | "core";
   citationCount?: number;
   doi?: string;
   url?: string;
