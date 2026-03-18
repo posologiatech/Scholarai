@@ -75,7 +75,76 @@ const ColumnsPanel = ({ suggestedColumns, onColumnsChange, papers = [], query = 
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
+  }, [chatMessages, synthesis]);
+
+  // Proactive synthesis: auto-trigger when papers load
+  useEffect(() => {
+    if (papersLoading || papers.length === 0 || hasSynthesized.current) return;
+    hasSynthesized.current = true;
+    streamSynthesis();
+  }, [papersLoading, papers]);
+
+  const streamSynthesis = async () => {
+    setSynthLoading(true);
+    setSynthesis("");
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const tk = sess?.session?.access_token;
+      if (!tk) return;
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/synthesize-papers`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tk}` },
+        body: JSON.stringify({ query, papers: papers.slice(0, 15), locale }),
+      });
+
+      if (!resp.ok || !resp.body) throw new Error("Synthesis failed");
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+          let line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              fullText += content;
+              setSynthesis(fullText);
+            }
+          } catch {
+            buffer = line + "\n" + buffer;
+            break;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Synthesis error:", err);
+    } finally {
+      setSynthLoading(false);
+    }
+  };
+
+  const handleCopySynthesis = () => {
+    navigator.clipboard.writeText(synthesis);
+    setSynthCopied(true);
+    setTimeout(() => setSynthCopied(false), 2000);
+  };
 
   const toggleColumn = (name: string) => {
     const updated = suggestedColumns.map((c) =>
