@@ -22,6 +22,8 @@ interface DataSUSResultProps {
   images: string[];
   tables: Array<{ title: string; headers: string[]; rows: string[][] }>;
   error: string | null;
+  isRealData?: boolean;
+  dataSourceDetail?: string;
 }
 
 export default function DataSUSResults({
