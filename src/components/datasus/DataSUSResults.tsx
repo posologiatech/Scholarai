@@ -28,7 +28,7 @@ interface DataSUSResultProps {
 
 export default function DataSUSResults({
   explanation, dataSource, disease, location, period, code,
-  stdout, images, tables, error,
+  stdout, images, tables, error, isRealData, dataSourceDetail,
 }: DataSUSResultProps) {
   const [showCode, setShowCode] = useState(false);
   const [expandedTable, setExpandedTable] = useState<number | null>(null);
