@@ -15,12 +15,18 @@ interface CitingPaper {
   authors?: string[];
 }
 
+interface ParsedCitation {
+  cited_paper_id: string;
+  classification: string;
+  citation_context: string;
+  confidence: number;
+  section: string;
+}
+
 async function fetchCitingPapersFromOpenAlex(doi: string, externalId: string): Promise<CitingPaper[]> {
   const papers: CitingPaper[] = [];
 
-  // Try OpenAlex first (best coverage)
   try {
-    // Find the OpenAlex work ID
     let oaWorkId = '';
     if (doi) {
       const lookupResp = await fetch(`https://api.openalex.org/works/doi:${encodeURIComponent(doi)}`, {
@@ -28,12 +34,11 @@ async function fetchCitingPapersFromOpenAlex(doi: string, externalId: string): P
       });
       if (lookupResp.ok) {
         const work = await lookupResp.json();
-        oaWorkId = work.id; // e.g. https://openalex.org/W12345
+        oaWorkId = work.id;
       }
     }
 
     if (!oaWorkId && externalId) {
-      // Try by title search as fallback
       const searchResp = await fetch(`https://api.openalex.org/works?filter=openalex_id:${externalId}`, {
         headers: { 'User-Agent': 'ArcaResearch/1.0 (mailto:contact@arca.research)' }
       });
@@ -44,10 +49,12 @@ async function fetchCitingPapersFromOpenAlex(doi: string, externalId: string): P
     }
 
     if (oaWorkId) {
-      // Fetch ALL citing papers with pagination (OpenAlex max 200 per page)
       let cursor = '*';
       let hasMore = true;
-      while (hasMore) {
+      const maxPages = 5; // Cap at 1000 citing papers
+      let page = 0;
+      while (hasMore && page < maxPages) {
+        page++;
         const citesResp = await fetch(
           `https://api.openalex.org/works?filter=cites:${oaWorkId}&per_page=200&cursor=${cursor}&sort=cited_by_count:desc`,
           { headers: { 'User-Agent': 'ArcaResearch/1.0 (mailto:contact@arca.research)' } }
@@ -70,7 +77,6 @@ async function fetchCitingPapersFromOpenAlex(doi: string, externalId: string): P
           });
         }
 
-        // Get next cursor
         const nextCursor = citesData.meta?.next_cursor;
         if (nextCursor && results.length === 200) {
           cursor = nextCursor;
@@ -125,6 +131,58 @@ function reconstructAbstract(invertedIndex: Record<string, number[]>): string {
   return words.map(w => w[0]).join(' ');
 }
 
+/**
+ * Extract citations from AI response - tries tool_calls first, then JSON from content
+ */
+function extractCitationsFromResponse(data: any): ParsedCitation[] {
+  // Try tool_calls first (preferred)
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  if (toolCall?.function?.arguments) {
+    try {
+      const result = JSON.parse(toolCall.function.arguments);
+      if (result.citations?.length) {
+        console.log(`[classify] Extracted ${result.citations.length} citations via tool_calls`);
+        return result.citations;
+      }
+    } catch (e) {
+      console.error('[classify] Failed to parse tool_calls arguments:', e);
+    }
+  }
+
+  // Fallback: try parsing JSON from message content
+  const content = data.choices?.[0]?.message?.content;
+  if (content) {
+    console.log('[classify] No tool_calls, trying content fallback. Content preview:', content.slice(0, 200));
+    
+    // Try to find JSON array in content
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          console.log(`[classify] Extracted ${parsed.length} citations from content JSON`);
+          return parsed;
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Try to find JSON object with citations key
+    const objMatch = content.match(/\{[\s\S]*"citations"[\s\S]*\}/);
+    if (objMatch) {
+      try {
+        const parsed = JSON.parse(objMatch[0]);
+        if (parsed.citations?.length) {
+          console.log(`[classify] Extracted ${parsed.citations.length} citations from content object`);
+          return parsed.citations;
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  console.warn('[classify] Could not extract citations from response. Keys:', Object.keys(data.choices?.[0]?.message || {}));
+  return [];
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -153,7 +211,10 @@ Deno.serve(async (req) => {
       // Check if already classified
       const { data: existing } = await supabase
         .from('citation_classifications').select('id').eq('paper_id', paper.id).limit(1);
-      if (existing && existing.length > 0) continue;
+      if (existing && existing.length > 0) {
+        console.log(`[classify] Paper ${paper.id} already classified, skipping`);
+        continue;
+      }
 
       // Get DOI from DB if not provided
       let doi = paper.doi || '';
@@ -165,12 +226,12 @@ Deno.serve(async (req) => {
       }
 
       // Fetch citing papers from external APIs
-      console.log(`Fetching citing papers for: ${paper.title} (DOI: ${doi})`);
+      console.log(`[classify] Fetching citing papers for: ${paper.title} (DOI: ${doi})`);
       const citingPapers = await fetchCitingPapersFromOpenAlex(doi, paper.id);
-      console.log(`Found ${citingPapers.length} citing papers`);
+      console.log(`[classify] Found ${citingPapers.length} citing papers`);
 
       if (citingPapers.length === 0) {
-        // Fallback: try to classify from paper's own text (old approach)
+        // Fallback: try to classify from paper's own text
         const { data: chunks } = await supabase
           .from('paper_chunks').select('chunk_text')
           .eq('paper_id', paper.id).order('chunk_index');
@@ -180,63 +241,42 @@ Deno.serve(async (req) => {
           fullText = `Title: ${paper.title}\n\nAbstract: ${paper.abstract || ''}`;
         }
 
-        if (fullText.length < 100) continue;
+        if (fullText.length < 100) {
+          console.log(`[classify] Text too short for ${paper.id}, skipping`);
+          continue;
+        }
 
-        // Use old approach for papers without external citation data
+        console.log(`[classify] Using text-based classification for ${paper.id}`);
         const response = await callAI({
           model: 'google/gemini-3-flash-preview',
           messages: [
-            { role: 'system', content: 'You are a citation classifier. Analyze the text and identify any references to other works. Classify each as supporting, contrasting, or mentioning.' },
-            { role: 'user', content: `Analyze citations in:\n\n${fullText.slice(0, 15000)}` },
+            { role: 'system', content: `You are a citation classifier. Analyze the text and identify any references to other works. Classify each as supporting, contrasting, or mentioning. Return a JSON object with a "citations" array.` },
+            { role: 'user', content: `Analyze citations in:\n\n${fullText.slice(0, 15000)}\n\nReturn JSON: {"citations": [{"cited_paper_id": "...", "classification": "supporting|contrasting|mentioning", "citation_context": "...", "confidence": 0.8, "section": "Introduction|Methods|Results|Discussion|Conclusion|Other"}]}` },
           ],
-          tools: [{
-            type: 'function',
-            function: {
-              name: 'classify_citations',
-              description: 'Return classified citations',
-              parameters: {
-                type: 'object',
-                properties: {
-                  citations: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        cited_paper_id: { type: 'string' },
-                        classification: { type: 'string', enum: ['supporting', 'contrasting', 'mentioning'] },
-                        citation_context: { type: 'string' },
-                        confidence: { type: 'number' },
-                        section: { type: 'string', enum: ['Introduction', 'Methods', 'Results', 'Discussion', 'Conclusion', 'Other'] },
-                      },
-                      required: ['cited_paper_id', 'classification', 'citation_context', 'section'],
-                    },
-                  },
-                },
-                required: ['citations'],
-              },
-            },
-          }],
-          tool_choice: { type: 'function', function: { name: 'classify_citations' } },
+          temperature: 0.2,
         });
 
         if (response.ok) {
           const data = await response.json();
-          const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-          if (toolCall) {
-            const result = JSON.parse(toolCall.function.arguments);
-            for (const c of (result.citations || [])) {
-              const record = {
-                paper_id: paper.id,
-                cited_paper_id: c.cited_paper_id,
-                classification: c.classification,
-                citation_context: c.citation_context,
-                confidence: c.confidence || 0.8,
-                section: c.section || 'Other',
-              };
-              await supabase.from('citation_classifications').insert(record);
+          const citations = extractCitationsFromResponse(data);
+          for (const c of citations) {
+            const record = {
+              paper_id: paper.id,
+              cited_paper_id: c.cited_paper_id || 'unknown',
+              classification: c.classification,
+              citation_context: c.citation_context || '',
+              confidence: c.confidence || 0.8,
+              section: c.section || 'Other',
+            };
+            const { error: insertErr } = await supabase.from('citation_classifications').insert(record);
+            if (insertErr) {
+              console.error('[classify] Insert error:', insertErr);
+            } else {
               allClassifications.push(record);
             }
           }
+        } else {
+          console.error(`[classify] AI call failed for text-based: ${response.status}`);
         }
         continue;
       }
@@ -245,95 +285,112 @@ Deno.serve(async (req) => {
       const batchSize = 10;
       for (let i = 0; i < citingPapers.length; i += batchSize) {
         const batch = citingPapers.slice(i, i + batchSize);
+        console.log(`[classify] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(citingPapers.length / batchSize)} (${batch.length} papers)`);
 
         const batchText = batch.map((cp, idx) => {
           const authorStr = cp.authors?.join(', ') || 'Unknown authors';
-          return `[${idx + 1}] "${cp.title}" (${authorStr}, ${cp.year || 'n.d.'})\nAbstract: ${cp.abstract || 'No abstract available'}`;
+          return `[${idx + 1}] "${cp.title}" (${authorStr}, ${cp.year || 'n.d.'})\nAbstract: ${(cp.abstract || 'No abstract available').slice(0, 500)}`;
         }).join('\n\n---\n\n');
 
-        const response = await callAI({
-          model: 'google/gemini-3-flash-preview',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a citation context classifier for scientific papers.
+        const systemPrompt = `You are a citation context classifier for scientific papers.
 You are given the TARGET paper: "${paper.title}"
 And a list of papers that CITE the target paper.
 
 For each citing paper, based on its abstract and title, classify HOW it cites the target paper:
-- "supporting": The citing paper builds upon, validates, or agrees with the target paper's findings
-- "contrasting": The citing paper challenges, contradicts, or presents opposing findings to the target paper
-- "mentioning": The citing paper simply references the target paper without clear support or opposition
+- "supporting": builds upon, validates, or agrees with the target paper's findings
+- "contrasting": challenges, contradicts, or presents opposing findings
+- "mentioning": simply references without clear support or opposition
 
-Also determine the likely section where the citation occurs based on context:
-- "Introduction" (background/context), "Methods" (methodology reference), "Results" (comparison), "Discussion" (interpretation), "Conclusion", "Other"
+Also determine the likely section: "Introduction", "Methods", "Results", "Discussion", "Conclusion", or "Other".
 
-Extract a brief context explaining the relationship.`,
-            },
-            {
-              role: 'user',
-              content: `Classify how each of the following papers cites the target paper "${paper.title}":\n\n${batchText}`,
-            },
-          ],
-          tools: [{
-            type: 'function',
-            function: {
-              name: 'classify_citations',
-              description: 'Return classified citations for each citing paper',
-              parameters: {
-                type: 'object',
-                properties: {
-                  citations: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        cited_paper_id: { type: 'string', description: 'The index number [1], [2], etc. of the citing paper' },
-                        classification: { type: 'string', enum: ['supporting', 'contrasting', 'mentioning'] },
-                        citation_context: { type: 'string', description: 'Brief explanation of how this paper cites the target' },
-                        confidence: { type: 'number', description: '0-1 confidence score' },
-                        section: { type: 'string', enum: ['Introduction', 'Methods', 'Results', 'Discussion', 'Conclusion', 'Other'] },
+Return a JSON object with a "citations" array containing objects with: cited_paper_id (the index like "1", "2"), classification, citation_context, confidence (0-1), section.`;
+
+        let response: Response;
+        try {
+          response = await callAI({
+            model: 'google/gemini-3-flash-preview',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              {
+                role: 'user',
+                content: `Classify how each paper cites "${paper.title}":\n\n${batchText}\n\nReturn JSON: {"citations": [{"cited_paper_id": "1", "classification": "supporting|contrasting|mentioning", "citation_context": "brief explanation", "confidence": 0.8, "section": "Introduction"}]}`,
+              },
+            ],
+            tools: [{
+              type: 'function',
+              function: {
+                name: 'classify_citations',
+                description: 'Return classified citations for each citing paper',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    citations: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          cited_paper_id: { type: 'string' },
+                          classification: { type: 'string', enum: ['supporting', 'contrasting', 'mentioning'] },
+                          citation_context: { type: 'string' },
+                          confidence: { type: 'number' },
+                          section: { type: 'string', enum: ['Introduction', 'Methods', 'Results', 'Discussion', 'Conclusion', 'Other'] },
+                        },
+                        required: ['cited_paper_id', 'classification', 'citation_context', 'section'],
                       },
-                      required: ['cited_paper_id', 'classification', 'citation_context', 'section'],
                     },
                   },
+                  required: ['citations'],
                 },
-                required: ['citations'],
               },
-            },
-          }],
-          tool_choice: { type: 'function', function: { name: 'classify_citations' } },
-        });
+            }],
+            tool_choice: { type: 'function', function: { name: 'classify_citations' } },
+            temperature: 0.2,
+          });
+        } catch (err) {
+          console.error(`[classify] AI call error for batch ${Math.floor(i / batchSize) + 1}:`, err);
+          continue;
+        }
 
         if (!response.ok) {
-          console.error('AI classification failed:', response.status);
+          const errText = await response.text().catch(() => '');
+          console.error(`[classify] AI response not ok: ${response.status} - ${errText.slice(0, 200)}`);
           continue;
         }
 
         const data = await response.json();
-        const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-        if (!toolCall) continue;
+        const citations = extractCitationsFromResponse(data);
 
-        const result = JSON.parse(toolCall.function.arguments);
-        const citations = result.citations || [];
+        if (citations.length === 0) {
+          console.warn(`[classify] No citations extracted for batch ${Math.floor(i / batchSize) + 1}`);
+          continue;
+        }
 
         for (const citation of citations) {
-          // Map the index back to the actual citing paper
-          const idxMatch = citation.cited_paper_id.match(/\d+/);
+          const idxMatch = (citation.cited_paper_id || '').match(/\d+/);
           const idx = idxMatch ? parseInt(idxMatch[0]) - 1 : -1;
           const citingPaper = idx >= 0 && idx < batch.length ? batch[idx] : null;
 
+          const classification = ['supporting', 'contrasting', 'mentioning'].includes(citation.classification)
+            ? citation.classification
+            : 'mentioning';
+
           const record = {
             paper_id: paper.id,
-            cited_paper_id: citingPaper?.id || citation.cited_paper_id,
-            classification: citation.classification,
-            citation_context: citation.citation_context,
-            confidence: citation.confidence || 0.8,
+            cited_paper_id: citingPaper?.id || citation.cited_paper_id || 'unknown',
+            classification,
+            citation_context: citation.citation_context || '',
+            confidence: typeof citation.confidence === 'number' ? citation.confidence : 0.8,
             section: citation.section || 'Other',
           };
-          await supabase.from('citation_classifications').insert(record);
-          allClassifications.push(record);
+          const { error: insertErr } = await supabase.from('citation_classifications').insert(record);
+          if (insertErr) {
+            console.error('[classify] Insert error:', insertErr);
+          } else {
+            allClassifications.push(record);
+          }
         }
+
+        console.log(`[classify] Batch ${Math.floor(i / batchSize) + 1} done: ${citations.length} citations classified`);
       }
 
       // Update paper citation counters
@@ -341,6 +398,8 @@ Extract a brief context explaining the relationship.`,
       const contrasting = allClassifications.filter(c => c.paper_id === paper.id && c.classification === 'contrasting').length;
       const mentioning = allClassifications.filter(c => c.paper_id === paper.id && c.classification === 'mentioning').length;
       const total = supporting + contrasting + mentioning;
+
+      console.log(`[classify] Paper ${paper.id} totals: ${total} (S:${supporting} C:${contrasting} M:${mentioning})`);
 
       await supabase.from('papers')
         .update({
@@ -352,12 +411,13 @@ Extract a brief context explaining the relationship.`,
         .eq('external_id', paper.id);
     }
 
+    console.log(`[classify] Done. Total classifications: ${allClassifications.length}`);
     return new Response(JSON.stringify({ classifications: allClassifications, count: allClassifications.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
-    console.error('classify-citations error:', err);
-    return new Response(JSON.stringify({ error: 'Internal error' }), {
+    console.error('[classify] Fatal error:', err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Internal error' }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
