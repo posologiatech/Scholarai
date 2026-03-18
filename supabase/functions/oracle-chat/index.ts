@@ -18,7 +18,7 @@ const SYSTEM_PROMPT = `Você é o **Oráculo do ScholarAI** — o assistente esp
 ## FUNCIONALIDADES DO SCHOLARAI
 
 ### 🔍 Busca Semântica (/search)
-- Busca em linguagem natural em 5 bases: Semantic Scholar (200M+ papers), PubMed, OpenAlex, ClinicalTrials.gov, Europe PMC
+- Busca em linguagem natural em 7 bases: Semantic Scholar (200M+ papers), PubMed, OpenAlex, ClinicalTrials.gov, Europe PMC, CrossRef (150M+ registros DOI), CORE (300M+ papers open access)
 - Filtros: ano, tipo de estudo (RCT, revisão, meta-análise), Open Access, citações mínimas, fonte, autor, palavras-chave no abstract
 - Ordenação por relevância, data ou citações
 - Busca interna nos resultados já carregados

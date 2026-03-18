@@ -936,6 +936,8 @@ const SearchResults = () => {
                       { value: "openalex", label: "OpenAlex" },
                       { value: "clinical_trials", label: "ClinicalTrials.gov" },
                       { value: "europe_pmc", label: "Europe PMC" },
+                      { value: "crossref", label: "CrossRef" },
+                      { value: "core", label: "CORE" },
                     ].map((src) => (
                       <label key={src.value} className="flex items-center justify-between cursor-pointer rounded-md px-2 py-1.5 hover:bg-muted">
                         <div className="flex items-center gap-2">
