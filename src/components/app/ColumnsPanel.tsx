@@ -50,9 +50,9 @@ interface ColumnsPanelProps {
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-papers`;
 
-const ColumnsPanel = ({ suggestedColumns, onColumnsChange, papers = [], query = "" }: ColumnsPanelProps) => {
+const ColumnsPanel = ({ suggestedColumns, onColumnsChange, papers = [], query = "", papersLoading = false }: ColumnsPanelProps) => {
   const { locale } = useLanguage();
-  const [activeTab, setActiveTab] = useState<"chat" | "columns">("columns");
+  const [activeTab, setActiveTab] = useState<"chat" | "columns">("chat");
   const [newColumnName, setNewColumnName] = useState("");
 
   // Custom column prompt dialog
@@ -65,6 +65,12 @@ const ColumnsPanel = ({ suggestedColumns, onColumnsChange, papers = [], query = 
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  
+  // Proactive synthesis state
+  const [synthesis, setSynthesis] = useState("");
+  const [synthLoading, setSynthLoading] = useState(false);
+  const [synthCopied, setSynthCopied] = useState(false);
+  const hasSynthesized = useRef(false);
 
   const customColumns = suggestedColumns.filter((c) => c.isCustom);
   const suggested = suggestedColumns.filter((c) => !c.isCustom);
