@@ -1121,6 +1121,19 @@ const SearchResults = () => {
               </div>
             )}
 
+            {/* Research Gaps */}
+            {!loading && !error && papers.length > 0 && (
+              <ResearchGaps
+                query={query}
+                papers={papers}
+                loading={loading}
+                onSuggestionClick={(suggestion) => {
+                  setNewQuery(suggestion);
+                  navigate(`/search?q=${encodeURIComponent(suggestion)}`);
+                }}
+              />
+            )}
+
             {/* Table with virtualization */}
             {!loading && !error && (
               <div>
