@@ -42,6 +42,7 @@ const SECTIONS = ["Introduction", "Methods", "Results", "Discussion", "Conclusio
 const PaperReport = () => {
   const { id } = useParams<{ id: string }>();
   const { locale } = useLanguage();
+  const location = useLocation();
   const [paper, setPaper] = useState<PaperInfo | null>(null);
   const [citations, setCitations] = useState<CitationEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +58,9 @@ const PaperReport = () => {
   const loadPaperData = async () => {
     if (!id) return;
     setLoading(true);
+
+    // Try navigation state first (from search results)
+    const navState = location.state as { paperData?: PaperInfo } | null;
 
     // Try to load from papers table first (complete metadata)
     const { data: paperRow } = await supabase
@@ -81,6 +85,9 @@ const PaperReport = () => {
         url: paperRow.url || undefined,
         journal: paperRow.journal || undefined,
       });
+    } else if (navState?.paperData) {
+      // Use data passed from search results
+      setPaper(navState.paperData);
     } else {
       // Fallback: load from chunks
       const { data: chunks } = await supabase
