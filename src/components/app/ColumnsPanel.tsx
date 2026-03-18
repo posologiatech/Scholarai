@@ -2,8 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Switch } from "@/components/ui/switch";
-import { ChevronRight, Loader2, Send, Info } from "lucide-react";
+import { ChevronRight, Loader2, Send, Info, Sparkles, Copy, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
