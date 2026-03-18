@@ -29,6 +29,7 @@ interface PaperInfo {
   doi?: string;
   url?: string;
   journal?: string;
+  citationCount?: number;
 }
 
 const COLORS = {
