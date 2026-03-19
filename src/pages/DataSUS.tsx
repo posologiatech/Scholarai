@@ -387,19 +387,8 @@ export default function DataSUS() {
                   </p>
                 </div>
 
-                {/* Bases */}
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {TABNET_BASES.slice(0, 5).map((base) => (
-                    <Badge
-                      key={base.id}
-                      variant="outline"
-                      className="gap-1.5 text-[11px] rounded-full px-3 py-1 bg-background border-border/40 text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors cursor-default"
-                    >
-                      <Database className="h-3 w-3" />
-                      {isPt ? base.label : base.labelEn}
-                    </Badge>
-                  ))}
-                </div>
+                {/* Sources panel */}
+                <DataSUSSourcesPanel isPt={isPt} />
 
                 {/* Example cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
