@@ -786,6 +786,110 @@ export type Database = {
         }
         Relationships: []
       }
+      datasus_alert_results: {
+        Row: {
+          alert_id: string
+          alert_level: string
+          current_value: number | null
+          description: string | null
+          detected_at: string
+          disease: string | null
+          historical_mean: number | null
+          id: string
+          is_read: boolean
+          location: string | null
+          period: string | null
+          std_deviation: number | null
+          title: string
+          user_id: string
+          z_score: number | null
+        }
+        Insert: {
+          alert_id: string
+          alert_level?: string
+          current_value?: number | null
+          description?: string | null
+          detected_at?: string
+          disease?: string | null
+          historical_mean?: number | null
+          id?: string
+          is_read?: boolean
+          location?: string | null
+          period?: string | null
+          std_deviation?: number | null
+          title: string
+          user_id: string
+          z_score?: number | null
+        }
+        Update: {
+          alert_id?: string
+          alert_level?: string
+          current_value?: number | null
+          description?: string | null
+          detected_at?: string
+          disease?: string | null
+          historical_mean?: number | null
+          id?: string
+          is_read?: boolean
+          location?: string | null
+          period?: string | null
+          std_deviation?: number | null
+          title?: string
+          user_id?: string
+          z_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datasus_alert_results_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "datasus_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      datasus_alerts: {
+        Row: {
+          created_at: string
+          disease: string
+          frequency: string
+          id: string
+          is_active: boolean
+          last_checked_at: string | null
+          location: string
+          state_codes: string[]
+          threshold_std_dev: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          disease: string
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_checked_at?: string | null
+          location: string
+          state_codes?: string[]
+          threshold_std_dev?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          disease?: string
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_checked_at?: string | null
+          location?: string
+          state_codes?: string[]
+          threshold_std_dev?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       datasus_conversations: {
         Row: {
           created_at: string

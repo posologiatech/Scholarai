@@ -1,111 +1,180 @@
 
 
-# Funcionalidades de Alto Impacto para o Módulo DataSUS/SINAN
+# Survey Module (ScholarAI Surveys) -- Implementation Plan
 
-## Análise do mercado atual
+## Overview
 
-Ferramentas como TabNet, PCDaS/Fiocruz, e plataformas como IVIS e InfoGripe oferecem visualizações estáticas ou dashboards pré-definidos. Nenhuma oferece **análise epidemiológica interativa por linguagem natural com dados reais cruzados**. O módulo já tem essa base — as funcionalidades abaixo o transformariam em algo sem equivalente no mercado.
+A new Qualtrics-inspired survey/data collection module integrated into ScholarAI, designed for academic research. Surveys created here can export collected responses directly into DataMind for analysis.
 
----
+## Why This Is Competitive
 
-## 1. Detecção de Surtos e Alertas Epidemiológicos em Tempo Real (Early Warning System)
-
-**Impacto: Extremamente alto**
-
-O sistema analisaria automaticamente os dados de arboviroses, SRAG e TB para detectar anomalias estatísticas (z-score, CUSUM, médias móveis) e gerar alertas proativos.
-
-- O usuário configura monitoramento: "Monitorar dengue em SP"
-- O sistema consulta InfoDengue semanalmente (cron via Supabase pg_cron ou scheduled function)
-- Quando detecta aumento acima de 2 desvios-padrão da média histórica, envia alerta por email/notificação
-- Dashboard com mapa de calor por UF mostrando nível de alerta (verde/amarelo/vermelho)
-- Comparação automática com o mesmo período de anos anteriores
-
-**Diferencial**: Nenhuma ferramenta pública oferece alertas personalizados por região/doença com análise automática. O CIEVS faz isso internamente mas não é acessível a pesquisadores.
-
-**Implementação**:
-- Nova tabela `datasus_alerts` (user_id, disease, location, threshold, active)
-- Scheduled edge function `check-datasus-alerts` que roda diariamente
-- Componente `DataSUSAlertsDashboard` com mapa do Brasil interativo (SVG)
-- Notificações via email (Resend já integrado) e in-app
+- **Deep academic integration**: Surveys link directly to DataMind analysis pipelines, eliminating the export-import cycle researchers face with Qualtrics + SPSS/R.
+- **AI-powered question generation**: Leverage existing AI infrastructure to suggest questions based on research objectives.
+- **Built-in statistical summaries**: Mean, SD, CI displayed inline in reports -- no external tools needed.
+- **Bilingual (PT/EN)** out of the box.
+- **Workspace collaboration**: Team members can co-edit surveys via existing workspace infrastructure.
 
 ---
 
-## 2. Geração Automática de Boletins Epidemiológicos (Auto-Report)
+## Database Schema (New Tables)
 
-**Impacto: Muito alto**
+```text
+surveys
+├── id, user_id, workspace_id?, title, description, status (draft/active/closed)
+├── settings (jsonb: randomization, progress_bar, back_button, etc.)
+├── created_at, updated_at, published_at, closed_at
 
-Um clique gera um boletim epidemiológico completo em formato PDF/DOCX, com:
-- Resumo executivo com principais achados
-- Tabelas de incidência/mortalidade por UF
-- Gráficos de série temporal e mapas coropléticos
-- Comparação interanual
-- Metodologia e fontes utilizadas
-- Formatação ABNT ou padrão SVS/MS
+survey_blocks
+├── id, survey_id, title, description, block_order
+├── randomize_questions (bool), settings (jsonb)
 
-**Diferencial**: Pesquisadores e secretarias de saúde gastam dias para montar boletins manualmente. Automatizar isso com dados reais e formatação profissional economiza semanas de trabalho.
+survey_questions
+├── id, block_id, survey_id, question_type, question_text, description
+├── question_order, is_required, validation_rules (jsonb)
+├── choices (jsonb: [{id, text, value, order}])
+├── matrix_rows (jsonb), matrix_columns (jsonb)
+├── settings (jsonb: randomize_choices, slider_min/max, etc.)
 
-**Implementação**:
-- Botão "Gerar Boletim" na interface de resultados
-- Edge function `generate-epi-bulletin` que:
-  1. Busca dados de múltiplas fontes automaticamente
-  2. Gera análise narrativa via AI
-  3. Produz gráficos via Pyodide
-  4. Monta documento final (HTML → PDF via puppeteer ou jsPDF no frontend)
-- Templates pré-definidos: Boletim Municipal, Estadual, Temático
+survey_logic_rules
+├── id, survey_id, source_question_id?, source_block_id?
+├── condition (jsonb: {field, operator, value})
+├── action (show_block/hide_question/skip_to/end_survey)
+├── target_id (uuid), rule_order
 
----
+survey_contacts
+├── id, survey_id, user_id, first_name, last_name, email
+├── institution, custom_fields (jsonb), status (not_sent/sent/responded)
 
-## 3. Análise Geoespacial com Mapas Coropléticos Interativos
+survey_distributions
+├── id, survey_id, type (anonymous_link/email), anonymous_token
+├── email_subject, email_body, scheduled_at, sent_at
 
-**Impacto: Muito alto**
+survey_responses
+├── id, survey_id, respondent_id?, contact_id?
+├── started_at, completed_at, status (in_progress/complete/disqualified)
+├── ip_address, user_agent, duration_seconds
+├── metadata (jsonb: embedded_data, geo, etc.)
 
-Em vez de apenas tabelas e gráficos de linha, gerar mapas do Brasil/estados com coloração por intensidade do indicador (incidência, mortalidade, cobertura vacinal).
+survey_answers
+├── id, response_id, question_id
+├── answer_text, answer_numeric, answer_choices (jsonb)
+├── matrix_answers (jsonb: [{row_id, column_id}])
+```
 
-- Mapa SVG do Brasil com UFs clicáveis
-- Mapa por municípios dentro de cada UF
-- Animação temporal (slider de ano mostrando evolução)
-- Overlay de múltiplos indicadores (ex: saneamento + dengue)
-
-**Diferencial**: O TabNet não gera mapas. O PCDaS gera mapas mas sem interatividade nem cruzamento. Mapas animados por ano seriam únicos.
-
-**Implementação**:
-- Biblioteca Leaflet ou D3.js com GeoJSON do IBGE (malha municipal)
-- Componente `EpiMap` renderizado no frontend
-- O código Python gera os dados; o frontend renderiza o mapa
-- GeoJSON compactado hospedado no Supabase Storage
-
----
-
-## 4. Comparador Inteligente de Municípios/UFs (Benchmarking)
-
-**Impacto: Alto**
-
-Permitir que o usuário pergunte "Compare a mortalidade infantil entre Ceará e Maranhão nos últimos 10 anos" e receba:
-- Tabela lado a lado
-- Gráfico comparativo
-- Análise de tendência (melhoria/piora)
-- Ranking entre UFs similares (mesmo IDH, mesma região)
-- Correlação com indicadores socioeconômicos (PIB, saneamento)
-
-**Diferencial**: Nenhuma ferramenta permite comparação natural por chat com cruzamento automático de variáveis socioeconômicas.
-
-**Implementação**:
-- Expandir o prompt de extração para detectar intenção de comparação
-- Buscar dados de ambas localidades + dados IBGE Agregados
-- Prompt de análise específico para comparação com ranking
+RLS: All tables scoped to `user_id = auth.uid()`. Public survey responses allow anonymous insert via edge function (no JWT). Workspace-shared surveys use existing `is_workspace_member()`.
 
 ---
 
-## Recomendação de prioridade
+## File & Component Structure
 
-| Funcionalidade | Impacto | Complexidade | Prioridade |
-|---|---|---|---|
-| Alertas epidemiológicos | Extremo | Alta | 1 |
-| Boletins automáticos | Muito alto | Média | 2 |
-| Mapas coropléticos | Muito alto | Média | 3 |
-| Benchmarking de municípios | Alto | Baixa | 4 |
+```text
+src/pages/
+├── Surveys.tsx                    (project list / dashboard)
+├── SurveyBuilder.tsx              (3-pane builder)
+├── SurveyFlow.tsx                 (visual logic editor)
+├── SurveyDistribution.tsx         (links, email, contacts)
+├── SurveyResults.tsx              (reports + raw data)
+├── SurveyPreview.tsx              (respondent-facing preview)
+├── SurveyRespond.tsx              (public respondent page, no auth)
 
-A funcionalidade de **Alertas Epidemiológicos** seria o maior diferencial — transforma o módulo de uma ferramenta reativa (o usuário pergunta) para proativa (o sistema avisa). Nenhum concorrente público oferece isso para pesquisadores individuais.
+src/components/survey/
+├── SurveyProjectList.tsx          (data table with status, responses, sparklines)
+├── builder/
+│   ├── BlockSidebar.tsx           (left pane: block navigation, drag-reorder)
+│   ├── QuestionCanvas.tsx         (center: inline WYSIWYG editing)
+│   ├── QuestionContextPanel.tsx   (right: type, validation, randomization)
+│   ├── QuestionRenderer.tsx       (renders each question type)
+│   ├── question-types/
+│   │   ├── MultipleChoice.tsx
+│   │   ├── TextEntry.tsx
+│   │   ├── MatrixTable.tsx
+│   │   ├── SliderQuestion.tsx
+│   │   ├── RankOrder.tsx
+│   │   └── ConstantSum.tsx
+├── flow/
+│   ├── FlowCanvas.tsx             (visual nested-list / node-based flow)
+│   ├── ConditionBuilder.tsx       (dropdown rule rows)
+│   └── LogicBadge.tsx             (GitBranch icon on questions with logic)
+├── distribution/
+│   ├── AnonymousLinkTab.tsx       (URL + QR code + copy)
+│   ├── EmailComposerTab.tsx       (rich text + piped text insertion)
+│   └── ContactListTab.tsx         (data table + CSV upload)
+├── results/
+│   ├── ReportsDashboard.tsx       (Recharts widgets grid)
+│   ├── ResponseDataGrid.tsx       (raw data table, variable name toggle)
+│   ├── StatsSummary.tsx           (mean, SD, n calculations)
+│   └── ExportEngine.tsx           (CSV, TSV, XLSX export)
+├── respond/
+│   ├── RespondentForm.tsx         (public form with logic evaluation)
+│   └── ProgressIndicator.tsx
 
-Deseja que eu implemente alguma dessas funcionalidades? Posso começar por qualquer uma, ou por todas em sequência começando pelos alertas.
+src/hooks/
+├── useSurveyStore.ts              (Zustand store for survey builder state)
+
+supabase/functions/
+├── survey-respond/index.ts        (anonymous response submission, verify_jwt=false)
+├── survey-export-datamind/index.ts (push responses into DataMind conversation)
+```
+
+---
+
+## Implementation Phases
+
+### Phase 1: Foundation (Database + Routing + Project List)
+- Create all database tables with RLS policies via migration tool
+- Add routes: `/surveys`, `/surveys/:id/build`, `/surveys/:id/flow`, `/surveys/:id/distribute`, `/surveys/:id/results`, `/survey/respond/:token`
+- Add "Surveys" nav link in AppSidebar (ClipboardList icon)
+- Build `SurveyProjectList` with status badges, response counts, sparkline trends, search/filter, "Create Survey" button
+
+### Phase 2: Survey Builder (Core Engine)
+- Implement Zustand store (`useSurveyStore`) managing the nested survey object (blocks → questions → choices/matrix)
+- Build 3-pane layout: BlockSidebar | QuestionCanvas | QuestionContextPanel
+- Implement all 6 question types with inline editing
+- Drag-and-drop reordering for blocks and questions
+- Auto-save to Supabase on changes (debounced)
+
+### Phase 3: Logic Engine & Survey Flow
+- Build ConditionBuilder component (question selector → operator → value → action)
+- Visual flow editor showing block sequence with branch indicators
+- Extend Zustand store with `logicRules` array
+- Preview mode that evaluates logic rules in real-time
+- GitBranch badges on questions with active logic
+
+### Phase 4: Distribution Module
+- Anonymous link generation with unique token + QR code (via canvas/SVG)
+- Email composer with piped text insertion (`{{Contact.FirstName}}`, etc.)
+- Contact list management table with CSV upload
+- Schedule send UI (mock for now, real via edge function later)
+- `survey-respond` edge function for anonymous submissions (no JWT)
+
+### Phase 5: Data & Analysis + DataMind Integration
+- Reports dashboard with Recharts: bar charts, donut charts, stacked bars for Likert
+- Statistical calculations: mean, SD, confidence intervals
+- Raw data grid with question text / variable name toggle
+- Export engine: CSV, TSV, XLSX (using existing xlsx dependency)
+- **DataMind integration**: "Analyze in DataMind" button that creates a new DataMind conversation with survey responses auto-loaded as a CSV file in the `datamind-files` bucket, enabling immediate analysis
+
+### Phase 6: Respondent-Facing Form
+- Public page at `/survey/respond/:token` (no auth required)
+- Progress bar, one-block-at-a-time or all-at-once modes
+- Logic evaluation engine to show/hide questions dynamically
+- Mobile-responsive form design
+- Submission via `survey-respond` edge function
+
+---
+
+## DataMind Integration Detail
+
+The key differentiator: a single click from Survey Results exports all responses as a structured CSV into DataMind. The `survey-export-datamind` edge function:
+1. Queries `survey_answers` joined with `survey_questions` for headers
+2. Generates CSV with proper variable names
+3. Uploads to `datamind-files` bucket
+4. Creates a new `datamind_conversations` entry with an initial system message referencing the file
+5. Redirects user to `/datamind/:newConversationId`
+
+---
+
+## Design System
+
+Consistent with existing ScholarAI design: white backgrounds, `bg-muted/50` panels, primary blue accents, shadcn/ui components throughout. The builder uses `ResizablePanelGroup` for the 3-pane layout (already in the project). Question cards use the existing `Card` component with subtle borders.
 

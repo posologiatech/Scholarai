@@ -8,14 +8,17 @@ import { supabase } from "@/integrations/supabase/client";
 import DataSUSResults from "@/components/datasus/DataSUSResults";
 import DataSUSSidebar, { DataSUSConversation } from "@/components/datasus/DataSUSSidebar";
 import DataSUSSourcesPanel from "@/components/datasus/DataSUSSourcesPanel";
+import DataSUSAlertsDashboard from "@/components/datasus/DataSUSAlertsDashboard";
+import DataSUSBulletinGenerator from "@/components/datasus/DataSUSBulletinGenerator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import {
   Send, Loader2, Bot, User, Stethoscope,
   Sparkles, Database, BrainCircuit, PanelLeftOpen, PanelLeftClose,
-  Activity, HeartPulse, Microscope, BarChart3,
+  Activity, HeartPulse, Microscope, BarChart3, BellRing, FileText,
 } from "lucide-react";
 import { EXAMPLE_QUERIES, TABNET_BASES } from "@/lib/datasus-catalog";
 import ReactMarkdown from "react-markdown";
@@ -81,6 +84,7 @@ export default function DataSUS() {
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -104,6 +108,7 @@ export default function DataSUS() {
 
   const selectConversation = async (id: string) => {
     setActiveConvId(id);
+    setActiveTab("chat");
     const { data } = await (supabase as any)
       .from("datasus_messages")
       .select("*")
@@ -123,7 +128,7 @@ export default function DataSUS() {
     }
   };
 
-  const startNewConversation = () => { setActiveConvId(null); setMessages([]); };
+  const startNewConversation = () => { setActiveConvId(null); setMessages([]); setActiveTab("chat"); };
 
   const deleteConversation = async (id: string) => {
     await (supabase as any).from("datasus_conversations").delete().eq("id", id);
@@ -301,12 +306,12 @@ export default function DataSUS() {
 
   const handleExampleClick = (q: string) => {
     setInput(q);
+    setActiveTab("chat");
     inputRef.current?.focus();
   };
 
   const examples = isPt ? EXAMPLE_QUERIES.pt : EXAMPLE_QUERIES.en;
 
-  // Auto-resize textarea
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     const el = e.target;
@@ -316,7 +321,6 @@ export default function DataSUS() {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Sidebar */}
       {sidebarOpen && (
         <DataSUSSidebar
           conversations={conversations}
@@ -329,9 +333,8 @@ export default function DataSUS() {
         />
       )}
 
-      {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Minimal header */}
+        {/* Header */}
         <div className="h-12 border-b border-border/20 px-4 flex items-center gap-2 shrink-0 bg-background">
           <Button
             variant="ghost"
@@ -342,7 +345,19 @@ export default function DataSUS() {
             {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
           </Button>
 
-          <div className="flex-1" />
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
+            <TabsList className="h-8 bg-muted/30 rounded-lg p-0.5">
+              <TabsTrigger value="chat" className="text-xs h-7 rounded-md px-3 gap-1.5">
+                <Stethoscope className="h-3.5 w-3.5" />
+                {isPt ? "Consulta" : "Query"}
+              </TabsTrigger>
+              <TabsTrigger value="alerts" className="text-xs h-7 rounded-md px-3 gap-1.5">
+                <BellRing className="h-3.5 w-3.5" />
+                {isPt ? "Alertas" : "Alerts"}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           {pyodide.status !== "idle" && (
             <Badge
@@ -362,168 +377,166 @@ export default function DataSUS() {
         </div>
 
         {/* Content */}
-        <ScrollArea className="flex-1">
-          {messages.length === 0 ? (
-            /* Empty state — welcome screen */
-            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)] px-6">
-              <div className="max-w-2xl w-full space-y-8">
-                {/* Hero */}
-                <div className="text-center space-y-4">
-                  <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10 mx-auto">
-                    <Stethoscope className="h-8 w-8 text-primary" />
+        {activeTab === "alerts" ? (
+          <ScrollArea className="flex-1">
+            <div className="max-w-5xl mx-auto px-6 py-6">
+              <DataSUSAlertsDashboard isPt={isPt} />
+            </div>
+          </ScrollArea>
+        ) : (
+          <>
+            <ScrollArea className="flex-1">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)] px-6">
+                  <div className="max-w-2xl w-full space-y-8">
+                    <div className="text-center space-y-4">
+                      <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10 mx-auto">
+                        <Stethoscope className="h-8 w-8 text-primary" />
+                      </div>
+                      <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                          {isPt ? "Consulta Inteligente" : "Smart Query"}
+                        </h1>
+                        <h2 className="text-lg text-muted-foreground font-normal mt-1">
+                          DataSUS / SINAN
+                        </h2>
+                      </div>
+                      <p className="text-sm text-muted-foreground/80 max-w-md mx-auto leading-relaxed">
+                        {isPt
+                          ? "Faça perguntas sobre dados epidemiológicos do Brasil em linguagem natural. Gráficos e tabelas são gerados automaticamente."
+                          : "Ask about Brazilian epidemiological data in natural language. Charts and tables are generated automatically."}
+                      </p>
+                    </div>
+
+                    <DataSUSSourcesPanel isPt={isPt} />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {examples.slice(0, 4).map((q, i) => {
+                        const Icon = EXAMPLE_ICONS[i % EXAMPLE_ICONS.length];
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => handleExampleClick(q)}
+                            className="group text-left p-4 rounded-2xl border border-border/30 bg-background hover:border-primary/30 hover:bg-primary/[0.02] transition-all duration-200 hover:shadow-sm"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="h-8 w-8 rounded-xl bg-muted/50 group-hover:bg-primary/10 flex items-center justify-center shrink-0 transition-colors">
+                                <Icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                              </div>
+                              <span className="text-[13px] text-foreground/80 group-hover:text-foreground leading-snug transition-colors">
+                                {q}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                      {isPt ? "Consulta Inteligente" : "Smart Query"}
-                    </h1>
-                    <h2 className="text-lg text-muted-foreground font-normal mt-1">
-                      DataSUS / SINAN
-                    </h2>
-                  </div>
-                  <p className="text-sm text-muted-foreground/80 max-w-md mx-auto leading-relaxed">
-                    {isPt
-                      ? "Faça perguntas sobre dados epidemiológicos do Brasil em linguagem natural. Gráficos e tabelas são gerados automaticamente."
-                      : "Ask about Brazilian epidemiological data in natural language. Charts and tables are generated automatically."}
-                  </p>
                 </div>
-
-                {/* Sources panel */}
-                <DataSUSSourcesPanel isPt={isPt} />
-
-                {/* Example cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {examples.slice(0, 4).map((q, i) => {
-                    const Icon = EXAMPLE_ICONS[i % EXAMPLE_ICONS.length];
-                    return (
-                      <button
-                        key={i}
-                        onClick={() => handleExampleClick(q)}
-                        className="group text-left p-4 rounded-2xl border border-border/30 bg-background hover:border-primary/30 hover:bg-primary/[0.02] transition-all duration-200 hover:shadow-sm"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="h-8 w-8 rounded-xl bg-muted/50 group-hover:bg-primary/10 flex items-center justify-center shrink-0 transition-colors">
-                            <Icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              ) : (
+                <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+                  {messages.map((msg) => (
+                    <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                      {msg.role === "assistant" && (
+                        <div className="shrink-0 mt-1">
+                          <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                            <Bot className="h-4 w-4 text-primary" />
                           </div>
-                          <span className="text-[13px] text-foreground/80 group-hover:text-foreground leading-snug transition-colors">
-                            {q}
-                          </span>
                         </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* Messages */
-            <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-              {messages.map((msg) => (
-                <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  {msg.role === "assistant" && (
-                    <div className="shrink-0 mt-1">
-                      <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Bot className="h-4 w-4 text-primary" />
+                      )}
+                      <div className={`max-w-[85%] ${msg.role === "user"
+                        ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-md px-4 py-2.5"
+                        : "bg-muted/30 border border-border/20 rounded-2xl rounded-tl-md px-4 py-3"
+                      }`}>
+                        {msg.isLoading ? (
+                          <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            {msg.content}
+                          </div>
+                        ) : msg.code && msg.role === "assistant" ? (
+                          <div className="space-y-3">
+                            <DataSUSResults
+                              explanation={msg.explanation || msg.content}
+                              dataSource={msg.dataSource || ""}
+                              disease={msg.disease || ""}
+                              location={msg.location || ""}
+                              period={msg.period || ""}
+                              code={msg.code || ""}
+                              stdout={msg.stdout || ""}
+                              images={msg.images || []}
+                              tables={msg.tables || []}
+                              error={msg.error || null}
+                              isRealData={msg.isRealData}
+                              dataSourceDetail={msg.dataSourceDetail}
+                            />
+                            <div className="flex items-center gap-2 pt-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-[11px] text-muted-foreground hover:text-primary gap-1.5 rounded-lg"
+                                onClick={() => sendToDataMind(msg)}
+                              >
+                                <BrainCircuit className="h-3.5 w-3.5" />
+                                {isPt ? "Analisar no DataMind" : "Analyze in DataMind"}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-sm leading-relaxed prose prose-sm max-w-none prose-p:my-1 prose-headings:text-foreground prose-strong:text-foreground">
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
-                  <div className={`${
-                    msg.role === "user"
-                      ? "max-w-[75%] bg-primary text-primary-foreground rounded-2xl rounded-br-lg px-4 py-3"
-                      : "flex-1 max-w-[90%] space-y-3"
-                  }`}>
-                    {msg.isLoading ? (
-                      <div className="flex items-center gap-3 py-2">
-                        <div className="flex gap-1">
-                          <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
-                          <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
-                          <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
+                      {msg.role === "user" && (
+                        <div className="shrink-0 mt-1">
+                          <div className="h-8 w-8 rounded-xl bg-primary/20 flex items-center justify-center">
+                            <User className="h-4 w-4 text-primary" />
+                          </div>
                         </div>
-                        <span className="text-sm text-muted-foreground">{msg.content}</span>
-                      </div>
-                    ) : msg.role === "user" ? (
-                      <p className="text-sm leading-relaxed">{msg.content}</p>
-                    ) : msg.code ? (
-                      <div className="space-y-3">
-                        <DataSUSResults
-                          explanation={msg.explanation || msg.content}
-                          dataSource={msg.dataSource || "DataSUS"}
-                          disease={msg.disease || ""}
-                          location={msg.location || ""}
-                          period={msg.period || ""}
-                          code={msg.code}
-                          stdout={msg.stdout || ""}
-                          images={msg.images || []}
-                          tables={msg.tables || []}
-                          error={msg.error || null}
-                          isRealData={msg.isRealData}
-                          dataSourceDetail={msg.dataSourceDetail}
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-2 text-xs rounded-xl h-8 border-border/30 hover:border-primary/30 hover:text-primary"
-                          onClick={() => sendToDataMind(msg)}
-                        >
-                          <BrainCircuit className="h-3.5 w-3.5" />
-                          {isPt ? "Aprofundar no DataMind" : "Deep dive in DataMind"}
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="prose prose-sm max-w-none text-foreground/90">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                      </div>
-                    )}
-                  </div>
-                  {msg.role === "user" && (
-                    <div className="shrink-0 mt-1">
-                      <div className="h-8 w-8 rounded-xl bg-muted/60 flex items-center justify-center">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                      </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
-              <div ref={scrollRef} />
-            </div>
-          )}
-        </ScrollArea>
+                  ))}
+                  <div ref={scrollRef} />
 
-        {/* Input area */}
-        <div className="shrink-0 px-4 pb-4 pt-2">
-          <div className="max-w-3xl mx-auto">
-            <div className="relative flex items-end rounded-2xl border border-border/30 bg-background shadow-sm focus-within:border-primary/30 focus-within:shadow-md transition-all duration-200">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder={isPt ? "Faça uma pergunta sobre dados epidemiológicos..." : "Ask about epidemiological data..."}
-                className="flex-1 resize-none bg-transparent py-3.5 pl-4 pr-14 text-sm placeholder:text-muted-foreground/50 focus:outline-none max-h-[160px] min-h-[48px] leading-relaxed"
-                rows={1}
-                disabled={isProcessing}
-              />
-              <div className="absolute right-2 bottom-2">
-                <Button
-                  size="icon"
-                  onClick={handleSend}
-                  disabled={!input.trim() || isProcessing}
-                  className="h-9 w-9 rounded-xl shadow-sm"
-                >
-                  {isProcessing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
+                  {/* Bulletin generator at bottom of conversation */}
+                  {messages.some(m => m.role === "assistant" && (m.stdout || m.images?.length)) && (
+                    <DataSUSBulletinGenerator isPt={isPt} messages={messages} />
                   )}
-                </Button>
+                </div>
+              )}
+            </ScrollArea>
+
+            {/* Input */}
+            <div className="border-t border-border/20 p-4 bg-background shrink-0">
+              <div className="max-w-4xl mx-auto">
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1 relative">
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      onChange={handleInputChange}
+                      onKeyDown={handleKeyDown}
+                      placeholder={isPt
+                        ? "Pergunte sobre dados epidemiológicos do Brasil..."
+                        : "Ask about Brazilian epidemiological data..."}
+                      className="w-full resize-none bg-muted/30 border border-border/30 rounded-2xl px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all min-h-[44px] max-h-[160px] leading-relaxed"
+                      rows={1}
+                      disabled={isProcessing}
+                    />
+                    <Button
+                      onClick={handleSend}
+                      disabled={!input.trim() || isProcessing}
+                      size="icon"
+                      className="absolute right-2 bottom-2 h-8 w-8 rounded-xl shadow-sm"
+                    >
+                      {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
-            <p className="text-[10px] text-muted-foreground/40 text-center mt-2">
-              {isPt
-                ? "Apenas dados reais das fontes integradas são retornados"
-                : "Only real data from integrated sources is returned"}
-            </p>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
