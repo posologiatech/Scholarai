@@ -129,11 +129,13 @@ function resolveStateCodes(location: string): string[] {
 
 /* ── Topic detection for source routing ── */
 
-type DataTopic = "arbovirus" | "mortality" | "births" | "tuberculosis" | "leprosy" | "other";
+type DataTopic = "arbovirus" | "mortality" | "births" | "tuberculosis" | "leprosy" | "srag" | "other";
 
 function detectTopic(disease: string): DataTopic {
   const d = normalize(disease);
   if (d.includes("dengue") || d.includes("chikungunya") || d.includes("chik") || d.includes("zika")) return "arbovirus";
+  if (d.includes("srag") || d.includes("covid") || d.includes("influenza") || d.includes("gripe")
+    || d.includes("sindrome respiratoria")) return "srag";
   if (d.includes("mortalidade") || d.includes("obito") || d.includes("morte") || d.includes("mortality")
     || d.includes("cardiovascular") || d.includes("neoplasia") || d.includes("cancer")
     || d.includes("infarto") || d.includes("avc") || d.includes("cerebrovascular")
