@@ -82,6 +82,26 @@ export const TABNET_BASES: TabNetBase[] = [
     availableYears: [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
     filePrefix: "nirbr",
   },
+  {
+    id: "ibge_agregados_pop",
+    label: "IBGE - População",
+    labelEn: "IBGE - Population",
+    description: "População residente estimada por UF",
+    baseUrl: "https://servicodados.ibge.gov.br/api/v3/agregados",
+    defFile: "",
+    availableYears: Array.from({ length: 25 }, (_, i) => 2000 + i),
+    filePrefix: "",
+  },
+  {
+    id: "ibge_agregados_pib",
+    label: "IBGE - PIB per capita",
+    labelEn: "IBGE - GDP per capita",
+    description: "PIB per capita por UF",
+    baseUrl: "https://servicodados.ibge.gov.br/api/v3/agregados",
+    defFile: "",
+    availableYears: Array.from({ length: 22 }, (_, i) => 2002 + i),
+    filePrefix: "",
+  },
 ];
 
 export interface UF {
@@ -185,47 +205,52 @@ export const CID10_COMMON: Record<string, string> = {
 export const EXAMPLE_QUERIES = {
   pt: [
     "Qual foi a evolução dos casos de dengue em São Paulo nos últimos 5 anos?",
-    "Mortalidade geral por UF no Sudeste de 2015 a 2022",
+    "Taxa de mortalidade por 100 mil habitantes no Sudeste de 2015 a 2022",
     "Casos de SRAG e COVID-19 no Brasil de 2021 a 2024",
     "Notificações de tuberculose no Nordeste de 2015 a 2023",
-    "Casos de hanseníase por estado no Brasil nos últimos 10 anos",
+    "População estimada por UF no Brasil de 2018 a 2024",
     "Nascidos vivos por estado na região Sul de 2015 a 2022",
-    "Casos de influenza/gripe no Sudeste em 2022 e 2023",
-    "Evolução de óbitos por tuberculose em Minas Gerais nos últimos 10 anos",
+    "PIB per capita por UF no Brasil nos últimos 10 anos",
+    "Relação entre mortalidade e população no Sudeste 2015-2022",
   ],
   en: [
     "How did dengue cases evolve in São Paulo over the last 5 years?",
-    "Overall mortality by state in Southeast Brazil from 2015 to 2022",
+    "Mortality rate per 100k inhabitants in Southeast Brazil from 2015 to 2022",
     "SRAG and COVID-19 cases in Brazil from 2021 to 2024",
     "Tuberculosis notifications in Northeast Brazil from 2015 to 2023",
-    "Leprosy cases by state in Brazil over the last 10 years",
+    "Estimated population by state in Brazil from 2018 to 2024",
     "Live births by state in Southern Brazil from 2015 to 2022",
-    "Influenza cases in Southeast Brazil in 2022 and 2023",
-    "Tuberculosis death trends in Minas Gerais over the last 10 years",
+    "GDP per capita by state in Brazil over the last 10 years",
+    "Relationship between mortality and population in Southeast 2015-2022",
   ],
 };
 
 export const DATASUS_SYSTEM_PROMPT = `Você é um especialista em epidemiologia e saúde pública brasileira, com profundo conhecimento do DataSUS, TabNet e dos sistemas de informação em saúde do Brasil (SINAN, SIM, SINASC, SIH, SIA).
 
-Sua tarefa é interpretar perguntas de pesquisadores sobre dados epidemiológicos e gerar código Python para consultar o TabNet do DataSUS.
+Sua tarefa é interpretar perguntas de pesquisadores sobre dados epidemiológicos e gerar código Python para análise.
 
-## Bases de dados disponíveis:
-- SINAN (doenças de notificação): dengue, chikungunya, tuberculose, hanseníase, HIV/AIDS, etc.
-- SIM (mortalidade): óbitos por causa (CID-10), faixa etária, sexo, localidade
-- SINASC (nascidos vivos): nascimentos, peso ao nascer, tipo de parto
-- SIH (internações hospitalares): AIHs, diagnóstico, procedimento, custo
+## Fontes de dados integradas (APENAS estas retornam dados reais):
+- InfoDengue: arboviroses (Dengue, Zika, Chikungunya) — 2014-2024
+- IBGE SIDRA (SIM): mortalidade por causa CID-10 — 2012-2022
+- IBGE SIDRA (SINASC): nascidos vivos — 2012-2022
+- OpenDataSUS: SRAG/COVID-19/Influenza — 2020-2025
+- TabNet/SINAN: Tuberculose e Hanseníase (notificações) — 2012-2023
+- IBGE Agregados: População estimada (tabela 6579) e PIB per capita (tabela 5938) — 2000-2024
+
+## IMPORTANTE:
+- Este sistema retorna APENAS dados reais das fontes acima.
+- NÃO gere dados simulados. Se os dados não estão disponíveis, informe ao usuário.
+- Para cálculos de taxas (por 100 mil hab), o sistema automaticamente injeta dados de população.
 
 ## Regras para geração de código:
 1. Use SEMPRE f-strings para formatação (NUNCA use .format())
 2. Use pandas para manipulação de dados
-3. Use matplotlib/seaborn para gráficos
+3. Use matplotlib/seaborn para gráficos com plt.show()
 4. Imprima os dados tabulares com print() e show_table() quando disponível
 5. Sempre inclua tratamento de erros com try/except
-6. Os dados devem ser simulados de forma realista quando o acesso direto ao TabNet não funcionar
-7. Gere dados que reflitam padrões epidemiológicos reais do Brasil
-8. Inclua sempre a fonte e o período dos dados no output
-9. Crie visualizações claras com títulos em português
-10. Use variáveis intermediárias para textos longos
+6. Inclua sempre a fonte e o período dos dados no output
+7. Crie visualizações claras com títulos em português
+8. Use variáveis intermediárias para textos longos
 
 ## Mapeamento de UFs (código IBGE):
 ${UFS.map(uf => `${uf.name}: ${uf.ibge} (${uf.code})`).join(", ")}
@@ -235,10 +260,4 @@ ${Object.entries(MAJOR_CITIES).map(([city, code]) => `${city}: ${code}`).join(",
 
 ## CID-10 comuns:
 ${Object.entries(CID10_COMMON).map(([code, name]) => `${code}: ${name}`).join(", ")}
-
-Ao gerar código, considere:
-- Dados do SINAN são tipicamente disponíveis com 1-2 anos de atraso
-- O TabNet pode não responder — gere dados simulados realistas como fallback
-- Sempre mostre tendências temporais quando a pergunta envolver evolução
-- Inclua análise interpretativa nos prints (ex: "Observa-se um aumento de X%...")
 `;

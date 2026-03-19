@@ -62,6 +62,8 @@ interface RealDataResult {
   rowCount: number;
   source: string;
   columnsDescription: string;
+  supplementaryCsv?: string;
+  supplementaryDescription?: string;
 }
 
 interface InfoDengueRecord {
@@ -129,7 +131,7 @@ function resolveStateCodes(location: string): string[] {
 
 /* ── Topic detection for source routing ── */
 
-type DataTopic = "arbovirus" | "mortality" | "births" | "tuberculosis" | "leprosy" | "srag" | "other";
+type DataTopic = "arbovirus" | "mortality" | "births" | "tuberculosis" | "leprosy" | "srag" | "population" | "demographics" | "other";
 
 function detectTopic(disease: string): DataTopic {
   const d = normalize(disease);
@@ -145,8 +147,29 @@ function detectTopic(disease: string): DataTopic {
     || d.includes("birth") || d.includes("parto")) return "births";
   if (d.includes("tuberculose") || d.includes("tb") || d.includes("tuberculosis")) return "tuberculosis";
   if (d.includes("hanseniase") || d.includes("lepra") || d.includes("leprosy") || d.includes("hansen")) return "leprosy";
+  if (d.includes("populacao") || d.includes("habitantes") || d.includes("population")
+    || d.includes("demografi") || d.includes("censo")) return "population";
+  if (d.includes("pib") || d.includes("idh") || d.includes("gdp") || d.includes("renda")
+    || d.includes("socioeconomi")) return "demographics";
   return "other";
 }
+
+/** Check if user prompt requires normalization (rates per 100k) */
+function requiresNormalization(prompt: string): boolean {
+  const p = normalize(prompt);
+  return p.includes("taxa") || p.includes("per capita") || p.includes("por 100") || p.includes("100 mil")
+    || p.includes("100.000") || p.includes("rate") || p.includes("incidencia") || p.includes("prevalencia");
+}
+
+/* ── Available sources definition ── */
+const AVAILABLE_SOURCES = [
+  { name: "InfoDengue", topics: "Arboviroses (Dengue, Zika, Chikungunya)", period: "2014-2024" },
+  { name: "IBGE SIDRA (SIM)", topics: "Mortalidade por causa (CID-10)", period: "2012-2022" },
+  { name: "IBGE SIDRA (SINASC)", topics: "Nascidos vivos", period: "2012-2022" },
+  { name: "OpenDataSUS", topics: "SRAG / COVID-19 / Influenza", period: "2020-2025" },
+  { name: "TabNet/SINAN", topics: "Tuberculose e Hanseníase (notificações)", period: "2012-2023" },
+  { name: "IBGE Agregados", topics: "População estimada, PIB per capita", period: "2000-2024" },
+];
 
 /* ── InfoDengue API fetcher ── */
 
@@ -230,28 +253,19 @@ async function fetchIBGESidra(
   diseaseHint: string
 ): Promise<RealDataResult | null> {
   try {
-    // Table 2681 = deaths by cause chapter (CID-10), by UF, by year
-    // Table 2612 = live births by UF and year
     const tableId = topic === "mortality" ? "2681" : "2612";
     const years = [];
     for (let y = startYear; y <= endYear; y++) years.push(y);
     const periodParam = years.join(",");
 
-    // For SIDRA, n3 = UF level. If "all" states, use "all"
     const allStateKeys = Object.keys(STATE_IBGE_TO_NAME);
     const isAll = stateCodes.length >= allStateKeys.length;
     const ufParam = isAll ? "all" : stateCodes.join(",");
 
-    // Build URL
-    // /t/{table}/n3/{ufs}/p/{years}/v/allxp/c2/all  (c2 = sex, for table 2681)
-    // For mortality (2681): variable allxp includes total; c2/all = all sexes; 
-    // We use a simpler URL that returns totals by UF and year
     let url: string;
     if (topic === "mortality") {
-      // t/2681/n3/{ufs}/p/{periods}/v/93/c2/6794  (v/93=Óbitos, c2/6794=Total sex)
       url = `https://apisidra.ibge.gov.br/values/t/2681/n3/${ufParam}/p/${periodParam}/v/93/c2/6794`;
     } else {
-      // t/2612/n3/{ufs}/p/{periods}/v/9324  (v/9324=Nascidos vivos)
       url = `https://apisidra.ibge.gov.br/values/t/2612/n3/${ufParam}/p/${periodParam}/v/9324`;
     }
 
@@ -270,7 +284,6 @@ async function fetchIBGESidra(
     const rawData = await resp.json();
     if (!Array.isArray(rawData) || rawData.length < 2) return null;
 
-    // First element is header metadata, skip it
     const rows = rawData.slice(1);
 
     if (topic === "mortality") {
@@ -318,7 +331,7 @@ async function fetchIBGESidra(
   }
 }
 
-/* ── OpenDataSUS / IBGE SIDRA mortality by CID for TB/Leprosy ── */
+/* ── IBGE SIDRA mortality by CID ── */
 
 async function fetchMortalityByCID(
   cidRange: string,
@@ -327,9 +340,6 @@ async function fetchMortalityByCID(
   endYear: number,
   diseaseName: string
 ): Promise<RealDataResult | null> {
-  // Use SIDRA table 2681 with CID chapter filter as a proxy for notifiable disease mortality
-  // This gives mortality data which is a reasonable approximation
-  // For TB: CID chapter "I Algumas doenças infecciosas e parasitárias" 
   try {
     const years = [];
     for (let y = startYear; y <= endYear; y++) years.push(y);
@@ -338,8 +348,6 @@ async function fetchMortalityByCID(
     const isAll = stateCodes.length >= allStateKeys.length;
     const ufParam = isAll ? "all" : stateCodes.join(",");
 
-    // c58 = CID-10 chapter. c58/2 = "I Algumas doenças infecciosas e parasitárias" (TB, leprosy)
-    // For broader queries we get the infectious diseases chapter
     const url = `https://apisidra.ibge.gov.br/values/t/2681/n3/${ufParam}/p/${periodParam}/v/93/c2/6794/c58/2`;
     console.log(`SIDRA CID fetch: ${url}`);
 
@@ -375,7 +383,7 @@ async function fetchMortalityByCID(
       columnsDescription: `- ano: ano de referência
 - uf: Unidade da Federação
 - obitos_doencas_infecciosas: óbitos por doenças infecciosas e parasitárias (Cap. I CID-10, inclui ${diseaseName})
-Nota: Estes são dados de MORTALIDADE do SIM. Os dados representam óbitos do capítulo I do CID-10 que inclui ${diseaseName}.`,
+Nota: Estes são dados de MORTALIDADE do SIM.`,
     };
   } catch (e) {
     console.error("SIDRA CID fetch error:", e);
@@ -391,11 +399,9 @@ async function fetchOpenDataSUSSRAG(
   endYear: number
 ): Promise<RealDataResult | null> {
   try {
-    // Build Elasticsearch aggregation query for SRAG data
     const stateNames = stateCodes.map(c => STATE_IBGE_TO_NAME[c]).filter(Boolean);
     const allStates = stateCodes.length >= Object.keys(STATE_IBGE_TO_NAME).length;
 
-    // Try multiple index patterns (they change by year range)
     const indexPatterns = ["desc-srag-2021-*", "desc-srag-2020-*"];
     let allRows: Array<{ ano: number; uf: string; casos: number; obitos: number }> = [];
 
@@ -428,9 +434,7 @@ async function fetchOpenDataSUSSRAG(
           },
         };
 
-        // If not all states, filter by UF
         if (!allStates && stateNames.length > 0) {
-          // Map state names to 2-letter codes for SRAG dataset
           const ufCodes = stateCodes.map(c => {
             for (const [name, code] of Object.entries(STATE_NAME_TO_IBGE)) {
               if (code === c) return name.length === 2 ? name.toUpperCase() : "";
@@ -506,7 +510,6 @@ const TABNET_DISEASE_CONFIG: Record<string, { defFile: string; diseaseName: stri
   leprosy: { defFile: "sinannet/cnv/hansbrn.def", diseaseName: "Hanseníase" },
 };
 
-// Map IBGE state codes to TabNet selection values (1-indexed, alphabetical order of UFs)
 const STATE_IBGE_TO_TABNET_INDEX: Record<string, string> = {
   "12": "1", "27": "2", "16": "3", "13": "4", "29": "5", "23": "6", "53": "7",
   "32": "8", "52": "9", "21": "10", "51": "11", "50": "12", "31": "13", "15": "14",
@@ -527,8 +530,6 @@ async function fetchTabNetSINAN(
     const tabnetUrl = "http://tabnet.datasus.gov.br/cgi/tabcgi.exe?" + config.defFile;
     const allStates = stateCodes.length >= Object.keys(STATE_IBGE_TO_NAME).length;
 
-    // Build TabNet POST body (application/x-www-form-urlencoded)
-    // Linha = UF de notificação, Coluna = Ano de notificação, Conteúdo = Casos confirmados
     const formParams = new URLSearchParams();
     formParams.set("Linha", "Unidade_da_Federa%E7%E3o");
     formParams.set("Coluna", "Ano_Diagn%F3stico");
@@ -538,7 +539,6 @@ async function fetchTabNetSINAN(
     formParams.set("SRession", "");
     formParams.set("SPagession", "");
 
-    // Select years
     for (let y = startYear; y <= endYear; y++) {
       formParams.append("Arquivos", `${config.defFile.split("/").pop()?.replace(".def", "")}${String(y).slice(2)}.dbf`);
     }
@@ -576,7 +576,6 @@ function parseTabNetHtml(
   topic: string
 ): RealDataResult | null {
   try {
-    // TabNet returns an HTML page with a <table class="tabdados"> containing the data
     const tableMatch = html.match(/<table[^>]*class="tabdados"[^>]*>([\s\S]*?)<\/table>/i);
     if (!tableMatch) {
       console.warn("TabNet: no tabdados table found");
@@ -585,7 +584,6 @@ function parseTabNetHtml(
 
     const tableHtml = tableMatch[1];
 
-    // Extract header row (years)
     const headerMatch = tableHtml.match(/<tr[^>]*>\s*<th[^>]*>.*?<\/th>([\s\S]*?)<\/tr>/i);
     if (!headerMatch) return null;
 
@@ -599,13 +597,11 @@ function parseTabNetHtml(
 
     if (yearHeaders.length === 0) return null;
 
-    // Extract data rows
     const rows: Array<{ uf: string; values: Record<string, number> }> = [];
     const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
     let trMatch;
     while ((trMatch = trRegex.exec(tableHtml)) !== null) {
       const rowHtml = trMatch[1];
-      // Skip header rows
       if (rowHtml.includes("<th")) continue;
 
       const cells: string[] = [];
@@ -617,7 +613,6 @@ function parseTabNetHtml(
 
       if (cells.length < 2) continue;
       const ufName = cells[0];
-      // Skip "Total" row
       if (ufName.toLowerCase() === "total" || ufName === "") continue;
 
       const values: Record<string, number> = {};
@@ -631,7 +626,6 @@ function parseTabNetHtml(
 
     if (rows.length === 0) return null;
 
-    // Filter by requested states if not all
     let filteredRows = rows;
     if (!allStates) {
       const requestedNames = new Set(stateCodes.map(c => normalize(STATE_IBGE_TO_NAME[c] || "")));
@@ -640,7 +634,6 @@ function parseTabNetHtml(
 
     if (filteredRows.length === 0) filteredRows = rows;
 
-    // Build CSV
     const csvLines = [`ano,uf,casos_${topic}`];
     for (const row of filteredRows) {
       for (const [year, count] of Object.entries(row.values)) {
@@ -665,12 +658,96 @@ Nota: Estes são dados de NOTIFICAÇÃO (casos), não de mortalidade.`,
   }
 }
 
+/* ── IBGE Agregados API fetcher ── */
+
+async function fetchIBGEAgregados(
+  tableId: string,
+  variableId: string,
+  stateCodes: string[],
+  startYear: number,
+  endYear: number,
+  metricName: string
+): Promise<RealDataResult | null> {
+  try {
+    const allStateKeys = Object.keys(STATE_IBGE_TO_NAME);
+    const isAll = stateCodes.length >= allStateKeys.length;
+
+    // Build period param
+    const years = [];
+    for (let y = startYear; y <= endYear; y++) years.push(y);
+    const periodParam = years.join("|");
+
+    // Build locality param  
+    const localityParam = isAll ? "N3" : `N3[${stateCodes.join(",")}]`;
+
+    const url = `https://servicodados.ibge.gov.br/api/v3/agregados/${tableId}/periodos/${periodParam}/variaveis/${variableId}?localidades=${localityParam}`;
+    console.log(`IBGE Agregados fetch: ${url}`);
+
+    const resp = await fetch(url, {
+      headers: { "Accept": "application/json" },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!resp.ok) {
+      console.warn(`IBGE Agregados returned ${resp.status}`);
+      return null;
+    }
+
+    const data = await resp.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+
+    const variable = data[0];
+    const results = variable?.resultados;
+    if (!results || results.length === 0) return null;
+
+    const csvLines = [`ano,uf,${metricName}`];
+
+    for (const result of results) {
+      const series = result.series || [];
+      for (const s of series) {
+        const ufName = s.localidade?.nome || "";
+        const seriesData = s.serie || {};
+        for (const [year, value] of Object.entries(seriesData)) {
+          if (value && value !== "..." && value !== "-") {
+            csvLines.push(`${year},"${ufName}",${String(value).replace(/\./g, "")}`);
+          }
+        }
+      }
+    }
+
+    if (csvLines.length < 2) return null;
+
+    return {
+      csv: csvLines.join("\n"),
+      rowCount: csvLines.length - 1,
+      source: `IBGE Agregados (tabela ${tableId}) — dados reais`,
+      columnsDescription: `- ano: ano de referência
+- uf: Unidade da Federação
+- ${metricName}: valor da variável`,
+    };
+  } catch (e) {
+    console.error("IBGE Agregados fetch error:", e);
+    return null;
+  }
+}
+
+/** Fetch population data for normalization (supplementary) */
+async function fetchPopulationData(
+  stateCodes: string[],
+  startYear: number,
+  endYear: number
+): Promise<RealDataResult | null> {
+  // Table 6579 = População residente estimada, Variable 9324
+  return await fetchIBGEAgregados("6579", "9324", stateCodes, startYear, endYear, "populacao_estimada");
+}
+
 /* ── Source Router ── */
 
 async function fetchRealData(
   disease: string,
   location: string,
-  period: string
+  period: string,
+  userPrompt: string
 ): Promise<RealDataResult | null> {
   const topic = detectTopic(disease);
   const stateCodes = resolveStateCodes(location);
@@ -679,49 +756,84 @@ async function fetchRealData(
 
   console.log(`Source router: topic=${topic}, states=${stateCodes.length}, years=${startYear}-${endYear}`);
 
+  let result: RealDataResult | null = null;
+
   switch (topic) {
     case "arbovirus": {
       const infoDengueDisease = mapDiseaseToInfoDengue(disease);
       if (infoDengueDisease) {
-        return await fetchInfoDengueByState(infoDengueDisease, stateCodes, startYear, endYear);
+        result = await fetchInfoDengueByState(infoDengueDisease, stateCodes, startYear, endYear);
       }
-      return null;
+      break;
     }
     case "srag": {
-      const sragData = await fetchOpenDataSUSSRAG(stateCodes, startYear, endYear);
-      if (sragData) return sragData;
-      // Fallback to simulated
-      return null;
+      result = await fetchOpenDataSUSSRAG(stateCodes, startYear, endYear);
+      break;
     }
     case "mortality": {
-      return await fetchIBGESidra("mortality", stateCodes, startYear, endYear, disease);
+      result = await fetchIBGESidra("mortality", stateCodes, startYear, endYear, disease);
+      break;
     }
     case "births": {
-      return await fetchIBGESidra("births", stateCodes, startYear, endYear, disease);
+      result = await fetchIBGESidra("births", stateCodes, startYear, endYear, disease);
+      break;
     }
     case "tuberculosis": {
-      // Try TabNet SINAN first (notification data), fallback to SIDRA mortality
       const tabnetData = await fetchTabNetSINAN("tuberculosis", stateCodes, startYear, endYear);
-      if (tabnetData) return tabnetData;
+      if (tabnetData) { result = tabnetData; break; }
       console.log("TabNet TB failed, falling back to SIDRA mortality");
-      return await fetchMortalityByCID("A15-A19", stateCodes, startYear, endYear, "Tuberculose");
+      result = await fetchMortalityByCID("A15-A19", stateCodes, startYear, endYear, "Tuberculose");
+      break;
     }
     case "leprosy": {
-      // Try TabNet SINAN first (notification data), fallback to SIDRA mortality
       const tabnetData = await fetchTabNetSINAN("leprosy", stateCodes, startYear, endYear);
-      if (tabnetData) return tabnetData;
+      if (tabnetData) { result = tabnetData; break; }
       console.log("TabNet Leprosy failed, falling back to SIDRA mortality");
-      return await fetchMortalityByCID("A30", stateCodes, startYear, endYear, "Hanseníase");
+      result = await fetchMortalityByCID("A30", stateCodes, startYear, endYear, "Hanseníase");
+      break;
+    }
+    case "population": {
+      result = await fetchIBGEAgregados("6579", "9324", stateCodes, startYear, endYear, "populacao_estimada");
+      if (result) {
+        result.source = "IBGE Agregados (tabela 6579) — População residente estimada";
+        result.columnsDescription = `- ano: ano de referência
+- uf: Unidade da Federação
+- populacao_estimada: população residente estimada`;
+      }
+      break;
+    }
+    case "demographics": {
+      // PIB per capita: table 5938, variable 37
+      result = await fetchIBGEAgregados("5938", "37", stateCodes, startYear, endYear, "pib_per_capita");
+      if (result) {
+        result.source = "IBGE Agregados (tabela 5938) — PIB per capita";
+        result.columnsDescription = `- ano: ano de referência
+- uf: Unidade da Federação
+- pib_per_capita: PIB per capita em reais`;
+      }
+      break;
     }
     default:
       return null;
   }
+
+  // Auto-attach population data for normalization if needed
+  if (result && requiresNormalization(userPrompt) && topic !== "population" && topic !== "demographics") {
+    console.log("Auto-fetching population data for normalization");
+    const popData = await fetchPopulationData(stateCodes, startYear, endYear);
+    if (popData) {
+      result.supplementaryCsv = popData.csv;
+      result.supplementaryDescription = `\n\n## DADOS SUPLEMENTARES (População para normalização)\n${popData.columnsDescription}\n\nUse esses dados para calcular taxas por 100 mil habitantes fazendo merge por UF e ano.`;
+    }
+  }
+
+  return result;
 }
 
 /* ── Dynamic analysis prompt builder ── */
 
 function buildAnalysisPrompt(realData: RealDataResult) {
-  return `Você é um especialista em epidemiologia brasileira. Gere código Python para analisar dados REAIS do DataSUS.
+  let prompt = `Você é um especialista em epidemiologia brasileira. Gere código Python para analisar dados REAIS do DataSUS.
 
 ## DADOS REAIS DISPONÍVEIS
 Os dados reais já estão carregados. O código DEVE começar com:
@@ -736,6 +848,23 @@ df = pd.read_csv(io.StringIO(REAL_DATA_CSV))
 
 ## Colunas disponíveis:
 ${realData.columnsDescription}
+`;
+
+  if (realData.supplementaryCsv) {
+    prompt += `
+
+## DADOS SUPLEMENTARES (População)
+Carregue também os dados de população para normalização:
+\`\`\`python
+POP_DATA_CSV = """${realData.supplementaryCsv.substring(0, 30000)}"""
+
+df_pop = pd.read_csv(io.StringIO(POP_DATA_CSV))
+\`\`\`
+${realData.supplementaryDescription || ""}
+`;
+  }
+
+  prompt += `
 
 ## Regras:
 1. Use SEMPRE f-strings para formatação (NUNCA use .format())
@@ -751,10 +880,22 @@ ${realData.columnsDescription}
 11. Para agregação anual, some os valores por ano e UF
 12. Configure matplotlib para fontes sem serifa: plt.rcParams['font.family'] = 'DejaVu Sans'
 `;
+
+  return prompt;
 }
 
 /* ── System prompts ── */
 const EXTRACTION_PROMPT = `Você é um especialista em epidemiologia brasileira. Interprete a pergunta do usuário e extraia os parâmetros para consulta ao DataSUS.
+
+FONTES DE DADOS DISPONÍVEIS (APENAS estas):
+- InfoDengue: arboviroses (Dengue, Zika, Chikungunya) — 2014-2024
+- IBGE SIDRA (SIM): mortalidade por causa CID-10 — 2012-2022
+- IBGE SIDRA (SINASC): nascidos vivos — 2012-2022
+- OpenDataSUS: SRAG/COVID-19/Influenza — 2020-2025
+- TabNet/SINAN: Tuberculose e Hanseníase (notificações) — 2012-2023
+- IBGE Agregados: População estimada e PIB per capita — 2000-2024
+
+Se a pergunta do usuário se referir a dados que NÃO estão nas fontes acima (por exemplo: saneamento, SNIS, dados municipais detalhados, doenças não listadas como malária, HIV, leishmaniose, etc.), você deve retornar uma explicação informando que esses dados não estão disponíveis neste sistema.
 
 Mapeamento de UFs (código IBGE):
 AC:12, AL:27, AP:16, AM:13, BA:29, CE:23, DF:53, ES:32, GO:52, MA:21, MT:51, MS:50, MG:31, PA:15, PB:25, PR:41, PE:26, PI:22, RJ:33, RN:24, RS:43, RO:11, RR:14, SC:42, SP:35, SE:28, TO:17
@@ -762,36 +903,7 @@ AC:12, AL:27, AP:16, AM:13, BA:29, CE:23, DF:53, ES:32, GO:52, MA:21, MT:51, MS:
 Regiões: Norte, Nordeste, Sudeste, Sul, Centro-Oeste
 
 CID-10 comuns:
-A90:Dengue, A91:Dengue hemorrágica, A92.0:Chikungunya, A15:Tuberculose, A30:Hanseníase, U07.1:COVID-19, B50-B54:Malária, B57:Chagas, B55:Leishmaniose
-`;
-
-const SIMULATED_PROMPT = `Você é um especialista em epidemiologia e saúde pública brasileira, com profundo conhecimento do DataSUS, TabNet e dos sistemas de informação em saúde do Brasil (SINAN, SIM, SINASC, SIH, SIA).
-
-Sua tarefa é interpretar perguntas de pesquisadores sobre dados epidemiológicos e gerar código Python para análise.
-
-IMPORTANTE: Não foi possível obter dados reais da API para esta consulta específica. Gere dados SIMULADOS realistas baseados em padrões epidemiológicos conhecidos do Brasil. Deixe CLARO no output que os dados são simulados.
-
-## Regras para geração de código:
-1. Use SEMPRE f-strings para formatação (NUNCA use .format())
-2. Use pandas para manipulação de dados
-3. Use matplotlib/seaborn para gráficos com plt.show()
-4. Imprima dados tabulares com print() e show_table(df, "titulo") quando disponível
-5. Sempre inclua tratamento de erros com try/except
-6. Gere dados epidemiológicos realistas baseados em padrões conhecidos do Brasil
-7. Inclua sempre a fonte e o período dos dados no output
-8. Crie visualizações claras com títulos em português
-9. Use variáveis intermediárias para textos longos
-10. Ao final, imprima uma interpretação epidemiológica dos resultados
-11. SEMPRE adicione um print dizendo "⚠️ NOTA: Estes dados são SIMULADOS com base em padrões epidemiológicos conhecidos."
-
-## Padrões epidemiológicos conhecidos:
-- Dengue: sazonalidade jan-mai, picos em anos epidêmicos (2015, 2019, 2024)
-- Tuberculose: ~70.000 casos/ano, concentrada em capitais
-- Mortalidade: doenças cardiovasculares lideram, seguidas por neoplasias
-- COVID-19: picos em 2020 (jun-jul), 2021 (mar-abr), 2022 (jan-fev)
-
-## Mapeamento de UFs (código IBGE):
-AC:12, AL:27, AP:16, AM:13, BA:29, CE:23, DF:53, ES:32, GO:52, MA:21, MT:51, MS:50, MG:31, PA:15, PB:25, PR:41, PE:26, PI:22, RJ:33, RN:24, RS:43, RO:11, RR:14, SC:42, SP:35, SE:28, TO:17
+A90:Dengue, A91:Dengue hemorrágica, A92.0:Chikungunya, A15:Tuberculose, A30:Hanseníase, U07.1:COVID-19
 `;
 
 serve(async (req) => {
@@ -833,12 +945,12 @@ serve(async (req) => {
                 },
                 data_source: {
                   type: "string",
-                  enum: ["SINAN", "SIM", "SINASC", "SIH", "SIA"],
-                  description: "Sistema de informação do DataSUS",
+                  enum: ["SINAN", "SIM", "SINASC", "SIH", "SIA", "IBGE_AGREGADOS"],
+                  description: "Sistema de informação do DataSUS ou IBGE",
                 },
                 disease_or_topic: {
                   type: "string",
-                  description: "Agravo, doença ou tópico (ex: dengue, tuberculose, mortalidade infantil)",
+                  description: "Agravo, doença ou tópico (ex: dengue, tuberculose, mortalidade infantil, população, PIB)",
                 },
                 location: {
                   type: "string",
@@ -847,6 +959,14 @@ serve(async (req) => {
                 period: {
                   type: "string",
                   description: "Período de análise (ex: 2017-2023, últimos 5 anos)",
+                },
+                is_unavailable: {
+                  type: "boolean",
+                  description: "true se os dados solicitados NÃO estão disponíveis nas fontes integradas",
+                },
+                unavailable_reason: {
+                  type: "string",
+                  description: "Motivo pelo qual os dados não estão disponíveis (se is_unavailable=true)",
                 },
               },
               required: ["explanation", "data_source", "disease_or_topic"],
@@ -892,29 +1012,44 @@ serve(async (req) => {
     }
 
     const params = JSON.parse(toolCall.function.arguments);
-    const { explanation, data_source, disease_or_topic, location, period } = params;
+    const { explanation, data_source, disease_or_topic, location, period, is_unavailable, unavailable_reason } = params;
     const locationStr = location || "Brasil";
     const periodStr = period || "últimos 5 anos";
 
-    /* ── Step 2: Try to fetch real data via source router ── */
-    const realData = await fetchRealData(disease_or_topic, locationStr, periodStr);
-    const isRealData = realData !== null;
-
-    if (realData) {
-      console.log(`Real data fetched: source=${realData.source}, rows=${realData.rowCount}`);
-    } else {
-      console.log(`No real data available for: ${disease_or_topic} / ${locationStr} / ${periodStr}`);
+    /* ── Check if AI flagged as unavailable ── */
+    if (is_unavailable) {
+      return new Response(
+        JSON.stringify({
+          type: "unavailable",
+          explanation: unavailable_reason || explanation,
+          available_sources: AVAILABLE_SOURCES,
+          suggestion: "Tente reformular usando um dos temas disponíveis: arboviroses, mortalidade, nascidos vivos, SRAG/COVID, tuberculose, hanseníase, população ou PIB per capita.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    /* ── Step 2: Try to fetch real data via source router ── */
+    const userQuestion = chatMessages[chatMessages.length - 1]?.content || "";
+    const realData = await fetchRealData(disease_or_topic, locationStr, periodStr, userQuestion);
+
+    if (!realData) {
+      console.log(`No real data available for: ${disease_or_topic} / ${locationStr} / ${periodStr}`);
+      return new Response(
+        JSON.stringify({
+          type: "unavailable",
+          explanation: `Não foi possível obter dados reais para "${disease_or_topic}" em "${locationStr}" (${periodStr}). Esta informação pode não estar disponível nas fontes integradas ao sistema, ou a fonte pode estar temporariamente inacessível.`,
+          available_sources: AVAILABLE_SOURCES,
+          suggestion: "Tente reformular usando um dos temas disponíveis: arboviroses (dengue, zika, chikungunya), mortalidade por causa, nascidos vivos, SRAG/COVID/influenza, tuberculose, hanseníase, população estimada ou PIB per capita.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Real data fetched: source=${realData.source}, rows=${realData.rowCount}`);
 
     /* ── Step 3: Generate analysis code ── */
-    const userQuestion = chatMessages[chatMessages.length - 1]?.content || "";
-
-    let codeGenerationPrompt: string;
-    if (isRealData) {
-      codeGenerationPrompt = buildAnalysisPrompt(realData!);
-    } else {
-      codeGenerationPrompt = SIMULATED_PROMPT;
-    }
+    const codeGenerationPrompt = buildAnalysisPrompt(realData);
 
     const codeResponse = await callAI({
       messages: [
@@ -966,27 +1101,24 @@ serve(async (req) => {
       pythonCode = codeMatch ? codeMatch[1] : content;
     }
 
-    const sourceLabel = isRealData
-      ? (realData!.source.includes("InfoDengue") ? "InfoDengue"
-        : realData!.source.includes("TabNet") ? "TabNet/SINAN"
-        : realData!.source.includes("OpenDataSUS") ? "OpenDataSUS"
-        : realData!.source.includes("SIDRA") ? "IBGE SIDRA"
-        : "DataSUS")
-      : null;
+    const sourceLabel = realData.source.includes("InfoDengue") ? "InfoDengue"
+      : realData.source.includes("TabNet") ? "TabNet/SINAN"
+      : realData.source.includes("OpenDataSUS") ? "OpenDataSUS"
+      : realData.source.includes("Agregados") ? "IBGE Agregados"
+      : realData.source.includes("SIDRA") ? "IBGE SIDRA"
+      : "DataSUS";
 
     return new Response(
       JSON.stringify({
         type: "analysis",
-        explanation: explanation + (isRealData
-          ? `\n\n📊 **Dados reais** obtidos via ${sourceLabel} (${realData!.rowCount} registros).`
-          : "\n\n⚠️ **Dados simulados** — não foi possível obter dados reais para esta consulta específica. Os valores são estimativas baseadas em padrões epidemiológicos conhecidos."),
+        explanation: explanation + `\n\n📊 **Dados reais** obtidos via ${sourceLabel} (${realData.rowCount} registros).`,
         data_source: data_source,
         disease_or_topic: disease_or_topic,
         location: locationStr,
         period: periodStr,
         code: pythonCode,
-        is_real_data: isRealData,
-        data_source_detail: isRealData ? realData!.source : "Dados simulados com base em padrões epidemiológicos",
+        is_real_data: true,
+        data_source_detail: realData.source,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
