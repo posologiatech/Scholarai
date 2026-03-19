@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import DataSUSResults from "@/components/datasus/DataSUSResults";
 import DataSUSSidebar, { DataSUSConversation } from "@/components/datasus/DataSUSSidebar";
+import DataSUSSourcesPanel from "@/components/datasus/DataSUSSourcesPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
