@@ -154,6 +154,14 @@ function detectTopic(disease: string): DataTopic {
   return "other";
 }
 
+/** Detect if user wants a comparison/benchmark between regions */
+function detectComparison(prompt: string): boolean {
+  const p = normalize(prompt);
+  return p.includes("compar") || p.includes("benchmark") || p.includes("ranking")
+    || p.includes(" vs ") || p.includes(" versus ") || p.includes("diferenca entre")
+    || p.includes("relacao entre") || p.includes("correlacao");
+}
+
 /** Check if user prompt requires normalization (rates per 100k) */
 function requiresNormalization(prompt: string): boolean {
   const p = normalize(prompt);
