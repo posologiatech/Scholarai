@@ -154,12 +154,27 @@ export default function DataSUSResults({
 
       {/* Source */}
       {(stdout || images.length > 0 || tables.length > 0) && (
-        <p className={`text-[10px] flex items-center gap-1.5 ${isRealData ? 'text-emerald-600/70 dark:text-emerald-400/70' : 'text-amber-600/70 dark:text-amber-400/70'}`}>
-          <span className={`inline-block h-1.5 w-1.5 rounded-full ${isRealData ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-          {isRealData
-            ? `Fonte: ${dataSourceDetail || `${dataSource}/DataSUS`} — Dados reais`
-            : `Fonte: ${dataSource}/DataSUS — Dados simulados com base em padrões epidemiológicos`}
-        </p>
+        <div className={`flex items-center gap-2 text-[10px] ${isRealData ? 'text-emerald-600/70 dark:text-emerald-400/70' : 'text-amber-600/70 dark:text-amber-400/70'}`}>
+          <span className={`inline-block h-1.5 w-1.5 rounded-full shrink-0 ${isRealData ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+          <span>
+            {isRealData
+              ? `Fonte: ${dataSourceDetail || `${dataSource}/DataSUS`} — Dados reais`
+              : `Fonte: ${dataSource}/DataSUS — Dados simulados com base em padrões epidemiológicos`}
+          </span>
+          {isRealData && dataSourceDetail && (
+            <Badge className={`text-[9px] px-1.5 py-0 h-4 rounded font-medium border ${
+              dataSourceDetail.includes("InfoDengue")
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                : dataSourceDetail.includes("SIDRA")
+                ? "bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/20"
+                : "bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-500/20"
+            }`}>
+              {dataSourceDetail.includes("InfoDengue") ? "InfoDengue"
+                : dataSourceDetail.includes("SIDRA") ? "IBGE SIDRA"
+                : "OpenDataSUS"}
+            </Badge>
+          )}
+        </div>
       )}
 
       {/* Code toggle */}

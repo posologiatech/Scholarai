@@ -184,20 +184,20 @@ export const CID10_COMMON: Record<string, string> = {
 
 export const EXAMPLE_QUERIES = {
   pt: [
-    "Qual foi a evolução dos casos de dengue em Natal nos últimos 5 anos?",
-    "Compare a mortalidade por COVID-19 entre as regiões do Brasil em 2021",
-    "Incidência de tuberculose por faixa etária no Rio de Janeiro",
+    "Qual foi a evolução dos casos de dengue em São Paulo nos últimos 5 anos?",
+    "Mortalidade geral por UF no Sudeste de 2015 a 2022",
     "Casos de chikungunya no Nordeste de 2017 a 2023",
-    "Tendência de internações por pneumonia em São Paulo",
-    "Taxa de mortalidade infantil por região nos últimos 10 anos",
+    "Nascidos vivos por estado na região Sul de 2015 a 2022",
+    "Mortalidade por doenças infecciosas no Brasil de 2010 a 2022",
+    "Evolução de óbitos por tuberculose em Minas Gerais nos últimos 10 anos",
   ],
   en: [
-    "How did dengue cases evolve in Natal over the last 5 years?",
-    "Compare COVID-19 mortality across regions in Brazil in 2021",
-    "Tuberculosis incidence by age group in Rio de Janeiro",
+    "How did dengue cases evolve in São Paulo over the last 5 years?",
+    "Overall mortality by state in Southeast Brazil from 2015 to 2022",
     "Chikungunya cases in the Northeast from 2017 to 2023",
-    "Hospitalization trends for pneumonia in São Paulo",
-    "Infant mortality rate by region over the last 10 years",
+    "Live births by state in Southern Brazil from 2015 to 2022",
+    "Mortality from infectious diseases in Brazil from 2010 to 2022",
+    "Tuberculosis death trends in Minas Gerais over the last 10 years",
   ],
 };
 
