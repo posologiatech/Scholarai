@@ -968,8 +968,10 @@ serve(async (req) => {
 
     const sourceLabel = isRealData
       ? (realData!.source.includes("InfoDengue") ? "InfoDengue"
+        : realData!.source.includes("TabNet") ? "TabNet/SINAN"
+        : realData!.source.includes("OpenDataSUS") ? "OpenDataSUS"
         : realData!.source.includes("SIDRA") ? "IBGE SIDRA"
-        : "OpenDataSUS")
+        : "DataSUS")
       : null;
 
     return new Response(
