@@ -129,11 +129,13 @@ function resolveStateCodes(location: string): string[] {
 
 /* ── Topic detection for source routing ── */
 
-type DataTopic = "arbovirus" | "mortality" | "births" | "tuberculosis" | "leprosy" | "other";
+type DataTopic = "arbovirus" | "mortality" | "births" | "tuberculosis" | "leprosy" | "srag" | "other";
 
 function detectTopic(disease: string): DataTopic {
   const d = normalize(disease);
   if (d.includes("dengue") || d.includes("chikungunya") || d.includes("chik") || d.includes("zika")) return "arbovirus";
+  if (d.includes("srag") || d.includes("covid") || d.includes("influenza") || d.includes("gripe")
+    || d.includes("sindrome respiratoria")) return "srag";
   if (d.includes("mortalidade") || d.includes("obito") || d.includes("morte") || d.includes("mortality")
     || d.includes("cardiovascular") || d.includes("neoplasia") || d.includes("cancer")
     || d.includes("infarto") || d.includes("avc") || d.includes("cerebrovascular")
@@ -381,6 +383,288 @@ Nota: Estes são dados de MORTALIDADE do SIM. Os dados representam óbitos do ca
   }
 }
 
+/* ── OpenDataSUS SRAG Elasticsearch fetcher ── */
+
+async function fetchOpenDataSUSSRAG(
+  stateCodes: string[],
+  startYear: number,
+  endYear: number
+): Promise<RealDataResult | null> {
+  try {
+    // Build Elasticsearch aggregation query for SRAG data
+    const stateNames = stateCodes.map(c => STATE_IBGE_TO_NAME[c]).filter(Boolean);
+    const allStates = stateCodes.length >= Object.keys(STATE_IBGE_TO_NAME).length;
+
+    // Try multiple index patterns (they change by year range)
+    const indexPatterns = ["desc-srag-2021-*", "desc-srag-2020-*"];
+    let allRows: Array<{ ano: number; uf: string; casos: number; obitos: number }> = [];
+
+    for (const idx of indexPatterns) {
+      try {
+        const esUrl = `https://elasticsearch-saps.saude.gov.br/${idx}/_search`;
+        const query: any = {
+          size: 0,
+          query: {
+            bool: {
+              must: [
+                { range: { DT_NOTIFIC: { gte: `${startYear}-01-01`, lte: `${endYear}-12-31` } } },
+              ],
+            },
+          },
+          aggs: {
+            by_year: {
+              date_histogram: { field: "DT_NOTIFIC", calendar_interval: "year", format: "yyyy" },
+              aggs: {
+                by_uf: {
+                  terms: { field: "SG_UF_NOT.keyword", size: 50 },
+                  aggs: {
+                    obitos: {
+                      filter: { term: { EVOLUCAO: 2 } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        };
+
+        // If not all states, filter by UF
+        if (!allStates && stateNames.length > 0) {
+          // Map state names to 2-letter codes for SRAG dataset
+          const ufCodes = stateCodes.map(c => {
+            for (const [name, code] of Object.entries(STATE_NAME_TO_IBGE)) {
+              if (code === c) return name.length === 2 ? name.toUpperCase() : "";
+            }
+            return "";
+          }).filter(Boolean);
+          if (ufCodes.length > 0) {
+            query.query.bool.must.push({ terms: { "SG_UF_NOT.keyword": ufCodes } });
+          }
+        }
+
+        console.log(`OpenDataSUS SRAG fetch: ${esUrl}`);
+        const resp = await fetch(esUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify(query),
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (!resp.ok) {
+          console.warn(`OpenDataSUS SRAG returned ${resp.status}`);
+          continue;
+        }
+
+        const data = await resp.json();
+        const yearBuckets = data?.aggregations?.by_year?.buckets || [];
+
+        for (const yBucket of yearBuckets) {
+          const year = parseInt(yBucket.key_as_string);
+          const ufBuckets = yBucket.by_uf?.buckets || [];
+          for (const uBucket of ufBuckets) {
+            allRows.push({
+              ano: year,
+              uf: uBucket.key,
+              casos: uBucket.doc_count || 0,
+              obitos: uBucket.obitos?.doc_count || 0,
+            });
+          }
+        }
+      } catch (innerErr) {
+        console.warn(`SRAG index ${idx} fetch failed:`, innerErr);
+      }
+    }
+
+    if (allRows.length === 0) return null;
+
+    allRows.sort((a, b) => a.ano - b.ano || a.uf.localeCompare(b.uf));
+    const csvLines = ["ano,uf,casos_srag,obitos_srag"];
+    for (const r of allRows) {
+      csvLines.push(`${r.ano},${r.uf},${r.casos},${r.obitos}`);
+    }
+
+    return {
+      csv: csvLines.join("\n"),
+      rowCount: allRows.length,
+      source: "OpenDataSUS (Elasticsearch SRAG) — dados reais de Síndrome Respiratória Aguda Grave",
+      columnsDescription: `- ano: ano de notificação
+- uf: sigla da UF de notificação
+- casos_srag: total de casos de SRAG notificados
+- obitos_srag: total de óbitos entre casos de SRAG (evolução = óbito)
+Nota: Inclui COVID-19, Influenza e outros vírus respiratórios.`,
+    };
+  } catch (e) {
+    console.error("OpenDataSUS SRAG fetch error:", e);
+    return null;
+  }
+}
+
+/* ── TabNet SINAN scraper ── */
+
+const TABNET_DISEASE_CONFIG: Record<string, { defFile: string; diseaseName: string }> = {
+  tuberculosis: { defFile: "sinannet/cnv/tubercbrn.def", diseaseName: "Tuberculose" },
+  leprosy: { defFile: "sinannet/cnv/hansbrn.def", diseaseName: "Hanseníase" },
+};
+
+// Map IBGE state codes to TabNet selection values (1-indexed, alphabetical order of UFs)
+const STATE_IBGE_TO_TABNET_INDEX: Record<string, string> = {
+  "12": "1", "27": "2", "16": "3", "13": "4", "29": "5", "23": "6", "53": "7",
+  "32": "8", "52": "9", "21": "10", "51": "11", "50": "12", "31": "13", "15": "14",
+  "25": "15", "41": "16", "26": "17", "22": "18", "33": "19", "24": "20",
+  "43": "21", "11": "22", "14": "23", "42": "24", "35": "25", "28": "26", "17": "27",
+};
+
+async function fetchTabNetSINAN(
+  topic: "tuberculosis" | "leprosy",
+  stateCodes: string[],
+  startYear: number,
+  endYear: number
+): Promise<RealDataResult | null> {
+  try {
+    const config = TABNET_DISEASE_CONFIG[topic];
+    if (!config) return null;
+
+    const tabnetUrl = "http://tabnet.datasus.gov.br/cgi/tabcgi.exe?" + config.defFile;
+    const allStates = stateCodes.length >= Object.keys(STATE_IBGE_TO_NAME).length;
+
+    // Build TabNet POST body (application/x-www-form-urlencoded)
+    // Linha = UF de notificação, Coluna = Ano de notificação, Conteúdo = Casos confirmados
+    const formParams = new URLSearchParams();
+    formParams.set("Linha", "Unidade_da_Federa%E7%E3o");
+    formParams.set("Coluna", "Ano_Diagn%F3stico");
+    formParams.set("Incremento", "Casos_confirmados");
+    formParams.set("pesqmes1", "Digite+o+texto+e+ache+f%E1cil");
+    formParams.set("SMession", "");
+    formParams.set("SRession", "");
+    formParams.set("SPagession", "");
+
+    // Select years
+    for (let y = startYear; y <= endYear; y++) {
+      formParams.append("Arquivos", `${config.defFile.split("/").pop()?.replace(".def", "")}${String(y).slice(2)}.dbf`);
+    }
+
+    console.log(`TabNet SINAN fetch: ${tabnetUrl}`);
+    const resp = await fetch(tabnetUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "text/html",
+        "User-Agent": "Mozilla/5.0",
+      },
+      body: formParams.toString(),
+      signal: AbortSignal.timeout(20000),
+    });
+
+    if (!resp.ok) {
+      console.warn(`TabNet returned ${resp.status}`);
+      return null;
+    }
+
+    const html = await resp.text();
+    return parseTabNetHtml(html, stateCodes, allStates, config.diseaseName, topic);
+  } catch (e) {
+    console.error(`TabNet SINAN fetch error (${topic}):`, e);
+    return null;
+  }
+}
+
+function parseTabNetHtml(
+  html: string,
+  stateCodes: string[],
+  allStates: boolean,
+  diseaseName: string,
+  topic: string
+): RealDataResult | null {
+  try {
+    // TabNet returns an HTML page with a <table class="tabdados"> containing the data
+    const tableMatch = html.match(/<table[^>]*class="tabdados"[^>]*>([\s\S]*?)<\/table>/i);
+    if (!tableMatch) {
+      console.warn("TabNet: no tabdados table found");
+      return null;
+    }
+
+    const tableHtml = tableMatch[1];
+
+    // Extract header row (years)
+    const headerMatch = tableHtml.match(/<tr[^>]*>\s*<th[^>]*>.*?<\/th>([\s\S]*?)<\/tr>/i);
+    if (!headerMatch) return null;
+
+    const yearHeaders: string[] = [];
+    const thRegex = /<th[^>]*>(.*?)<\/th>/gi;
+    let thMatch;
+    while ((thMatch = thRegex.exec(headerMatch[1])) !== null) {
+      const val = thMatch[1].replace(/<[^>]+>/g, "").trim();
+      if (/^\d{4}$/.test(val)) yearHeaders.push(val);
+    }
+
+    if (yearHeaders.length === 0) return null;
+
+    // Extract data rows
+    const rows: Array<{ uf: string; values: Record<string, number> }> = [];
+    const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let trMatch;
+    while ((trMatch = trRegex.exec(tableHtml)) !== null) {
+      const rowHtml = trMatch[1];
+      // Skip header rows
+      if (rowHtml.includes("<th")) continue;
+
+      const cells: string[] = [];
+      const tdRegex = /<td[^>]*>(.*?)<\/td>/gi;
+      let tdMatch;
+      while ((tdMatch = tdRegex.exec(rowHtml)) !== null) {
+        cells.push(tdMatch[1].replace(/<[^>]+>/g, "").trim());
+      }
+
+      if (cells.length < 2) continue;
+      const ufName = cells[0];
+      // Skip "Total" row
+      if (ufName.toLowerCase() === "total" || ufName === "") continue;
+
+      const values: Record<string, number> = {};
+      for (let i = 0; i < yearHeaders.length && i + 1 < cells.length; i++) {
+        const rawVal = cells[i + 1].replace(/\./g, "").replace(/-/g, "0").trim();
+        values[yearHeaders[i]] = parseInt(rawVal) || 0;
+      }
+
+      rows.push({ uf: ufName, values });
+    }
+
+    if (rows.length === 0) return null;
+
+    // Filter by requested states if not all
+    let filteredRows = rows;
+    if (!allStates) {
+      const requestedNames = new Set(stateCodes.map(c => normalize(STATE_IBGE_TO_NAME[c] || "")));
+      filteredRows = rows.filter(r => requestedNames.has(normalize(r.uf)));
+    }
+
+    if (filteredRows.length === 0) filteredRows = rows;
+
+    // Build CSV
+    const csvLines = [`ano,uf,casos_${topic}`];
+    for (const row of filteredRows) {
+      for (const [year, count] of Object.entries(row.values)) {
+        csvLines.push(`${year},"${row.uf}",${count}`);
+      }
+    }
+
+    if (csvLines.length < 2) return null;
+
+    return {
+      csv: csvLines.join("\n"),
+      rowCount: csvLines.length - 1,
+      source: `TabNet/SINAN (DataSUS) — dados reais de notificação de ${diseaseName}`,
+      columnsDescription: `- ano: ano do diagnóstico/notificação
+- uf: Unidade da Federação
+- casos_${topic}: casos confirmados de ${diseaseName} notificados ao SINAN
+Nota: Estes são dados de NOTIFICAÇÃO (casos), não de mortalidade.`,
+    };
+  } catch (e) {
+    console.error("TabNet HTML parse error:", e);
+    return null;
+  }
+}
+
 /* ── Source Router ── */
 
 async function fetchRealData(
@@ -403,6 +687,12 @@ async function fetchRealData(
       }
       return null;
     }
+    case "srag": {
+      const sragData = await fetchOpenDataSUSSRAG(stateCodes, startYear, endYear);
+      if (sragData) return sragData;
+      // Fallback to simulated
+      return null;
+    }
     case "mortality": {
       return await fetchIBGESidra("mortality", stateCodes, startYear, endYear, disease);
     }
@@ -410,9 +700,17 @@ async function fetchRealData(
       return await fetchIBGESidra("births", stateCodes, startYear, endYear, disease);
     }
     case "tuberculosis": {
+      // Try TabNet SINAN first (notification data), fallback to SIDRA mortality
+      const tabnetData = await fetchTabNetSINAN("tuberculosis", stateCodes, startYear, endYear);
+      if (tabnetData) return tabnetData;
+      console.log("TabNet TB failed, falling back to SIDRA mortality");
       return await fetchMortalityByCID("A15-A19", stateCodes, startYear, endYear, "Tuberculose");
     }
     case "leprosy": {
+      // Try TabNet SINAN first (notification data), fallback to SIDRA mortality
+      const tabnetData = await fetchTabNetSINAN("leprosy", stateCodes, startYear, endYear);
+      if (tabnetData) return tabnetData;
+      console.log("TabNet Leprosy failed, falling back to SIDRA mortality");
       return await fetchMortalityByCID("A30", stateCodes, startYear, endYear, "Hanseníase");
     }
     default:
@@ -670,8 +968,10 @@ serve(async (req) => {
 
     const sourceLabel = isRealData
       ? (realData!.source.includes("InfoDengue") ? "InfoDengue"
+        : realData!.source.includes("TabNet") ? "TabNet/SINAN"
+        : realData!.source.includes("OpenDataSUS") ? "OpenDataSUS"
         : realData!.source.includes("SIDRA") ? "IBGE SIDRA"
-        : "OpenDataSUS")
+        : "DataSUS")
       : null;
 
     return new Response(

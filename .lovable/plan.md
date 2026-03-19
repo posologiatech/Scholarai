@@ -1,65 +1,180 @@
 
 
-# Plano: Integrar OpenDataSUS ao módulo DataSUS
+# Survey Module (ScholarAI Surveys) -- Implementation Plan
 
-## Problema
-Atualmente, para TB e hanseníase, usamos apenas dados de **mortalidade** do IBGE SIDRA como proxy. O usuário quer dados de **notificação** (casos) reais, não só óbitos.
+## Overview
 
-## Abordagem viável
+A new Qualtrics-inspired survey/data collection module integrated into ScholarAI, designed for academic research. Surveys created here can export collected responses directly into DataMind for analysis.
 
-O OpenDataSUS disponibiliza endpoints Elasticsearch públicos para alguns datasets. O mais acessível e útil é o de **SRAG (Síndrome Respiratória Aguda Grave)**, que inclui COVID-19 e Influenza. Para TB e hanseníase, não há API REST leve pública — mas podemos usar o **TabNet do DataSUS via POST request** (scraping leve), que é como os próprios pesquisadores acessam esses dados.
+## Why This Is Competitive
 
-### Fontes a adicionar
+- **Deep academic integration**: Surveys link directly to DataMind analysis pipelines, eliminating the export-import cycle researchers face with Qualtrics + SPSS/R.
+- **AI-powered question generation**: Leverage existing AI infrastructure to suggest questions based on research objectives.
+- **Built-in statistical summaries**: Mean, SD, CI displayed inline in reports -- no external tools needed.
+- **Bilingual (PT/EN)** out of the box.
+- **Workspace collaboration**: Team members can co-edit surveys via existing workspace infrastructure.
 
-| Tópico | Endpoint | Método |
-|---|---|---|
-| SRAG / COVID / Influenza | `elasticsearch-saps.saude.gov.br` | Elasticsearch query |
-| TB (notificações) | TabNet SINAN | POST scraping |
-| Hanseníase (notificações) | TabNet SINAN | POST scraping |
+---
 
-## Implementação
+## Database Schema (New Tables)
 
-### 1. Fetcher OpenDataSUS SRAG (backend)
-**Arquivo:** `supabase/functions/datasus-query/index.ts`
+```text
+surveys
+├── id, user_id, workspace_id?, title, description, status (draft/active/closed)
+├── settings (jsonb: randomization, progress_bar, back_button, etc.)
+├── created_at, updated_at, published_at, closed_at
 
-- Criar `fetchOpenDataSUSSRAG(stateCodes, startYear, endYear)`.
-- Consultar `https://elasticsearch-saps.saude.gov.br/desc-srag-2021-2025/_search` com aggregation por UF e ano.
-- Converter resultado em CSV: `ano,uf,casos_srag,obitos_srag`.
-- Timeout 15s, fallback para simulado se falhar.
+survey_blocks
+├── id, survey_id, title, description, block_order
+├── randomize_questions (bool), settings (jsonb)
 
-### 2. Fetcher TabNet SINAN (backend)
-**Arquivo:** `supabase/functions/datasus-query/index.ts`
+survey_questions
+├── id, block_id, survey_id, question_type, question_text, description
+├── question_order, is_required, validation_rules (jsonb)
+├── choices (jsonb: [{id, text, value, order}])
+├── matrix_rows (jsonb), matrix_columns (jsonb)
+├── settings (jsonb: randomize_choices, slider_min/max, etc.)
 
-- Criar `fetchTabNetSINAN(disease, stateCodes, startYear, endYear)`.
-- Enviar POST para `http://tabnet.datasus.gov.br/cgi/tabcgi.exe` com os parâmetros corretos do .def file (já temos no catálogo: `tubercbrn.def`, `hansbrn.def`).
-- Parsear o HTML de retorno (tabela simples) para extrair dados tabulares.
-- Converter para CSV normalizado.
-- Fallback: manter SIDRA mortalidade se TabNet não responder.
+survey_logic_rules
+├── id, survey_id, source_question_id?, source_block_id?
+├── condition (jsonb: {field, operator, value})
+├── action (show_block/hide_question/skip_to/end_survey)
+├── target_id (uuid), rule_order
 
-### 3. Expandir roteador de fontes
-- `covid|srag|influenza|gripe` → OpenDataSUS Elasticsearch
-- `tuberculose|tb` → TabNet SINAN (notificações), fallback SIDRA (mortalidade)
-- `hanseniase|hansen` → TabNet SINAN (notificações), fallback SIDRA (mortalidade)
+survey_contacts
+├── id, survey_id, user_id, first_name, last_name, email
+├── institution, custom_fields (jsonb), status (not_sent/sent/responded)
 
-### 4. Atualizar topic detection
-Adicionar `"srag"` e `"covid"` como novos `DataTopic` values no `detectTopic()`.
+survey_distributions
+├── id, survey_id, type (anonymous_link/email), anonymous_token
+├── email_subject, email_body, scheduled_at, sent_at
 
-### 5. Atualizar UI
-**Arquivo:** `src/components/datasus/DataSUSResults.tsx`
-- Adicionar badges "OpenDataSUS" (violet) e "TabNet/SINAN" (blue) ao sourceLabel.
+survey_responses
+├── id, survey_id, respondent_id?, contact_id?
+├── started_at, completed_at, status (in_progress/complete/disqualified)
+├── ip_address, user_agent, duration_seconds
+├── metadata (jsonb: embedded_data, geo, etc.)
 
-### 6. Atualizar catálogo de exemplos
-**Arquivo:** `src/lib/datasus-catalog.ts`
-- Adicionar: "Casos de SRAG no Brasil em 2023", "Notificações de tuberculose no Nordeste 2015-2023".
+survey_answers
+├── id, response_id, question_id
+├── answer_text, answer_numeric, answer_choices (jsonb)
+├── matrix_answers (jsonb: [{row_id, column_id}])
+```
 
-## Riscos e mitigações
+RLS: All tables scoped to `user_id = auth.uid()`. Public survey responses allow anonymous insert via edge function (no JWT). Workspace-shared surveys use existing `is_workspace_member()`.
 
-- **TabNet instável**: timeout frequente. Mitigação: retry 1x, fallback para SIDRA mortalidade.
-- **Elasticsearch SRAG pode exigir credenciais**: testaremos primeiro; se falhar, usamos dados simulados com aviso claro.
-- **HTML parsing do TabNet**: a estrutura é simples (tabela HTML), mas pode mudar. Parsing defensivo com fallback.
+---
 
-## Arquivos editados
-1. `supabase/functions/datasus-query/index.ts` — novos fetchers + roteador expandido
-2. `src/components/datasus/DataSUSResults.tsx` — badges de fonte
-3. `src/lib/datasus-catalog.ts` — exemplos atualizados
+## File & Component Structure
+
+```text
+src/pages/
+├── Surveys.tsx                    (project list / dashboard)
+├── SurveyBuilder.tsx              (3-pane builder)
+├── SurveyFlow.tsx                 (visual logic editor)
+├── SurveyDistribution.tsx         (links, email, contacts)
+├── SurveyResults.tsx              (reports + raw data)
+├── SurveyPreview.tsx              (respondent-facing preview)
+├── SurveyRespond.tsx              (public respondent page, no auth)
+
+src/components/survey/
+├── SurveyProjectList.tsx          (data table with status, responses, sparklines)
+├── builder/
+│   ├── BlockSidebar.tsx           (left pane: block navigation, drag-reorder)
+│   ├── QuestionCanvas.tsx         (center: inline WYSIWYG editing)
+│   ├── QuestionContextPanel.tsx   (right: type, validation, randomization)
+│   ├── QuestionRenderer.tsx       (renders each question type)
+│   ├── question-types/
+│   │   ├── MultipleChoice.tsx
+│   │   ├── TextEntry.tsx
+│   │   ├── MatrixTable.tsx
+│   │   ├── SliderQuestion.tsx
+│   │   ├── RankOrder.tsx
+│   │   └── ConstantSum.tsx
+├── flow/
+│   ├── FlowCanvas.tsx             (visual nested-list / node-based flow)
+│   ├── ConditionBuilder.tsx       (dropdown rule rows)
+│   └── LogicBadge.tsx             (GitBranch icon on questions with logic)
+├── distribution/
+│   ├── AnonymousLinkTab.tsx       (URL + QR code + copy)
+│   ├── EmailComposerTab.tsx       (rich text + piped text insertion)
+│   └── ContactListTab.tsx         (data table + CSV upload)
+├── results/
+│   ├── ReportsDashboard.tsx       (Recharts widgets grid)
+│   ├── ResponseDataGrid.tsx       (raw data table, variable name toggle)
+│   ├── StatsSummary.tsx           (mean, SD, n calculations)
+│   └── ExportEngine.tsx           (CSV, TSV, XLSX export)
+├── respond/
+│   ├── RespondentForm.tsx         (public form with logic evaluation)
+│   └── ProgressIndicator.tsx
+
+src/hooks/
+├── useSurveyStore.ts              (Zustand store for survey builder state)
+
+supabase/functions/
+├── survey-respond/index.ts        (anonymous response submission, verify_jwt=false)
+├── survey-export-datamind/index.ts (push responses into DataMind conversation)
+```
+
+---
+
+## Implementation Phases
+
+### Phase 1: Foundation (Database + Routing + Project List)
+- Create all database tables with RLS policies via migration tool
+- Add routes: `/surveys`, `/surveys/:id/build`, `/surveys/:id/flow`, `/surveys/:id/distribute`, `/surveys/:id/results`, `/survey/respond/:token`
+- Add "Surveys" nav link in AppSidebar (ClipboardList icon)
+- Build `SurveyProjectList` with status badges, response counts, sparkline trends, search/filter, "Create Survey" button
+
+### Phase 2: Survey Builder (Core Engine)
+- Implement Zustand store (`useSurveyStore`) managing the nested survey object (blocks → questions → choices/matrix)
+- Build 3-pane layout: BlockSidebar | QuestionCanvas | QuestionContextPanel
+- Implement all 6 question types with inline editing
+- Drag-and-drop reordering for blocks and questions
+- Auto-save to Supabase on changes (debounced)
+
+### Phase 3: Logic Engine & Survey Flow
+- Build ConditionBuilder component (question selector → operator → value → action)
+- Visual flow editor showing block sequence with branch indicators
+- Extend Zustand store with `logicRules` array
+- Preview mode that evaluates logic rules in real-time
+- GitBranch badges on questions with active logic
+
+### Phase 4: Distribution Module
+- Anonymous link generation with unique token + QR code (via canvas/SVG)
+- Email composer with piped text insertion (`{{Contact.FirstName}}`, etc.)
+- Contact list management table with CSV upload
+- Schedule send UI (mock for now, real via edge function later)
+- `survey-respond` edge function for anonymous submissions (no JWT)
+
+### Phase 5: Data & Analysis + DataMind Integration
+- Reports dashboard with Recharts: bar charts, donut charts, stacked bars for Likert
+- Statistical calculations: mean, SD, confidence intervals
+- Raw data grid with question text / variable name toggle
+- Export engine: CSV, TSV, XLSX (using existing xlsx dependency)
+- **DataMind integration**: "Analyze in DataMind" button that creates a new DataMind conversation with survey responses auto-loaded as a CSV file in the `datamind-files` bucket, enabling immediate analysis
+
+### Phase 6: Respondent-Facing Form
+- Public page at `/survey/respond/:token` (no auth required)
+- Progress bar, one-block-at-a-time or all-at-once modes
+- Logic evaluation engine to show/hide questions dynamically
+- Mobile-responsive form design
+- Submission via `survey-respond` edge function
+
+---
+
+## DataMind Integration Detail
+
+The key differentiator: a single click from Survey Results exports all responses as a structured CSV into DataMind. The `survey-export-datamind` edge function:
+1. Queries `survey_answers` joined with `survey_questions` for headers
+2. Generates CSV with proper variable names
+3. Uploads to `datamind-files` bucket
+4. Creates a new `datamind_conversations` entry with an initial system message referencing the file
+5. Redirects user to `/datamind/:newConversationId`
+
+---
+
+## Design System
+
+Consistent with existing ScholarAI design: white backgrounds, `bg-muted/50` panels, primary blue accents, shadcn/ui components throughout. The builder uses `ResizablePanelGroup` for the 3-pane layout (already in the project). Question cards use the existing `Card` component with subtle borders.
 
