@@ -519,8 +519,8 @@ export default function DataSUS() {
             </div>
             <p className="text-[10px] text-muted-foreground/40 text-center mt-2">
               {isPt
-                ? "Os dados são simulados com base em padrões epidemiológicos reais do DataSUS"
-                : "Data is simulated based on real epidemiological patterns from DataSUS"}
+                ? "Apenas dados reais das fontes integradas são retornados"
+                : "Only real data from integrated sources is returned"}
             </p>
           </div>
         </div>
