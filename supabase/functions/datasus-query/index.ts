@@ -825,13 +825,31 @@ async function fetchRealData(
       return null;
   }
 
-  // Auto-attach population data for normalization if needed
-  if (result && requiresNormalization(userPrompt) && topic !== "population" && topic !== "demographics") {
-    console.log("Auto-fetching population data for normalization");
+  // Auto-attach population data for normalization or comparison
+  const needsPop = requiresNormalization(userPrompt) || detectComparison(userPrompt);
+  if (result && needsPop && topic !== "population" && topic !== "demographics") {
+    console.log("Auto-fetching population data for normalization/comparison");
     const popData = await fetchPopulationData(stateCodes, startYear, endYear);
     if (popData) {
       result.supplementaryCsv = popData.csv;
-      result.supplementaryDescription = `\n\n## DADOS SUPLEMENTARES (População para normalização)\n${popData.columnsDescription}\n\nUse esses dados para calcular taxas por 100 mil habitantes fazendo merge por UF e ano.`;
+      result.supplementaryDescription = `\n\n## DADOS SUPLEMENTARES (População para normalização/comparação)\n${popData.columnsDescription}\n\nUse esses dados para calcular taxas por 100 mil habitantes ou para comparação entre regiões fazendo merge por UF e ano.`;
+    }
+  }
+
+  // Auto-attach PIB data for socioeconomic comparisons
+  if (result && detectComparison(userPrompt) && topic !== "demographics") {
+    console.log("Auto-fetching PIB data for benchmarking");
+    const pibData = await fetchIBGEAgregados("5938", "37", stateCodes, startYear, endYear, "pib_per_capita");
+    if (pibData) {
+      const existingSupp = result.supplementaryCsv || "";
+      const existingDesc = result.supplementaryDescription || "";
+      if (existingSupp) {
+        result.supplementaryCsv = existingSupp + "\n\n### PIB_DATA_CSV ###\n" + pibData.csv;
+        result.supplementaryDescription = existingDesc + `\n\n## DADOS SOCIOECONÔMICOS (PIB per capita)\n${pibData.columnsDescription}\n\nCarregue como df_pib e faça merge por UF e ano para correlação.`;
+      } else {
+        result.supplementaryCsv = pibData.csv;
+        result.supplementaryDescription = `\n\n## DADOS SOCIOECONÔMICOS (PIB per capita)\n${pibData.columnsDescription}\n\nUse para correlação socioeconômica.`;
+      }
     }
   }
 
