@@ -232,6 +232,18 @@ export default function DataSUS() {
         return;
       }
 
+      if (data.type === "unavailable") {
+        const sourcesInfo = (data.available_sources || [])
+          .map((s: any) => `• **${s.name}**: ${s.topics} (${s.period})`)
+          .join("\n");
+        const unavailableContent = `⚠️ ${data.explanation}\n\n**Fontes disponíveis:**\n${sourcesInfo}\n\n💡 ${data.suggestion || ""}`;
+        const finalMsg: ChatMessage = { id: assistantId, role: "assistant", content: unavailableContent };
+        setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
+        await saveMessage(convId, finalMsg);
+        setIsProcessing(false);
+        return;
+      }
+
       setMessages((prev) => prev.map((m) =>
         m.id === assistantId ? {
           ...m, content: isPt ? "Executando análise..." : "Running analysis...",
