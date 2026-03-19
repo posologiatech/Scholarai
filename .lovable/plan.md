@@ -1,129 +1,180 @@
 
 
-# Plano: Tornar explícitas as fontes disponíveis, eliminar dados simulados e integrar novas bases (IBGE Agregados, SNIS, Base dos Dados)
+# Survey Module (ScholarAI Surveys) -- Implementation Plan
 
-## 1. Problema
+## Overview
 
-Atualmente o módulo DataSUS:
-- Não deixa claro ao usuário quais dados pode realmente consultar
-- Gera dados simulados quando não encontra dados reais (enganoso)
-- Cobre apenas: arboviroses (InfoDengue), mortalidade/nascidos vivos (IBGE SIDRA), SRAG (OpenDataSUS), TB/hanseníase (TabNet)
-- Não cruza dados entre bases diferentes
+A new Qualtrics-inspired survey/data collection module integrated into ScholarAI, designed for academic research. Surveys created here can export collected responses directly into DataMind for analysis.
 
-## 2. O que muda
+## Why This Is Competitive
 
-### 2a. Eliminar dados simulados
-- Quando o roteador retornar `null`, em vez de gerar código Python com dados inventados, retornar uma mensagem clara: *"Esta informação não está disponível nas fontes integradas ao sistema. As fontes disponíveis são: [lista]. Reformule sua pergunta ou consulte diretamente o TabNet."*
-- Remover o `SIMULATED_PROMPT` e toda lógica de fallback para simulação
-- Na UI, remover o indicador "Dados Simulados" (só existirão dados reais)
+- **Deep academic integration**: Surveys link directly to DataMind analysis pipelines, eliminating the export-import cycle researchers face with Qualtrics + SPSS/R.
+- **AI-powered question generation**: Leverage existing AI infrastructure to suggest questions based on research objectives.
+- **Built-in statistical summaries**: Mean, SD, CI displayed inline in reports -- no external tools needed.
+- **Bilingual (PT/EN)** out of the box.
+- **Workspace collaboration**: Team members can co-edit surveys via existing workspace infrastructure.
 
-### 2b. Painel "Fontes Disponíveis" na UI
-- Adicionar seção no estado vazio (antes de enviar a primeira mensagem) listando as fontes e o que cada uma cobre, com exemplos de perguntas válidas
-- Organizar por categoria:
+---
+
+## Database Schema (New Tables)
 
 ```text
-┌────────────────────────────────────────────────┐
-│  Fontes de dados disponíveis                   │
-│                                                │
-│  🦟 Arboviroses (Dengue, Zika, Chikungunya)   │
-│     Fonte: InfoDengue · 2014-2024              │
-│                                                │
-│  💀 Mortalidade por causa (CID-10)             │
-│     Fonte: IBGE SIDRA (SIM) · 2012-2022        │
-│                                                │
-│  👶 Nascidos vivos                              │
-│     Fonte: IBGE SIDRA (SINASC) · 2012-2022     │
-│                                                │
-│  🫁 SRAG / COVID / Influenza                   │
-│     Fonte: OpenDataSUS · 2020-2025             │
-│                                                │
-│  🦠 Tuberculose / Hanseníase (notificações)    │
-│     Fonte: TabNet/SINAN · 2012-2023            │
-│                                                │
-│  📊 População, PIB, IDH (NOVO)                 │
-│     Fonte: IBGE Agregados · 1991-2024          │
-│                                                │
-│  🚰 Saneamento básico (NOVO)                   │
-│     Fonte: Base dos Dados/SNIS · 1995-2022     │
-└────────────────────────────────────────────────┘
+surveys
+├── id, user_id, workspace_id?, title, description, status (draft/active/closed)
+├── settings (jsonb: randomization, progress_bar, back_button, etc.)
+├── created_at, updated_at, published_at, closed_at
+
+survey_blocks
+├── id, survey_id, title, description, block_order
+├── randomize_questions (bool), settings (jsonb)
+
+survey_questions
+├── id, block_id, survey_id, question_type, question_text, description
+├── question_order, is_required, validation_rules (jsonb)
+├── choices (jsonb: [{id, text, value, order}])
+├── matrix_rows (jsonb), matrix_columns (jsonb)
+├── settings (jsonb: randomize_choices, slider_min/max, etc.)
+
+survey_logic_rules
+├── id, survey_id, source_question_id?, source_block_id?
+├── condition (jsonb: {field, operator, value})
+├── action (show_block/hide_question/skip_to/end_survey)
+├── target_id (uuid), rule_order
+
+survey_contacts
+├── id, survey_id, user_id, first_name, last_name, email
+├── institution, custom_fields (jsonb), status (not_sent/sent/responded)
+
+survey_distributions
+├── id, survey_id, type (anonymous_link/email), anonymous_token
+├── email_subject, email_body, scheduled_at, sent_at
+
+survey_responses
+├── id, survey_id, respondent_id?, contact_id?
+├── started_at, completed_at, status (in_progress/complete/disqualified)
+├── ip_address, user_agent, duration_seconds
+├── metadata (jsonb: embedded_data, geo, etc.)
+
+survey_answers
+├── id, response_id, question_id
+├── answer_text, answer_numeric, answer_choices (jsonb)
+├── matrix_answers (jsonb: [{row_id, column_id}])
 ```
 
-### 2c. Integrar novas fontes para cruzamento
+RLS: All tables scoped to `user_id = auth.uid()`. Public survey responses allow anonymous insert via edge function (no JWT). Workspace-shared surveys use existing `is_workspace_member()`.
 
-#### IBGE API Agregados (servicodados.ibge.gov.br)
-- **Endpoint**: `https://servicodados.ibge.gov.br/api/v3/agregados/{tabela}/periodos/{p}/variaveis/{v}?localidades=N3[{ufs}]`
-- **Sem autenticação**, JSON puro, sem scraping
-- **Tabelas úteis**:
-  - 6579: População residente estimada por UF/ano
-  - 5938: PIB per capita por UF
-  - 4714: IDH por UF (PNUD via IBGE)
-- **Uso**: normalizar indicadores de saúde por 100 mil hab, cruzar mortalidade com PIB, etc.
+---
 
-#### SNIS via Base dos Dados (BigQuery público)
-- O SNIS não tem API REST. Os dados estão disponíveis via **Base dos Dados** (basedosdados.org) que expõe datasets do SNIS em BigQuery público.
-- **Alternativa mais simples**: CSV estático hospedado no próprio Supabase Storage (upload manual de tabelas resumidas SNIS por UF/ano para água, esgoto, resíduos).
-- **Uso**: cruzar cobertura de saneamento com incidência de doenças de veiculação hídrica.
+## File & Component Structure
 
-## 3. Implementação
+```text
+src/pages/
+├── Surveys.tsx                    (project list / dashboard)
+├── SurveyBuilder.tsx              (3-pane builder)
+├── SurveyFlow.tsx                 (visual logic editor)
+├── SurveyDistribution.tsx         (links, email, contacts)
+├── SurveyResults.tsx              (reports + raw data)
+├── SurveyPreview.tsx              (respondent-facing preview)
+├── SurveyRespond.tsx              (public respondent page, no auth)
 
-### Arquivo 1: `supabase/functions/datasus-query/index.ts`
+src/components/survey/
+├── SurveyProjectList.tsx          (data table with status, responses, sparklines)
+├── builder/
+│   ├── BlockSidebar.tsx           (left pane: block navigation, drag-reorder)
+│   ├── QuestionCanvas.tsx         (center: inline WYSIWYG editing)
+│   ├── QuestionContextPanel.tsx   (right: type, validation, randomization)
+│   ├── QuestionRenderer.tsx       (renders each question type)
+│   ├── question-types/
+│   │   ├── MultipleChoice.tsx
+│   │   ├── TextEntry.tsx
+│   │   ├── MatrixTable.tsx
+│   │   ├── SliderQuestion.tsx
+│   │   ├── RankOrder.tsx
+│   │   └── ConstantSum.tsx
+├── flow/
+│   ├── FlowCanvas.tsx             (visual nested-list / node-based flow)
+│   ├── ConditionBuilder.tsx       (dropdown rule rows)
+│   └── LogicBadge.tsx             (GitBranch icon on questions with logic)
+├── distribution/
+│   ├── AnonymousLinkTab.tsx       (URL + QR code + copy)
+│   ├── EmailComposerTab.tsx       (rich text + piped text insertion)
+│   └── ContactListTab.tsx         (data table + CSV upload)
+├── results/
+│   ├── ReportsDashboard.tsx       (Recharts widgets grid)
+│   ├── ResponseDataGrid.tsx       (raw data table, variable name toggle)
+│   ├── StatsSummary.tsx           (mean, SD, n calculations)
+│   └── ExportEngine.tsx           (CSV, TSV, XLSX export)
+├── respond/
+│   ├── RespondentForm.tsx         (public form with logic evaluation)
+│   └── ProgressIndicator.tsx
 
-**Alterações:**
-1. Adicionar `fetchIBGEAgregados(tableId, variableId, stateCodes, startYear, endYear)` — fetcher genérico para API Agregados do IBGE (população, PIB, IDH)
-2. Expandir `DataTopic` com `"population"`, `"demographics"`, `"sanitation"`
-3. Expandir `detectTopic()` para detectar termos como "população", "PIB", "IDH", "saneamento", "água", "esgoto"
-4. No roteador `fetchRealData`, adicionar rotas para population → IBGE Agregados, sanitation → CSV estático ou mensagem de indisponibilidade
-5. **Eliminar fallback simulado**: quando `fetchRealData` retorna `null`, retornar resposta com `type: "unavailable"` em vez de gerar código com dados inventados
-6. Adicionar lógica de **cruzamento**: quando o topic é mortalidade/arboviroses E população está disponível, buscar dados de população automaticamente e injetar ambos CSVs no prompt para cálculo de taxas por 100 mil hab
-7. Remover `SIMULATED_PROMPT` completamente
+src/hooks/
+├── useSurveyStore.ts              (Zustand store for survey builder state)
 
-**Nova resposta quando dados não disponíveis:**
-```json
-{
-  "type": "unavailable",
-  "explanation": "Esta consulta não pode ser respondida com as fontes atualmente integradas.",
-  "available_sources": ["InfoDengue", "IBGE SIDRA", "OpenDataSUS", "TabNet/SINAN", "IBGE Agregados"],
-  "suggestion": "Tente reformular usando um dos temas disponíveis: arboviroses, mortalidade, nascidos vivos, SRAG/COVID, tuberculose, hanseníase, população ou PIB."
-}
+supabase/functions/
+├── survey-respond/index.ts        (anonymous response submission, verify_jwt=false)
+├── survey-export-datamind/index.ts (push responses into DataMind conversation)
 ```
 
-### Arquivo 2: `src/pages/DataSUS.tsx`
+---
 
-**Alterações:**
-1. Tratar resposta `type: "unavailable"` — exibir mensagem amigável em vez de erro
-2. No estado vazio (sem mensagens), renderizar o painel "Fontes Disponíveis" com lista categorizada
-3. Remover referências visuais a "dados simulados"
+## Implementation Phases
 
-### Arquivo 3: `src/components/datasus/DataSUSResults.tsx`
+### Phase 1: Foundation (Database + Routing + Project List)
+- Create all database tables with RLS policies via migration tool
+- Add routes: `/surveys`, `/surveys/:id/build`, `/surveys/:id/flow`, `/surveys/:id/distribute`, `/surveys/:id/results`, `/survey/respond/:token`
+- Add "Surveys" nav link in AppSidebar (ClipboardList icon)
+- Build `SurveyProjectList` with status badges, response counts, sparkline trends, search/filter, "Create Survey" button
 
-**Alterações:**
-1. Remover lógica condicional de "Dados simulados" (badge âmbar) — só exibe dados reais
-2. Adicionar badge "IBGE Agregados" (índigo) no mapeamento de cores
-3. Simplificar o rodapé de fonte
+### Phase 2: Survey Builder (Core Engine)
+- Implement Zustand store (`useSurveyStore`) managing the nested survey object (blocks → questions → choices/matrix)
+- Build 3-pane layout: BlockSidebar | QuestionCanvas | QuestionContextPanel
+- Implement all 6 question types with inline editing
+- Drag-and-drop reordering for blocks and questions
+- Auto-save to Supabase on changes (debounced)
 
-### Arquivo 4: `src/lib/datasus-catalog.ts`
+### Phase 3: Logic Engine & Survey Flow
+- Build ConditionBuilder component (question selector → operator → value → action)
+- Visual flow editor showing block sequence with branch indicators
+- Extend Zustand store with `logicRules` array
+- Preview mode that evaluates logic rules in real-time
+- GitBranch badges on questions with active logic
 
-**Alterações:**
-1. Adicionar novas tabelas ao catálogo: IBGE Agregados (população, PIB)
-2. Atualizar `EXAMPLE_QUERIES` com exemplos de cruzamento: "Taxa de mortalidade por 100 mil habitantes no Sudeste 2015-2022", "Relação entre PIB per capita e casos de dengue por UF"
-3. Atualizar `DATASUS_SYSTEM_PROMPT` removendo menção a dados simulados e adicionando as novas fontes
+### Phase 4: Distribution Module
+- Anonymous link generation with unique token + QR code (via canvas/SVG)
+- Email composer with piped text insertion (`{{Contact.FirstName}}`, etc.)
+- Contact list management table with CSV upload
+- Schedule send UI (mock for now, real via edge function later)
+- `survey-respond` edge function for anonymous submissions (no JWT)
 
-### Arquivo 5: Novo componente `src/components/datasus/DataSUSSourcesPanel.tsx`
+### Phase 5: Data & Analysis + DataMind Integration
+- Reports dashboard with Recharts: bar charts, donut charts, stacked bars for Likert
+- Statistical calculations: mean, SD, confidence intervals
+- Raw data grid with question text / variable name toggle
+- Export engine: CSV, TSV, XLSX (using existing xlsx dependency)
+- **DataMind integration**: "Analyze in DataMind" button that creates a new DataMind conversation with survey responses auto-loaded as a CSV file in the `datamind-files` bucket, enabling immediate analysis
 
-- Componente read-only que lista as fontes integradas com nome, cobertura temporal, tipo de dado e exemplos
-- Usado no estado vazio da página DataSUS
+### Phase 6: Respondent-Facing Form
+- Public page at `/survey/respond/:token` (no auth required)
+- Progress bar, one-block-at-a-time or all-at-once modes
+- Logic evaluation engine to show/hide questions dynamically
+- Mobile-responsive form design
+- Submission via `survey-respond` edge function
 
-## 4. Lógica de cruzamento automático
+---
 
-Quando o prompt do usuário menciona "taxa", "per capita", "por 100 mil" ou cruza temas (ex: "dengue vs PIB"), o sistema:
-1. Busca dados do tema principal (ex: mortalidade via SIDRA)
-2. Busca dados de população via IBGE Agregados automaticamente
-3. Injeta ambos CSVs no prompt Python com instrução para fazer merge por UF/ano e calcular a taxa
+## DataMind Integration Detail
 
-## 5. Arquivos editados
-1. `supabase/functions/datasus-query/index.ts` — novo fetcher IBGE Agregados, eliminar simulação, cruzamento
-2. `src/pages/DataSUS.tsx` — tratar `unavailable`, painel de fontes
-3. `src/components/datasus/DataSUSResults.tsx` — remover simulado, novo badge
-4. `src/lib/datasus-catalog.ts` — novas fontes e exemplos
-5. `src/components/datasus/DataSUSSourcesPanel.tsx` — novo componente
+The key differentiator: a single click from Survey Results exports all responses as a structured CSV into DataMind. The `survey-export-datamind` edge function:
+1. Queries `survey_answers` joined with `survey_questions` for headers
+2. Generates CSV with proper variable names
+3. Uploads to `datamind-files` bucket
+4. Creates a new `datamind_conversations` entry with an initial system message referencing the file
+5. Redirects user to `/datamind/:newConversationId`
+
+---
+
+## Design System
+
+Consistent with existing ScholarAI design: white backgrounds, `bg-muted/50` panels, primary blue accents, shadcn/ui components throughout. The builder uses `ResizablePanelGroup` for the 3-pane layout (already in the project). Question cards use the existing `Card` component with subtle borders.
 

@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import DataSUSResults from "@/components/datasus/DataSUSResults";
 import DataSUSSidebar, { DataSUSConversation } from "@/components/datasus/DataSUSSidebar";
+import DataSUSSourcesPanel from "@/components/datasus/DataSUSSourcesPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -231,6 +232,18 @@ export default function DataSUS() {
         return;
       }
 
+      if (data.type === "unavailable") {
+        const sourcesInfo = (data.available_sources || [])
+          .map((s: any) => `• **${s.name}**: ${s.topics} (${s.period})`)
+          .join("\n");
+        const unavailableContent = `⚠️ ${data.explanation}\n\n**Fontes disponíveis:**\n${sourcesInfo}\n\n💡 ${data.suggestion || ""}`;
+        const finalMsg: ChatMessage = { id: assistantId, role: "assistant", content: unavailableContent };
+        setMessages((prev) => prev.map((m) => (m.id === assistantId ? finalMsg : m)));
+        await saveMessage(convId, finalMsg);
+        setIsProcessing(false);
+        return;
+      }
+
       setMessages((prev) => prev.map((m) =>
         m.id === assistantId ? {
           ...m, content: isPt ? "Executando análise..." : "Running analysis...",
@@ -374,19 +387,8 @@ export default function DataSUS() {
                   </p>
                 </div>
 
-                {/* Bases */}
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {TABNET_BASES.slice(0, 5).map((base) => (
-                    <Badge
-                      key={base.id}
-                      variant="outline"
-                      className="gap-1.5 text-[11px] rounded-full px-3 py-1 bg-background border-border/40 text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors cursor-default"
-                    >
-                      <Database className="h-3 w-3" />
-                      {isPt ? base.label : base.labelEn}
-                    </Badge>
-                  ))}
-                </div>
+                {/* Sources panel */}
+                <DataSUSSourcesPanel isPt={isPt} />
 
                 {/* Example cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -517,8 +519,8 @@ export default function DataSUS() {
             </div>
             <p className="text-[10px] text-muted-foreground/40 text-center mt-2">
               {isPt
-                ? "Os dados são simulados com base em padrões epidemiológicos reais do DataSUS"
-                : "Data is simulated based on real epidemiological patterns from DataSUS"}
+                ? "Apenas dados reais das fontes integradas são retornados"
+                : "Only real data from integrated sources is returned"}
             </p>
           </div>
         </div>

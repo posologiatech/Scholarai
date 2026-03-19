@@ -28,12 +28,31 @@ interface DataSUSResultProps {
 
 export default function DataSUSResults({
   explanation, dataSource, disease, location, period, code,
-  stdout, images, tables, error, isRealData, dataSourceDetail,
+  stdout, images, tables, error, dataSourceDetail,
 }: DataSUSResultProps) {
   const [showCode, setShowCode] = useState(false);
   const [expandedTable, setExpandedTable] = useState<number | null>(null);
   const { locale } = useLanguage();
   const isPt = locale === "pt";
+
+  const sourceLabel = dataSourceDetail?.includes("InfoDengue") ? "InfoDengue"
+    : dataSourceDetail?.includes("TabNet") ? "TabNet/SINAN"
+    : dataSourceDetail?.includes("OpenDataSUS") ? "OpenDataSUS"
+    : dataSourceDetail?.includes("Agregados") ? "IBGE Agregados"
+    : dataSourceDetail?.includes("SIDRA") ? "IBGE SIDRA"
+    : "DataSUS";
+
+  const sourceBadgeClasses = dataSourceDetail?.includes("InfoDengue")
+    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+    : dataSourceDetail?.includes("TabNet")
+    ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
+    : dataSourceDetail?.includes("OpenDataSUS")
+    ? "bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-500/20"
+    : dataSourceDetail?.includes("Agregados")
+    ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20"
+    : dataSourceDetail?.includes("SIDRA")
+    ? "bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/20"
+    : "bg-muted text-muted-foreground border-border/30";
 
   return (
     <div className="space-y-4 w-full">
@@ -152,32 +171,14 @@ export default function DataSUSResults({
         </div>
       ))}
 
-      {/* Source */}
+      {/* Source footer — always real data */}
       {(stdout || images.length > 0 || tables.length > 0) && (
-        <div className={`flex items-center gap-2 text-[10px] ${isRealData ? 'text-emerald-600/70 dark:text-emerald-400/70' : 'text-amber-600/70 dark:text-amber-400/70'}`}>
-          <span className={`inline-block h-1.5 w-1.5 rounded-full shrink-0 ${isRealData ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-          <span>
-            {isRealData
-              ? `Fonte: ${dataSourceDetail || `${dataSource}/DataSUS`} — Dados reais`
-              : `Fonte: ${dataSource}/DataSUS — Dados simulados com base em padrões epidemiológicos`}
-          </span>
-          {isRealData && dataSourceDetail && (
-            <Badge className={`text-[9px] px-1.5 py-0 h-4 rounded font-medium border ${
-              dataSourceDetail.includes("InfoDengue")
-                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
-                : dataSourceDetail.includes("TabNet")
-                ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
-                : dataSourceDetail.includes("OpenDataSUS")
-                ? "bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-500/20"
-                : dataSourceDetail.includes("SIDRA")
-                ? "bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/20"
-                : "bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-500/20"
-            }`}>
-              {dataSourceDetail.includes("InfoDengue") ? "InfoDengue"
-                : dataSourceDetail.includes("TabNet") ? "TabNet/SINAN"
-                : dataSourceDetail.includes("OpenDataSUS") ? "OpenDataSUS"
-                : dataSourceDetail.includes("SIDRA") ? "IBGE SIDRA"
-                : "DataSUS"}
+        <div className="flex items-center gap-2 text-[10px] text-emerald-600/70 dark:text-emerald-400/70">
+          <span className="inline-block h-1.5 w-1.5 rounded-full shrink-0 bg-emerald-500" />
+          <span>Fonte: {dataSourceDetail || `${dataSource}/DataSUS`} — Dados reais</span>
+          {dataSourceDetail && (
+            <Badge className={`text-[9px] px-1.5 py-0 h-4 rounded font-medium border ${sourceBadgeClasses}`}>
+              {sourceLabel}
             </Badge>
           )}
         </div>
