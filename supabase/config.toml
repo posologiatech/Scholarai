@@ -113,3 +113,9 @@ verify_jwt = false
 
 [functions.check-datasus-alerts]
 verify_jwt = false
+
+[functions.survey-edit-answer]
+verify_jwt = false
+
+[functions.survey-verify-integrity]
+verify_jwt = false
