@@ -99,6 +99,16 @@ const AuditLogPanel = ({ surveyId }: { surveyId: string }) => {
                       {details.respondent_name}
                     </p>
                   )}
+                  {details.change_reason && (
+                    <p className="text-xs text-muted-foreground">
+                      {locale === "pt" ? "Motivo" : "Reason"}: {details.change_reason}
+                    </p>
+                  )}
+                  {details.version && (
+                    <p className="text-xs text-muted-foreground">
+                      v{details.version}
+                    </p>
+                  )}
                   {log.ip_address && (
                     <p className="text-xs text-muted-foreground font-mono">IP: {log.ip_address}</p>
                   )}
