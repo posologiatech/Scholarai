@@ -12,6 +12,9 @@ const actionLabels: Record<string, { pt: string; en: string; color: string }> = 
   data_exported: { pt: "Dados Exportados", en: "Data Exported", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
   data_deleted: { pt: "Dados Anonimizados", en: "Data Anonymized", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
   data_modified: { pt: "Dados Modificados", en: "Data Modified", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+  answer_modified: { pt: "Resposta Editada", en: "Answer Modified", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+  integrity_verified: { pt: "Integridade Verificada", en: "Integrity Verified", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+  integrity_violation: { pt: "Violação de Integridade", en: "Integrity Violation", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
 };
 
 const AuditLogPanel = ({ surveyId }: { surveyId: string }) => {
