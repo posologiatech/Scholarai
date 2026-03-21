@@ -1,11 +1,12 @@
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Table2, Filter, ShieldAlert, Shield } from "lucide-react";
+import { BarChart3, Table2, Filter, ShieldAlert, Shield, ShieldCheck } from "lucide-react";
 import ReportsDashboard from "./ReportsDashboard";
 import ResponseDataGrid from "./ResponseDataGrid";
 import RecruitmentFunnel from "./RecruitmentFunnel";
 import DataQualityAlerts from "./DataQualityAlerts";
 import AuditLogPanel from "./AuditLogPanel";
+import DataIntegrityPanel from "./DataIntegrityPanel";
 
 const SurveyResultsPanel = ({ surveyId }: { surveyId: string }) => {
   const { locale } = useLanguage();
@@ -35,6 +36,10 @@ const SurveyResultsPanel = ({ surveyId }: { surveyId: string }) => {
               <ShieldAlert className="h-3.5 w-3.5" />
               {locale === "pt" ? "Qualidade" : "Quality"}
             </TabsTrigger>
+            <TabsTrigger value="integrity" className="gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              {locale === "pt" ? "Integridade" : "Integrity"}
+            </TabsTrigger>
             <TabsTrigger value="audit" className="gap-1.5">
               <Shield className="h-3.5 w-3.5" />
               {locale === "pt" ? "Auditoria" : "Audit"}
@@ -52,6 +57,9 @@ const SurveyResultsPanel = ({ surveyId }: { surveyId: string }) => {
           </TabsContent>
           <TabsContent value="quality">
             <DataQualityAlerts surveyId={surveyId} />
+          </TabsContent>
+          <TabsContent value="integrity">
+            <DataIntegrityPanel surveyId={surveyId} />
           </TabsContent>
           <TabsContent value="audit">
             <AuditLogPanel surveyId={surveyId} />

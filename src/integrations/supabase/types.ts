@@ -1596,33 +1596,92 @@ export type Database = {
         }
         Relationships: []
       }
+      survey_answer_audit: {
+        Row: {
+          answer_id: string
+          change_reason: string
+          changed_by: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          new_hash: string | null
+          new_value: Json
+          previous_hash: string | null
+          previous_value: Json
+        }
+        Insert: {
+          answer_id: string
+          change_reason: string
+          changed_by: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          new_hash?: string | null
+          new_value?: Json
+          previous_hash?: string | null
+          previous_value?: Json
+        }
+        Update: {
+          answer_id?: string
+          change_reason?: string
+          changed_by?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          new_hash?: string | null
+          new_value?: Json
+          previous_hash?: string | null
+          previous_value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_answer_audit_answer_id_fkey"
+            columns: ["answer_id"]
+            isOneToOne: false
+            referencedRelation: "survey_answers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       survey_answers: {
         Row: {
           answer_choices: Json
           answer_numeric: number | null
           answer_text: string | null
           id: string
+          integrity_hash: string | null
+          last_modified_at: string | null
+          last_modified_by: string | null
           matrix_answers: Json
           question_id: string
           response_id: string
+          version: number
         }
         Insert: {
           answer_choices?: Json
           answer_numeric?: number | null
           answer_text?: string | null
           id?: string
+          integrity_hash?: string | null
+          last_modified_at?: string | null
+          last_modified_by?: string | null
           matrix_answers?: Json
           question_id: string
           response_id: string
+          version?: number
         }
         Update: {
           answer_choices?: Json
           answer_numeric?: number | null
           answer_text?: string | null
           id?: string
+          integrity_hash?: string | null
+          last_modified_at?: string | null
+          last_modified_by?: string | null
           matrix_answers?: Json
           question_id?: string
           response_id?: string
+          version?: number
         }
         Relationships: [
           {
@@ -1900,6 +1959,7 @@ export type Database = {
           ip_address: string | null
           metadata: Json
           respondent_id: string | null
+          response_hash: string | null
           started_at: string
           status: string
           survey_id: string
@@ -1913,6 +1973,7 @@ export type Database = {
           ip_address?: string | null
           metadata?: Json
           respondent_id?: string | null
+          response_hash?: string | null
           started_at?: string
           status?: string
           survey_id: string
@@ -1926,6 +1987,7 @@ export type Database = {
           ip_address?: string | null
           metadata?: Json
           respondent_id?: string | null
+          response_hash?: string | null
           started_at?: string
           status?: string
           survey_id?: string

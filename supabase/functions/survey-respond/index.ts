@@ -6,6 +6,14 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function hashData(data: object): Promise<string> {
+  const encoded = new TextEncoder().encode(JSON.stringify(data));
+  const buffer = await crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -62,7 +70,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create response
+    // Create response (response_hash will be set after answers are inserted)
     const { data: response, error: resErr } = await supabase
       .from("survey_responses")
       .insert({
@@ -86,17 +94,34 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Insert answers
-    const answerRows = Object.entries(answers).map(([question_id, answer]: [string, any]) => ({
-      response_id: response.id,
-      question_id,
-      answer_text: typeof answer === "string" ? answer : null,
-      answer_numeric: typeof answer === "number" ? answer : null,
-      answer_choices: Array.isArray(answer) ? answer : typeof answer === "object" && answer !== null ? [] : [],
-      matrix_answers: typeof answer === "object" && !Array.isArray(answer) && answer !== null
-        ? Object.entries(answer).map(([row_id, col_id]) => ({ row_id, column_id: col_id }))
-        : [],
-    }));
+    // Build answer rows with integrity hashes
+    const answerHashes: string[] = [];
+    const answerRows = await Promise.all(
+      Object.entries(answers).map(async ([question_id, answer]: [string, any]) => {
+        const answerData = {
+          answer_text: typeof answer === "string" ? answer : null,
+          answer_numeric: typeof answer === "number" ? answer : null,
+          answer_choices: Array.isArray(answer) ? answer : typeof answer === "object" && answer !== null ? [] : [],
+          matrix_answers: typeof answer === "object" && !Array.isArray(answer) && answer !== null
+            ? Object.entries(answer).map(([row_id, col_id]) => ({ row_id, column_id: col_id }))
+            : [],
+        };
+
+        // Generate SHA-256 hash of the answer content
+        const hashPayload = { question_id, ...answerData };
+        const integrity_hash = await hashData(hashPayload);
+        answerHashes.push(integrity_hash);
+
+        return {
+          response_id: response.id,
+          question_id,
+          ...answerData,
+          integrity_hash,
+          version: 1,
+          last_modified_at: new Date().toISOString(),
+        };
+      })
+    );
 
     if (answerRows.length > 0) {
       const { error: ansErr } = await supabase.from("survey_answers").insert(answerRows);
@@ -104,6 +129,16 @@ Deno.serve(async (req: Request) => {
         console.error("Failed to insert answers:", ansErr);
       }
     }
+
+    // Calculate chained response hash from all answer hashes
+    const sortedHashes = answerHashes.sort();
+    const responseHash = await hashData({ hashes: sortedHashes });
+
+    // Update the response with the chained hash
+    await supabase
+      .from("survey_responses")
+      .update({ response_hash: responseHash })
+      .eq("id", response.id);
 
     return new Response(
       JSON.stringify({ success: true, response_id: response.id }),
