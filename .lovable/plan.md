@@ -1,180 +1,131 @@
 
 
-# Survey Module (ScholarAI Surveys) -- Implementation Plan
+# Plano: Sistema de Integridade e Rastreabilidade de Dados nos Formulários de Pesquisa
 
-## Overview
+## Problema
+Atualmente, as respostas dos surveys (`survey_answers`) são imutáveis na prática (sem UPDATE policy), mas não existe:
+- Hash criptográfico para provar que um dado não foi adulterado
+- Histórico de versões caso uma resposta precise ser editada (ex: correção de erro de digitação pelo pesquisador)
+- Trilha de auditoria granular vinculada a cada resposta individual
+- Selo de integridade verificável para exportação e auditoria ética (CEP/CONEP)
 
-A new Qualtrics-inspired survey/data collection module integrated into ScholarAI, designed for academic research. Surveys created here can export collected responses directly into DataMind for analysis.
-
-## Why This Is Competitive
-
-- **Deep academic integration**: Surveys link directly to DataMind analysis pipelines, eliminating the export-import cycle researchers face with Qualtrics + SPSS/R.
-- **AI-powered question generation**: Leverage existing AI infrastructure to suggest questions based on research objectives.
-- **Built-in statistical summaries**: Mean, SD, CI displayed inline in reports -- no external tools needed.
-- **Bilingual (PT/EN)** out of the box.
-- **Workspace collaboration**: Team members can co-edit surveys via existing workspace infrastructure.
-
----
-
-## Database Schema (New Tables)
+## Arquitetura
 
 ```text
-surveys
-├── id, user_id, workspace_id?, title, description, status (draft/active/closed)
-├── settings (jsonb: randomization, progress_bar, back_button, etc.)
-├── created_at, updated_at, published_at, closed_at
-
-survey_blocks
-├── id, survey_id, title, description, block_order
-├── randomize_questions (bool), settings (jsonb)
-
-survey_questions
-├── id, block_id, survey_id, question_type, question_text, description
-├── question_order, is_required, validation_rules (jsonb)
-├── choices (jsonb: [{id, text, value, order}])
-├── matrix_rows (jsonb), matrix_columns (jsonb)
-├── settings (jsonb: randomize_choices, slider_min/max, etc.)
-
-survey_logic_rules
-├── id, survey_id, source_question_id?, source_block_id?
-├── condition (jsonb: {field, operator, value})
-├── action (show_block/hide_question/skip_to/end_survey)
-├── target_id (uuid), rule_order
-
-survey_contacts
-├── id, survey_id, user_id, first_name, last_name, email
-├── institution, custom_fields (jsonb), status (not_sent/sent/responded)
-
-survey_distributions
-├── id, survey_id, type (anonymous_link/email), anonymous_token
-├── email_subject, email_body, scheduled_at, sent_at
-
-survey_responses
-├── id, survey_id, respondent_id?, contact_id?
-├── started_at, completed_at, status (in_progress/complete/disqualified)
-├── ip_address, user_agent, duration_seconds
-├── metadata (jsonb: embedded_data, geo, etc.)
-
-survey_answers
-├── id, response_id, question_id
-├── answer_text, answer_numeric, answer_choices (jsonb)
-├── matrix_answers (jsonb: [{row_id, column_id}])
+┌─────────────────────────────────────────────────┐
+│  Resposta submetida (survey-respond)            │
+│                                                 │
+│  1. Gera hash SHA-256 de cada answer            │
+│  2. Gera hash do response completo (chain)      │
+│  3. Salva hash + timestamp no registro          │
+└──────────────┬──────────────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────────────┐
+│  Pesquisador edita uma resposta (UI)            │
+│                                                 │
+│  1. Copia valor anterior p/ survey_answer_audit │
+│  2. Atualiza o valor + gera novo hash           │
+│  3. Registra na study_audit_log                 │
+│  4. Mantém cadeia de hashes verificável         │
+└─────────────────────────────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────────────┐
+│  Verificação de integridade (UI)                │
+│                                                 │
+│  Recalcula hashes e compara com armazenados     │
+│  Exibe status: ✅ Íntegro | ❌ Violação         │
+└─────────────────────────────────────────────────┘
 ```
 
-RLS: All tables scoped to `user_id = auth.uid()`. Public survey responses allow anonymous insert via edge function (no JWT). Workspace-shared surveys use existing `is_workspace_member()`.
+## Implementação
 
----
+### 1. Migração de banco de dados
 
-## File & Component Structure
+**Nova tabela `survey_answer_audit`** -- histórico de alterações:
+- `id`, `answer_id` (FK), `previous_value` (jsonb), `new_value` (jsonb), `previous_hash`, `new_hash`, `changed_by` (uuid), `change_reason` (text), `ip_address`, `created_at`
+- RLS: apenas o dono do survey pode ler/inserir
 
-```text
-src/pages/
-├── Surveys.tsx                    (project list / dashboard)
-├── SurveyBuilder.tsx              (3-pane builder)
-├── SurveyFlow.tsx                 (visual logic editor)
-├── SurveyDistribution.tsx         (links, email, contacts)
-├── SurveyResults.tsx              (reports + raw data)
-├── SurveyPreview.tsx              (respondent-facing preview)
-├── SurveyRespond.tsx              (public respondent page, no auth)
+**Novas colunas em `survey_answers`**:
+- `integrity_hash` (text) -- SHA-256 do conteúdo da resposta
+- `version` (integer, default 1)
+- `last_modified_at` (timestamptz)
+- `last_modified_by` (uuid)
 
-src/components/survey/
-├── SurveyProjectList.tsx          (data table with status, responses, sparklines)
-├── builder/
-│   ├── BlockSidebar.tsx           (left pane: block navigation, drag-reorder)
-│   ├── QuestionCanvas.tsx         (center: inline WYSIWYG editing)
-│   ├── QuestionContextPanel.tsx   (right: type, validation, randomization)
-│   ├── QuestionRenderer.tsx       (renders each question type)
-│   ├── question-types/
-│   │   ├── MultipleChoice.tsx
-│   │   ├── TextEntry.tsx
-│   │   ├── MatrixTable.tsx
-│   │   ├── SliderQuestion.tsx
-│   │   ├── RankOrder.tsx
-│   │   └── ConstantSum.tsx
-├── flow/
-│   ├── FlowCanvas.tsx             (visual nested-list / node-based flow)
-│   ├── ConditionBuilder.tsx       (dropdown rule rows)
-│   └── LogicBadge.tsx             (GitBranch icon on questions with logic)
-├── distribution/
-│   ├── AnonymousLinkTab.tsx       (URL + QR code + copy)
-│   ├── EmailComposerTab.tsx       (rich text + piped text insertion)
-│   └── ContactListTab.tsx         (data table + CSV upload)
-├── results/
-│   ├── ReportsDashboard.tsx       (Recharts widgets grid)
-│   ├── ResponseDataGrid.tsx       (raw data table, variable name toggle)
-│   ├── StatsSummary.tsx           (mean, SD, n calculations)
-│   └── ExportEngine.tsx           (CSV, TSV, XLSX export)
-├── respond/
-│   ├── RespondentForm.tsx         (public form with logic evaluation)
-│   └── ProgressIndicator.tsx
+**Nova coluna em `survey_responses`**:
+- `response_hash` (text) -- SHA-256 encadeado de todos os answer hashes
 
-src/hooks/
-├── useSurveyStore.ts              (Zustand store for survey builder state)
+**Adicionar UPDATE policy em `survey_answers`** -- apenas o dono do survey pode editar, e somente via backend.
 
-supabase/functions/
-├── survey-respond/index.ts        (anonymous response submission, verify_jwt=false)
-├── survey-export-datamind/index.ts (push responses into DataMind conversation)
+### 2. Backend: Hash na submissão (`survey-respond`)
+**Arquivo:** `supabase/functions/survey-respond/index.ts`
+
+- Ao inserir cada answer, calcular `SHA-256(question_id + answer_text + answer_numeric + answer_choices + matrix_answers)` e salvar como `integrity_hash`
+- Após inserir todas as answers, calcular hash encadeado: `SHA-256(hash1 + hash2 + ... + hashN)` e salvar como `response_hash` no `survey_responses`
+
+### 3. Backend: Edge function para edição auditada
+**Arquivo:** `supabase/functions/survey-edit-answer/index.ts`
+
+Nova edge function que:
+1. Valida JWT do pesquisador (dono do survey)
+2. Busca o answer atual e salva snapshot na `survey_answer_audit`
+3. Atualiza o valor + incrementa `version` + recalcula `integrity_hash`
+4. Recalcula o `response_hash` do response pai
+5. Registra na `study_audit_log` (ação `answer_modified`)
+
+### 4. Backend: Verificação de integridade
+**Arquivo:** `supabase/functions/survey-verify-integrity/index.ts`
+
+Nova edge function que:
+1. Recebe `response_id`
+2. Recalcula todos os hashes a partir dos dados atuais
+3. Compara com os hashes armazenados
+4. Retorna status por answer + status global
+
+### 5. Frontend: Painel de integridade
+**Arquivo:** `src/components/survey/results/DataIntegrityPanel.tsx`
+
+Novo componente que exibe:
+- Status de integridade por resposta (verde/vermelho)
+- Botão "Verificar integridade" que chama a edge function
+- Histórico de alterações por answer (lido de `survey_answer_audit`)
+- Contador de versão de cada answer
+- Badge no `ResponseDataGrid` indicando se a resposta foi editada
+
+### 6. Frontend: Edição auditada no grid
+**Arquivo:** `src/components/survey/results/ResponseDataGrid.tsx`
+
+- Adicionar botão de edição em cada célula do grid (ícone lápis)
+- Dialog de edição que exige `change_reason` (obrigatório)
+- Indicador visual de células editadas (borda colorida + tooltip com versão)
+
+### 7. Atualizar AuditLogPanel
+**Arquivo:** `src/components/survey/results/AuditLogPanel.tsx`
+
+- Adicionar action labels para `answer_modified`, `integrity_verified`, `integrity_violation`
+- Exibir detalhes do campo alterado (pergunta, valor anterior, valor novo)
+
+## Detalhes técnicos
+
+**Geração de hash** (no Deno edge function):
+```typescript
+async function hashAnswer(data: object): Promise<string> {
+  const encoded = new TextEncoder().encode(JSON.stringify(data));
+  const buffer = await crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 ```
 
----
+**Imutabilidade**: A coluna `integrity_hash` só pode ser alterada pela edge function `survey-edit-answer` (via service_role). O UPDATE policy de `survey_answers` será restrito a `auth.role() = 'service_role'`.
 
-## Implementation Phases
-
-### Phase 1: Foundation (Database + Routing + Project List)
-- Create all database tables with RLS policies via migration tool
-- Add routes: `/surveys`, `/surveys/:id/build`, `/surveys/:id/flow`, `/surveys/:id/distribute`, `/surveys/:id/results`, `/survey/respond/:token`
-- Add "Surveys" nav link in AppSidebar (ClipboardList icon)
-- Build `SurveyProjectList` with status badges, response counts, sparkline trends, search/filter, "Create Survey" button
-
-### Phase 2: Survey Builder (Core Engine)
-- Implement Zustand store (`useSurveyStore`) managing the nested survey object (blocks → questions → choices/matrix)
-- Build 3-pane layout: BlockSidebar | QuestionCanvas | QuestionContextPanel
-- Implement all 6 question types with inline editing
-- Drag-and-drop reordering for blocks and questions
-- Auto-save to Supabase on changes (debounced)
-
-### Phase 3: Logic Engine & Survey Flow
-- Build ConditionBuilder component (question selector → operator → value → action)
-- Visual flow editor showing block sequence with branch indicators
-- Extend Zustand store with `logicRules` array
-- Preview mode that evaluates logic rules in real-time
-- GitBranch badges on questions with active logic
-
-### Phase 4: Distribution Module
-- Anonymous link generation with unique token + QR code (via canvas/SVG)
-- Email composer with piped text insertion (`{{Contact.FirstName}}`, etc.)
-- Contact list management table with CSV upload
-- Schedule send UI (mock for now, real via edge function later)
-- `survey-respond` edge function for anonymous submissions (no JWT)
-
-### Phase 5: Data & Analysis + DataMind Integration
-- Reports dashboard with Recharts: bar charts, donut charts, stacked bars for Likert
-- Statistical calculations: mean, SD, confidence intervals
-- Raw data grid with question text / variable name toggle
-- Export engine: CSV, TSV, XLSX (using existing xlsx dependency)
-- **DataMind integration**: "Analyze in DataMind" button that creates a new DataMind conversation with survey responses auto-loaded as a CSV file in the `datamind-files` bucket, enabling immediate analysis
-
-### Phase 6: Respondent-Facing Form
-- Public page at `/survey/respond/:token` (no auth required)
-- Progress bar, one-block-at-a-time or all-at-once modes
-- Logic evaluation engine to show/hide questions dynamically
-- Mobile-responsive form design
-- Submission via `survey-respond` edge function
-
----
-
-## DataMind Integration Detail
-
-The key differentiator: a single click from Survey Results exports all responses as a structured CSV into DataMind. The `survey-export-datamind` edge function:
-1. Queries `survey_answers` joined with `survey_questions` for headers
-2. Generates CSV with proper variable names
-3. Uploads to `datamind-files` bucket
-4. Creates a new `datamind_conversations` entry with an initial system message referencing the file
-5. Redirects user to `/datamind/:newConversationId`
-
----
-
-## Design System
-
-Consistent with existing ScholarAI design: white backgrounds, `bg-muted/50` panels, primary blue accents, shadcn/ui components throughout. The builder uses `ResizablePanelGroup` for the 3-pane layout (already in the project). Question cards use the existing `Card` component with subtle borders.
+## Arquivos editados/criados
+1. Nova migração SQL (tabela `survey_answer_audit`, colunas em `survey_answers` e `survey_responses`)
+2. `supabase/functions/survey-respond/index.ts` -- hash na submissão
+3. `supabase/functions/survey-edit-answer/index.ts` -- novo
+4. `supabase/functions/survey-verify-integrity/index.ts` -- novo
+5. `src/components/survey/results/DataIntegrityPanel.tsx` -- novo
+6. `src/components/survey/results/ResponseDataGrid.tsx` -- edição auditada
+7. `src/components/survey/results/AuditLogPanel.tsx` -- novos labels
+8. `src/components/survey/results/SurveyResultsPanel.tsx` -- integrar aba de integridade
 
