@@ -2,6 +2,7 @@ import {
   Search, Table, FileText, ClipboardCheck, ShieldCheck, Palette,
   BrainCircuit, Network, GitBranch, Filter, FlaskConical, BookOpen,
   ClipboardList, Shield, UserX, FileSignature, UsersRound, Rocket,
+  GraduationCap, PenTool, Activity, Microscope, Hash,
 } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import AnimatedSection from "./AnimatedSection";
@@ -25,7 +26,7 @@ const FeaturesSection = () => {
       desc: pt
         ? "Construtor visual de queries com AND/OR/NOT, termos MeSH e tradução automática para PubMed/Scopus. Estratégia de busca exportável."
         : "Visual query builder with AND/OR/NOT, MeSH terms, and automatic translation to PubMed/Scopus syntax. Exportable search strategy.",
-      badge: "NEW",
+      badge: null,
     },
     {
       icon: ClipboardCheck,
@@ -41,7 +42,7 @@ const FeaturesSection = () => {
       desc: pt
         ? "Após ~20 triagens manuais, a IA aprende seus padrões e re-ranqueia os restantes por probabilidade de inclusão. Reduz esforço em até 95%."
         : "After ~20 manual screenings, AI learns your patterns and re-ranks remaining papers by inclusion probability. Reduces effort by up to 95%.",
-      badge: "NEW",
+      badge: null,
     },
     {
       icon: FlaskConical,
@@ -49,7 +50,7 @@ const FeaturesSection = () => {
       desc: pt
         ? "Checklists padronizados (CASP, Newcastle-Ottawa, Jadad, ROBINS-I) com avaliação automática por IA e override manual por domínio."
         : "Standardized checklists (CASP, Newcastle-Ottawa, Jadad, ROBINS-I) with automatic AI assessment and manual domain-level override.",
-      badge: "NEW",
+      badge: null,
     },
     {
       icon: Table,
@@ -58,6 +59,22 @@ const FeaturesSection = () => {
         ? "IA extrai dados de cada artigo com prompts customizados — amostra, metodologia, resultados — em colunas comparativas com cache inteligente."
         : "AI extracts data from each paper with custom prompts — sample size, methodology, results — in comparative columns with smart caching.",
       badge: null,
+    },
+    {
+      icon: PenTool,
+      title: pt ? "Assistente de Escrita Científica" : "Scientific Writing Assistant",
+      desc: pt
+        ? "Editor de 3 painéis com fontes da Library, DataMind e PDFs. Gera rascunhos, reformula, verifica consistência e insere citações em APA, Vancouver e ABNT."
+        : "3-panel editor with Library, DataMind and PDF sources. Generates drafts, rephrases, checks consistency and inserts citations in APA, Vancouver and ABNT.",
+      badge: null,
+    },
+    {
+      icon: GraduationCap,
+      title: pt ? "Consultor CAPES APC" : "CAPES APC Advisor",
+      desc: pt
+        ? "IA identifica periódicos com APC paga pela CAPES (7 editoras), orienta submissão, formata o artigo e fornece links da Portaria 120/2024."
+        : "AI identifies journals with CAPES-paid APC (7 publishers), guides submission, formats the article and provides Portaria 120/2024 links.",
+      badge: "NEW",
     },
     {
       icon: FileText,
@@ -76,12 +93,28 @@ const FeaturesSection = () => {
       badge: null,
     },
     {
+      icon: Activity,
+      title: "DataSUS",
+      desc: pt
+        ? "Consulta a dados epidemiológicos brasileiros (SIM, SINASC, SINAN) com IA. Gera análises, boletins e alertas epidemiológicos automáticos."
+        : "Query Brazilian epidemiological data (SIM, SINASC, SINAN) with AI. Generate analyses, bulletins and automatic epidemiological alerts.",
+      badge: "NEW",
+    },
+    {
       icon: Network,
       title: pt ? "Grafo de Conhecimento" : "Knowledge Graph",
       desc: pt
         ? "Mapa visual interativo das conexões entre artigos, autores e conceitos. Explore a rede de citações e descubra gaps na literatura."
         : "Interactive visual map of connections between papers, authors, and concepts. Explore citation networks and discover literature gaps.",
       badge: null,
+    },
+    {
+      icon: Microscope,
+      title: pt ? "Gaps de Pesquisa" : "Research Gaps",
+      desc: pt
+        ? "IA analisa a literatura e identifica lacunas, contradições e oportunidades de pesquisa não exploradas na sua área."
+        : "AI analyzes the literature and identifies gaps, contradictions and unexplored research opportunities in your field.",
+      badge: "NEW",
     },
     {
       icon: ShieldCheck,
@@ -116,12 +149,20 @@ const FeaturesSection = () => {
       badge: null,
     },
     {
+      icon: Hash,
+      title: pt ? "Integridade de Dados" : "Data Integrity",
+      desc: pt
+        ? "Hash SHA-256 por resposta, versionamento de edições auditadas, verificação de integridade e cadeia de hashes criptográficos para conformidade CEP."
+        : "SHA-256 hash per response, audited edit versioning, integrity verification and cryptographic hash chain for ethics compliance.",
+      badge: "NEW",
+    },
+    {
       icon: FileSignature,
       title: pt ? "TCLE & Pesquisa Clínica" : "Consent & Clinical Research",
       desc: pt
         ? "Consentimento digital com assinatura, eCRF longitudinal com visitas (T0, T1...), validação clínica em tempo real e geração de PDF com hash de integridade."
         : "Digital consent with signature, longitudinal eCRF with visits (T0, T1...), real-time clinical validation, and PDF generation with integrity hash.",
-      badge: "NEW",
+      badge: null,
     },
     {
       icon: Shield,
@@ -129,7 +170,7 @@ const FeaturesSection = () => {
       desc: pt
         ? "Trilha de auditoria GCP/ICH, captura de IP server-side, versionamento de TCLE, revogação de consentimento e envio automático de cópia ao participante."
         : "GCP/ICH audit trail, server-side IP capture, consent versioning, consent revocation, and automatic copy delivery to participants.",
-      badge: "NEW",
+      badge: null,
     },
     {
       icon: UserX,
@@ -137,7 +178,7 @@ const FeaturesSection = () => {
       desc: pt
         ? "Exclusão de dados pessoais (LGPD Art. 18) com preservação de dados estatísticos anônimos e registro completo na trilha de auditoria."
         : "Personal data deletion (LGPD Art. 18) with anonymous statistical data preservation and full audit trail logging.",
-      badge: "NEW",
+      badge: null,
     },
     {
       icon: UsersRound,
@@ -145,7 +186,7 @@ const FeaturesSection = () => {
       desc: pt
         ? "Adicione coordenadores, pesquisadores colaboradores e estudantes (graduação/pós) à equipe do estudo. Membros acessam formulários e dados de coleta."
         : "Add coordinators, collaborators, and students (undergrad/grad) to your study team. Members access forms and data collection.",
-      badge: "NEW",
+      badge: null,
     },
     {
       icon: Rocket,
@@ -153,7 +194,7 @@ const FeaturesSection = () => {
       desc: pt
         ? "Sistema de changelog e roadmap integrado. Acompanhe funcionalidades lançadas, planejadas e ideias futuras em tempo real."
         : "Integrated changelog and roadmap system. Track released features, planned items, and future ideas in real time.",
-      badge: "NEW",
+      badge: null,
     },
   ];
 
@@ -167,8 +208,8 @@ const FeaturesSection = () => {
             </h2>
             <p className="mx-auto max-w-2xl text-muted-foreground">
               {pt
-                ? "18 ferramentas integradas de IA cobrindo cada etapa da pesquisa acadêmica e clínica — da busca à publicação, com conformidade CEP/LGPD."
-                : "18 integrated AI tools covering every stage of academic and clinical research — from search to publication, with CEP/LGPD compliance."}
+                ? "23 ferramentas integradas de IA cobrindo cada etapa da pesquisa acadêmica e clínica — da busca à publicação, com conformidade CEP/LGPD."
+                : "23 integrated AI tools covering every stage of academic and clinical research — from search to publication, with CEP/LGPD compliance."}
             </p>
           </div>
         </AnimatedSection>
