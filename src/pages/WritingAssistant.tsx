@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import CAPESAdvisorPanel from "@/components/app/CAPESAdvisorPanel";
 import { supabase } from "@/integrations/supabase/client";
 
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ import { toast } from "sonner";
 import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
   FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
-  Upload, File, X,
+  Upload, File, X, GraduationCap,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -95,6 +96,7 @@ const WritingAssistant = () => {
 
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const [capesOpen, setCapesOpen] = useState(false);
 
   // Load papers from saved searches (grouped)
   useEffect(() => {
@@ -821,6 +823,18 @@ const WritingAssistant = () => {
               <Quote className="h-3 w-3" />
               {pt ? "Citações" : "Citations"}
             </Button>
+
+            <Separator orientation="vertical" className="h-6" />
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+              onClick={() => setCapesOpen(true)}
+            >
+              <GraduationCap className="h-3 w-3" />
+              CAPES APC
+            </Button>
           </div>
 
           {/* Instructions bar */}
@@ -895,6 +909,14 @@ const WritingAssistant = () => {
             </div>
           </div>
         </div>
+        <CAPESAdvisorPanel
+          open={capesOpen}
+          onOpenChange={setCapesOpen}
+          editorContent={editorContent}
+          onFormatArticle={(publisher) => {
+            streamAI("format_for_journal", `Format this article according to ${publisher} submission guidelines. Publisher: ${publisher}`);
+          }}
+        />
       </div>
   );
 };
