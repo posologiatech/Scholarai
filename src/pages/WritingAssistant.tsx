@@ -975,10 +975,48 @@ const WritingAssistant = () => {
                   : "Start writing your paper here or use the buttons above to generate content with AI..."}
                 className="flex-1 resize-none border-0 rounded-none focus-visible:ring-0 text-sm leading-relaxed p-4 font-serif"
               />
-              <div className="px-4 py-1.5 border-t border-border/40 bg-muted/20 flex justify-between text-xs text-muted-foreground">
-                <span>{editorContent.split(/\s+/).filter(Boolean).length} {pt ? "palavras" : "words"}</span>
-                <span>{editorContent.length} {pt ? "caracteres" : "characters"}</span>
-              </div>
+              {(() => {
+                const metrics = qualityMetrics();
+                return (
+                  <div className="px-4 py-1.5 border-t border-border/40 bg-muted/20 flex items-center gap-4 text-xs text-muted-foreground">
+                    <span>{editorContent.split(/\s+/).filter(Boolean).length} {pt ? "palavras" : "words"}</span>
+                    {metrics && (
+                      <>
+                        <Separator orientation="vertical" className="h-3" />
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={`flex items-center gap-1 ${Number(metrics.citationRatio) < 20 && metrics.wordCount > 100 ? "text-amber-500" : ""}`}>
+                                <Quote className="h-2.5 w-2.5" />
+                                {metrics.citations} ({metrics.citationRatio}%)
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent><p className="text-xs">{pt ? "Citações por frase" : "Citations per sentence"}</p></TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={`flex items-center gap-1 ${Number(metrics.hedgingPer1000) < 3 && metrics.wordCount > 100 ? "text-amber-500" : ""}`}>
+                                <Eye className="h-2.5 w-2.5" />
+                                {metrics.hedgingPer1000}‰
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent><p className="text-xs">{pt ? "Hedging por 1000 palavras (ideal: >5)" : "Hedging per 1000 words (ideal: >5)"}</p></TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex items-center gap-1">
+                                TTR {metrics.ttr}%
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent><p className="text-xs">{pt ? "Variedade vocabular (Type-Token Ratio)" : "Vocabulary variety (Type-Token Ratio)"}</p></TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </>
+                    )}
+                    <span className="ml-auto">{editorContent.length} {pt ? "caracteres" : "characters"}</span>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Right panel: AI Output or CAPES Advisor */}
