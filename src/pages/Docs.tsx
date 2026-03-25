@@ -9,7 +9,7 @@ import {
   Database, PenTool, Filter, Network, AlertTriangle, BookMarked, FlaskConical,
   MessageSquare, Share2, LayoutDashboard, Workflow, ClipboardCheck, FileSearch,
   ClipboardList, QrCode, GripVertical, Wand2, Shield, FileSignature, UserX,
-  Stethoscope, Server, Code, Lock, Cpu, HardDrive, Key, Blocks,
+  Stethoscope, Server, Code, Lock, Cpu, HardDrive, Key, Blocks, Rocket,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
