@@ -18,8 +18,10 @@ import { toast } from "sonner";
 import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
   FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
-  Upload, File, X, GraduationCap,
+  Upload, File, X, GraduationCap, Eye, MessageSquareWarning, Sigma, Star,
+  AlertTriangle,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Paper {
@@ -456,10 +458,62 @@ const WritingAssistant = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Citation validation before insert
+  const validateCitationsInOutput = useCallback((text: string): { valid: boolean; invalidIds: number[]; totalCitations: number } => {
+    const citationPattern = /\[(\d+)\]/g;
+    let match;
+    const invalidIds: number[] = [];
+    let totalCitations = 0;
+    const maxValid = selectedPapers.length;
+    while ((match = citationPattern.exec(text)) !== null) {
+      totalCitations++;
+      const id = parseInt(match[1]);
+      if (id < 1 || id > maxValid) invalidIds.push(id);
+    }
+    return { valid: invalidIds.length === 0, invalidIds: [...new Set(invalidIds)], totalCitations };
+  }, [selectedPapers.length]);
+
   const handleInsertInEditor = () => {
-    setEditorContent(prev => prev + (prev ? "\n\n" : "") + aiOutput);
-    toast.success(pt ? "Texto inserido no editor" : "Text inserted in editor");
+    const validation = validateCitationsInOutput(aiOutput);
+    if (!validation.valid) {
+      const cleaned = aiOutput.replace(/\[\??\d*\]/g, (match) => {
+        const num = parseInt(match.replace(/[\[\]?]/g, ""));
+        return (num < 1 || num > selectedPapers.length) ? "[?]" : match;
+      });
+      toast.warning(
+        pt
+          ? `⚠️ ${validation.invalidIds.length} citação(ões) suspeita(s) detectada(s) e marcada(s) com [?]. Verifique antes de submeter.`
+          : `⚠️ ${validation.invalidIds.length} suspicious citation(s) detected and marked with [?]. Please verify before submitting.`,
+        { duration: 6000 }
+      );
+      setEditorContent(prev => prev + (prev ? "\n\n" : "") + cleaned);
+    } else {
+      setEditorContent(prev => prev + (prev ? "\n\n" : "") + aiOutput);
+      toast.success(pt ? "Texto inserido no editor" : "Text inserted in editor");
+    }
   };
+
+  // Quality metrics calculation
+  const qualityMetrics = useCallback(() => {
+    if (!editorContent.trim()) return null;
+    const words = editorContent.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+    const citations = (editorContent.match(/\[\d+\]/g) || []).length;
+    const sentences = editorContent.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
+    const citationRatio = sentences > 0 ? (citations / sentences * 100).toFixed(0) : "0";
+
+    const hedgingWords = ["suggests", "indicates", "appears", "may", "might", "could", "possibly", "likely",
+      "sugere", "indica", "parece", "pode", "possivelmente", "provavelmente"];
+    const hedgingCount = hedgingWords.reduce((acc, w) =>
+      acc + (editorContent.toLowerCase().match(new RegExp(`\\b${w}\\b`, "g")) || []).length, 0
+    );
+    const hedgingPer1000 = wordCount > 0 ? (hedgingCount / wordCount * 1000).toFixed(1) : "0";
+
+    const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[^a-záàãâéêíóôõúç]/gi, "")));
+    const ttr = wordCount > 0 ? (uniqueWords.size / wordCount * 100).toFixed(0) : "0";
+
+    return { wordCount, citations, citationRatio, hedgingCount, hedgingPer1000, ttr };
+  }, [editorContent]);
 
   const formatAuthors = (authors: any) => {
     if (!authors) return "Unknown";
@@ -717,7 +771,7 @@ const WritingAssistant = () => {
         {/* Main editor area */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Toolbar */}
-          <div className="border-b border-border/40 bg-background px-4 py-2 flex items-center gap-3 flex-wrap">
+          <div className="border-b border-border/40 bg-background px-4 py-2 flex items-center gap-2 flex-wrap">
             <Select value={selectedSection} onValueChange={setSelectedSection}>
               <SelectTrigger className="w-40 h-8 text-xs">
                 <SelectValue />
@@ -732,7 +786,7 @@ const WritingAssistant = () => {
             </Select>
 
             <Select value={citationStyle} onValueChange={setCitationStyle}>
-              <SelectTrigger className="w-32 h-8 text-xs">
+              <SelectTrigger className="w-28 h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -746,17 +800,17 @@ const WritingAssistant = () => {
 
             {/* Selected sources summary */}
             {(selectedPapers.length > 0 || selectedPDFs.length > 0 || selectedAnalyses.length > 0) && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 {selectedPapers.length > 0 && (
                   <Badge variant="secondary" className="text-[10px]">
                     <FileText className="h-2.5 w-2.5 mr-0.5" />
-                    {selectedPapers.length} papers
+                    {selectedPapers.length}
                   </Badge>
                 )}
                 {selectedPDFs.length > 0 && (
                   <Badge variant="secondary" className="text-[10px]">
                     <File className="h-2.5 w-2.5 mr-0.5" />
-                    {selectedPDFs.length} PDFs
+                    {selectedPDFs.length}
                   </Badge>
                 )}
                 {selectedAnalyses.length > 0 && (
@@ -769,67 +823,120 @@ const WritingAssistant = () => {
               </div>
             )}
 
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1"
-              disabled={isGenerating}
-              onClick={() => streamAI("draft_section", instructions)}
-            >
-              <Sparkles className="h-3 w-3" />
-              {pt ? "Gerar Rascunho" : "Generate Draft"}
-            </Button>
+            {/* Group 1: Writing */}
+            <TooltipProvider delayDuration={300}>
+              <div className="flex items-center gap-1 bg-muted/40 rounded-md px-1.5 py-0.5">
+                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mr-0.5">
+                  {pt ? "Escrita" : "Write"}
+                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating}
+                      onClick={() => streamAI("draft_section", instructions)}>
+                      <Sparkles className="h-3 w-3" />
+                      {pt ? "Gerar" : "Draft"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Gerar rascunho da seção com citações" : "Generate section draft with citations"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("continue_writing")}>
+                      <ArrowRight className="h-3 w-3" />
+                      {pt ? "Continuar" : "Continue"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Continuar escrevendo de onde parou" : "Continue writing from where you left off"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating}
+                      onClick={() => streamAI("insert_citation")}>
+                      <Quote className="h-3 w-3" />
+                      {pt ? "Citar" : "Cite"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Formatar citações dos papers selecionados" : "Format citations from selected papers"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("generate_abstract")}>
+                      <Sigma className="h-3 w-3" />
+                      Abstract
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Gerar abstract estruturado do artigo" : "Generate structured abstract from article"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("generate_highlights")}>
+                      <Star className="h-3 w-3" />
+                      Highlights
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Gerar Key Findings / Highlights" : "Generate Key Findings / Highlights"}</p></TooltipContent>
+                </Tooltip>
+              </div>
+            </TooltipProvider>
 
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1"
-              disabled={isGenerating || !editorContent.trim()}
-              onClick={() => streamAI("continue_writing")}
-            >
-              <ArrowRight className="h-3 w-3" />
-              {pt ? "Continuar" : "Continue"}
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1"
-              disabled={isGenerating || !editorContent.trim()}
-              onClick={() => streamAI("rephrase")}
-            >
-              <RefreshCw className="h-3 w-3" />
-              {pt ? "Reformular" : "Rephrase"}
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1"
-              disabled={isGenerating || !editorContent.trim()}
-              onClick={() => streamAI("check_consistency")}
-            >
-              <ShieldCheck className="h-3 w-3" />
-              {pt ? "Verificar" : "Check"}
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1"
-              disabled={isGenerating}
-              onClick={() => streamAI("insert_citation")}
-            >
-              <Quote className="h-3 w-3" />
-              {pt ? "Citações" : "Citations"}
-            </Button>
+            {/* Group 2: Review */}
+            <TooltipProvider delayDuration={300}>
+              <div className="flex items-center gap-1 bg-muted/40 rounded-md px-1.5 py-0.5">
+                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mr-0.5">
+                  {pt ? "Revisão" : "Review"}
+                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("rephrase")}>
+                      <RefreshCw className="h-3 w-3" />
+                      {pt ? "Reformular" : "Rephrase"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Reformular com qualidade de pesquisador sênior" : "Rephrase with senior researcher quality"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("check_consistency")}>
+                      <ShieldCheck className="h-3 w-3" />
+                      {pt ? "Verificar" : "Check"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Verificar consistência entre claims e evidências" : "Check consistency between claims and evidence"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("peer_review")}>
+                      <MessageSquareWarning className="h-3 w-3" />
+                      Peer Review
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Simular revisão por pares rigorosa" : "Simulate rigorous peer review"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("improve_hedging")}>
+                      <Eye className="h-3 w-3" />
+                      Hedging
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Corrigir linguagem absolutista para hedging científico" : "Fix absolutist language to scientific hedging"}</p></TooltipContent>
+                </Tooltip>
+              </div>
+            </TooltipProvider>
 
             <Separator orientation="vertical" className="h-6" />
 
             <Button
               size="sm"
               variant={activeRightPanel === "capes" ? "default" : "outline"}
-              className={`h-8 text-xs gap-1 ${activeRightPanel === "capes" ? "" : "border-primary/30 text-primary hover:bg-primary/10"}`}
+              className={`h-7 text-xs gap-1 ${activeRightPanel === "capes" ? "" : "border-primary/30 text-primary hover:bg-primary/10"}`}
               onClick={() => setActiveRightPanel(activeRightPanel === "capes" ? "ai" : "capes")}
             >
               <GraduationCap className="h-3 w-3" />
@@ -868,10 +975,48 @@ const WritingAssistant = () => {
                   : "Start writing your paper here or use the buttons above to generate content with AI..."}
                 className="flex-1 resize-none border-0 rounded-none focus-visible:ring-0 text-sm leading-relaxed p-4 font-serif"
               />
-              <div className="px-4 py-1.5 border-t border-border/40 bg-muted/20 flex justify-between text-xs text-muted-foreground">
-                <span>{editorContent.split(/\s+/).filter(Boolean).length} {pt ? "palavras" : "words"}</span>
-                <span>{editorContent.length} {pt ? "caracteres" : "characters"}</span>
-              </div>
+              {(() => {
+                const metrics = qualityMetrics();
+                return (
+                  <div className="px-4 py-1.5 border-t border-border/40 bg-muted/20 flex items-center gap-4 text-xs text-muted-foreground">
+                    <span>{editorContent.split(/\s+/).filter(Boolean).length} {pt ? "palavras" : "words"}</span>
+                    {metrics && (
+                      <>
+                        <Separator orientation="vertical" className="h-3" />
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={`flex items-center gap-1 ${Number(metrics.citationRatio) < 20 && metrics.wordCount > 100 ? "text-amber-500" : ""}`}>
+                                <Quote className="h-2.5 w-2.5" />
+                                {metrics.citations} ({metrics.citationRatio}%)
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent><p className="text-xs">{pt ? "Citações por frase" : "Citations per sentence"}</p></TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={`flex items-center gap-1 ${Number(metrics.hedgingPer1000) < 3 && metrics.wordCount > 100 ? "text-amber-500" : ""}`}>
+                                <Eye className="h-2.5 w-2.5" />
+                                {metrics.hedgingPer1000}‰
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent><p className="text-xs">{pt ? "Hedging por 1000 palavras (ideal: >5)" : "Hedging per 1000 words (ideal: >5)"}</p></TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex items-center gap-1">
+                                TTR {metrics.ttr}%
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent><p className="text-xs">{pt ? "Variedade vocabular (Type-Token Ratio)" : "Vocabulary variety (Type-Token Ratio)"}</p></TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </>
+                    )}
+                    <span className="ml-auto">{editorContent.length} {pt ? "caracteres" : "characters"}</span>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Right panel: AI Output or CAPES Advisor */}
@@ -885,7 +1030,21 @@ const WritingAssistant = () => {
                       {isGenerating && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
                     </p>
                     {aiOutput && !isGenerating && (
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 items-center">
+                        {(() => {
+                          const v = validateCitationsInOutput(aiOutput);
+                          return !v.valid ? (
+                            <Badge variant="destructive" className="text-[9px] h-5 gap-0.5">
+                              <AlertTriangle className="h-2.5 w-2.5" />
+                              {v.invalidIds.length} {pt ? "citação suspeita" : "suspicious"}
+                            </Badge>
+                          ) : v.totalCitations > 0 ? (
+                            <Badge variant="secondary" className="text-[9px] h-5 gap-0.5 bg-green-500/10 text-green-600 border-green-500/20">
+                              <Check className="h-2.5 w-2.5" />
+                              {v.totalCitations} {pt ? "citações válidas" : "valid citations"}
+                            </Badge>
+                          ) : null;
+                        })()}
                         <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={handleCopy}>
                           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                           {copied ? (pt ? "Copiado" : "Copied") : (pt ? "Copiar" : "Copy")}
