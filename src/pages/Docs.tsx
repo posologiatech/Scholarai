@@ -345,16 +345,54 @@ const Docs = () => {
       category: pt ? "Produção" : "Production",
       content: [
         {
-          heading: pt ? "Escrita científica assistida por IA" : "AI-assisted scientific writing",
+          heading: pt ? "Editor de 3 painéis" : "3-panel editor",
           body: pt
-            ? "O Assistente de Escrita ajuda na redação de textos acadêmicos. Cole seu texto e peça para a IA revisar, melhorar a clareza, corrigir gramática, adaptar ao estilo acadêmico ou traduzir entre idiomas. Também suporta upload de PDFs para análise e resumo automático."
-            : "The Writing Assistant helps with academic text writing. Paste your text and ask AI to review, improve clarity, correct grammar, adapt to academic style, or translate between languages. Also supports PDF upload for automatic analysis and summarization.",
+            ? "O Assistente de Escrita Científica oferece um editor de 3 painéis: à esquerda, o painel de Fontes para selecionar papers da Library, análises do DataMind e PDFs próprios enviados pelo pesquisador; no centro, o editor de texto onde você escreve seu artigo; à direita, a saída da IA com o conteúdo gerado. Os papers da Library são organizados hierarquicamente por nome da pesquisa original em seções expansíveis (Collapsibles)."
+            : "The Scientific Writing Assistant offers a 3-panel editor: on the left, the Sources panel to select papers from the Library, DataMind analyses and researcher-uploaded PDFs; in the center, the text editor where you write your article; on the right, the AI output with generated content. Library papers are organized hierarchically by original search name in expandable sections (Collapsibles).",
         },
         {
-          heading: pt ? "Modos de operação" : "Operation modes",
+          heading: pt ? "Ações de IA" : "AI actions",
           body: pt
-            ? "Escolha entre diferentes modos: Revisar (correção gramatical e estilística), Melhorar (reescrita para maior clareza), Resumir (extração de pontos-chave), Traduzir (PT↔EN), Expandir (desenvolvimento de ideias) e Perguntar (Q&A sobre o texto)."
-            : "Choose between modes: Review (grammar and style correction), Improve (rewrite for clarity), Summarize (extract key points), Translate (PT↔EN), Expand (develop ideas), and Ask (Q&A about the text).",
+            ? "O toolbar oferece 5 ações principais com streaming em tempo real:\n• Gerar Rascunho — gera uma seção completa (Introdução, Métodos, Resultados, Discussão, Conclusão ou Resumo) usando os papers e PDFs selecionados como referência\n• Continuar — continua a escrita a partir do ponto onde o autor parou, mantendo o mesmo tom e estilo\n• Reformular — reescreve o texto selecionado para maior clareza e rigor acadêmico\n• Verificar — verifica consistência entre afirmações e evidências citadas, identifica claims sem citação e overgeneralizações\n• Citações — formata referências nos estilos APA 7th, Vancouver ou ABNT"
+            : "The toolbar offers 5 main actions with real-time streaming:\n• Generate Draft — generates a complete section (Introduction, Methods, Results, Discussion, Conclusion or Abstract) using selected papers and PDFs as reference\n• Continue — continues writing from where the author left off, maintaining the same tone and style\n• Rephrase — rewrites selected text for greater clarity and academic rigor\n• Check — verifies consistency between claims and cited evidence, identifies uncited claims and overgeneralizations\n• Citations — formats references in APA 7th, Vancouver or ABNT styles",
+        },
+        {
+          heading: pt ? "Fontes contextuais" : "Contextual sources",
+          body: pt
+            ? "Selecione múltiplas fontes de contexto para enriquecer a escrita:\n• Papers da Library — artigos salvos das suas buscas, agrupados por pesquisa\n• Análises DataMind — resultados estatísticos e insights das suas análises de dados\n• PDFs próprios — documentos PDF enviados pelo pesquisador, com texto extraído automaticamente\nA IA integra dados estatísticos do DataMind naturalmente no texto e cita os papers selecionados no formato escolhido."
+            : "Select multiple context sources to enrich writing:\n• Library Papers — saved papers from your searches, grouped by research\n• DataMind Analyses — statistical results and insights from your data analyses\n• Own PDFs — PDF documents uploaded by the researcher, with automatically extracted text\nAI integrates DataMind statistical data naturally into the text and cites selected papers in the chosen format.",
+          tip: pt
+            ? "Combine papers da Library com análises do DataMind para gerar seções de Resultados e Discussão com citações e estatísticas integradas."
+            : "Combine Library papers with DataMind analyses to generate Results and Discussion sections with integrated citations and statistics.",
+        },
+      ],
+    },
+    {
+      id: "capes-apc",
+      icon: GraduationCap,
+      title: pt ? "Consultor CAPES APC" : "CAPES APC Advisor",
+      category: pt ? "Produção" : "Production",
+      content: [
+        {
+          heading: pt ? "O que é o Consultor CAPES APC" : "What is the CAPES APC Advisor",
+          body: pt
+            ? "O Consultor CAPES APC é integrado ao Assistente de Escrita e ajuda pesquisadores brasileiros a identificar periódicos cujo pagamento de APC (Article Processing Charge) é coberto pelos acordos transformativos da CAPES. A CAPES possui acordos com 7 editoras internacionais: Springer Nature (1.738 periódicos), Elsevier (1.619), ACM, Royal Society Publishing (10), Wiley (ilimitado), IEEE e ACS."
+            : "The CAPES APC Advisor is integrated into the Writing Assistant and helps Brazilian researchers identify journals whose APC (Article Processing Charge) payment is covered by CAPES transformative agreements. CAPES has agreements with 7 international publishers: Springer Nature (1,738 journals), Elsevier (1,619), ACM, Royal Society Publishing (10), Wiley (unlimited), IEEE and ACS.",
+        },
+        {
+          heading: pt ? "Análise e sugestão de periódicos" : "Journal analysis and suggestion",
+          body: pt
+            ? "Clique no botão 'CAPES APC' na toolbar do Assistente de Escrita. A IA analisa o conteúdo do seu artigo e sugere as editoras/periódicos mais compatíveis com o escopo do trabalho, classificando cada uma com score de compatibilidade (alta, média, baixa). Cada sugestão inclui o nome da editora, periódicos específicos recomendados, justificativa e considerações para submissão."
+            : "Click the 'CAPES APC' button in the Writing Assistant toolbar. AI analyzes your article content and suggests the most compatible publishers/journals for your work's scope, classifying each with a compatibility score (high, medium, low). Each suggestion includes the publisher name, specific recommended journals, reasoning and submission considerations.",
+        },
+        {
+          heading: pt ? "Diretrizes de submissão e links" : "Submission guidelines and links",
+          body: pt
+            ? "Ao selecionar uma editora, o sistema apresenta:\n• Links diretos para periódicos elegíveis, guia do autor e instituições elegíveis\n• Link para a Portaria nº 120/2024 (regras de pagamento APC)\n• Link para cadastro de ORCID em meusdados.capes.gov.br\n• Dashboard Power BI com APCs já pagos pela CAPES\n• Diretrizes detalhadas de submissão geradas por IA (processo passo a passo, formatação, documentos necessários, erros comuns)\n• Botão para formatar automaticamente o artigo no padrão da editora escolhida"
+            : "When selecting a publisher, the system shows:\n• Direct links to eligible journals, author guide and eligible institutions\n• Link to Portaria nº 120/2024 (APC payment rules)\n• Link to ORCID registration at meusdados.capes.gov.br\n• Power BI dashboard with APCs already paid by CAPES\n• Detailed AI-generated submission guidelines (step-by-step process, formatting, required documents, common mistakes)\n• Button to automatically format the article to the chosen publisher's standard",
+          tip: pt
+            ? "É obrigatório possuir ORCID válido cadastrado em meusdados.capes.gov.br antes de solicitar pagamento de APC pela CAPES."
+            : "A valid ORCID registered at meusdados.capes.gov.br is mandatory before requesting APC payment from CAPES.",
         },
       ],
     },
