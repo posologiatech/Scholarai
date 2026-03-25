@@ -2060,6 +2060,51 @@ export type Database = {
           },
         ]
       }
+      system_changelog: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          module: string | null
+          priority: string | null
+          released_at: string | null
+          status: string
+          title: string
+          updated_at: string
+          version: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          module?: string | null
+          priority?: string | null
+          released_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          version?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          module?: string | null
+          priority?: string | null
+          released_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          version?: string | null
+        }
+        Relationships: []
+      }
       systematic_reviews: {
         Row: {
           auto_suggestions: boolean
