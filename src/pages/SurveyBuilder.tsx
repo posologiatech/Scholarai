@@ -29,7 +29,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 
-type BuilderView = "build" | "consent" | "visits" | "participants" | "compliance" | "flow" | "distribute" | "results" | "preview";
+type BuilderView = "build" | "consent" | "visits" | "participants" | "compliance" | "team" | "flow" | "distribute" | "results" | "preview";
 
 const getViewFromPath = (pathname: string): BuilderView => {
   if (pathname.endsWith("/consent")) return "consent";
