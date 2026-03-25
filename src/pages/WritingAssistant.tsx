@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import CAPESAdvisorPanel from "@/components/app/CAPESAdvisorPanel";
 import { supabase } from "@/integrations/supabase/client";
 
 import { Button } from "@/components/ui/button";
