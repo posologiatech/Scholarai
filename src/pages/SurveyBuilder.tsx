@@ -36,6 +36,7 @@ const getViewFromPath = (pathname: string): BuilderView => {
   if (pathname.endsWith("/visits")) return "visits";
   if (pathname.endsWith("/participants")) return "participants";
   if (pathname.endsWith("/compliance")) return "compliance";
+  if (pathname.endsWith("/team")) return "team";
   if (pathname.endsWith("/flow")) return "flow";
   if (pathname.endsWith("/distribute")) return "distribute";
   if (pathname.endsWith("/results")) return "results";
