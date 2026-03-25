@@ -1,85 +1,61 @@
 
 
-# CAPES APC Advisor - Writing Assistant Integration
+# Melhorias na Integração do CAPES APC Advisor
 
-## Overview
+## Análise da Implementação Atual
 
-Add a "CAPES APC" feature to the Writing Assistant that helps Brazilian researchers find journals with CAPES-paid APC, get submission guidelines, and format their articles accordingly.
+A funcionalidade CAPES APC está implementada como um **dialog modal** acionado por um botão na toolbar. Isso funciona, mas tem limitações:
 
-## Architecture
+1. O modal desconecta o pesquisador do editor — ele não vê o artigo enquanto navega nas sugestões
+2. O fluxo é linear (3 passos) mas sem indicador visual de progresso
+3. Após formatar, o modal fecha e o resultado vai para o painel "AI Output" genérico, sem destaque
+4. Não há persistência — se fechar o modal, perde tudo
+5. O botão "CAPES APC" na toolbar compete visualmente com ações de escrita (Gerar, Continuar, Reformular)
 
-```text
-┌──────────────────────────────────────────────────────┐
-│  WritingAssistant.tsx                                 │
-│  ┌────────────┐  ┌──────────┐  ┌──────────────────┐ │
-│  │ Sources     │  │ Editor   │  │ AI Output /      │ │
-│  │ Panel       │  │          │  │ CAPES Panel      │ │
-│  └────────────┘  └──────────┘  └──────────────────┘ │
-└──────────────────────────────────────────────────────┘
-         │                              │
-         ▼                              ▼
-┌─────────────────┐         ┌──────────────────────┐
-│ capes-apc-advisor│         │ writing-assist       │
-│ (new edge fn)   │         │ (existing, + format) │
-└─────────────────┘         └──────────────────────┘
-```
+## Melhorias Propostas
 
-## Data: CAPES Agreements Catalog
+### 1. Transformar de Modal para Painel Lateral Dedicado
+Substituir o Dialog por um painel que ocupa o espaço do "AI Output" (lado direito) quando ativado, permitindo que o pesquisador veja o editor simultaneamente. Um toggle alterna entre "AI Output" e "CAPES Advisor".
 
-Create a static catalog file `src/lib/capes-agreements.ts` with structured data for all 7 publishers extracted from the CAPES page:
+### 2. Stepper Visual de Progresso
+Adicionar indicadores de etapa (1→2→3) no topo do painel:
+- Etapa 1: Análise e Sugestões
+- Etapa 2: Diretrizes de Submissão  
+- Etapa 3: Formatação e Checklist
 
-| Publisher | Journals | Links |
-|-----------|----------|-------|
-| Springer Nature | 1,738 hybrid | Eligible journals PDF, Author guide PDF, Eligible institutions |
-| Elsevier | 1,619 hybrid (Freedom Collection) | Elsevier OA page |
-| ACM | Listed in PDF | Institutions PDF, Journals PDF |
-| Royal Society Publishing | 10 journals | Info PDF |
-| Wiley | Hybrid journals (unlimited) | Wiley OA agreement page |
-| IEEE | IEEE Access + others | IEEE OA partners page |
-| ACS | Chemistry journals | ACS Open Science page |
+### 3. Checklist Interativo de Submissão (nova Etapa 3)
+Após ver as diretrizes, apresentar um checklist interativo com todos os requisitos CAPES e do periódico que o pesquisador pode marcar conforme vai preparando:
+- ORCID cadastrado
+- Afiliação institucional verificada
+- Carta de apresentação preparada
+- Artigo formatado
+- Co-autores notificados
 
-Each entry includes: publisher name, description, number of journals, scope areas, eligible journals link, author guide link, institutions link, CAPES portal link, ORCID requirement, and key submission requirements from Portaria 120/2024.
+### 4. Botão CAPES com Destaque Contextual
+Mover o botão CAPES para uma posição mais proeminente — ao lado do seletor de seção, com ícone colorido e tooltip explicativo. Quando o artigo tiver conteúdo suficiente (>200 palavras), mostrar um indicador sutil convidando o pesquisador a usar.
 
-## New Edge Function: `capes-apc-advisor`
+### 5. Persistência de Estado no SessionStorage
+Salvar sugestões, publisher selecionado e guidelines no sessionStorage para que o pesquisador não perca o progresso ao navegar.
 
-**Purpose**: Given the article content/topic being written, use AI to:
-1. **`suggest_journals`** action: Analyze the article topic and suggest which CAPES-agreement publishers/journals match the scope. Return ranked suggestions with reasoning.
-2. **`get_submission_guidelines`** action: For a chosen journal/publisher, use AI + the known URLs to compile submission guidelines, formatting requirements, and all necessary links.
-3. **`format_article`** action: Take the current article text and reformat it according to the chosen journal's style (passed through `writing-assist` with a new action).
+### 6. Comparação Side-by-Side de Publishers
+Na etapa 1, permitir selecionar 2-3 publishers para comparar em uma tabela resumida (escopo, quantidade de journals, requisitos) antes de escolher.
 
-## New UI Component: `CAPESAdvisorPanel`
+### 7. Preview da Formatação Antes de Aplicar
+Na etapa de formatação, mostrar um diff/preview do artigo reformatado ao lado do original, permitindo ao pesquisador aprovar antes de inserir no editor.
 
-A panel/dialog accessible from the Writing Assistant toolbar via a new button (e.g., "CAPES APC" with a GraduationCap icon). It has 3 steps:
+## Arquivos Alterados
 
-1. **Step 1 - Analyze & Suggest**: Shows article summary, calls AI to suggest matching journals from CAPES agreements. Displays cards for each suggestion with publisher logo, journal scope match score, and key info.
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/app/CAPESAdvisorPanel.tsx` | Refatorar de Dialog para painel inline; adicionar stepper, checklist, comparação e preview |
+| `src/pages/WritingAssistant.tsx` | Integrar painel no layout principal (substituindo AI Output quando ativo); reposicionar botão; adicionar persistência |
 
-2. **Step 2 - Submission Guidelines**: After selecting a journal, shows formatting rules, submission requirements, required documents, and links:
-   - Link to journal submission page
-   - Link to eligible journals list
-   - Link to author guide
-   - Link to CAPES APC payment request (Portaria 120/2024 requirements)
-   - ORCID registration requirement at meusdados.capes.gov.br
+## Detalhes Técnicos
 
-3. **Step 3 - Format Article**: Button to auto-format the article according to the chosen journal's guidelines, inserting the result into the editor.
-
-## Changes Summary
-
-| File | Change |
-|------|--------|
-| `src/lib/capes-agreements.ts` | New - Static catalog of all 7 CAPES publisher agreements with links and metadata |
-| `supabase/functions/capes-apc-advisor/index.ts` | New - Edge function with `suggest_journals` and `get_submission_guidelines` actions |
-| `src/components/app/CAPESAdvisorPanel.tsx` | New - Multi-step dialog UI for journal suggestion, guidelines, and formatting |
-| `src/pages/WritingAssistant.tsx` | Add CAPES APC button to toolbar, integrate panel |
-| `supabase/functions/writing-assist/index.ts` | Add `format_for_journal` action case |
-| `supabase/config.toml` | Register new edge function |
-| `src/pages/Docs.tsx` | Document the CAPES APC Advisor feature |
-| `src/components/landing/FeaturesSection.tsx` | Update feature count and mention CAPES integration |
-
-## Key Implementation Details
-
-- The static catalog avoids needing to scrape CAPES on every request; it can be updated periodically
-- The AI uses the article content + catalog data to match scope intelligently
-- All CAPES-specific links (Portaria 120/2024, ORCID registration, Power BI dashboard) are surfaced directly
-- The edge function uses `callAI` with tool-calling to return structured journal suggestions
-- Free users can access the CAPES advisor (since CAPES agreements benefit all Brazilian researchers)
+- O painel CAPES usará o mesmo espaço do `w-[45%]` do AI Output, controlado por um estado `activeRightPanel: "ai" | "capes"`
+- O stepper usa badges numeradas com cores para indicar etapa atual/completa/pendente
+- O checklist é local (useState + sessionStorage), sem necessidade de banco
+- A comparação de publishers renderiza um grid de Cards lado a lado com scroll horizontal
+- O preview de formatação faz a chamada `format_for_journal` mas exibe no painel CAPES antes de inserir no editor, com botões "Aprovar e inserir" / "Descartar"
+- Nenhuma mudança em edge functions — apenas UI/UX
 
