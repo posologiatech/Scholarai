@@ -923,7 +923,8 @@ const WritingAssistant = () => {
                   }}
                 />
               )}
-            </div>
+          </div>
+        </div>
       </div>
   );
 };
