@@ -339,6 +339,52 @@ const Docs = () => {
       ],
     },
     {
+      id: "datasus",
+      icon: Activity,
+      title: "DataSUS",
+      category: pt ? "Análise" : "Analysis",
+      content: [
+        {
+          heading: pt ? "Consulta epidemiológica com IA" : "AI-powered epidemiological queries",
+          body: pt
+            ? "O módulo DataSUS permite consultar dados epidemiológicos brasileiros do SUS usando linguagem natural. O sistema acessa dados de sistemas como SIM (mortalidade), SINASC (nascidos vivos), SINAN (agravos de notificação) e outros, gerando análises automáticas com gráficos, tabelas e explicações detalhadas por estado, município, período e doença."
+            : "The DataSUS module lets you query Brazilian SUS epidemiological data using natural language. The system accesses data from systems like SIM (mortality), SINASC (live births), SINAN (notifiable diseases) and others, generating automatic analyses with charts, tables and detailed explanations by state, municipality, period and disease.",
+        },
+        {
+          heading: pt ? "Boletins epidemiológicos" : "Epidemiological bulletins",
+          body: pt
+            ? "Gere boletins epidemiológicos automatizados com análise temporal, comparação entre regiões, tendências e alertas. Os boletins são formatados para apresentação profissional e podem incluir mapas SVG interativos do Brasil com dados por estado."
+            : "Generate automated epidemiological bulletins with temporal analysis, regional comparison, trends and alerts. Bulletins are formatted for professional presentation and can include interactive SVG maps of Brazil with state-level data.",
+        },
+        {
+          heading: pt ? "Alertas epidemiológicos" : "Epidemiological alerts",
+          body: pt
+            ? "Configure alertas para monitorar doenças específicas em estados ou regiões. O sistema calcula automaticamente z-scores comparando valores atuais com médias históricas e notifica quando há desvios significativos (surtos, epidemias). Os alertas suportam frequência diária, semanal ou mensal."
+            : "Set up alerts to monitor specific diseases in states or regions. The system automatically calculates z-scores comparing current values with historical means and notifies when significant deviations occur (outbreaks, epidemics). Alerts support daily, weekly or monthly frequency.",
+        },
+      ],
+    },
+    {
+      id: "research-gaps",
+      icon: Microscope,
+      title: pt ? "Gaps de Pesquisa" : "Research Gaps",
+      category: pt ? "Análise" : "Analysis",
+      content: [
+        {
+          heading: pt ? "Identificação automática de lacunas" : "Automatic gap identification",
+          body: pt
+            ? "O módulo de Gaps de Pesquisa analisa o conjunto de artigos da sua biblioteca ou revisão sistemática e identifica automaticamente lacunas na literatura usando IA. O sistema detecta: áreas não exploradas, contradições entre estudos, limitações metodológicas recorrentes, populações sub-representadas e oportunidades para novos estudos."
+            : "The Research Gaps module analyzes papers from your library or systematic review and automatically identifies literature gaps using AI. The system detects: unexplored areas, contradictions between studies, recurring methodological limitations, underrepresented populations and opportunities for new studies.",
+        },
+        {
+          heading: pt ? "Sugestões de pesquisa futura" : "Future research suggestions",
+          body: pt
+            ? "Com base nas lacunas identificadas, a IA gera sugestões concretas de perguntas de pesquisa, metodologias recomendadas e justificativas baseadas na evidência existente. Útil para fundamentar projetos de pesquisa, dissertações e propostas de financiamento."
+            : "Based on identified gaps, AI generates concrete research question suggestions, recommended methodologies and justifications based on existing evidence. Useful for grounding research projects, dissertations and funding proposals.",
+        },
+      ],
+    },
+    {
       id: "writing-assistant",
       icon: PenTool,
       title: pt ? "Assistente de Escrita" : "Writing Assistant",
