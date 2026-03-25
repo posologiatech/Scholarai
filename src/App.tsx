@@ -131,6 +131,7 @@ const App = () => (
               <Route path="/survey/respond/:token" element={<SurveyRespond />} />
               <Route path="/consent/revoke/:signatureId" element={<ConsentRevoke />} />
               <Route path="/datasus" element={<ProtectedRoute><DataSUSPage /></ProtectedRoute>} />
+              <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
