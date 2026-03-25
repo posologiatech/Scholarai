@@ -334,7 +334,7 @@ const Changelog = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AppSidebar>
+    </>
   );
 };
 

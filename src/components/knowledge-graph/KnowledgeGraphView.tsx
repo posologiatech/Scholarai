@@ -244,7 +244,7 @@ const KnowledgeGraphView = ({
         ref={fgRef}
         graphData={graphData}
         width={width}
-        height={height - 40}
+        height={height - (timelineYears.length > 1 ? 40 : 0)}
         backgroundColor="transparent"
         nodeCanvasObject={paintNode}
         nodePointerAreaPaint={(node: any, color, ctx) => {

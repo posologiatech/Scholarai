@@ -334,6 +334,7 @@ const KnowledgeGraph = () => {
               height={dimensions.height}
             />
           )}
+
         </div>
 
         {/* Right panel - paper details */}
