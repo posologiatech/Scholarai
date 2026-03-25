@@ -771,7 +771,7 @@ const WritingAssistant = () => {
         {/* Main editor area */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Toolbar */}
-          <div className="border-b border-border/40 bg-background px-4 py-2 flex items-center gap-3 flex-wrap">
+          <div className="border-b border-border/40 bg-background px-4 py-2 flex items-center gap-2 flex-wrap">
             <Select value={selectedSection} onValueChange={setSelectedSection}>
               <SelectTrigger className="w-40 h-8 text-xs">
                 <SelectValue />
@@ -786,7 +786,7 @@ const WritingAssistant = () => {
             </Select>
 
             <Select value={citationStyle} onValueChange={setCitationStyle}>
-              <SelectTrigger className="w-32 h-8 text-xs">
+              <SelectTrigger className="w-28 h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -800,17 +800,17 @@ const WritingAssistant = () => {
 
             {/* Selected sources summary */}
             {(selectedPapers.length > 0 || selectedPDFs.length > 0 || selectedAnalyses.length > 0) && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 {selectedPapers.length > 0 && (
                   <Badge variant="secondary" className="text-[10px]">
                     <FileText className="h-2.5 w-2.5 mr-0.5" />
-                    {selectedPapers.length} papers
+                    {selectedPapers.length}
                   </Badge>
                 )}
                 {selectedPDFs.length > 0 && (
                   <Badge variant="secondary" className="text-[10px]">
                     <File className="h-2.5 w-2.5 mr-0.5" />
-                    {selectedPDFs.length} PDFs
+                    {selectedPDFs.length}
                   </Badge>
                 )}
                 {selectedAnalyses.length > 0 && (
@@ -823,67 +823,120 @@ const WritingAssistant = () => {
               </div>
             )}
 
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1"
-              disabled={isGenerating}
-              onClick={() => streamAI("draft_section", instructions)}
-            >
-              <Sparkles className="h-3 w-3" />
-              {pt ? "Gerar Rascunho" : "Generate Draft"}
-            </Button>
+            {/* Group 1: Writing */}
+            <TooltipProvider delayDuration={300}>
+              <div className="flex items-center gap-1 bg-muted/40 rounded-md px-1.5 py-0.5">
+                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mr-0.5">
+                  {pt ? "Escrita" : "Write"}
+                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating}
+                      onClick={() => streamAI("draft_section", instructions)}>
+                      <Sparkles className="h-3 w-3" />
+                      {pt ? "Gerar" : "Draft"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Gerar rascunho da seção com citações" : "Generate section draft with citations"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("continue_writing")}>
+                      <ArrowRight className="h-3 w-3" />
+                      {pt ? "Continuar" : "Continue"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Continuar escrevendo de onde parou" : "Continue writing from where you left off"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating}
+                      onClick={() => streamAI("insert_citation")}>
+                      <Quote className="h-3 w-3" />
+                      {pt ? "Citar" : "Cite"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Formatar citações dos papers selecionados" : "Format citations from selected papers"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("generate_abstract")}>
+                      <Sigma className="h-3 w-3" />
+                      Abstract
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Gerar abstract estruturado do artigo" : "Generate structured abstract from article"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("generate_highlights")}>
+                      <Star className="h-3 w-3" />
+                      Highlights
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Gerar Key Findings / Highlights" : "Generate Key Findings / Highlights"}</p></TooltipContent>
+                </Tooltip>
+              </div>
+            </TooltipProvider>
 
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1"
-              disabled={isGenerating || !editorContent.trim()}
-              onClick={() => streamAI("continue_writing")}
-            >
-              <ArrowRight className="h-3 w-3" />
-              {pt ? "Continuar" : "Continue"}
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1"
-              disabled={isGenerating || !editorContent.trim()}
-              onClick={() => streamAI("rephrase")}
-            >
-              <RefreshCw className="h-3 w-3" />
-              {pt ? "Reformular" : "Rephrase"}
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1"
-              disabled={isGenerating || !editorContent.trim()}
-              onClick={() => streamAI("check_consistency")}
-            >
-              <ShieldCheck className="h-3 w-3" />
-              {pt ? "Verificar" : "Check"}
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1"
-              disabled={isGenerating}
-              onClick={() => streamAI("insert_citation")}
-            >
-              <Quote className="h-3 w-3" />
-              {pt ? "Citações" : "Citations"}
-            </Button>
+            {/* Group 2: Review */}
+            <TooltipProvider delayDuration={300}>
+              <div className="flex items-center gap-1 bg-muted/40 rounded-md px-1.5 py-0.5">
+                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mr-0.5">
+                  {pt ? "Revisão" : "Review"}
+                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("rephrase")}>
+                      <RefreshCw className="h-3 w-3" />
+                      {pt ? "Reformular" : "Rephrase"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Reformular com qualidade de pesquisador sênior" : "Rephrase with senior researcher quality"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("check_consistency")}>
+                      <ShieldCheck className="h-3 w-3" />
+                      {pt ? "Verificar" : "Check"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Verificar consistência entre claims e evidências" : "Check consistency between claims and evidence"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("peer_review")}>
+                      <MessageSquareWarning className="h-3 w-3" />
+                      Peer Review
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Simular revisão por pares rigorosa" : "Simulate rigorous peer review"}</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
+                      onClick={() => streamAI("improve_hedging")}>
+                      <Eye className="h-3 w-3" />
+                      Hedging
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Corrigir linguagem absolutista para hedging científico" : "Fix absolutist language to scientific hedging"}</p></TooltipContent>
+                </Tooltip>
+              </div>
+            </TooltipProvider>
 
             <Separator orientation="vertical" className="h-6" />
 
             <Button
               size="sm"
               variant={activeRightPanel === "capes" ? "default" : "outline"}
-              className={`h-8 text-xs gap-1 ${activeRightPanel === "capes" ? "" : "border-primary/30 text-primary hover:bg-primary/10"}`}
+              className={`h-7 text-xs gap-1 ${activeRightPanel === "capes" ? "" : "border-primary/30 text-primary hover:bg-primary/10"}`}
               onClick={() => setActiveRightPanel(activeRightPanel === "capes" ? "ai" : "capes")}
             >
               <GraduationCap className="h-3 w-3" />
