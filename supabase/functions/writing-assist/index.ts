@@ -121,6 +121,27 @@ ${uploadedPDFContext}`;
         break;
       }
 
+      case "format_for_journal": {
+        systemPrompt = `You are an expert academic formatting assistant.
+You write in ${lang === "pt" ? "Brazilian Portuguese" : "English"}.
+Citation style: ${styleGuide}
+Given an article text and a target journal/publisher, reformat the article to match the journal's typical submission guidelines.
+Include proper section structure, citation formatting, and any standard elements required.
+Maintain all original content and citations.`;
+
+        userPrompt = `Reformat the following article according to the submission guidelines of the specified publisher/journal.
+
+${content}
+
+Available papers for citation:
+${paperContext}
+${datamindContext}
+${uploadedPDFContext}
+
+Reformat the article maintaining all content but adjusting structure, formatting, and citations to match the target journal's requirements.`;
+        break;
+      }
+
       default:
         return new Response(JSON.stringify({ error: "Unknown action" }), {
           status: 400,

@@ -909,6 +909,14 @@ const WritingAssistant = () => {
             </div>
           </div>
         </div>
+        <CAPESAdvisorPanel
+          open={capesOpen}
+          onOpenChange={setCapesOpen}
+          editorContent={editorContent}
+          onFormatArticle={(publisher) => {
+            streamAI("format_for_journal", `Format this article according to ${publisher} submission guidelines. Publisher: ${publisher}`);
+          }}
+        />
       </div>
   );
 };
