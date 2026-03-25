@@ -18,8 +18,10 @@ import { toast } from "sonner";
 import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
   FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
-  Upload, File, X, GraduationCap,
+  Upload, File, X, GraduationCap, Eye, MessageSquareWarning, Sigma, Star,
+  AlertTriangle,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Paper {
