@@ -96,6 +96,7 @@ const WritingAssistant = () => {
 
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const [capesOpen, setCapesOpen] = useState(false);
 
   // Load papers from saved searches (grouped)
   useEffect(() => {
