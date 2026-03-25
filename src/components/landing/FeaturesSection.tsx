@@ -139,6 +139,22 @@ const FeaturesSection = () => {
         : "Personal data deletion (LGPD Art. 18) with anonymous statistical data preservation and full audit trail logging.",
       badge: "NEW",
     },
+    {
+      icon: UsersRound,
+      title: pt ? "Equipe de Pesquisa" : "Research Team",
+      desc: pt
+        ? "Adicione coordenadores, pesquisadores colaboradores e estudantes (graduação/pós) à equipe do estudo. Membros acessam formulários e dados de coleta."
+        : "Add coordinators, collaborators, and students (undergrad/grad) to your study team. Members access forms and data collection.",
+      badge: "NEW",
+    },
+    {
+      icon: Rocket,
+      title: pt ? "Pipeline de Atualizações" : "Update Pipeline",
+      desc: pt
+        ? "Sistema de changelog e roadmap integrado. Acompanhe funcionalidades lançadas, planejadas e ideias futuras em tempo real."
+        : "Integrated changelog and roadmap system. Track released features, planned items, and future ideas in real time.",
+      badge: "NEW",
+    },
   ];
 
   return (
