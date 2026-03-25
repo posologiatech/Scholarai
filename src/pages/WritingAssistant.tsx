@@ -828,9 +828,9 @@ const WritingAssistant = () => {
 
             <Button
               size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
-              onClick={() => setCapesOpen(true)}
+              variant={activeRightPanel === "capes" ? "default" : "outline"}
+              className={`h-8 text-xs gap-1 ${activeRightPanel === "capes" ? "" : "border-primary/30 text-primary hover:bg-primary/10"}`}
+              onClick={() => setActiveRightPanel(activeRightPanel === "capes" ? "ai" : "capes")}
             >
               <GraduationCap className="h-3 w-3" />
               CAPES APC
