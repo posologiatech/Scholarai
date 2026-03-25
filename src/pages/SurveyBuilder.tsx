@@ -136,6 +136,8 @@ const SurveyBuilder = () => {
         return <ParticipantList surveyId={id!} />;
       case "compliance":
         return <ComplianceDocuments surveyId={id!} />;
+      case "team":
+        return <TeamManager surveyId={id!} />;
       case "flow":
         return <FlowCanvas />;
       case "distribute":
