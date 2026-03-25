@@ -9,7 +9,7 @@ import {
   Database, PenTool, Filter, Network, AlertTriangle, BookMarked, FlaskConical,
   MessageSquare, Share2, LayoutDashboard, Workflow, ClipboardCheck, FileSearch,
   ClipboardList, QrCode, GripVertical, Wand2, Shield, FileSignature, UserX,
-  Stethoscope, Server, Code, Lock, Cpu, HardDrive, Key, Blocks,
+  Stethoscope, Server, Code, Lock, Cpu, HardDrive, Key, Blocks, Rocket,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -614,6 +614,52 @@ const Docs = () => {
           body: pt
             ? "1) Acesse a lista de participantes na aba eCRF; 2) Localize o participante e clique no ícone de anonimização; 3) Confirme a ação no diálogo (informando que é irreversível); 4) O sistema substitui os dados pessoais na tabela consent_signatures, registra o evento na trilha de auditoria e atualiza o status do participante. Os dados de respostas permanecem vinculados ao código anônimo do participante."
             : "1) Go to the participant list in the eCRF tab; 2) Find the participant and click the anonymization icon; 3) Confirm the action in the dialog (noting it's irreversible); 4) The system replaces personal data in the consent_signatures table, logs the event in the audit trail, and updates the participant status. Response data remains linked to the participant's anonymous code.",
+        },
+      ],
+    },
+    {
+      id: "research-team",
+      icon: Users,
+      title: pt ? "Equipe de Pesquisa" : "Research Team",
+      category: pt ? "Colaboração" : "Collaboration",
+      content: [
+        {
+          heading: pt ? "Gerenciamento de equipe" : "Team management",
+          body: pt
+            ? "O módulo de Equipe de Pesquisa permite adicionar membros registrados na plataforma à equipe de cada pesquisa/survey. O proprietário da pesquisa pode convidar membros buscando pelo e-mail cadastrado e atribuindo papéis: Coordenador(a), Pesquisador(a) Colaborador(a), Estudante de Graduação ou Estudante de Pós-Graduação."
+            : "The Research Team module allows adding platform-registered members to each survey's research team. The survey owner can invite members by searching their registered email and assigning roles: Coordinator, Collaborator, Undergraduate Student, or Graduate Student.",
+        },
+        {
+          heading: pt ? "Permissões de membros" : "Member permissions",
+          body: pt
+            ? "Membros da equipe herdam automaticamente permissões para visualizar a pesquisa, seus blocos, questões, participantes e respostas. Isso permite que toda a equipe colabore na coleta de dados sem a necessidade de compartilhar credenciais. Apenas o proprietário pode adicionar ou remover membros."
+            : "Team members automatically inherit permissions to view the survey, its blocks, questions, participants, and responses. This enables the whole team to collaborate on data collection without sharing credentials. Only the owner can add or remove members.",
+        },
+        {
+          heading: pt ? "Disponibilidade" : "Availability",
+          body: pt
+            ? "O recurso de equipe está disponível para todos os usuários, incluindo contas gratuitas. Isso garante que estudantes e colaboradores possam participar das pesquisas independentemente do plano de assinatura."
+            : "The team feature is available to all users, including free accounts. This ensures that students and collaborators can participate in research regardless of subscription plan.",
+        },
+      ],
+    },
+    {
+      id: "changelog",
+      icon: Rocket,
+      title: pt ? "Pipeline de Atualizações" : "Update Pipeline",
+      category: pt ? "Sistema" : "System",
+      content: [
+        {
+          heading: pt ? "Changelog e roadmap" : "Changelog and roadmap",
+          body: pt
+            ? "O Pipeline de Atualizações centraliza o histórico de funcionalidades lançadas, planejadas e ideias futuras. Acesse via 'Atualizações' no menu lateral. O sistema documenta retroativamente a evolução da plataforma e serve como roadmap público para transparência com pesquisadores."
+            : "The Update Pipeline centralizes the history of released, planned, and future features. Access it via 'Updates' in the sidebar menu. The system retroactively documents the platform's evolution and serves as a public roadmap for transparency with researchers.",
+        },
+        {
+          heading: pt ? "Administração" : "Administration",
+          body: pt
+            ? "Administradores podem adicionar, editar e remover entradas no changelog. Cada entrada possui título, descrição, categoria (funcionalidade, correção, melhoria, integração), status (lançado, planejado, ideia), prioridade e módulo associado. Ao entrar na plataforma, o administrador é proativamente notificado sobre itens planejados e ideias pendentes."
+            : "Administrators can add, edit, and remove changelog entries. Each entry has title, description, category (feature, bugfix, improvement, integration), status (released, planned, idea), priority, and associated module. Upon entering the platform, the administrator is proactively notified about planned items and pending ideas.",
         },
       ],
     },

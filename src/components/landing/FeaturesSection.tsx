@@ -1,7 +1,7 @@
 import {
   Search, Table, FileText, ClipboardCheck, ShieldCheck, Palette,
   BrainCircuit, Network, GitBranch, Filter, FlaskConical, BookOpen,
-  ClipboardList, Shield, UserX, FileSignature,
+  ClipboardList, Shield, UserX, FileSignature, UsersRound, Rocket,
 } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import AnimatedSection from "./AnimatedSection";
@@ -139,6 +139,22 @@ const FeaturesSection = () => {
         : "Personal data deletion (LGPD Art. 18) with anonymous statistical data preservation and full audit trail logging.",
       badge: "NEW",
     },
+    {
+      icon: UsersRound,
+      title: pt ? "Equipe de Pesquisa" : "Research Team",
+      desc: pt
+        ? "Adicione coordenadores, pesquisadores colaboradores e estudantes (graduação/pós) à equipe do estudo. Membros acessam formulários e dados de coleta."
+        : "Add coordinators, collaborators, and students (undergrad/grad) to your study team. Members access forms and data collection.",
+      badge: "NEW",
+    },
+    {
+      icon: Rocket,
+      title: pt ? "Pipeline de Atualizações" : "Update Pipeline",
+      desc: pt
+        ? "Sistema de changelog e roadmap integrado. Acompanhe funcionalidades lançadas, planejadas e ideias futuras em tempo real."
+        : "Integrated changelog and roadmap system. Track released features, planned items, and future ideas in real time.",
+      badge: "NEW",
+    },
   ];
 
   return (
@@ -151,8 +167,8 @@ const FeaturesSection = () => {
             </h2>
             <p className="mx-auto max-w-2xl text-muted-foreground">
               {pt
-                ? "16 ferramentas integradas de IA cobrindo cada etapa da pesquisa acadêmica e clínica — da busca à publicação, com conformidade CEP/LGPD."
-                : "16 integrated AI tools covering every stage of academic and clinical research — from search to publication, with CEP/LGPD compliance."}
+                ? "18 ferramentas integradas de IA cobrindo cada etapa da pesquisa acadêmica e clínica — da busca à publicação, com conformidade CEP/LGPD."
+                : "18 integrated AI tools covering every stage of academic and clinical research — from search to publication, with CEP/LGPD compliance."}
             </p>
           </div>
         </AnimatedSection>

@@ -17,6 +17,7 @@ import ConsentBuilder from "@/components/survey/consent/ConsentBuilder";
 import VisitManager from "@/components/survey/ecrf/VisitManager";
 import ParticipantList from "@/components/survey/ecrf/ParticipantList";
 import ComplianceDocuments from "@/components/survey/compliance/ComplianceDocuments";
+import TeamManager from "@/components/survey/team/TeamManager";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -25,16 +26,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText } from "lucide-react";
+import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 
-type BuilderView = "build" | "consent" | "visits" | "participants" | "compliance" | "flow" | "distribute" | "results" | "preview";
+type BuilderView = "build" | "consent" | "visits" | "participants" | "compliance" | "team" | "flow" | "distribute" | "results" | "preview";
 
 const getViewFromPath = (pathname: string): BuilderView => {
   if (pathname.endsWith("/consent")) return "consent";
   if (pathname.endsWith("/visits")) return "visits";
   if (pathname.endsWith("/participants")) return "participants";
   if (pathname.endsWith("/compliance")) return "compliance";
+  if (pathname.endsWith("/team")) return "team";
   if (pathname.endsWith("/flow")) return "flow";
   if (pathname.endsWith("/distribute")) return "distribute";
   if (pathname.endsWith("/results")) return "results";
@@ -134,6 +136,8 @@ const SurveyBuilder = () => {
         return <ParticipantList surveyId={id!} />;
       case "compliance":
         return <ComplianceDocuments surveyId={id!} />;
+      case "team":
+        return <TeamManager surveyId={id!} />;
       case "flow":
         return <FlowCanvas />;
       case "distribute":
@@ -198,6 +202,10 @@ const SurveyBuilder = () => {
             <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
               <GitBranch className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Fluxo" : "Flow"}
+            </TabsTrigger>
+            <TabsTrigger value="team" className="text-xs" onClick={() => navigate(`/surveys/${id}/team`)}>
+              <UsersRound className="h-3 w-3 mr-1" />
+              {locale === "pt" ? "Equipe" : "Team"}
             </TabsTrigger>
             <TabsTrigger value="distribute" className="text-xs" onClick={() => navigate(`/surveys/${id}/distribute`)}>
               <Send className="h-3 w-3 mr-1" />
