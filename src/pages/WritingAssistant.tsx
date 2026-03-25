@@ -458,10 +458,62 @@ const WritingAssistant = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Citation validation before insert
+  const validateCitationsInOutput = useCallback((text: string): { valid: boolean; invalidIds: number[]; totalCitations: number } => {
+    const citationPattern = /\[(\d+)\]/g;
+    let match;
+    const invalidIds: number[] = [];
+    let totalCitations = 0;
+    const maxValid = selectedPapers.length;
+    while ((match = citationPattern.exec(text)) !== null) {
+      totalCitations++;
+      const id = parseInt(match[1]);
+      if (id < 1 || id > maxValid) invalidIds.push(id);
+    }
+    return { valid: invalidIds.length === 0, invalidIds: [...new Set(invalidIds)], totalCitations };
+  }, [selectedPapers.length]);
+
   const handleInsertInEditor = () => {
-    setEditorContent(prev => prev + (prev ? "\n\n" : "") + aiOutput);
-    toast.success(pt ? "Texto inserido no editor" : "Text inserted in editor");
+    const validation = validateCitationsInOutput(aiOutput);
+    if (!validation.valid) {
+      const cleaned = aiOutput.replace(/\[\??\d*\]/g, (match) => {
+        const num = parseInt(match.replace(/[\[\]?]/g, ""));
+        return (num < 1 || num > selectedPapers.length) ? "[?]" : match;
+      });
+      toast.warning(
+        pt
+          ? `⚠️ ${validation.invalidIds.length} citação(ões) suspeita(s) detectada(s) e marcada(s) com [?]. Verifique antes de submeter.`
+          : `⚠️ ${validation.invalidIds.length} suspicious citation(s) detected and marked with [?]. Please verify before submitting.`,
+        { duration: 6000 }
+      );
+      setEditorContent(prev => prev + (prev ? "\n\n" : "") + cleaned);
+    } else {
+      setEditorContent(prev => prev + (prev ? "\n\n" : "") + aiOutput);
+      toast.success(pt ? "Texto inserido no editor" : "Text inserted in editor");
+    }
   };
+
+  // Quality metrics calculation
+  const qualityMetrics = useCallback(() => {
+    if (!editorContent.trim()) return null;
+    const words = editorContent.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+    const citations = (editorContent.match(/\[\d+\]/g) || []).length;
+    const sentences = editorContent.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
+    const citationRatio = sentences > 0 ? (citations / sentences * 100).toFixed(0) : "0";
+
+    const hedgingWords = ["suggests", "indicates", "appears", "may", "might", "could", "possibly", "likely",
+      "sugere", "indica", "parece", "pode", "possivelmente", "provavelmente"];
+    const hedgingCount = hedgingWords.reduce((acc, w) =>
+      acc + (editorContent.toLowerCase().match(new RegExp(`\\b${w}\\b`, "g")) || []).length, 0
+    );
+    const hedgingPer1000 = wordCount > 0 ? (hedgingCount / wordCount * 1000).toFixed(1) : "0";
+
+    const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[^a-záàãâéêíóôõúç]/gi, "")));
+    const ttr = wordCount > 0 ? (uniqueWords.size / wordCount * 100).toFixed(0) : "0";
+
+    return { wordCount, citations, citationRatio, hedgingCount, hedgingPer1000, ttr };
+  }, [editorContent]);
 
   const formatAuthors = (authors: any) => {
     if (!authors) return "Unknown";
