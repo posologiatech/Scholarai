@@ -56,7 +56,9 @@ import MyPlan from "./pages/MyPlan";
 import ParticipantPrivacy from "./pages/ParticipantPrivacy";
 import ConsentRevoke from "./pages/ConsentRevoke";
 import DataSUSPage from "./pages/DataSUS";
+import Changelog from "./pages/Changelog";
 import OracleAgent from "./components/app/OracleAgent";
+import AdminRoadmapDialog from "./components/app/AdminRoadmapDialog";
 const queryClient = new QueryClient();
 
 const App = () => (
