@@ -170,7 +170,6 @@ const FeaturesSection = () => {
                 ? "18 ferramentas integradas de IA cobrindo cada etapa da pesquisa acadêmica e clínica — da busca à publicação, com conformidade CEP/LGPD."
                 : "18 integrated AI tools covering every stage of academic and clinical research — from search to publication, with CEP/LGPD compliance."}
             </p>
-            </p>
           </div>
         </AnimatedSection>
 
