@@ -1,0 +1,3 @@
+INSERT INTO public.system_changelog (title, description, category, status, priority, module, released_at) VALUES
+('Equipe de Pesquisa Colaborativa', 'Possibilidade de adicionar membros da equipe de pesquisa (coordenadores, pesquisadores colaboradores, estudantes de graduação e pós-graduação) aos surveys. Membros herdam permissões de visualização e coleta de dados.', 'feature', 'released', 'high', 'surveys', now()),
+('Pipeline de Atualizações e Roadmap', 'Sistema de changelog integrado com registro retroativo de funcionalidades, planejamento de roadmap e notificação proativa para administradores sobre itens planejados e ideias pendentes.', 'feature', 'released', 'high', 'sistema', now());
