@@ -1,131 +1,85 @@
 
 
-# Plano: Sistema de Integridade e Rastreabilidade de Dados nos Formulários de Pesquisa
+# CAPES APC Advisor - Writing Assistant Integration
 
-## Problema
-Atualmente, as respostas dos surveys (`survey_answers`) são imutáveis na prática (sem UPDATE policy), mas não existe:
-- Hash criptográfico para provar que um dado não foi adulterado
-- Histórico de versões caso uma resposta precise ser editada (ex: correção de erro de digitação pelo pesquisador)
-- Trilha de auditoria granular vinculada a cada resposta individual
-- Selo de integridade verificável para exportação e auditoria ética (CEP/CONEP)
+## Overview
 
-## Arquitetura
+Add a "CAPES APC" feature to the Writing Assistant that helps Brazilian researchers find journals with CAPES-paid APC, get submission guidelines, and format their articles accordingly.
+
+## Architecture
 
 ```text
-┌─────────────────────────────────────────────────┐
-│  Resposta submetida (survey-respond)            │
-│                                                 │
-│  1. Gera hash SHA-256 de cada answer            │
-│  2. Gera hash do response completo (chain)      │
-│  3. Salva hash + timestamp no registro          │
-└──────────────┬──────────────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────────────┐
-│  Pesquisador edita uma resposta (UI)            │
-│                                                 │
-│  1. Copia valor anterior p/ survey_answer_audit │
-│  2. Atualiza o valor + gera novo hash           │
-│  3. Registra na study_audit_log                 │
-│  4. Mantém cadeia de hashes verificável         │
-└─────────────────────────────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────────────┐
-│  Verificação de integridade (UI)                │
-│                                                 │
-│  Recalcula hashes e compara com armazenados     │
-│  Exibe status: ✅ Íntegro | ❌ Violação         │
-└─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  WritingAssistant.tsx                                 │
+│  ┌────────────┐  ┌──────────┐  ┌──────────────────┐ │
+│  │ Sources     │  │ Editor   │  │ AI Output /      │ │
+│  │ Panel       │  │          │  │ CAPES Panel      │ │
+│  └────────────┘  └──────────┘  └──────────────────┘ │
+└──────────────────────────────────────────────────────┘
+         │                              │
+         ▼                              ▼
+┌─────────────────┐         ┌──────────────────────┐
+│ capes-apc-advisor│         │ writing-assist       │
+│ (new edge fn)   │         │ (existing, + format) │
+└─────────────────┘         └──────────────────────┘
 ```
 
-## Implementação
+## Data: CAPES Agreements Catalog
 
-### 1. Migração de banco de dados
+Create a static catalog file `src/lib/capes-agreements.ts` with structured data for all 7 publishers extracted from the CAPES page:
 
-**Nova tabela `survey_answer_audit`** -- histórico de alterações:
-- `id`, `answer_id` (FK), `previous_value` (jsonb), `new_value` (jsonb), `previous_hash`, `new_hash`, `changed_by` (uuid), `change_reason` (text), `ip_address`, `created_at`
-- RLS: apenas o dono do survey pode ler/inserir
+| Publisher | Journals | Links |
+|-----------|----------|-------|
+| Springer Nature | 1,738 hybrid | Eligible journals PDF, Author guide PDF, Eligible institutions |
+| Elsevier | 1,619 hybrid (Freedom Collection) | Elsevier OA page |
+| ACM | Listed in PDF | Institutions PDF, Journals PDF |
+| Royal Society Publishing | 10 journals | Info PDF |
+| Wiley | Hybrid journals (unlimited) | Wiley OA agreement page |
+| IEEE | IEEE Access + others | IEEE OA partners page |
+| ACS | Chemistry journals | ACS Open Science page |
 
-**Novas colunas em `survey_answers`**:
-- `integrity_hash` (text) -- SHA-256 do conteúdo da resposta
-- `version` (integer, default 1)
-- `last_modified_at` (timestamptz)
-- `last_modified_by` (uuid)
+Each entry includes: publisher name, description, number of journals, scope areas, eligible journals link, author guide link, institutions link, CAPES portal link, ORCID requirement, and key submission requirements from Portaria 120/2024.
 
-**Nova coluna em `survey_responses`**:
-- `response_hash` (text) -- SHA-256 encadeado de todos os answer hashes
+## New Edge Function: `capes-apc-advisor`
 
-**Adicionar UPDATE policy em `survey_answers`** -- apenas o dono do survey pode editar, e somente via backend.
+**Purpose**: Given the article content/topic being written, use AI to:
+1. **`suggest_journals`** action: Analyze the article topic and suggest which CAPES-agreement publishers/journals match the scope. Return ranked suggestions with reasoning.
+2. **`get_submission_guidelines`** action: For a chosen journal/publisher, use AI + the known URLs to compile submission guidelines, formatting requirements, and all necessary links.
+3. **`format_article`** action: Take the current article text and reformat it according to the chosen journal's style (passed through `writing-assist` with a new action).
 
-### 2. Backend: Hash na submissão (`survey-respond`)
-**Arquivo:** `supabase/functions/survey-respond/index.ts`
+## New UI Component: `CAPESAdvisorPanel`
 
-- Ao inserir cada answer, calcular `SHA-256(question_id + answer_text + answer_numeric + answer_choices + matrix_answers)` e salvar como `integrity_hash`
-- Após inserir todas as answers, calcular hash encadeado: `SHA-256(hash1 + hash2 + ... + hashN)` e salvar como `response_hash` no `survey_responses`
+A panel/dialog accessible from the Writing Assistant toolbar via a new button (e.g., "CAPES APC" with a GraduationCap icon). It has 3 steps:
 
-### 3. Backend: Edge function para edição auditada
-**Arquivo:** `supabase/functions/survey-edit-answer/index.ts`
+1. **Step 1 - Analyze & Suggest**: Shows article summary, calls AI to suggest matching journals from CAPES agreements. Displays cards for each suggestion with publisher logo, journal scope match score, and key info.
 
-Nova edge function que:
-1. Valida JWT do pesquisador (dono do survey)
-2. Busca o answer atual e salva snapshot na `survey_answer_audit`
-3. Atualiza o valor + incrementa `version` + recalcula `integrity_hash`
-4. Recalcula o `response_hash` do response pai
-5. Registra na `study_audit_log` (ação `answer_modified`)
+2. **Step 2 - Submission Guidelines**: After selecting a journal, shows formatting rules, submission requirements, required documents, and links:
+   - Link to journal submission page
+   - Link to eligible journals list
+   - Link to author guide
+   - Link to CAPES APC payment request (Portaria 120/2024 requirements)
+   - ORCID registration requirement at meusdados.capes.gov.br
 
-### 4. Backend: Verificação de integridade
-**Arquivo:** `supabase/functions/survey-verify-integrity/index.ts`
+3. **Step 3 - Format Article**: Button to auto-format the article according to the chosen journal's guidelines, inserting the result into the editor.
 
-Nova edge function que:
-1. Recebe `response_id`
-2. Recalcula todos os hashes a partir dos dados atuais
-3. Compara com os hashes armazenados
-4. Retorna status por answer + status global
+## Changes Summary
 
-### 5. Frontend: Painel de integridade
-**Arquivo:** `src/components/survey/results/DataIntegrityPanel.tsx`
+| File | Change |
+|------|--------|
+| `src/lib/capes-agreements.ts` | New - Static catalog of all 7 CAPES publisher agreements with links and metadata |
+| `supabase/functions/capes-apc-advisor/index.ts` | New - Edge function with `suggest_journals` and `get_submission_guidelines` actions |
+| `src/components/app/CAPESAdvisorPanel.tsx` | New - Multi-step dialog UI for journal suggestion, guidelines, and formatting |
+| `src/pages/WritingAssistant.tsx` | Add CAPES APC button to toolbar, integrate panel |
+| `supabase/functions/writing-assist/index.ts` | Add `format_for_journal` action case |
+| `supabase/config.toml` | Register new edge function |
+| `src/pages/Docs.tsx` | Document the CAPES APC Advisor feature |
+| `src/components/landing/FeaturesSection.tsx` | Update feature count and mention CAPES integration |
 
-Novo componente que exibe:
-- Status de integridade por resposta (verde/vermelho)
-- Botão "Verificar integridade" que chama a edge function
-- Histórico de alterações por answer (lido de `survey_answer_audit`)
-- Contador de versão de cada answer
-- Badge no `ResponseDataGrid` indicando se a resposta foi editada
+## Key Implementation Details
 
-### 6. Frontend: Edição auditada no grid
-**Arquivo:** `src/components/survey/results/ResponseDataGrid.tsx`
-
-- Adicionar botão de edição em cada célula do grid (ícone lápis)
-- Dialog de edição que exige `change_reason` (obrigatório)
-- Indicador visual de células editadas (borda colorida + tooltip com versão)
-
-### 7. Atualizar AuditLogPanel
-**Arquivo:** `src/components/survey/results/AuditLogPanel.tsx`
-
-- Adicionar action labels para `answer_modified`, `integrity_verified`, `integrity_violation`
-- Exibir detalhes do campo alterado (pergunta, valor anterior, valor novo)
-
-## Detalhes técnicos
-
-**Geração de hash** (no Deno edge function):
-```typescript
-async function hashAnswer(data: object): Promise<string> {
-  const encoded = new TextEncoder().encode(JSON.stringify(data));
-  const buffer = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-```
-
-**Imutabilidade**: A coluna `integrity_hash` só pode ser alterada pela edge function `survey-edit-answer` (via service_role). O UPDATE policy de `survey_answers` será restrito a `auth.role() = 'service_role'`.
-
-## Arquivos editados/criados
-1. Nova migração SQL (tabela `survey_answer_audit`, colunas em `survey_answers` e `survey_responses`)
-2. `supabase/functions/survey-respond/index.ts` -- hash na submissão
-3. `supabase/functions/survey-edit-answer/index.ts` -- novo
-4. `supabase/functions/survey-verify-integrity/index.ts` -- novo
-5. `src/components/survey/results/DataIntegrityPanel.tsx` -- novo
-6. `src/components/survey/results/ResponseDataGrid.tsx` -- edição auditada
-7. `src/components/survey/results/AuditLogPanel.tsx` -- novos labels
-8. `src/components/survey/results/SurveyResultsPanel.tsx` -- integrar aba de integridade
+- The static catalog avoids needing to scrape CAPES on every request; it can be updated periodically
+- The AI uses the article content + catalog data to match scope intelligently
+- All CAPES-specific links (Portaria 120/2024, ORCID registration, Power BI dashboard) are surfaced directly
+- The edge function uses `callAI` with tool-calling to return structured journal suggestions
+- Free users can access the CAPES advisor (since CAPES agreements benefit all Brazilian researchers)
 
