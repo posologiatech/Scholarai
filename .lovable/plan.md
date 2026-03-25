@@ -1,61 +1,104 @@
 
 
-# Melhorias na Integração do CAPES APC Advisor
+# Melhorias de Rigor Científico no Módulo de Escrita
 
-## Análise da Implementação Atual
+## Diagnóstico
 
-A funcionalidade CAPES APC está implementada como um **dialog modal** acionado por um botão na toolbar. Isso funciona, mas tem limitações:
+Os prompts atuais são genéricos demais. Falta:
+- Proibição explícita de fabricação de dados/citações
+- Instruções de tom e estilo de pesquisador sênior
+- RAG para verificar claims contra o texto real dos papers
+- Revisão em múltiplas camadas (factual, estilística, estrutural)
+- Novas ações especializadas (Abstract estruturado, Peer Review simulado, Hedging linguístico)
 
-1. O modal desconecta o pesquisador do editor — ele não vê o artigo enquanto navega nas sugestões
-2. O fluxo é linear (3 passos) mas sem indicador visual de progresso
-3. Após formatar, o modal fecha e o resultado vai para o painel "AI Output" genérico, sem destaque
-4. Não há persistência — se fechar o modal, perde tudo
-5. O botão "CAPES APC" na toolbar compete visualmente com ações de escrita (Gerar, Continuar, Reformular)
+## Mudanças
 
-## Melhorias Propostas
+### 1. Reescrever todos os System Prompts (`writing-assist/index.ts`)
 
-### 1. Transformar de Modal para Painel Lateral Dedicado
-Substituir o Dialog por um painel que ocupa o espaço do "AI Output" (lado direito) quando ativado, permitindo que o pesquisador veja o editor simultaneamente. Um toggle alterna entre "AI Output" e "CAPES Advisor".
+Cada action ganha um prompt com regras de rigor:
 
-### 2. Stepper Visual de Progresso
-Adicionar indicadores de etapa (1→2→3) no topo do painel:
-- Etapa 1: Análise e Sugestões
-- Etapa 2: Diretrizes de Submissão  
-- Etapa 3: Formatação e Checklist
+```text
+REGRAS INVIOLÁVEIS:
+1. ZERO FABRICAÇÃO: Jamais invente dados, estatísticas, nomes de autores, títulos de artigos ou resultados experimentais.
+2. CITAÇÃO VERIFICÁVEL: Cada afirmação factual DEVE ter [N] referenciando APENAS os papers fornecidos.
+3. HEDGING CIENTÍFICO: Use "suggests", "indicates", "was observed" — nunca linguagem absolutista.
+4. DISTINÇÃO EVIDÊNCIA vs INTERPRETAÇÃO: Separe claramente o que os dados mostram do que o autor interpreta.
+5. Se um dado NÃO está nos papers fornecidos, escreva "[DADO NÃO DISPONÍVEL NAS FONTES]".
+6. Ao reportar resultados numéricos, inclua sempre: valor, intervalo de confiança/desvio padrão, e tamanho amostral quando disponíveis.
+```
 
-### 3. Checklist Interativo de Submissão (nova Etapa 3)
-Após ver as diretrizes, apresentar um checklist interativo com todos os requisitos CAPES e do periódico que o pesquisador pode marcar conforme vai preparando:
-- ORCID cadastrado
-- Afiliação institucional verificada
-- Carta de apresentação preparada
-- Artigo formatado
-- Co-autores notificados
+Instruções de estilo sênior:
+```text
+ESTILO DE ESCRITA:
+- Escreva como um pesquisador sênior com 20+ anos de publicações em periódicos de alto impacto.
+- Conecte parágrafos com transições lógicas naturais (não use "Além disso", "Adicionalmente" repetidamente).
+- Cada parágrafo: frase-tópico → evidência com citação → análise → transição.
+- Varie a estrutura das frases. Alterne entre frases curtas incisivas e períodos compostos mais elaborados.
+- Use voz ativa quando descrever suas contribuições e voz passiva para procedimentos padronizados.
+- Na Discussão, sempre confronte seus resultados com a literatura existente explicitamente.
+```
 
-### 4. Botão CAPES com Destaque Contextual
-Mover o botão CAPES para uma posição mais proeminente — ao lado do seletor de seção, com ícone colorido e tooltip explicativo. Quando o artigo tiver conteúdo suficiente (>200 palavras), mostrar um indicador sutil convidando o pesquisador a usar.
+### 2. Integrar RAG na Escrita (`writing-assist/index.ts`)
 
-### 5. Persistência de Estado no SessionStorage
-Salvar sugestões, publisher selecionado e guidelines no sessionStorage para que o pesquisador não perca o progresso ao navegar.
+Antes de gerar texto, buscar chunks semânticos dos papers selecionados (mesmo pipeline do `chat-papers`):
+- Embeddar o prompt/seção do usuário
+- Buscar top-10 chunks via `match_paper_chunks`
+- Incluir os trechos reais no contexto do prompt
 
-### 6. Comparação Side-by-Side de Publishers
-Na etapa 1, permitir selecionar 2-3 publishers para comparar em uma tabela resumida (escopo, quantidade de journals, requisitos) antes de escolher.
+Isso permite que a IA cite **trechos reais** dos papers em vez de apenas metadados.
 
-### 7. Preview da Formatação Antes de Aplicar
-Na etapa de formatação, mostrar um diff/preview do artigo reformatado ao lado do original, permitindo ao pesquisador aprovar antes de inserir no editor.
+### 3. Novas Actions no Edge Function
+
+| Action | Descrição |
+|--------|-----------|
+| `generate_abstract` | Gera abstract estruturado (Objetivo, Métodos, Resultados, Conclusão) a partir do artigo completo |
+| `peer_review` | Simula revisão por pares: identifica pontos fracos, gaps metodológicos, sugestões de melhoria |
+| `improve_hedging` | Analisa o texto e corrige linguagem absolutista para hedging científico adequado |
+| `generate_highlights` | Gera "Key Findings" / "Highlights" no formato exigido por muitos periódicos |
+
+### 4. Validação Anti-Alucinação no Backend
+
+Após o AI gerar texto (para ações não-streaming), aplicar a mesma "Guarda Pretoriana" do `chat-papers`:
+- Verificar se citações `[N]` referenciam apenas papers fornecidos
+- Substituir IDs inválidos por `[?]`
+
+Para streaming: validar no frontend antes de inserir no editor.
+
+### 5. Novos Botões na Toolbar (`WritingAssistant.tsx`)
+
+- **"Peer Review"**: Simula revisão por pares do texto no editor
+- **"Abstract"**: Gera abstract estruturado do artigo completo
+- **"Hedging"**: Corrige linguagem absolutista
+- **"Highlights"**: Gera key findings
+
+Organizar toolbar em 2 grupos visuais:
+- **Escrita**: Gerar Rascunho, Continuar, Citações
+- **Revisão**: Reformular, Verificar, Peer Review, Hedging
+
+### 6. Validação de Citações no Frontend
+
+Ao clicar "Inserir" no AI Output, verificar se todas as citações `[N]` correspondem a papers selecionados. Alertar o pesquisador se houver citações sem correspondência.
+
+### 7. Indicador de Qualidade do Texto
+
+Barra no rodapé do editor mostrando métricas simples:
+- Contagem de citações vs. afirmações factuais (ratio)
+- Presença de hedging words
+- Variedade vocabular (type-token ratio simplificado)
 
 ## Arquivos Alterados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/components/app/CAPESAdvisorPanel.tsx` | Refatorar de Dialog para painel inline; adicionar stepper, checklist, comparação e preview |
-| `src/pages/WritingAssistant.tsx` | Integrar painel no layout principal (substituindo AI Output quando ativo); reposicionar botão; adicionar persistência |
+| `supabase/functions/writing-assist/index.ts` | Reescrever prompts com rigor; adicionar RAG; novas actions (abstract, peer_review, hedging, highlights); validação anti-alucinação |
+| `src/pages/WritingAssistant.tsx` | Novos botões (Peer Review, Abstract, Hedging, Highlights); toolbar reorganizada em grupos; validação de citações no Insert; indicador de qualidade |
 
-## Detalhes Técnicos
+## Resultado Esperado
 
-- O painel CAPES usará o mesmo espaço do `w-[45%]` do AI Output, controlado por um estado `activeRightPanel: "ai" | "capes"`
-- O stepper usa badges numeradas com cores para indicar etapa atual/completa/pendente
-- O checklist é local (useState + sessionStorage), sem necessidade de banco
-- A comparação de publishers renderiza um grid de Cards lado a lado com scroll horizontal
-- O preview de formatação faz a chamada `format_for_journal` mas exibe no painel CAPES antes de inserir no editor, com botões "Aprovar e inserir" / "Descartar"
-- Nenhuma mudança em edge functions — apenas UI/UX
+O módulo passará a:
+1. Nunca fabricar dados — toda informação é rastreável aos papers fornecidos
+2. Escrever com fluência de pesquisador sênior, com transições naturais e hedging adequado
+3. Usar trechos reais dos papers (via RAG) em vez de apenas metadados
+4. Oferecer ferramentas de revisão que simulam o processo real de peer review
+5. Alertar o pesquisador sobre citações suspeitas antes de inserir no editor
 
