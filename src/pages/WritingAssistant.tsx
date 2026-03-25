@@ -874,49 +874,56 @@ const WritingAssistant = () => {
               </div>
             </div>
 
-            {/* AI Output */}
+            {/* Right panel: AI Output or CAPES Advisor */}
             <div className="w-[45%] flex flex-col bg-muted/10">
-              <div className="px-4 py-2 border-b border-border/40 bg-muted/20 flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                  <Sparkles className="h-3 w-3 text-primary" />
-                  {pt ? "Saída da IA" : "AI Output"}
-                  {isGenerating && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
-                </p>
-                {aiOutput && !isGenerating && (
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={handleCopy}>
-                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                      {copied ? (pt ? "Copiado" : "Copied") : (pt ? "Copiar" : "Copy")}
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={handleInsertInEditor}>
-                      <Plus className="h-3 w-3" />
-                      {pt ? "Inserir" : "Insert"}
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <ScrollArea className="flex-1">
-                <div className="p-4 text-sm leading-relaxed whitespace-pre-wrap font-serif text-foreground">
-                  {aiOutput || (
-                    <p className="text-muted-foreground italic text-center mt-12">
-                      {pt
-                        ? "Use os botões acima para gerar conteúdo. Selecione papers, PDFs e análises do DataMind no painel esquerdo para contextualizar a escrita."
-                        : "Use the buttons above to generate content. Select papers, PDFs and DataMind analyses from the left panel to contextualize the writing."}
+              {activeRightPanel === "ai" ? (
+                <>
+                  <div className="px-4 py-2 border-b border-border/40 bg-muted/20 flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-primary" />
+                      {pt ? "Saída da IA" : "AI Output"}
+                      {isGenerating && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
                     </p>
-                  )}
-                </div>
-              </ScrollArea>
+                    {aiOutput && !isGenerating && (
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={handleCopy}>
+                          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                          {copied ? (pt ? "Copiado" : "Copied") : (pt ? "Copiar" : "Copy")}
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={handleInsertInEditor}>
+                          <Plus className="h-3 w-3" />
+                          {pt ? "Inserir" : "Insert"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 text-sm leading-relaxed whitespace-pre-wrap font-serif text-foreground">
+                      {aiOutput || (
+                        <p className="text-muted-foreground italic text-center mt-12">
+                          {pt
+                            ? "Use os botões acima para gerar conteúdo. Selecione papers, PDFs e análises do DataMind no painel esquerdo para contextualizar a escrita."
+                            : "Use the buttons above to generate content. Select papers, PDFs and DataMind analyses from the left panel to contextualize the writing."}
+                        </p>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </>
+              ) : (
+                <CAPESAdvisorPanel
+                  editorContent={editorContent}
+                  onFormatArticle={(publisher) => {
+                    setActiveRightPanel("ai");
+                    streamAI("format_for_journal", `Format this article according to ${publisher} submission guidelines. Publisher: ${publisher}`);
+                  }}
+                  onClose={() => setActiveRightPanel("ai")}
+                  onInsertFormatted={(text) => {
+                    setEditorContent(prev => prev + (prev ? "\n\n" : "") + text);
+                    toast.success(pt ? "Texto formatado inserido" : "Formatted text inserted");
+                  }}
+                />
+              )}
             </div>
-          </div>
-        </div>
-        <CAPESAdvisorPanel
-          open={capesOpen}
-          onOpenChange={setCapesOpen}
-          editorContent={editorContent}
-          onFormatArticle={(publisher) => {
-            streamAI("format_for_journal", `Format this article according to ${publisher} submission guidelines. Publisher: ${publisher}`);
-          }}
-        />
       </div>
   );
 };
