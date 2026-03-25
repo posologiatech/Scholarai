@@ -1030,7 +1030,21 @@ const WritingAssistant = () => {
                       {isGenerating && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
                     </p>
                     {aiOutput && !isGenerating && (
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 items-center">
+                        {(() => {
+                          const v = validateCitationsInOutput(aiOutput);
+                          return !v.valid ? (
+                            <Badge variant="destructive" className="text-[9px] h-5 gap-0.5">
+                              <AlertTriangle className="h-2.5 w-2.5" />
+                              {v.invalidIds.length} {pt ? "citação suspeita" : "suspicious"}
+                            </Badge>
+                          ) : v.totalCitations > 0 ? (
+                            <Badge variant="secondary" className="text-[9px] h-5 gap-0.5 bg-green-500/10 text-green-600 border-green-500/20">
+                              <Check className="h-2.5 w-2.5" />
+                              {v.totalCitations} {pt ? "citações válidas" : "valid citations"}
+                            </Badge>
+                          ) : null;
+                        })()}
                         <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={handleCopy}>
                           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                           {copied ? (pt ? "Copiado" : "Copied") : (pt ? "Copiar" : "Copy")}
