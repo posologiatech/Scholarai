@@ -8,7 +8,7 @@ import {
   GraduationCap, Globe, LogOut, BookOpen, Table, FileText,
   LayoutDashboard, Shield, ShieldCheck, Palette, BrainCircuit,
   PanelLeftClose, PanelLeft, Network, Users, PenLine, BarChart3, Bell, ClipboardCheck, GitBranch,
-  ClipboardList, Activity,
+  ClipboardList, Activity, Rocket,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
