@@ -59,17 +59,19 @@ const KnowledgeGraph = () => {
   const centerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 600, height: 500 });
 
-  // Measure center panel
+  // Measure center panel with ResizeObserver for accurate sizing
   useEffect(() => {
+    if (!centerRef.current) return;
     const measure = () => {
       if (centerRef.current) {
         const rect = centerRef.current.getBoundingClientRect();
-        setDimensions({ width: Math.max(300, rect.width), height: Math.max(300, rect.height) });
+        setDimensions({ width: Math.max(300, Math.floor(rect.width)), height: Math.max(300, Math.floor(rect.height)) });
       }
     };
     measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    const ro = new ResizeObserver(measure);
+    ro.observe(centerRef.current);
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
@@ -332,6 +334,7 @@ const KnowledgeGraph = () => {
               height={dimensions.height}
             />
           )}
+
         </div>
 
         {/* Right panel - paper details */}

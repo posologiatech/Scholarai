@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLanguage } from "@/i18n/LanguageContext";
-import AppSidebar from "@/components/app/AppSidebar";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -198,7 +198,7 @@ const Changelog = () => {
   };
 
   return (
-    <AppSidebar>
+    <>
       <div className="p-6 max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -334,7 +334,7 @@ const Changelog = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AppSidebar>
+    </>
   );
 };
 
