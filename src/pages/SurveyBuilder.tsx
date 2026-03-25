@@ -203,6 +203,12 @@ const SurveyBuilder = () => {
               <GitBranch className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Fluxo" : "Flow"}
             </TabsTrigger>
+            <TabsTrigger value="team" className="text-xs" onClick={() => navigate(`/surveys/${id}/team`)}>
+              <UsersRound className="h-3 w-3 mr-1" />
+              {locale === "pt" ? "Equipe" : "Team"}
+            </TabsTrigger>
+              {locale === "pt" ? "Fluxo" : "Flow"}
+            </TabsTrigger>
             <TabsTrigger value="distribute" className="text-xs" onClick={() => navigate(`/surveys/${id}/distribute`)}>
               <Send className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Distribuir" : "Distribute"}

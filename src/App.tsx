@@ -125,6 +125,7 @@ const App = () => (
               <Route path="/surveys/:id/participants" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/compliance" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/flow" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
+              <Route path="/surveys/:id/team" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/distribute" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/results" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/preview" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
