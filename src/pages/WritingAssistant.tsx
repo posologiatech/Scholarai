@@ -823,6 +823,18 @@ const WritingAssistant = () => {
               <Quote className="h-3 w-3" />
               {pt ? "Citações" : "Citations"}
             </Button>
+
+            <Separator orientation="vertical" className="h-6" />
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+              onClick={() => setCapesOpen(true)}
+            >
+              <GraduationCap className="h-3 w-3" />
+              CAPES APC
+            </Button>
           </div>
 
           {/* Instructions bar */}
