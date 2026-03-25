@@ -2010,6 +2010,41 @@ export type Database = {
           },
         ]
       }
+      survey_team_members: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          id: string
+          role: string
+          survey_id: string
+          user_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          role?: string
+          survey_id: string
+          user_id: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          role?: string
+          survey_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_team_members_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       surveys: {
         Row: {
           closed_at: string | null
