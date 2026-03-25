@@ -71,6 +71,7 @@ const App = () => (
           <BrowserRouter>
             <CookieBanner />
             <OracleAgent />
+            <AdminRoadmapDialog />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
