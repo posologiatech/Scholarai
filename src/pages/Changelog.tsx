@@ -135,6 +135,43 @@ const Changelog = () => {
 
   useEffect(() => { fetchEntries(); }, []);
 
+  const syncMissing = async () => {
+    setSyncing(true);
+    try {
+      const existingTitles = new Set(entries.map(e => e.title.toLowerCase().trim()));
+      const missing = FEATURES_MANIFEST.filter(f => !existingTitles.has(f.title.toLowerCase().trim()));
+
+      if (missing.length === 0) {
+        toast({ title: "Pipeline atualizado", description: "Todas as funcionalidades já estão registradas." });
+        setSyncing(false);
+        return;
+      }
+
+      const payloads = missing.map(f => ({
+        title: f.title,
+        description: f.description,
+        category: f.category,
+        status: f.status,
+        priority: f.priority,
+        module: f.module || null,
+        version: f.version || null,
+        released_at: f.released_at ? new Date(f.released_at).toISOString() : null,
+        created_by: user?.id,
+      }));
+
+      const { error } = await supabase.from("system_changelog" as any).insert(payloads as any);
+      if (error) throw error;
+
+      toast({ title: `${missing.length} entrada(s) adicionada(s)`, description: "Pipeline sincronizado com sucesso." });
+      await fetchEntries();
+    } catch (err: any) {
+      console.error(err);
+      toast({ title: "Erro ao sincronizar", description: err.message, variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const openNew = () => {
     setEditing(null);
     setForm({ title: "", description: "", category: "feature", status: "released", priority: "medium", module: "", version: "", released_at: "" });
