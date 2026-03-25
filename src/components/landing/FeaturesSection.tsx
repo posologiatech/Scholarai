@@ -167,8 +167,9 @@ const FeaturesSection = () => {
             </h2>
             <p className="mx-auto max-w-2xl text-muted-foreground">
               {pt
-                ? "16 ferramentas integradas de IA cobrindo cada etapa da pesquisa acadêmica e clínica — da busca à publicação, com conformidade CEP/LGPD."
-                : "16 integrated AI tools covering every stage of academic and clinical research — from search to publication, with CEP/LGPD compliance."}
+                ? "18 ferramentas integradas de IA cobrindo cada etapa da pesquisa acadêmica e clínica — da busca à publicação, com conformidade CEP/LGPD."
+                : "18 integrated AI tools covering every stage of academic and clinical research — from search to publication, with CEP/LGPD compliance."}
+            </p>
             </p>
           </div>
         </AnimatedSection>
