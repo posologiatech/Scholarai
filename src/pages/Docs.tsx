@@ -10,6 +10,7 @@ import {
   MessageSquare, Share2, LayoutDashboard, Workflow, ClipboardCheck, FileSearch,
   ClipboardList, QrCode, GripVertical, Wand2, Shield, FileSignature, UserX,
   Stethoscope, Server, Code, Lock, Cpu, HardDrive, Key, Blocks, Rocket,
+  Activity, Microscope, Hash,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -338,22 +339,106 @@ const Docs = () => {
       ],
     },
     {
+      id: "datasus",
+      icon: Activity,
+      title: "DataSUS",
+      category: pt ? "Análise" : "Analysis",
+      content: [
+        {
+          heading: pt ? "Consulta epidemiológica com IA" : "AI-powered epidemiological queries",
+          body: pt
+            ? "O módulo DataSUS permite consultar dados epidemiológicos brasileiros do SUS usando linguagem natural. O sistema acessa dados de sistemas como SIM (mortalidade), SINASC (nascidos vivos), SINAN (agravos de notificação) e outros, gerando análises automáticas com gráficos, tabelas e explicações detalhadas por estado, município, período e doença."
+            : "The DataSUS module lets you query Brazilian SUS epidemiological data using natural language. The system accesses data from systems like SIM (mortality), SINASC (live births), SINAN (notifiable diseases) and others, generating automatic analyses with charts, tables and detailed explanations by state, municipality, period and disease.",
+        },
+        {
+          heading: pt ? "Boletins epidemiológicos" : "Epidemiological bulletins",
+          body: pt
+            ? "Gere boletins epidemiológicos automatizados com análise temporal, comparação entre regiões, tendências e alertas. Os boletins são formatados para apresentação profissional e podem incluir mapas SVG interativos do Brasil com dados por estado."
+            : "Generate automated epidemiological bulletins with temporal analysis, regional comparison, trends and alerts. Bulletins are formatted for professional presentation and can include interactive SVG maps of Brazil with state-level data.",
+        },
+        {
+          heading: pt ? "Alertas epidemiológicos" : "Epidemiological alerts",
+          body: pt
+            ? "Configure alertas para monitorar doenças específicas em estados ou regiões. O sistema calcula automaticamente z-scores comparando valores atuais com médias históricas e notifica quando há desvios significativos (surtos, epidemias). Os alertas suportam frequência diária, semanal ou mensal."
+            : "Set up alerts to monitor specific diseases in states or regions. The system automatically calculates z-scores comparing current values with historical means and notifies when significant deviations occur (outbreaks, epidemics). Alerts support daily, weekly or monthly frequency.",
+        },
+      ],
+    },
+    {
+      id: "research-gaps",
+      icon: Microscope,
+      title: pt ? "Gaps de Pesquisa" : "Research Gaps",
+      category: pt ? "Análise" : "Analysis",
+      content: [
+        {
+          heading: pt ? "Identificação automática de lacunas" : "Automatic gap identification",
+          body: pt
+            ? "O módulo de Gaps de Pesquisa analisa o conjunto de artigos da sua biblioteca ou revisão sistemática e identifica automaticamente lacunas na literatura usando IA. O sistema detecta: áreas não exploradas, contradições entre estudos, limitações metodológicas recorrentes, populações sub-representadas e oportunidades para novos estudos."
+            : "The Research Gaps module analyzes papers from your library or systematic review and automatically identifies literature gaps using AI. The system detects: unexplored areas, contradictions between studies, recurring methodological limitations, underrepresented populations and opportunities for new studies.",
+        },
+        {
+          heading: pt ? "Sugestões de pesquisa futura" : "Future research suggestions",
+          body: pt
+            ? "Com base nas lacunas identificadas, a IA gera sugestões concretas de perguntas de pesquisa, metodologias recomendadas e justificativas baseadas na evidência existente. Útil para fundamentar projetos de pesquisa, dissertações e propostas de financiamento."
+            : "Based on identified gaps, AI generates concrete research question suggestions, recommended methodologies and justifications based on existing evidence. Useful for grounding research projects, dissertations and funding proposals.",
+        },
+      ],
+    },
+    {
       id: "writing-assistant",
       icon: PenTool,
       title: pt ? "Assistente de Escrita" : "Writing Assistant",
       category: pt ? "Produção" : "Production",
       content: [
         {
-          heading: pt ? "Escrita científica assistida por IA" : "AI-assisted scientific writing",
+          heading: pt ? "Editor de 3 painéis" : "3-panel editor",
           body: pt
-            ? "O Assistente de Escrita ajuda na redação de textos acadêmicos. Cole seu texto e peça para a IA revisar, melhorar a clareza, corrigir gramática, adaptar ao estilo acadêmico ou traduzir entre idiomas. Também suporta upload de PDFs para análise e resumo automático."
-            : "The Writing Assistant helps with academic text writing. Paste your text and ask AI to review, improve clarity, correct grammar, adapt to academic style, or translate between languages. Also supports PDF upload for automatic analysis and summarization.",
+            ? "O Assistente de Escrita Científica oferece um editor de 3 painéis: à esquerda, o painel de Fontes para selecionar papers da Library, análises do DataMind e PDFs próprios enviados pelo pesquisador; no centro, o editor de texto onde você escreve seu artigo; à direita, a saída da IA com o conteúdo gerado. Os papers da Library são organizados hierarquicamente por nome da pesquisa original em seções expansíveis (Collapsibles)."
+            : "The Scientific Writing Assistant offers a 3-panel editor: on the left, the Sources panel to select papers from the Library, DataMind analyses and researcher-uploaded PDFs; in the center, the text editor where you write your article; on the right, the AI output with generated content. Library papers are organized hierarchically by original search name in expandable sections (Collapsibles).",
         },
         {
-          heading: pt ? "Modos de operação" : "Operation modes",
+          heading: pt ? "Ações de IA" : "AI actions",
           body: pt
-            ? "Escolha entre diferentes modos: Revisar (correção gramatical e estilística), Melhorar (reescrita para maior clareza), Resumir (extração de pontos-chave), Traduzir (PT↔EN), Expandir (desenvolvimento de ideias) e Perguntar (Q&A sobre o texto)."
-            : "Choose between modes: Review (grammar and style correction), Improve (rewrite for clarity), Summarize (extract key points), Translate (PT↔EN), Expand (develop ideas), and Ask (Q&A about the text).",
+            ? "O toolbar oferece 5 ações principais com streaming em tempo real:\n• Gerar Rascunho — gera uma seção completa (Introdução, Métodos, Resultados, Discussão, Conclusão ou Resumo) usando os papers e PDFs selecionados como referência\n• Continuar — continua a escrita a partir do ponto onde o autor parou, mantendo o mesmo tom e estilo\n• Reformular — reescreve o texto selecionado para maior clareza e rigor acadêmico\n• Verificar — verifica consistência entre afirmações e evidências citadas, identifica claims sem citação e overgeneralizações\n• Citações — formata referências nos estilos APA 7th, Vancouver ou ABNT"
+            : "The toolbar offers 5 main actions with real-time streaming:\n• Generate Draft — generates a complete section (Introduction, Methods, Results, Discussion, Conclusion or Abstract) using selected papers and PDFs as reference\n• Continue — continues writing from where the author left off, maintaining the same tone and style\n• Rephrase — rewrites selected text for greater clarity and academic rigor\n• Check — verifies consistency between claims and cited evidence, identifies uncited claims and overgeneralizations\n• Citations — formats references in APA 7th, Vancouver or ABNT styles",
+        },
+        {
+          heading: pt ? "Fontes contextuais" : "Contextual sources",
+          body: pt
+            ? "Selecione múltiplas fontes de contexto para enriquecer a escrita:\n• Papers da Library — artigos salvos das suas buscas, agrupados por pesquisa\n• Análises DataMind — resultados estatísticos e insights das suas análises de dados\n• PDFs próprios — documentos PDF enviados pelo pesquisador, com texto extraído automaticamente\nA IA integra dados estatísticos do DataMind naturalmente no texto e cita os papers selecionados no formato escolhido."
+            : "Select multiple context sources to enrich writing:\n• Library Papers — saved papers from your searches, grouped by research\n• DataMind Analyses — statistical results and insights from your data analyses\n• Own PDFs — PDF documents uploaded by the researcher, with automatically extracted text\nAI integrates DataMind statistical data naturally into the text and cites selected papers in the chosen format.",
+          tip: pt
+            ? "Combine papers da Library com análises do DataMind para gerar seções de Resultados e Discussão com citações e estatísticas integradas."
+            : "Combine Library papers with DataMind analyses to generate Results and Discussion sections with integrated citations and statistics.",
+        },
+      ],
+    },
+    {
+      id: "capes-apc",
+      icon: GraduationCap,
+      title: pt ? "Consultor CAPES APC" : "CAPES APC Advisor",
+      category: pt ? "Produção" : "Production",
+      content: [
+        {
+          heading: pt ? "O que é o Consultor CAPES APC" : "What is the CAPES APC Advisor",
+          body: pt
+            ? "O Consultor CAPES APC é integrado ao Assistente de Escrita e ajuda pesquisadores brasileiros a identificar periódicos cujo pagamento de APC (Article Processing Charge) é coberto pelos acordos transformativos da CAPES. A CAPES possui acordos com 7 editoras internacionais: Springer Nature (1.738 periódicos), Elsevier (1.619), ACM, Royal Society Publishing (10), Wiley (ilimitado), IEEE e ACS."
+            : "The CAPES APC Advisor is integrated into the Writing Assistant and helps Brazilian researchers identify journals whose APC (Article Processing Charge) payment is covered by CAPES transformative agreements. CAPES has agreements with 7 international publishers: Springer Nature (1,738 journals), Elsevier (1,619), ACM, Royal Society Publishing (10), Wiley (unlimited), IEEE and ACS.",
+        },
+        {
+          heading: pt ? "Análise e sugestão de periódicos" : "Journal analysis and suggestion",
+          body: pt
+            ? "Clique no botão 'CAPES APC' na toolbar do Assistente de Escrita. A IA analisa o conteúdo do seu artigo e sugere as editoras/periódicos mais compatíveis com o escopo do trabalho, classificando cada uma com score de compatibilidade (alta, média, baixa). Cada sugestão inclui o nome da editora, periódicos específicos recomendados, justificativa e considerações para submissão."
+            : "Click the 'CAPES APC' button in the Writing Assistant toolbar. AI analyzes your article content and suggests the most compatible publishers/journals for your work's scope, classifying each with a compatibility score (high, medium, low). Each suggestion includes the publisher name, specific recommended journals, reasoning and submission considerations.",
+        },
+        {
+          heading: pt ? "Diretrizes de submissão e links" : "Submission guidelines and links",
+          body: pt
+            ? "Ao selecionar uma editora, o sistema apresenta:\n• Links diretos para periódicos elegíveis, guia do autor e instituições elegíveis\n• Link para a Portaria nº 120/2024 (regras de pagamento APC)\n• Link para cadastro de ORCID em meusdados.capes.gov.br\n• Dashboard Power BI com APCs já pagos pela CAPES\n• Diretrizes detalhadas de submissão geradas por IA (processo passo a passo, formatação, documentos necessários, erros comuns)\n• Botão para formatar automaticamente o artigo no padrão da editora escolhida"
+            : "When selecting a publisher, the system shows:\n• Direct links to eligible journals, author guide and eligible institutions\n• Link to Portaria nº 120/2024 (APC payment rules)\n• Link to ORCID registration at meusdados.capes.gov.br\n• Power BI dashboard with APCs already paid by CAPES\n• Detailed AI-generated submission guidelines (step-by-step process, formatting, required documents, common mistakes)\n• Button to automatically format the article to the chosen publisher's standard",
+          tip: pt
+            ? "É obrigatório possuir ORCID válido cadastrado em meusdados.capes.gov.br antes de solicitar pagamento de APC pela CAPES."
+            : "A valid ORCID registered at meusdados.capes.gov.br is mandatory before requesting APC payment from CAPES.",
         },
       ],
     },
@@ -565,6 +650,35 @@ const Docs = () => {
           body: pt
             ? "Faça upload de documentos clínicos (PDFs, imagens, laudos) vinculados a participantes e visitas específicas. Os arquivos são armazenados de forma segura no bucket privado 'study-documents' com RLS."
             : "Upload clinical documents (PDFs, images, reports) linked to specific participants and visits. Files are securely stored in the private 'study-documents' bucket with RLS.",
+        },
+      ],
+    },
+    {
+      id: "data-integrity",
+      icon: Hash,
+      title: pt ? "Integridade de Dados" : "Data Integrity",
+      category: pt ? "Pesquisa Clínica" : "Clinical Research",
+      content: [
+        {
+          heading: pt ? "Hashes criptográficos por resposta" : "Cryptographic hashes per response",
+          body: pt
+            ? "Cada resposta submetida em um formulário de pesquisa recebe um hash SHA-256 calculado a partir do conteúdo (question_id + answer_text + answer_numeric + answer_choices + matrix_answers). Além disso, um hash encadeado (response_hash) é gerado para o conjunto completo de respostas de cada respondente. Isso garante que qualquer adulteração nos dados seja detectável."
+            : "Each response submitted in a research form receives a SHA-256 hash calculated from its content (question_id + answer_text + answer_numeric + answer_choices + matrix_answers). Additionally, a chained hash (response_hash) is generated for each respondent's complete response set. This ensures any data tampering is detectable.",
+        },
+        {
+          heading: pt ? "Edição auditada com versionamento" : "Audited editing with versioning",
+          body: pt
+            ? "Quando um pesquisador precisa editar uma resposta (ex: correção de erro de digitação), o sistema:\n1. Salva o valor anterior na tabela survey_answer_audit\n2. Exige um motivo obrigatório para a alteração\n3. Incrementa a versão do answer\n4. Recalcula o hash de integridade\n5. Atualiza o response_hash do conjunto\n6. Registra na trilha de auditoria (study_audit_log)\nCélulas editadas são visualmente marcadas no grid de dados."
+            : "When a researcher needs to edit a response (e.g., typo correction), the system:\n1. Saves the previous value in the survey_answer_audit table\n2. Requires a mandatory reason for the change\n3. Increments the answer version\n4. Recalculates the integrity hash\n5. Updates the response set's response_hash\n6. Logs in the audit trail (study_audit_log)\nEdited cells are visually marked in the data grid.",
+        },
+        {
+          heading: pt ? "Verificação de integridade" : "Integrity verification",
+          body: pt
+            ? "O painel de Integridade de Dados permite verificar a qualquer momento se os dados foram adulterados. O sistema recalcula todos os hashes a partir dos dados atuais e compara com os hashes armazenados. Cada resposta recebe um status visual: ✅ Íntegro ou ❌ Violação. Relatórios de verificação podem ser usados para auditorias de CEP/CONEP."
+            : "The Data Integrity panel lets you verify at any time if data has been tampered with. The system recalculates all hashes from current data and compares with stored hashes. Each response gets a visual status: ✅ Intact or ❌ Violation. Verification reports can be used for CEP/CONEP audits.",
+          tip: pt
+            ? "Execute a verificação de integridade antes de exportar dados para análise ou submeter relatórios ao CEP."
+            : "Run integrity verification before exporting data for analysis or submitting reports to the ethics committee.",
         },
       ],
     },
@@ -815,8 +929,8 @@ const Docs = () => {
         {
           heading: pt ? "Funções de busca e IA" : "Search and AI functions",
           body: pt
-            ? "• search-papers — busca multi-fonte (Semantic Scholar, PubMed, OpenAlex, Europe PMC) com normalização de resultados\n• synthesize-papers — síntese com IA de múltiplos artigos em texto coerente com citações\n• extract-column — extração de dados de artigos por coluna com prompt customizado\n• extract-pdf — extração de texto de PDFs enviados\n• embed-papers — geração de embeddings vetoriais para chunks de artigos\n• chat-papers — chat contextual com RAG sobre artigos\n• classify-citations — classificação automática de citações (supporting/contrasting/mentioning)\n• check-references — verificação de referências contra bases de retratação\n• evaluate-question — avaliação de qualidade de perguntas de pesquisa\n• generate-illustration — geração de ilustrações científicas via IA\n• generate-knowledge-graph — geração de grafo de relações entre artigos\n• writing-assist — assistente de escrita acadêmica\n• fetch-full-text — busca de texto completo via Europe PMC / Unpaywall"
-            : "• search-papers — multi-source search (Semantic Scholar, PubMed, OpenAlex, Europe PMC) with result normalization\n• synthesize-papers — AI synthesis of multiple papers into coherent text with citations\n• extract-column — per-column data extraction with custom prompts\n• extract-pdf — text extraction from uploaded PDFs\n• embed-papers — vector embedding generation for paper chunks\n• chat-papers — contextual RAG chat about papers\n• classify-citations — automatic citation classification (supporting/contrasting/mentioning)\n• check-references — reference checking against retraction databases\n• evaluate-question — research question quality evaluation\n• generate-illustration — AI scientific illustration generation\n• generate-knowledge-graph — paper relationship graph generation\n• writing-assist — academic writing assistant\n• fetch-full-text — full text retrieval via Europe PMC / Unpaywall",
+            ? "• search-papers — busca multi-fonte (Semantic Scholar, PubMed, OpenAlex, Europe PMC) com normalização de resultados\n• synthesize-papers — síntese com IA de múltiplos artigos em texto coerente com citações\n• extract-column — extração de dados de artigos por coluna com prompt customizado\n• extract-pdf — extração de texto de PDFs enviados\n• embed-papers — geração de embeddings vetoriais para chunks de artigos\n• chat-papers — chat contextual com RAG sobre artigos\n• classify-citations — classificação automática de citações (supporting/contrasting/mentioning)\n• check-references — verificação de referências contra bases de retratação\n• evaluate-question — avaliação de qualidade de perguntas de pesquisa\n• generate-illustration — geração de ilustrações científicas via IA\n• generate-knowledge-graph — geração de grafo de relações entre artigos\n• writing-assist — assistente de escrita acadêmica (rascunho, reformulação, citações, formatação)\n• capes-apc-advisor — consultor de periódicos com APC paga pela CAPES\n• fetch-full-text — busca de texto completo via Europe PMC / Unpaywall\n• research-gaps — identificação de lacunas na literatura\n• oracle-chat — agente de pesquisa conversacional\n• datasus-query — consulta a dados epidemiológicos do SUS\n• check-datasus-alerts — verificação de alertas epidemiológicos"
+            : "• search-papers — multi-source search (Semantic Scholar, PubMed, OpenAlex, Europe PMC) with result normalization\n• synthesize-papers — AI synthesis of multiple papers into coherent text with citations\n• extract-column — per-column data extraction with custom prompts\n• extract-pdf — text extraction from uploaded PDFs\n• embed-papers — vector embedding generation for paper chunks\n• chat-papers — contextual RAG chat about papers\n• classify-citations — automatic citation classification (supporting/contrasting/mentioning)\n• check-references — reference checking against retraction databases\n• evaluate-question — research question quality evaluation\n• generate-illustration — AI scientific illustration generation\n• generate-knowledge-graph — paper relationship graph generation\n• writing-assist — academic writing assistant (drafting, rephrasing, citations, formatting)\n• capes-apc-advisor — CAPES-paid APC journal advisor\n• fetch-full-text — full text retrieval via Europe PMC / Unpaywall\n• research-gaps — literature gap identification\n• oracle-chat — conversational research agent\n• datasus-query — SUS epidemiological data query\n• check-datasus-alerts — epidemiological alert checking",
         },
         {
           heading: pt ? "Funções de revisão sistemática" : "Systematic review functions",
@@ -827,8 +941,8 @@ const Docs = () => {
         {
           heading: pt ? "Funções de DataMind e utilidades" : "DataMind and utility functions",
           body: pt
-            ? "• datamind-chat — chat conversacional com geração de código Python/R\n• datamind-execute — execução de código via E2B sandbox (fallback server-side)\n• datamind-db — operações NL-to-SQL em bancos externos\n• datamind-providers — lista provedores de IA disponíveis\n• export-to-sheets — exportação para Google Sheets\n• check-alerts — verificação periódica de alertas de literatura\n• send-contact — envio de formulário de contato via Resend\n• send-metrics-to-hub — envio de métricas para hub central\n• survey-respond / survey-generate-questions — resposta e geração de questões de survey\n• consent-sign / consent-revoke — assinatura e revogação de TCLE\n• create-checkout / check-subscription / customer-portal — integração Stripe"
-            : "• datamind-chat — conversational chat with Python/R code generation\n• datamind-execute — code execution via E2B sandbox (server-side fallback)\n• datamind-db — NL-to-SQL operations on external databases\n• datamind-providers — list available AI providers\n• export-to-sheets — Google Sheets export\n• check-alerts — periodic literature alert checking\n• send-contact — contact form sending via Resend\n• send-metrics-to-hub — metrics reporting to central hub\n• survey-respond / survey-generate-questions — survey response and question generation\n• consent-sign / consent-revoke — informed consent signature and revocation\n• create-checkout / check-subscription / customer-portal — Stripe integration",
+            ? "• datamind-chat — chat conversacional com geração de código Python/R\n• datamind-execute — execução de código via E2B sandbox (fallback server-side)\n• datamind-db — operações NL-to-SQL em bancos externos\n• datamind-providers — lista provedores de IA disponíveis\n• export-to-sheets — exportação para Google Sheets\n• check-alerts — verificação periódica de alertas de literatura\n• send-contact — envio de formulário de contato via Resend\n• send-metrics-to-hub — envio de métricas para hub central\n• survey-respond / survey-generate-questions — resposta e geração de questões de survey\n• survey-edit-answer — edição auditada de respostas com hash de integridade\n• survey-verify-integrity — verificação de integridade criptográfica de respostas\n• consent-sign / consent-revoke — assinatura e revogação de TCLE\n• create-checkout / check-subscription / customer-portal — integração Stripe"
+            : "• datamind-chat — conversational chat with Python/R code generation\n• datamind-execute — code execution via E2B sandbox (server-side fallback)\n• datamind-db — NL-to-SQL operations on external databases\n• datamind-providers — list available AI providers\n• export-to-sheets — Google Sheets export\n• check-alerts — periodic literature alert checking\n• send-contact — contact form sending via Resend\n• send-metrics-to-hub — metrics reporting to central hub\n• survey-respond / survey-generate-questions — survey response and question generation\n• survey-edit-answer — audited answer editing with integrity hash\n• survey-verify-integrity — cryptographic response integrity verification\n• consent-sign / consent-revoke — informed consent signature and revocation\n• create-checkout / check-subscription / customer-portal — Stripe integration",
         },
         {
           heading: pt ? "Módulo compartilhado (_shared)" : "Shared module (_shared)",
