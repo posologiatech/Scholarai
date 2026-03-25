@@ -654,6 +654,35 @@ const Docs = () => {
       ],
     },
     {
+      id: "data-integrity",
+      icon: Hash,
+      title: pt ? "Integridade de Dados" : "Data Integrity",
+      category: pt ? "Pesquisa Clínica" : "Clinical Research",
+      content: [
+        {
+          heading: pt ? "Hashes criptográficos por resposta" : "Cryptographic hashes per response",
+          body: pt
+            ? "Cada resposta submetida em um formulário de pesquisa recebe um hash SHA-256 calculado a partir do conteúdo (question_id + answer_text + answer_numeric + answer_choices + matrix_answers). Além disso, um hash encadeado (response_hash) é gerado para o conjunto completo de respostas de cada respondente. Isso garante que qualquer adulteração nos dados seja detectável."
+            : "Each response submitted in a research form receives a SHA-256 hash calculated from its content (question_id + answer_text + answer_numeric + answer_choices + matrix_answers). Additionally, a chained hash (response_hash) is generated for each respondent's complete response set. This ensures any data tampering is detectable.",
+        },
+        {
+          heading: pt ? "Edição auditada com versionamento" : "Audited editing with versioning",
+          body: pt
+            ? "Quando um pesquisador precisa editar uma resposta (ex: correção de erro de digitação), o sistema:\n1. Salva o valor anterior na tabela survey_answer_audit\n2. Exige um motivo obrigatório para a alteração\n3. Incrementa a versão do answer\n4. Recalcula o hash de integridade\n5. Atualiza o response_hash do conjunto\n6. Registra na trilha de auditoria (study_audit_log)\nCélulas editadas são visualmente marcadas no grid de dados."
+            : "When a researcher needs to edit a response (e.g., typo correction), the system:\n1. Saves the previous value in the survey_answer_audit table\n2. Requires a mandatory reason for the change\n3. Increments the answer version\n4. Recalculates the integrity hash\n5. Updates the response set's response_hash\n6. Logs in the audit trail (study_audit_log)\nEdited cells are visually marked in the data grid.",
+        },
+        {
+          heading: pt ? "Verificação de integridade" : "Integrity verification",
+          body: pt
+            ? "O painel de Integridade de Dados permite verificar a qualquer momento se os dados foram adulterados. O sistema recalcula todos os hashes a partir dos dados atuais e compara com os hashes armazenados. Cada resposta recebe um status visual: ✅ Íntegro ou ❌ Violação. Relatórios de verificação podem ser usados para auditorias de CEP/CONEP."
+            : "The Data Integrity panel lets you verify at any time if data has been tampered with. The system recalculates all hashes from current data and compares with stored hashes. Each response gets a visual status: ✅ Intact or ❌ Violation. Verification reports can be used for CEP/CONEP audits.",
+          tip: pt
+            ? "Execute a verificação de integridade antes de exportar dados para análise ou submeter relatórios ao CEP."
+            : "Run integrity verification before exporting data for analysis or submitting reports to the ethics committee.",
+        },
+      ],
+    },
+    {
       id: "compliance",
       icon: Shield,
       title: pt ? "Conformidade CEP/LGPD" : "CEP/LGPD Compliance",
