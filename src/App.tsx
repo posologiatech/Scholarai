@@ -56,7 +56,9 @@ import MyPlan from "./pages/MyPlan";
 import ParticipantPrivacy from "./pages/ParticipantPrivacy";
 import ConsentRevoke from "./pages/ConsentRevoke";
 import DataSUSPage from "./pages/DataSUS";
+import Changelog from "./pages/Changelog";
 import OracleAgent from "./components/app/OracleAgent";
+import AdminRoadmapDialog from "./components/app/AdminRoadmapDialog";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -69,6 +71,7 @@ const App = () => (
           <BrowserRouter>
             <CookieBanner />
             <OracleAgent />
+            <AdminRoadmapDialog />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
@@ -128,6 +131,7 @@ const App = () => (
               <Route path="/survey/respond/:token" element={<SurveyRespond />} />
               <Route path="/consent/revoke/:signatureId" element={<ConsentRevoke />} />
               <Route path="/datasus" element={<ProtectedRoute><DataSUSPage /></ProtectedRoute>} />
+              <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
