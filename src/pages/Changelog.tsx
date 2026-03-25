@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Rocket, Lightbulb, Calendar, Plus, Pencil, Trash2, Search,
-  CheckCircle2, Clock, Sparkles, Bug, Zap, Puzzle, Filter,
+  CheckCircle2, Clock, Sparkles, Bug, Zap, Puzzle, Filter, RefreshCw, Loader2,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
