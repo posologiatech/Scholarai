@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
   FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
-  Upload, File, X,
+  Upload, File, X, GraduationCap,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
