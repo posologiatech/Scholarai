@@ -123,8 +123,8 @@ const WritingAssistant = () => {
           })),
         })).filter(g => g.papers.length > 0);
         setSearchGroups(groups);
-        // Expand all by default
-        setExpandedSearches(new Set(groups.map(g => g.id)));
+        // Collapsed by default — researcher opens each group manually
+        setExpandedSearches(new Set());
       }
       setLoadingPapers(false);
     };
