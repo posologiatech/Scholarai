@@ -10,6 +10,7 @@ import {
   MessageSquare, Share2, LayoutDashboard, Workflow, ClipboardCheck, FileSearch,
   ClipboardList, QrCode, GripVertical, Wand2, Shield, FileSignature, UserX,
   Stethoscope, Server, Code, Lock, Cpu, HardDrive, Key, Blocks, Rocket,
+  Activity, Microscope, Hash,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
