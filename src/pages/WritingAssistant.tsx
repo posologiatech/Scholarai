@@ -110,6 +110,15 @@ const WritingAssistant = () => {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const [activeRightPanel, setActiveRightPanel] = useState<"ai" | "capes">("ai");
 
+  // Documents state
+  const [savedDocuments, setSavedDocuments] = useState<WritingDocument[]>([]);
+  const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+  const [docTitle, setDocTitle] = useState("");
+  const [showDocManager, setShowDocManager] = useState(false);
+  const [docSearch, setDocSearch] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Load papers from saved searches (grouped)
   useEffect(() => {
     if (!user) return;
