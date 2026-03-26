@@ -1076,9 +1076,32 @@ const WritingAssistant = () => {
             </div>
           </TooltipProvider>
 
-          <Separator orientation="vertical" className="h-6 bg-border/30" />
+          {/* AI Declaration button */}
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs gap-1 px-2 relative hover:bg-emerald-500/10 hover:text-emerald-600 transition-all"
+                  onClick={() => setShowAIDeclaration(true)}
+                >
+                  <Shield className="h-3 w-3" />
+                  {pt ? "Declaração IA" : "AI Declaration"}
+                  {aiUsageLog.length > 0 && (
+                    <Badge className="text-[8px] h-4 px-1 ml-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15">
+                      {aiUsageLog.length}
+                    </Badge>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">{pt ? "Gerar declaração de uso de IA (Elsevier, Nature, SciELO...)" : "Generate AI usage declaration (Elsevier, Nature, SciELO...)"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
-          <Button
+
             size="sm"
             variant={activeRightPanel === "capes" ? "default" : "outline"}
             className={`h-7 text-xs gap-1 rounded-lg transition-all ${
