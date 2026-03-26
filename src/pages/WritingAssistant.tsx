@@ -45,6 +45,16 @@ interface DataMindAnalysis {
   content: string;
 }
 
+interface UploadedPDF {
+  id: string;
+  file_name: string;
+  title: string | null;
+  extracted_text: string | null;
+  file_path: string;
+  status: string | null;
+  created_at: string | null;
+}
+
 interface WritingDocument {
   id: string;
   title: string;
