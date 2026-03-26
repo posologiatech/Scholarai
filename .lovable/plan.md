@@ -1,74 +1,86 @@
 
 
-# Redesign Estético do Módulo de Escrita Científica
+# Declaração de Uso de IA no Módulo de Escrita Científica
 
-## Problemas Visuais Atuais
+## Contexto
 
-- Toolbar plana e monótona com muitos botões pequenos aglomerados
-- Sidebar esquerda sem hierarquia visual clara
-- Editor é um Textarea cru sem personalidade
-- Painel AI Output sem distinção visual do editor
-- Cabeçalhos de seção (Editor, AI Output) sem peso visual
-- Ausência de gradientes, sombras e profundidade
-- Footer de métricas achatado e sem destaque
-- Cores uniformes — tudo cinza/muted sem contraste
+Editoras como Elsevier, Nature/Springer, SciELO e instituições como CNPq exigem cada vez mais a declaração transparente do uso de IA generativa em artigos científicos. O módulo de escrita já usa IA extensivamente (geração de rascunhos, reformulação, peer review simulado, etc.), então é essencial rastrear automaticamente esse uso e gerar a declaração adequada.
 
-## Melhorias Propostas (apenas estética, zero mudança funcional)
+## Funcionalidade Proposta
 
-### 1. Sidebar Esquerda — Design Premium
-- Cabeçalho com gradiente sutil (primary → accent) e ícone com glow
-- Tabs com estilo pill/segmented control ao invés de tabs planas
-- Cards de papers com borda esquerda colorida (azul para selecionado) e hover com shadow
-- Upload area com borda gradient animada (dash animation)
-- Fundo com subtle pattern ou gradient mesh muito suave
+### 1. Rastreamento Automático de Uso de IA
 
-### 2. Toolbar — Ribbon Moderna
-- Fundo com glassmorphism (backdrop-blur + bg-white/80 + shadow-sm)
-- Selects (seção, citação) com cantos mais arredondados e ícone decorativo
-- Grupos "Escrita" e "Revisão" com background mais definido, border arredondado e label com cor distinta (azul para escrita, púrpura para revisão)
-- Botões com hover que inclui scale sutil (transform scale-105) e cor de fundo
-- Botão CAPES APC com gradient (primary → accent) quando ativo
-- Badges de fontes selecionadas com cores distintas por tipo (azul papers, verde DataMind, laranja PDFs)
+Cada vez que o pesquisador usar uma ação de IA (gerar rascunho, reformular, continuar, etc.), o sistema registra automaticamente em um estado local:
+- Ação realizada (ex: "draft_section", "rephrase", "peer_review")
+- Seção do artigo onde foi usada
+- Timestamp
+- Modelo/ferramenta implícita (o sistema usa IA via backend)
 
-### 3. Editor — Experiência de Escrita Premium
-- Remover aparência de Textarea: usar contentEditable-style com padding generoso, line-height mais espaçado
-- Fundo sutilmente texturizado (linhas horizontais tipo caderno acadêmico) via CSS
-- Cabeçalho "Editor" com ícone animado quando está escrevendo
-- Placeholder com tipografia elegante e centralizada verticalmente
-- Borda interna com shadow-inner sutil para profundidade
+Nenhuma intervenção manual do pesquisador para registrar -- é transparente.
 
-### 4. Painel AI Output — Destaque Visual
-- Fundo com gradiente sutil de primary/5 para criar contraste com o editor
-- Cabeçalho com acento de cor (borda superior colorida ou glow)
-- Texto gerado com animação de typing suave (opacity transition)
-- Badges de validação com cores vibrantes e ícones animados
-- Botões "Copiar" e "Inserir" com estilo pill e hover gradiente
-- Empty state com ilustração SVG inline (ícone grande + texto elegante)
+### 2. Gerador de Declaração de IA
 
-### 5. Footer de Métricas — Dashboard Compacto
-- Background com gradiente horizontal sutil
-- Cada métrica em um "chip" com fundo próprio e cor semântica
-- Indicadores de qualidade com mini progress bars em vez de apenas números
-- Separadores verticais com gradiente fade
+Um novo botão "Declaração IA" na toolbar (grupo separado, com ícone de escudo/certificado), que abre um Dialog/painel com:
 
-### 6. Barra de Instruções — Input Refinado
-- Input com ícone de lâmpada/brain à esquerda
-- Fundo com gradiente muito sutil de accent
-- Focus ring com glow animado
-- Placeholder com animação de typing (CSS only)
+**Formulário configurável:**
+- Seletor de modelo/ferramenta (pré-preenchido: ex. "GPT-4o via Arca Research", com opção de adicionar outros manualmente como "ChatGPT", "Claude", "Gemini")
+- Checkboxes de finalidade (pré-marcados baseado no uso real): Brainstorming, Rascunho de texto, Revisão/reformulação, Tradução, Resumo/Abstract, Análise de dados, Peer review simulado, Correção de hedging, Geração de highlights
+- Campo de texto para detalhes adicionais
+- Seletor de idioma da declaração (PT-BR / EN)
+- Seletor de formato/editora: Genérico, Elsevier, Nature/Springer, SciELO, ABNT
 
-## Arquivo Alterado
+**Saída gerada:**
+- Texto da declaração formatado conforme a editora selecionada, seguindo o template padrão
+- Botão para copiar e botão para inserir no editor
+- Preview da declaração antes de inserir
+
+### 3. Templates por Editora
+
+Cada editora tem requisitos ligeiramente diferentes:
+
+- **Elsevier**: Declaração na seção "Declaration of Generative AI and AI-assisted technologies in the writing process". IA não pode ser listada como autor.
+- **Nature/Springer**: Declaração no Methods ou Acknowledgements. Transparência sobre como a IA foi usada.
+- **SciELO**: Declaração explícita com responsabilidade do autor humano.
+- **Genérico (COPE/ICMJE)**: Template adaptável para qualquer periódico.
+
+### 4. Design (estética premium do módulo)
+
+- Botão na toolbar com ícone de escudo (ShieldAlert ou similar), gradiente verde/teal para diferenciar dos grupos "Escrita" (azul) e "Revisão" (roxo)
+- Dialog com cabeçalho gradient, glassmorphism, cards de finalidade com checkboxes estilizados
+- Preview da declaração em card com borda gradient e tipografia serif
+- Badge no botão indicando quantas ações de IA foram usadas no documento atual
+
+### 5. Persistência
+
+O registro de uso de IA será salvo junto com o documento na tabela `writing_documents`, usando o campo `metadata` (jsonb) já existente -- não precisa de nova tabela nem migração.
+
+Estrutura no metadata:
+```json
+{
+  "ai_usage": [
+    { "action": "draft_section", "section": "Introduction", "timestamp": "..." },
+    { "action": "rephrase", "section": "Discussion", "timestamp": "..." }
+  ],
+  "ai_declaration": {
+    "tools": ["GPT-4o via Arca Research"],
+    "purposes": ["draft", "rephrase"],
+    "language": "pt",
+    "publisher_format": "elsevier"
+  }
+}
+```
+
+## Arquivos Alterados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/pages/WritingAssistant.tsx` | Classes Tailwind atualizadas em todos os elementos JSX; nenhuma alteração em lógica, estado, callbacks ou estrutura de componentes |
+| `src/pages/WritingAssistant.tsx` | Estado de rastreamento de IA; registro automático a cada chamada `streamAI`; botão "Declaração IA" na toolbar; Dialog com formulário e preview; lógica de geração de texto da declaração; inserção no editor; persistência via campo `metadata` |
 
 ## Detalhes Técnicos
 
-- Todas as mudanças são exclusivamente classes CSS/Tailwind — zero alteração em useState, useCallback, useEffect, handlers ou fluxo de dados
-- Glassmorphism via `backdrop-blur-md bg-white/80 dark:bg-slate-900/80`
-- Gradient borders via `bg-gradient-to-r from-primary to-accent` em wrappers
-- Hover animations via `transition-all hover:scale-[1.02] hover:shadow-md`
-- Editor "notebook lines" via CSS background-image com `repeating-linear-gradient`
-- Dark mode mantido via classes `dark:` existentes
+- Zero migração de banco -- usa campo `metadata` (jsonb) já existente em `writing_documents`
+- A geração da declaração é feita localmente (templates pré-definidos com interpolação), sem chamada extra à IA -- a declaração deve ser determinística e verificável
+- O rastreamento acontece dentro do callback `streamAI` existente, adicionando ao array `aiUsageLog` no state
+- O `saveDocument` já salva `metadata`, bastando incluir o log de IA nele
+- Templates em PT-BR e EN, selecionáveis pelo pesquisador
 
