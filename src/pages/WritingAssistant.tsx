@@ -20,8 +20,9 @@ import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
   FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
   Upload, File, X, GraduationCap, Eye, MessageSquareWarning, Sigma, Star,
-  AlertTriangle, Save, FolderOpen, Clock, Search, FilePlus2,
+  AlertTriangle, Save, FolderOpen, Clock, Search, FilePlus2, Shield,
 } from "lucide-react";
+import AIDeclarationDialog, { type AIUsageEntry } from "@/components/app/AIDeclarationDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 interface Paper {
