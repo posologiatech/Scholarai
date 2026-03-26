@@ -45,14 +45,14 @@ interface DataMindAnalysis {
   content: string;
 }
 
-interface UploadedPDF {
+interface WritingDocument {
   id: string;
-  file_name: string;
-  title: string | null;
-  extracted_text: string | null;
-  file_path: string;
-  status: string | null;
-  created_at: string | null;
+  title: string;
+  content: string;
+  section: string | null;
+  citation_style: string | null;
+  updated_at: string;
+  created_at: string;
 }
 
 const SECTIONS = [
