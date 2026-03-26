@@ -490,7 +490,13 @@ const WritingAssistant = () => {
     setIsGenerating(true);
     setAiOutput("");
 
-    try {
+    // Log AI usage
+    const sectionLabel = SECTIONS.find(s => s.id === selectedSection)?.label[pt ? "pt" : "en"] || selectedSection;
+    setAiUsageLog(prev => [...prev, {
+      action,
+      section: sectionLabel,
+      timestamp: new Date().toISOString(),
+    }]);
       const body = {
         action,
         content: extraContent || editorContent,
