@@ -380,7 +380,102 @@ const WritingAssistant = () => {
     toast.success(pt ? "Erros limpos" : "Errors cleared");
   };
 
-  const streamAI = useCallback(async (action: string, extraContent?: string) => {
+  // ─── Document CRUD ─────────────────────────────────────────────────
+  const loadDocuments = useCallback(async () => {
+    if (!user) return;
+    setLoadingDocs(true);
+    const { data } = await supabase
+      .from("writing_documents")
+      .select("id, title, content, section, citation_style, updated_at, created_at")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false });
+    setSavedDocuments((data || []) as WritingDocument[]);
+    setLoadingDocs(false);
+  }, [user]);
+
+  useEffect(() => { loadDocuments(); }, [loadDocuments]);
+
+  const saveDocument = useCallback(async () => {
+    if (!user || !editorContent.trim()) return;
+    setIsSaving(true);
+    const title = docTitle.trim() || (pt ? "Sem título" : "Untitled");
+    try {
+      if (currentDocId) {
+        await supabase
+          .from("writing_documents")
+          .update({
+            title,
+            content: editorContent,
+            section: selectedSection,
+            citation_style: citationStyle,
+          })
+          .eq("id", currentDocId);
+      } else {
+        const { data } = await supabase
+          .from("writing_documents")
+          .insert({
+            user_id: user.id,
+            title,
+            content: editorContent,
+            section: selectedSection,
+            citation_style: citationStyle,
+          })
+          .select("id")
+          .single();
+        if (data) setCurrentDocId(data.id);
+      }
+      toast.success(pt ? "Documento salvo" : "Document saved");
+      loadDocuments();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [user, editorContent, docTitle, currentDocId, selectedSection, citationStyle, pt, loadDocuments]);
+
+  const loadDocument = useCallback((doc: WritingDocument) => {
+    setCurrentDocId(doc.id);
+    setDocTitle(doc.title);
+    setEditorContent(doc.content);
+    if (doc.section) setSelectedSection(doc.section);
+    if (doc.citation_style) setCitationStyle(doc.citation_style);
+    setShowDocManager(false);
+    setAiOutput("");
+    toast.success(pt ? `"${doc.title}" aberto` : `"${doc.title}" opened`);
+  }, [pt]);
+
+  const newDocument = useCallback(() => {
+    setCurrentDocId(null);
+    setDocTitle("");
+    setEditorContent("");
+    setAiOutput("");
+    setSelectedSection("introduction");
+    toast.info(pt ? "Novo documento criado" : "New document created");
+  }, [pt]);
+
+  const deleteDocument = useCallback(async (docId: string) => {
+    await supabase.from("writing_documents").delete().eq("id", docId);
+    if (currentDocId === docId) newDocument();
+    loadDocuments();
+    toast.success(pt ? "Documento excluído" : "Document deleted");
+  }, [currentDocId, newDocument, loadDocuments, pt]);
+
+  // Auto-save every 30s when content changes and a document is active
+  useEffect(() => {
+    if (!currentDocId || !editorContent.trim()) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      saveDocument();
+    }, 30000);
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+  }, [editorContent, currentDocId, saveDocument]);
+
+  const filteredDocuments = savedDocuments.filter(d =>
+    d.title.toLowerCase().includes(docSearch.toLowerCase()) ||
+    d.content.toLowerCase().includes(docSearch.toLowerCase())
+  );
+
+
     if (selectedPapers.length === 0 && selectedPDFs.length === 0 && action !== "rephrase") {
       toast.error(pt ? "Selecione pelo menos um paper ou PDF" : "Select at least one paper or PDF");
       return;
