@@ -20,8 +20,9 @@ import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
   FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
   Upload, File, X, GraduationCap, Eye, MessageSquareWarning, Sigma, Star,
-  AlertTriangle, Save, FolderOpen, Clock, Search, FilePlus2,
+  AlertTriangle, Save, FolderOpen, Clock, Search, FilePlus2, Shield,
 } from "lucide-react";
+import AIDeclarationDialog, { type AIUsageEntry } from "@/components/app/AIDeclarationDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 interface Paper {
@@ -119,6 +120,10 @@ const WritingAssistant = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // AI usage tracking
+  const [aiUsageLog, setAiUsageLog] = useState<AIUsageEntry[]>([]);
+  const [showAIDeclaration, setShowAIDeclaration] = useState(false);
   // Load papers from saved searches (grouped)
   useEffect(() => {
     if (!user) return;
@@ -450,6 +455,7 @@ const WritingAssistant = () => {
     setEditorContent("");
     setAiOutput("");
     setSelectedSection("introduction");
+    setAiUsageLog([]);
     toast.info(pt ? "Novo documento criado" : "New document created");
   }, [pt]);
 
@@ -484,6 +490,14 @@ const WritingAssistant = () => {
 
     setIsGenerating(true);
     setAiOutput("");
+
+    // Log AI usage
+    const sectionLabel = SECTIONS.find(s => s.id === selectedSection)?.label[pt ? "pt" : "en"] || selectedSection;
+    setAiUsageLog(prev => [...prev, {
+      action,
+      section: sectionLabel,
+      timestamp: new Date().toISOString(),
+    }]);
 
     try {
       const body = {
@@ -1063,6 +1077,31 @@ const WritingAssistant = () => {
             </div>
           </TooltipProvider>
 
+          {/* AI Declaration button */}
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs gap-1 px-2 relative hover:bg-emerald-500/10 hover:text-emerald-600 transition-all"
+                  onClick={() => setShowAIDeclaration(true)}
+                >
+                  <Shield className="h-3 w-3" />
+                  {pt ? "Declaração IA" : "AI Declaration"}
+                  {aiUsageLog.length > 0 && (
+                    <Badge className="text-[8px] h-4 px-1 ml-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15">
+                      {aiUsageLog.length}
+                    </Badge>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">{pt ? "Gerar declaração de uso de IA (Elsevier, Nature, SciELO...)" : "Generate AI usage declaration (Elsevier, Nature, SciELO...)"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           <Separator orientation="vertical" className="h-6 bg-border/30" />
 
           <Button
@@ -1424,6 +1463,17 @@ const WritingAssistant = () => {
           </div>
         </div>
       </div>
+
+      {/* AI Declaration Dialog */}
+      <AIDeclarationDialog
+        open={showAIDeclaration}
+        onOpenChange={setShowAIDeclaration}
+        aiUsageLog={aiUsageLog}
+        locale={locale}
+        onInsert={(text) => {
+          setEditorContent(prev => prev + (prev ? "\n\n" : "") + text);
+        }}
+      />
     </div>
   );
 };
