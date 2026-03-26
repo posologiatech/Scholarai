@@ -497,6 +497,8 @@ const WritingAssistant = () => {
       section: sectionLabel,
       timestamp: new Date().toISOString(),
     }]);
+
+    try {
       const body = {
         action,
         content: extraContent || editorContent,
