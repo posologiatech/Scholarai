@@ -1101,7 +1101,9 @@ const WritingAssistant = () => {
             </Tooltip>
           </TooltipProvider>
 
+          <Separator orientation="vertical" className="h-6 bg-border/30" />
 
+          <Button
             size="sm"
             variant={activeRightPanel === "capes" ? "default" : "outline"}
             className={`h-7 text-xs gap-1 rounded-lg transition-all ${
