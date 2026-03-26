@@ -2467,6 +2467,45 @@ export type Database = {
         }
         Relationships: []
       }
+      writing_documents: {
+        Row: {
+          citation_style: string | null
+          content: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          section: string | null
+          selected_paper_ids: Json | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          citation_style?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          section?: string | null
+          selected_paper_ids?: Json | null
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          citation_style?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          section?: string | null
+          selected_paper_ids?: Json | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
