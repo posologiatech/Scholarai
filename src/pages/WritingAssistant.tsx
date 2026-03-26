@@ -14,16 +14,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
   FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
   Upload, File, X, GraduationCap, Eye, MessageSquareWarning, Sigma, Star,
-  AlertTriangle,
+  AlertTriangle, Save, FolderOpen, Clock, Search, FilePlus2,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-
 interface Paper {
   id: string;
   title: string;
@@ -53,6 +53,16 @@ interface UploadedPDF {
   file_path: string;
   status: string | null;
   created_at: string | null;
+}
+
+interface WritingDocument {
+  id: string;
+  title: string;
+  content: string;
+  section: string | null;
+  citation_style: string | null;
+  updated_at: string;
+  created_at: string;
 }
 
 const SECTIONS = [
@@ -100,6 +110,15 @@ const WritingAssistant = () => {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const [activeRightPanel, setActiveRightPanel] = useState<"ai" | "capes">("ai");
 
+  // Documents state
+  const [savedDocuments, setSavedDocuments] = useState<WritingDocument[]>([]);
+  const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+  const [docTitle, setDocTitle] = useState("");
+  const [showDocManager, setShowDocManager] = useState(false);
+  const [docSearch, setDocSearch] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Load papers from saved searches (grouped)
   useEffect(() => {
     if (!user) return;
@@ -360,6 +379,102 @@ const WritingAssistant = () => {
     setSelectedPDFs(prev => prev.filter(sp => !errorPDFs.some(ep => ep.id === sp.id)));
     toast.success(pt ? "Erros limpos" : "Errors cleared");
   };
+
+  // ─── Document CRUD ─────────────────────────────────────────────────
+  const loadDocuments = useCallback(async () => {
+    if (!user) return;
+    setLoadingDocs(true);
+    const { data } = await supabase
+      .from("writing_documents")
+      .select("id, title, content, section, citation_style, updated_at, created_at")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false });
+    setSavedDocuments((data || []) as WritingDocument[]);
+    setLoadingDocs(false);
+  }, [user]);
+
+  useEffect(() => { loadDocuments(); }, [loadDocuments]);
+
+  const saveDocument = useCallback(async () => {
+    if (!user || !editorContent.trim()) return;
+    setIsSaving(true);
+    const title = docTitle.trim() || (pt ? "Sem título" : "Untitled");
+    try {
+      if (currentDocId) {
+        await supabase
+          .from("writing_documents")
+          .update({
+            title,
+            content: editorContent,
+            section: selectedSection,
+            citation_style: citationStyle,
+          })
+          .eq("id", currentDocId);
+      } else {
+        const { data } = await supabase
+          .from("writing_documents")
+          .insert({
+            user_id: user.id,
+            title,
+            content: editorContent,
+            section: selectedSection,
+            citation_style: citationStyle,
+          })
+          .select("id")
+          .single();
+        if (data) setCurrentDocId(data.id);
+      }
+      toast.success(pt ? "Documento salvo" : "Document saved");
+      loadDocuments();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [user, editorContent, docTitle, currentDocId, selectedSection, citationStyle, pt, loadDocuments]);
+
+  const loadDocument = useCallback((doc: WritingDocument) => {
+    setCurrentDocId(doc.id);
+    setDocTitle(doc.title);
+    setEditorContent(doc.content);
+    if (doc.section) setSelectedSection(doc.section);
+    if (doc.citation_style) setCitationStyle(doc.citation_style);
+    setShowDocManager(false);
+    setAiOutput("");
+    toast.success(pt ? `"${doc.title}" aberto` : `"${doc.title}" opened`);
+  }, [pt]);
+
+  const newDocument = useCallback(() => {
+    setCurrentDocId(null);
+    setDocTitle("");
+    setEditorContent("");
+    setAiOutput("");
+    setSelectedSection("introduction");
+    toast.info(pt ? "Novo documento criado" : "New document created");
+  }, [pt]);
+
+  const deleteDocument = useCallback(async (docId: string) => {
+    await supabase.from("writing_documents").delete().eq("id", docId);
+    if (currentDocId === docId) newDocument();
+    loadDocuments();
+    toast.success(pt ? "Documento excluído" : "Document deleted");
+  }, [currentDocId, newDocument, loadDocuments, pt]);
+
+  // Auto-save every 30s when content changes and a document is active
+  useEffect(() => {
+    if (!currentDocId || !editorContent.trim()) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      saveDocument();
+    }, 30000);
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+  }, [editorContent, currentDocId, saveDocument]);
+
+  const filteredDocuments = savedDocuments.filter(d =>
+    d.title.toLowerCase().includes(docSearch.toLowerCase()) ||
+    d.content.toLowerCase().includes(docSearch.toLowerCase())
+  );
+
 
   const streamAI = useCallback(async (action: string, extraContent?: string) => {
     if (selectedPapers.length === 0 && selectedPDFs.length === 0 && action !== "rephrase") {
@@ -963,6 +1078,163 @@ const WritingAssistant = () => {
             <GraduationCap className="h-3 w-3" />
             CAPES APC
           </Button>
+
+          <Separator orientation="vertical" className="h-6 bg-border/30" />
+
+          {/* Document controls */}
+          <div className="flex items-center gap-1">
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-emerald-500/10 hover:text-emerald-600 transition-all" onClick={newDocument}>
+                    <FilePlus2 className="h-3 w-3" />
+                    {pt ? "Novo" : "New"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Criar novo documento" : "Create new document"}</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isSaving || !editorContent.trim()} onClick={saveDocument}>
+                    {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                    {pt ? "Salvar" : "Save"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Salvar documento atual" : "Save current document"}</p></TooltipContent>
+              </Tooltip>
+              <Dialog open={showDocManager} onOpenChange={setShowDocManager}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all">
+                        <FolderOpen className="h-3 w-3" />
+                        {pt ? "Abrir" : "Open"}
+                        {savedDocuments.length > 0 && (
+                          <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-0.5 bg-muted/60">{savedDocuments.length}</Badge>
+                        )}
+                      </Button>
+                    </DialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Abrir documento salvo" : "Open saved document"}</p></TooltipContent>
+                </Tooltip>
+
+                {/* ─── Document Manager Dialog ─── */}
+                <DialogContent className="max-w-2xl max-h-[80vh] p-0 overflow-hidden border-border/30 bg-background/95 backdrop-blur-xl">
+                  <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/20 bg-gradient-to-r from-primary/5 via-accent/5 to-transparent">
+                    <DialogTitle className="flex items-center gap-3 text-base">
+                      <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md shadow-primary/20">
+                        <FolderOpen className="h-4 w-4 text-primary-foreground" />
+                      </div>
+                      {pt ? "Meus Documentos" : "My Documents"}
+                      <Badge variant="secondary" className="text-[10px] ml-auto bg-muted/60">
+                        {savedDocuments.length} {pt ? "documentos" : "documents"}
+                      </Badge>
+                    </DialogTitle>
+                  </DialogHeader>
+
+                  <div className="px-6 py-3 border-b border-border/10">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
+                      <Input
+                        placeholder={pt ? "Buscar documentos..." : "Search documents..."}
+                        value={docSearch}
+                        onChange={e => setDocSearch(e.target.value)}
+                        className="h-8 text-xs bg-muted/30 border-border/20 pl-8 rounded-lg focus-visible:ring-primary/30"
+                      />
+                    </div>
+                  </div>
+
+                  <ScrollArea className="flex-1 max-h-[55vh]">
+                    <div className="px-6 py-3 space-y-2">
+                      {loadingDocs ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 className="h-5 w-5 animate-spin text-primary/40" />
+                        </div>
+                      ) : filteredDocuments.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-3">
+                            <FileText className="h-6 w-6 text-primary/30" />
+                          </div>
+                          <p className="text-sm text-muted-foreground/60">
+                            {pt ? "Nenhum documento encontrado" : "No documents found"}
+                          </p>
+                          <p className="text-xs text-muted-foreground/40 mt-1">
+                            {pt ? "Comece a escrever e salve seu primeiro artigo" : "Start writing and save your first article"}
+                          </p>
+                        </div>
+                      ) : (
+                        filteredDocuments.map((doc) => {
+                          const isActive = currentDocId === doc.id;
+                          const preview = doc.content.slice(0, 120).replace(/\n/g, " ");
+                          const wordCount = doc.content.split(/\s+/).filter(Boolean).length;
+                          const updatedDate = new Date(doc.updated_at);
+                          const isToday = new Date().toDateString() === updatedDate.toDateString();
+                          const dateStr = isToday
+                            ? updatedDate.toLocaleTimeString(pt ? "pt-BR" : "en-US", { hour: "2-digit", minute: "2-digit" })
+                            : updatedDate.toLocaleDateString(pt ? "pt-BR" : "en-US", { day: "2-digit", month: "short" });
+
+                          return (
+                            <button
+                              key={doc.id}
+                              onClick={() => loadDocument(doc)}
+                              className={`w-full text-left rounded-xl p-3.5 group transition-all duration-200 border ${
+                                isActive
+                                  ? "bg-primary/5 border-primary/20 shadow-sm shadow-primary/5"
+                                  : "bg-card/50 border-border/20 hover:border-primary/15 hover:bg-primary/[0.02] hover:shadow-sm"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <div className={`h-5 w-5 rounded-md flex items-center justify-center shrink-0 ${
+                                      isActive ? "bg-primary/15" : "bg-muted/50"
+                                    }`}>
+                                      <FileText className={`h-3 w-3 ${isActive ? "text-primary" : "text-muted-foreground/50"}`} />
+                                    </div>
+                                    <h4 className={`text-sm font-medium truncate ${isActive ? "text-primary" : "text-foreground/80"}`}>
+                                      {doc.title}
+                                    </h4>
+                                    {isActive && (
+                                      <Badge className="text-[8px] h-4 px-1.5 bg-primary/10 text-primary border-primary/20 shrink-0">
+                                        {pt ? "Aberto" : "Open"}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground/50 line-clamp-2 ml-7 leading-relaxed">
+                                    {preview || (pt ? "Documento vazio" : "Empty document")}
+                                  </p>
+                                  <div className="flex items-center gap-3 mt-2 ml-7">
+                                    <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
+                                      <Clock className="h-2.5 w-2.5" />
+                                      {dateStr}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground/40">
+                                      {wordCount} {pt ? "palavras" : "words"}
+                                    </span>
+                                    {doc.section && (
+                                      <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-border/30 text-muted-foreground/50">
+                                        {SECTIONS.find(s => s.id === doc.section)?.label[pt ? "pt" : "en"] || doc.section}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); deleteDocument(doc.id); }}
+                                  className="h-7 w-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-destructive/60 hover:text-destructive transition-all shrink-0 mt-0.5"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
+            </TooltipProvider>
+          </div>
         </div>
 
         {/* Instructions bar */}
@@ -984,19 +1256,31 @@ const WritingAssistant = () => {
         <div className="flex-1 flex overflow-hidden">
           {/* Editor */}
           <div className="flex-1 flex flex-col border-r border-border/30">
-            <div className="px-4 py-2 border-b border-border/20 bg-gradient-to-r from-muted/10 to-transparent">
-              <p className="text-xs font-semibold text-foreground/70 flex items-center gap-1.5 tracking-wide">
+            <div className="px-4 py-2 border-b border-border/20 bg-gradient-to-r from-muted/10 to-transparent flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
                 <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center">
                   <PenLine className="h-3 w-3 text-primary" />
                 </div>
-                {pt ? "Editor" : "Editor"}
+                <input
+                  type="text"
+                  value={docTitle}
+                  onChange={e => setDocTitle(e.target.value)}
+                  placeholder={pt ? "Título do documento..." : "Document title..."}
+                  className="text-xs font-semibold text-foreground/70 bg-transparent border-none outline-none focus:text-foreground placeholder:text-muted-foreground/40 w-48 tracking-wide"
+                />
                 {isGenerating && (
-                  <span className="ml-2 flex items-center gap-1 text-primary/60">
+                  <span className="ml-1 flex items-center gap-1 text-primary/60">
                     <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                    {pt ? "Gerando..." : "Generating..."}
+                    <span className="text-[10px]">{pt ? "Gerando..." : "Generating..."}</span>
                   </span>
                 )}
-              </p>
+              </div>
+              {currentDocId && (
+                <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
+                  <Check className="h-2.5 w-2.5" />
+                  {pt ? "Salvo automaticamente" : "Auto-saved"}
+                </span>
+              )}
             </div>
             <Textarea
               ref={editorRef}
