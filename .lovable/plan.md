@@ -1,104 +1,74 @@
 
 
-# Melhorias de Rigor Científico no Módulo de Escrita
+# Redesign Estético do Módulo de Escrita Científica
 
-## Diagnóstico
+## Problemas Visuais Atuais
 
-Os prompts atuais são genéricos demais. Falta:
-- Proibição explícita de fabricação de dados/citações
-- Instruções de tom e estilo de pesquisador sênior
-- RAG para verificar claims contra o texto real dos papers
-- Revisão em múltiplas camadas (factual, estilística, estrutural)
-- Novas ações especializadas (Abstract estruturado, Peer Review simulado, Hedging linguístico)
+- Toolbar plana e monótona com muitos botões pequenos aglomerados
+- Sidebar esquerda sem hierarquia visual clara
+- Editor é um Textarea cru sem personalidade
+- Painel AI Output sem distinção visual do editor
+- Cabeçalhos de seção (Editor, AI Output) sem peso visual
+- Ausência de gradientes, sombras e profundidade
+- Footer de métricas achatado e sem destaque
+- Cores uniformes — tudo cinza/muted sem contraste
 
-## Mudanças
+## Melhorias Propostas (apenas estética, zero mudança funcional)
 
-### 1. Reescrever todos os System Prompts (`writing-assist/index.ts`)
+### 1. Sidebar Esquerda — Design Premium
+- Cabeçalho com gradiente sutil (primary → accent) e ícone com glow
+- Tabs com estilo pill/segmented control ao invés de tabs planas
+- Cards de papers com borda esquerda colorida (azul para selecionado) e hover com shadow
+- Upload area com borda gradient animada (dash animation)
+- Fundo com subtle pattern ou gradient mesh muito suave
 
-Cada action ganha um prompt com regras de rigor:
+### 2. Toolbar — Ribbon Moderna
+- Fundo com glassmorphism (backdrop-blur + bg-white/80 + shadow-sm)
+- Selects (seção, citação) com cantos mais arredondados e ícone decorativo
+- Grupos "Escrita" e "Revisão" com background mais definido, border arredondado e label com cor distinta (azul para escrita, púrpura para revisão)
+- Botões com hover que inclui scale sutil (transform scale-105) e cor de fundo
+- Botão CAPES APC com gradient (primary → accent) quando ativo
+- Badges de fontes selecionadas com cores distintas por tipo (azul papers, verde DataMind, laranja PDFs)
 
-```text
-REGRAS INVIOLÁVEIS:
-1. ZERO FABRICAÇÃO: Jamais invente dados, estatísticas, nomes de autores, títulos de artigos ou resultados experimentais.
-2. CITAÇÃO VERIFICÁVEL: Cada afirmação factual DEVE ter [N] referenciando APENAS os papers fornecidos.
-3. HEDGING CIENTÍFICO: Use "suggests", "indicates", "was observed" — nunca linguagem absolutista.
-4. DISTINÇÃO EVIDÊNCIA vs INTERPRETAÇÃO: Separe claramente o que os dados mostram do que o autor interpreta.
-5. Se um dado NÃO está nos papers fornecidos, escreva "[DADO NÃO DISPONÍVEL NAS FONTES]".
-6. Ao reportar resultados numéricos, inclua sempre: valor, intervalo de confiança/desvio padrão, e tamanho amostral quando disponíveis.
-```
+### 3. Editor — Experiência de Escrita Premium
+- Remover aparência de Textarea: usar contentEditable-style com padding generoso, line-height mais espaçado
+- Fundo sutilmente texturizado (linhas horizontais tipo caderno acadêmico) via CSS
+- Cabeçalho "Editor" com ícone animado quando está escrevendo
+- Placeholder com tipografia elegante e centralizada verticalmente
+- Borda interna com shadow-inner sutil para profundidade
 
-Instruções de estilo sênior:
-```text
-ESTILO DE ESCRITA:
-- Escreva como um pesquisador sênior com 20+ anos de publicações em periódicos de alto impacto.
-- Conecte parágrafos com transições lógicas naturais (não use "Além disso", "Adicionalmente" repetidamente).
-- Cada parágrafo: frase-tópico → evidência com citação → análise → transição.
-- Varie a estrutura das frases. Alterne entre frases curtas incisivas e períodos compostos mais elaborados.
-- Use voz ativa quando descrever suas contribuições e voz passiva para procedimentos padronizados.
-- Na Discussão, sempre confronte seus resultados com a literatura existente explicitamente.
-```
+### 4. Painel AI Output — Destaque Visual
+- Fundo com gradiente sutil de primary/5 para criar contraste com o editor
+- Cabeçalho com acento de cor (borda superior colorida ou glow)
+- Texto gerado com animação de typing suave (opacity transition)
+- Badges de validação com cores vibrantes e ícones animados
+- Botões "Copiar" e "Inserir" com estilo pill e hover gradiente
+- Empty state com ilustração SVG inline (ícone grande + texto elegante)
 
-### 2. Integrar RAG na Escrita (`writing-assist/index.ts`)
+### 5. Footer de Métricas — Dashboard Compacto
+- Background com gradiente horizontal sutil
+- Cada métrica em um "chip" com fundo próprio e cor semântica
+- Indicadores de qualidade com mini progress bars em vez de apenas números
+- Separadores verticais com gradiente fade
 
-Antes de gerar texto, buscar chunks semânticos dos papers selecionados (mesmo pipeline do `chat-papers`):
-- Embeddar o prompt/seção do usuário
-- Buscar top-10 chunks via `match_paper_chunks`
-- Incluir os trechos reais no contexto do prompt
+### 6. Barra de Instruções — Input Refinado
+- Input com ícone de lâmpada/brain à esquerda
+- Fundo com gradiente muito sutil de accent
+- Focus ring com glow animado
+- Placeholder com animação de typing (CSS only)
 
-Isso permite que a IA cite **trechos reais** dos papers em vez de apenas metadados.
-
-### 3. Novas Actions no Edge Function
-
-| Action | Descrição |
-|--------|-----------|
-| `generate_abstract` | Gera abstract estruturado (Objetivo, Métodos, Resultados, Conclusão) a partir do artigo completo |
-| `peer_review` | Simula revisão por pares: identifica pontos fracos, gaps metodológicos, sugestões de melhoria |
-| `improve_hedging` | Analisa o texto e corrige linguagem absolutista para hedging científico adequado |
-| `generate_highlights` | Gera "Key Findings" / "Highlights" no formato exigido por muitos periódicos |
-
-### 4. Validação Anti-Alucinação no Backend
-
-Após o AI gerar texto (para ações não-streaming), aplicar a mesma "Guarda Pretoriana" do `chat-papers`:
-- Verificar se citações `[N]` referenciam apenas papers fornecidos
-- Substituir IDs inválidos por `[?]`
-
-Para streaming: validar no frontend antes de inserir no editor.
-
-### 5. Novos Botões na Toolbar (`WritingAssistant.tsx`)
-
-- **"Peer Review"**: Simula revisão por pares do texto no editor
-- **"Abstract"**: Gera abstract estruturado do artigo completo
-- **"Hedging"**: Corrige linguagem absolutista
-- **"Highlights"**: Gera key findings
-
-Organizar toolbar em 2 grupos visuais:
-- **Escrita**: Gerar Rascunho, Continuar, Citações
-- **Revisão**: Reformular, Verificar, Peer Review, Hedging
-
-### 6. Validação de Citações no Frontend
-
-Ao clicar "Inserir" no AI Output, verificar se todas as citações `[N]` correspondem a papers selecionados. Alertar o pesquisador se houver citações sem correspondência.
-
-### 7. Indicador de Qualidade do Texto
-
-Barra no rodapé do editor mostrando métricas simples:
-- Contagem de citações vs. afirmações factuais (ratio)
-- Presença de hedging words
-- Variedade vocabular (type-token ratio simplificado)
-
-## Arquivos Alterados
+## Arquivo Alterado
 
 | Arquivo | Mudança |
 |---------|---------|
-| `supabase/functions/writing-assist/index.ts` | Reescrever prompts com rigor; adicionar RAG; novas actions (abstract, peer_review, hedging, highlights); validação anti-alucinação |
-| `src/pages/WritingAssistant.tsx` | Novos botões (Peer Review, Abstract, Hedging, Highlights); toolbar reorganizada em grupos; validação de citações no Insert; indicador de qualidade |
+| `src/pages/WritingAssistant.tsx` | Classes Tailwind atualizadas em todos os elementos JSX; nenhuma alteração em lógica, estado, callbacks ou estrutura de componentes |
 
-## Resultado Esperado
+## Detalhes Técnicos
 
-O módulo passará a:
-1. Nunca fabricar dados — toda informação é rastreável aos papers fornecidos
-2. Escrever com fluência de pesquisador sênior, com transições naturais e hedging adequado
-3. Usar trechos reais dos papers (via RAG) em vez de apenas metadados
-4. Oferecer ferramentas de revisão que simulam o processo real de peer review
-5. Alertar o pesquisador sobre citações suspeitas antes de inserir no editor
+- Todas as mudanças são exclusivamente classes CSS/Tailwind — zero alteração em useState, useCallback, useEffect, handlers ou fluxo de dados
+- Glassmorphism via `backdrop-blur-md bg-white/80 dark:bg-slate-900/80`
+- Gradient borders via `bg-gradient-to-r from-primary to-accent` em wrappers
+- Hover animations via `transition-all hover:scale-[1.02] hover:shadow-md`
+- Editor "notebook lines" via CSS background-image com `repeating-linear-gradient`
+- Dark mode mantido via classes `dark:` existentes
 
