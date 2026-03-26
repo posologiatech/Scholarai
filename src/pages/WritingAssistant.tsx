@@ -1256,19 +1256,31 @@ const WritingAssistant = () => {
         <div className="flex-1 flex overflow-hidden">
           {/* Editor */}
           <div className="flex-1 flex flex-col border-r border-border/30">
-            <div className="px-4 py-2 border-b border-border/20 bg-gradient-to-r from-muted/10 to-transparent">
-              <p className="text-xs font-semibold text-foreground/70 flex items-center gap-1.5 tracking-wide">
+            <div className="px-4 py-2 border-b border-border/20 bg-gradient-to-r from-muted/10 to-transparent flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
                 <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center">
                   <PenLine className="h-3 w-3 text-primary" />
                 </div>
-                {pt ? "Editor" : "Editor"}
+                <input
+                  type="text"
+                  value={docTitle}
+                  onChange={e => setDocTitle(e.target.value)}
+                  placeholder={pt ? "Título do documento..." : "Document title..."}
+                  className="text-xs font-semibold text-foreground/70 bg-transparent border-none outline-none focus:text-foreground placeholder:text-muted-foreground/40 w-48 tracking-wide"
+                />
                 {isGenerating && (
-                  <span className="ml-2 flex items-center gap-1 text-primary/60">
+                  <span className="ml-1 flex items-center gap-1 text-primary/60">
                     <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                    {pt ? "Gerando..." : "Generating..."}
+                    <span className="text-[10px]">{pt ? "Gerando..." : "Generating..."}</span>
                   </span>
                 )}
-              </p>
+              </div>
+              {currentDocId && (
+                <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
+                  <Check className="h-2.5 w-2.5" />
+                  {pt ? "Salvo automaticamente" : "Auto-saved"}
+                </span>
+              )}
             </div>
             <Textarea
               ref={editorRef}
