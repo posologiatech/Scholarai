@@ -1462,6 +1462,17 @@ const WritingAssistant = () => {
           </div>
         </div>
       </div>
+
+      {/* AI Declaration Dialog */}
+      <AIDeclarationDialog
+        open={showAIDeclaration}
+        onOpenChange={setShowAIDeclaration}
+        aiUsageLog={aiUsageLog}
+        locale={locale}
+        onInsert={(text) => {
+          setEditorContent(prev => prev + (prev ? "\n\n" : "") + text);
+        }}
+      />
     </div>
   );
 };
