@@ -1078,6 +1078,163 @@ const WritingAssistant = () => {
             <GraduationCap className="h-3 w-3" />
             CAPES APC
           </Button>
+
+          <Separator orientation="vertical" className="h-6 bg-border/30" />
+
+          {/* Document controls */}
+          <div className="flex items-center gap-1">
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-emerald-500/10 hover:text-emerald-600 transition-all" onClick={newDocument}>
+                    <FilePlus2 className="h-3 w-3" />
+                    {pt ? "Novo" : "New"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Criar novo documento" : "Create new document"}</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isSaving || !editorContent.trim()} onClick={saveDocument}>
+                    {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                    {pt ? "Salvar" : "Save"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Salvar documento atual" : "Save current document"}</p></TooltipContent>
+              </Tooltip>
+              <Dialog open={showDocManager} onOpenChange={setShowDocManager}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all">
+                        <FolderOpen className="h-3 w-3" />
+                        {pt ? "Abrir" : "Open"}
+                        {savedDocuments.length > 0 && (
+                          <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-0.5 bg-muted/60">{savedDocuments.length}</Badge>
+                        )}
+                      </Button>
+                    </DialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">{pt ? "Abrir documento salvo" : "Open saved document"}</p></TooltipContent>
+                </Tooltip>
+
+                {/* ─── Document Manager Dialog ─── */}
+                <DialogContent className="max-w-2xl max-h-[80vh] p-0 overflow-hidden border-border/30 bg-background/95 backdrop-blur-xl">
+                  <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/20 bg-gradient-to-r from-primary/5 via-accent/5 to-transparent">
+                    <DialogTitle className="flex items-center gap-3 text-base">
+                      <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md shadow-primary/20">
+                        <FolderOpen className="h-4 w-4 text-primary-foreground" />
+                      </div>
+                      {pt ? "Meus Documentos" : "My Documents"}
+                      <Badge variant="secondary" className="text-[10px] ml-auto bg-muted/60">
+                        {savedDocuments.length} {pt ? "documentos" : "documents"}
+                      </Badge>
+                    </DialogTitle>
+                  </DialogHeader>
+
+                  <div className="px-6 py-3 border-b border-border/10">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
+                      <Input
+                        placeholder={pt ? "Buscar documentos..." : "Search documents..."}
+                        value={docSearch}
+                        onChange={e => setDocSearch(e.target.value)}
+                        className="h-8 text-xs bg-muted/30 border-border/20 pl-8 rounded-lg focus-visible:ring-primary/30"
+                      />
+                    </div>
+                  </div>
+
+                  <ScrollArea className="flex-1 max-h-[55vh]">
+                    <div className="px-6 py-3 space-y-2">
+                      {loadingDocs ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 className="h-5 w-5 animate-spin text-primary/40" />
+                        </div>
+                      ) : filteredDocuments.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-3">
+                            <FileText className="h-6 w-6 text-primary/30" />
+                          </div>
+                          <p className="text-sm text-muted-foreground/60">
+                            {pt ? "Nenhum documento encontrado" : "No documents found"}
+                          </p>
+                          <p className="text-xs text-muted-foreground/40 mt-1">
+                            {pt ? "Comece a escrever e salve seu primeiro artigo" : "Start writing and save your first article"}
+                          </p>
+                        </div>
+                      ) : (
+                        filteredDocuments.map((doc) => {
+                          const isActive = currentDocId === doc.id;
+                          const preview = doc.content.slice(0, 120).replace(/\n/g, " ");
+                          const wordCount = doc.content.split(/\s+/).filter(Boolean).length;
+                          const updatedDate = new Date(doc.updated_at);
+                          const isToday = new Date().toDateString() === updatedDate.toDateString();
+                          const dateStr = isToday
+                            ? updatedDate.toLocaleTimeString(pt ? "pt-BR" : "en-US", { hour: "2-digit", minute: "2-digit" })
+                            : updatedDate.toLocaleDateString(pt ? "pt-BR" : "en-US", { day: "2-digit", month: "short" });
+
+                          return (
+                            <button
+                              key={doc.id}
+                              onClick={() => loadDocument(doc)}
+                              className={`w-full text-left rounded-xl p-3.5 group transition-all duration-200 border ${
+                                isActive
+                                  ? "bg-primary/5 border-primary/20 shadow-sm shadow-primary/5"
+                                  : "bg-card/50 border-border/20 hover:border-primary/15 hover:bg-primary/[0.02] hover:shadow-sm"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <div className={`h-5 w-5 rounded-md flex items-center justify-center shrink-0 ${
+                                      isActive ? "bg-primary/15" : "bg-muted/50"
+                                    }`}>
+                                      <FileText className={`h-3 w-3 ${isActive ? "text-primary" : "text-muted-foreground/50"}`} />
+                                    </div>
+                                    <h4 className={`text-sm font-medium truncate ${isActive ? "text-primary" : "text-foreground/80"}`}>
+                                      {doc.title}
+                                    </h4>
+                                    {isActive && (
+                                      <Badge className="text-[8px] h-4 px-1.5 bg-primary/10 text-primary border-primary/20 shrink-0">
+                                        {pt ? "Aberto" : "Open"}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground/50 line-clamp-2 ml-7 leading-relaxed">
+                                    {preview || (pt ? "Documento vazio" : "Empty document")}
+                                  </p>
+                                  <div className="flex items-center gap-3 mt-2 ml-7">
+                                    <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
+                                      <Clock className="h-2.5 w-2.5" />
+                                      {dateStr}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground/40">
+                                      {wordCount} {pt ? "palavras" : "words"}
+                                    </span>
+                                    {doc.section && (
+                                      <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-border/30 text-muted-foreground/50">
+                                        {SECTIONS.find(s => s.id === doc.section)?.label[pt ? "pt" : "en"] || doc.section}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); deleteDocument(doc.id); }}
+                                  className="h-7 w-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-destructive/60 hover:text-destructive transition-all shrink-0 mt-0.5"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
+            </TooltipProvider>
+          </div>
         </div>
 
         {/* Instructions bar */}
