@@ -476,6 +476,7 @@ const WritingAssistant = () => {
   );
 
 
+  const streamAI = useCallback(async (action: string, extraContent?: string) => {
     if (selectedPapers.length === 0 && selectedPDFs.length === 0 && action !== "rephrase") {
       toast.error(pt ? "Selecione pelo menos um paper ou PDF" : "Select at least one paper or PDF");
       return;
