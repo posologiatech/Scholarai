@@ -125,7 +125,6 @@ const WritingAssistant = () => {
           })),
         })).filter(g => g.papers.length > 0);
         setSearchGroups(groups);
-        // Collapsed by default — researcher opens each group manually
         setExpandedSearches(new Set());
       }
       setLoadingPapers(false);
@@ -239,7 +238,6 @@ const WritingAssistant = () => {
       }
 
       try {
-        // 1. Upload to storage
         const safeFileName = file.name
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
@@ -252,7 +250,6 @@ const WritingAssistant = () => {
 
         if (uploadError) throw uploadError;
 
-        // 2. Create record in uploaded_papers
         const { data: record, error: insertError } = await supabase
           .from("uploaded_papers")
           .insert({
@@ -268,7 +265,6 @@ const WritingAssistant = () => {
 
         if (insertError) throw insertError;
 
-        // 3. Extract text from PDF via edge function (sends paper_id, function downloads from storage)
         const { data: sess } = await supabase.auth.getSession();
         const tk = sess?.session?.access_token;
         if (!tk) throw new Error("Not authenticated");
@@ -289,7 +285,6 @@ const WritingAssistant = () => {
         if (extractResp.ok) {
           const extractData = await extractResp.json();
           extractedText = extractData.extracted_text || "";
-          // Re-fetch the updated record to get full extracted text
           const { data: updated } = await supabase
             .from("uploaded_papers")
             .select("extracted_text, status, title")
@@ -314,14 +309,12 @@ const WritingAssistant = () => {
           continue;
         }
 
-        // 4. Re-fetch to get the latest status (edge function already updates)
         const { data: finalRecord } = await supabase
           .from("uploaded_papers")
           .select("*")
           .eq("id", record.id)
           .single();
 
-        // 5. Add to local state
         const updatedRecord: UploadedPDF = {
           ...(finalRecord || record),
           extracted_text: extractedText.slice(0, 100000),
@@ -458,7 +451,6 @@ const WritingAssistant = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Citation validation before insert
   const validateCitationsInOutput = useCallback((text: string): { valid: boolean; invalidIds: number[]; totalCitations: number } => {
     const citationPattern = /\[(\d+)\]/g;
     let match;
@@ -522,570 +514,633 @@ const WritingAssistant = () => {
   };
 
   return (
-      <div className="flex h-screen overflow-hidden">
-        {/* Left sidebar: Paper, DataMind & PDF selection */}
-        <div className="w-72 border-r border-border/40 flex flex-col bg-background">
-          <div className="p-4 border-b border-border/40">
-            <h2 className="font-semibold text-sm text-foreground flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-primary" />
-              {pt ? "Fontes" : "Sources"}
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              {pt ? "Selecione papers, análises e PDFs" : "Select papers, analyses and PDFs"}
-            </p>
-          </div>
-
-          <Tabs defaultValue="papers" className="flex-1 flex flex-col">
-            <TabsList className="mx-3 mt-2 grid grid-cols-3">
-              <TabsTrigger value="papers" className="text-[10px] px-1">
-                <FileText className="h-3 w-3 mr-0.5" />
-                Papers ({selectedPapers.length})
-              </TabsTrigger>
-              <TabsTrigger value="datamind" className="text-[10px] px-1">
-                <Database className="h-3 w-3 mr-0.5" />
-                DataMind ({selectedAnalyses.length})
-              </TabsTrigger>
-              <TabsTrigger value="mypdfs" className="text-[10px] px-1">
-                <Upload className="h-3 w-3 mr-0.5" />
-                {pt ? "Meus PDFs" : "My PDFs"} ({selectedPDFs.length})
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="papers" className="flex-1 flex flex-col px-3 pb-3 mt-2">
-              <Input
-                placeholder={pt ? "Buscar papers..." : "Search papers..."}
-                value={paperSearch}
-                onChange={e => setPaperSearch(e.target.value)}
-                className="h-8 text-xs mb-2"
-              />
-              <ScrollArea className="flex-1">
-                <div className="space-y-1">
-                  {loadingPapers ? (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : filteredGroups.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-4">
-                      {pt ? "Nenhum paper encontrado" : "No papers found"}
-                    </p>
-                  ) : (
-                    filteredGroups.map(group => {
-                      const isExpanded = expandedSearches.has(group.id);
-                      const selectedCount = group.papers.filter(p => selectedPapers.some(sp => sp.id === p.id)).length;
-                      return (
-                        <Collapsible key={group.id} open={isExpanded} onOpenChange={() => toggleSearchExpanded(group.id)}>
-                          <CollapsibleTrigger className="w-full flex items-center gap-1.5 p-2 rounded-md hover:bg-muted text-xs text-left group">
-                            {isExpanded ? (
-                              <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-                            ) : (
-                              <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                            )}
-                            <span className="font-semibold text-foreground line-clamp-1 flex-1">{group.query}</span>
-                            {selectedCount > 0 && (
-                              <Badge variant="secondary" className="text-[9px] h-4 px-1.5">{selectedCount}</Badge>
-                            )}
-                            <span className="text-[10px] text-muted-foreground shrink-0">{group.papers.length}</span>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            <div className="ml-4 space-y-0.5">
-                              {group.papers.map(paper => {
-                                const isSelected = selectedPapers.some(p => p.id === paper.id);
-                                return (
-                                  <button
-                                    key={paper.id}
-                                    onClick={() => togglePaper(paper)}
-                                    className={`w-full text-left p-2 rounded-md text-xs transition-colors ${
-                                      isSelected
-                                        ? "bg-primary/10 border border-primary/30"
-                                        : "hover:bg-muted border border-transparent"
-                                    }`}
-                                  >
-                                    <p className="font-medium text-foreground line-clamp-2">{paper.title}</p>
-                                    <p className="text-muted-foreground mt-0.5">
-                                      {formatAuthors(paper.authors)} {paper.year ? `(${paper.year})` : ""}
-                                    </p>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      );
-                    })
-                  )}
-                </div>
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="datamind" className="flex-1 flex flex-col px-3 pb-3 mt-2">
-              <ScrollArea className="flex-1">
-                <div className="space-y-1">
-                  {loadingAnalyses ? (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : datamindAnalyses.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-4">
-                      {pt ? "Nenhuma análise encontrada" : "No analyses found"}
-                    </p>
-                  ) : (
-                    datamindAnalyses.map(analysis => {
-                      const isSelected = selectedAnalyses.some(a => a.id === analysis.id);
-                      return (
-                        <button
-                          key={analysis.id}
-                          onClick={() => toggleAnalysis(analysis)}
-                          className={`w-full text-left p-2 rounded-md text-xs transition-colors ${
-                            isSelected
-                              ? "bg-accent/10 border border-accent/30"
-                              : "hover:bg-muted border border-transparent"
-                          }`}
-                        >
-                          <p className="font-medium text-foreground line-clamp-2">{analysis.title}</p>
-                          <p className="text-muted-foreground mt-0.5 line-clamp-1">{analysis.content.slice(0, 80)}...</p>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="mypdfs" className="flex-1 flex flex-col px-3 pb-3 mt-2">
-              {/* Upload area */}
-              <div className="mb-2">
-                <label className="block">
-                  <div className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${
-                    uploadingPDF ? "border-primary/50 bg-primary/5" : "border-border/60 hover:border-primary/40 hover:bg-muted/30"
-                  }`}>
-                    {uploadingPDF ? (
-                      <div className="space-y-2">
-                        <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />
-                        <p className="text-xs text-muted-foreground">{pt ? "Processando..." : "Processing..."}</p>
-                        <Progress value={uploadProgress} className="h-1.5" />
-                      </div>
-                    ) : (
-                      <>
-                        <Upload className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                        <p className="text-xs text-muted-foreground">
-                          {pt ? "Enviar PDFs" : "Upload PDFs"}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground/70">
-                          {pt ? "Clique ou arraste" : "Click or drag"}
-                        </p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    ref={pdfInputRef}
-                    type="file"
-                    accept=".pdf"
-                    multiple
-                    className="hidden"
-                    onChange={handlePDFUpload}
-                    disabled={uploadingPDF}
-                  />
-                </label>
-                {uploadedPDFs.some(p => p.status === "error") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearErrorPDFs}
-                    className="w-full text-xs text-destructive hover:text-destructive h-7 mt-1"
-                  >
-                    <Trash2 className="h-3 w-3 mr-1" />
-                    {pt ? "Limpar erros" : "Clear errors"}
-                  </Button>
-                )}
-              </div>
-              <ScrollArea className="flex-1">
-                <div className="space-y-1">
-                  {loadingPDFs ? (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : uploadedPDFs.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-4">
-                      {pt ? "Nenhum PDF enviado ainda" : "No PDFs uploaded yet"}
-                    </p>
-                  ) : (
-                    uploadedPDFs.map(pdf => {
-                      const isSelected = selectedPDFs.some(p => p.id === pdf.id);
-                      const isProcessed = pdf.status === "processed";
-                      const isProcessing = pdf.status === "processing";
-                      return (
-                        <div
-                          key={pdf.id}
-                          className={`relative group rounded-md text-xs transition-colors ${
-                            isSelected
-                              ? "bg-primary/10 border border-primary/30"
-                              : "hover:bg-muted border border-transparent"
-                          }`}
-                        >
-                          <button
-                            onClick={() => isProcessed && togglePDF(pdf)}
-                            className="w-full text-left p-2"
-                            disabled={!isProcessed}
-                          >
-                            <div className="flex items-start gap-2">
-                              <File className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${
-                                isProcessed ? "text-primary" : isProcessing ? "text-amber-500" : "text-destructive"
-                              }`} />
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-foreground line-clamp-2">
-                                  {pdf.title || pdf.file_name}
-                                </p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <Badge variant={isProcessed ? "secondary" : isProcessing ? "outline" : "destructive"} className="text-[9px] px-1 py-0">
-                                    {isProcessed
-                                      ? (pt ? "Processado" : "Processed")
-                                      : isProcessing
-                                        ? (pt ? "Processando" : "Processing")
-                                        : (pt ? "Erro" : "Error")}
-                                  </Badge>
-                                  {isProcessed && pdf.extracted_text && (
-                                    <span className="text-[10px] text-muted-foreground">
-                                      {(pdf.extracted_text.length / 1000).toFixed(0)}k chars
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); deletePDF(pdf); }}
-                            className="absolute top-1.5 right-1.5 h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-destructive transition-opacity"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </ScrollArea>
-            </TabsContent>
-          </Tabs>
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* ─── Left sidebar: Sources ─── */}
+      <div className="w-72 flex flex-col border-r border-border/30 bg-card/50 backdrop-blur-sm">
+        {/* Sidebar header with gradient accent */}
+        <div className="p-4 border-b border-border/30 bg-gradient-to-r from-primary/5 via-accent/5 to-transparent">
+          <h2 className="font-semibold text-sm text-foreground flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md shadow-primary/20">
+              <BookOpen className="h-3.5 w-3.5 text-primary-foreground" />
+            </div>
+            {pt ? "Fontes" : "Sources"}
+          </h2>
+          <p className="text-[11px] text-muted-foreground mt-1.5 ml-[38px]">
+            {pt ? "Selecione papers, análises e PDFs" : "Select papers, analyses and PDFs"}
+          </p>
         </div>
 
-        {/* Main editor area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Toolbar */}
-          <div className="border-b border-border/40 bg-background px-4 py-2 flex items-center gap-2 flex-wrap">
-            <Select value={selectedSection} onValueChange={setSelectedSection}>
-              <SelectTrigger className="w-40 h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SECTIONS.map(s => (
-                  <SelectItem key={s.id} value={s.id} className="text-xs">
-                    {s.label[pt ? "pt" : "en"]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <Tabs defaultValue="papers" className="flex-1 flex flex-col">
+          <TabsList className="mx-3 mt-3 grid grid-cols-3 h-9 rounded-lg bg-muted/60 p-0.5">
+            <TabsTrigger value="papers" className="text-[10px] px-1.5 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+              <FileText className="h-3 w-3 mr-0.5" />
+              Papers ({selectedPapers.length})
+            </TabsTrigger>
+            <TabsTrigger value="datamind" className="text-[10px] px-1.5 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-accent transition-all">
+              <Database className="h-3 w-3 mr-0.5" />
+              DataMind ({selectedAnalyses.length})
+            </TabsTrigger>
+            <TabsTrigger value="mypdfs" className="text-[10px] px-1.5 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+              <Upload className="h-3 w-3 mr-0.5" />
+              {pt ? "PDFs" : "PDFs"} ({selectedPDFs.length})
+            </TabsTrigger>
+          </TabsList>
 
-            <Select value={citationStyle} onValueChange={setCitationStyle}>
-              <SelectTrigger className="w-28 h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="APA" className="text-xs">APA 7th</SelectItem>
-                <SelectItem value="Vancouver" className="text-xs">Vancouver</SelectItem>
-                <SelectItem value="ABNT" className="text-xs">ABNT</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Separator orientation="vertical" className="h-6" />
-
-            {/* Selected sources summary */}
-            {(selectedPapers.length > 0 || selectedPDFs.length > 0 || selectedAnalyses.length > 0) && (
-              <div className="flex items-center gap-1">
-                {selectedPapers.length > 0 && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    <FileText className="h-2.5 w-2.5 mr-0.5" />
-                    {selectedPapers.length}
-                  </Badge>
+          <TabsContent value="papers" className="flex-1 flex flex-col px-3 pb-3 mt-2">
+            <Input
+              placeholder={pt ? "Buscar papers..." : "Search papers..."}
+              value={paperSearch}
+              onChange={e => setPaperSearch(e.target.value)}
+              className="h-8 text-xs mb-2 bg-background/80 border-border/40 focus-visible:ring-primary/30"
+            />
+            <ScrollArea className="flex-1">
+              <div className="space-y-1">
+                {loadingPapers ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
+                  </div>
+                ) : filteredGroups.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                    <p className="text-xs text-muted-foreground">
+                      {pt ? "Nenhum paper encontrado" : "No papers found"}
+                    </p>
+                  </div>
+                ) : (
+                  filteredGroups.map(group => {
+                    const isExpanded = expandedSearches.has(group.id);
+                    const selectedCount = group.papers.filter(p => selectedPapers.some(sp => sp.id === p.id)).length;
+                    return (
+                      <Collapsible key={group.id} open={isExpanded} onOpenChange={() => toggleSearchExpanded(group.id)}>
+                        <CollapsibleTrigger className="w-full flex items-center gap-1.5 p-2.5 rounded-lg hover:bg-muted/60 text-xs text-left group transition-colors">
+                          {isExpanded ? (
+                            <ChevronDown className="h-3 w-3 text-primary shrink-0 transition-transform" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0 transition-transform" />
+                          )}
+                          <span className="font-semibold text-foreground line-clamp-1 flex-1">{group.query}</span>
+                          {selectedCount > 0 && (
+                            <Badge className="text-[9px] h-4 px-1.5 bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">{selectedCount}</Badge>
+                          )}
+                          <span className="text-[10px] text-muted-foreground/60 shrink-0">{group.papers.length}</span>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <div className="ml-3 space-y-0.5 border-l-2 border-border/30 pl-3">
+                            {group.papers.map(paper => {
+                              const isSelected = selectedPapers.some(p => p.id === paper.id);
+                              return (
+                                <button
+                                  key={paper.id}
+                                  onClick={() => togglePaper(paper)}
+                                  className={`w-full text-left p-2.5 rounded-lg text-xs transition-all duration-200 ${
+                                    isSelected
+                                      ? "bg-primary/8 border-l-2 border-l-primary shadow-sm shadow-primary/5 ml-[-2px]"
+                                      : "hover:bg-muted/50 border-l-2 border-l-transparent ml-[-2px]"
+                                  }`}
+                                >
+                                  <p className={`font-medium line-clamp-2 ${isSelected ? "text-primary" : "text-foreground"}`}>{paper.title}</p>
+                                  <p className="text-muted-foreground/70 mt-0.5">
+                                    {formatAuthors(paper.authors)} {paper.year ? `(${paper.year})` : ""}
+                                  </p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    );
+                  })
                 )}
-                {selectedPDFs.length > 0 && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    <File className="h-2.5 w-2.5 mr-0.5" />
-                    {selectedPDFs.length}
-                  </Badge>
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="datamind" className="flex-1 flex flex-col px-3 pb-3 mt-2">
+            <ScrollArea className="flex-1">
+              <div className="space-y-1">
+                {loadingAnalyses ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+                  </div>
+                ) : datamindAnalyses.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Database className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                    <p className="text-xs text-muted-foreground">
+                      {pt ? "Nenhuma análise encontrada" : "No analyses found"}
+                    </p>
+                  </div>
+                ) : (
+                  datamindAnalyses.map(analysis => {
+                    const isSelected = selectedAnalyses.some(a => a.id === analysis.id);
+                    return (
+                      <button
+                        key={analysis.id}
+                        onClick={() => toggleAnalysis(analysis)}
+                        className={`w-full text-left p-2.5 rounded-lg text-xs transition-all duration-200 ${
+                          isSelected
+                            ? "bg-accent/8 border-l-2 border-l-accent shadow-sm shadow-accent/5"
+                            : "hover:bg-muted/50 border-l-2 border-l-transparent"
+                        }`}
+                      >
+                        <p className={`font-medium line-clamp-2 ${isSelected ? "text-accent" : "text-foreground"}`}>{analysis.title}</p>
+                        <p className="text-muted-foreground/60 mt-0.5 line-clamp-1">{analysis.content.slice(0, 80)}...</p>
+                      </button>
+                    );
+                  })
                 )}
-                {selectedAnalyses.length > 0 && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    <Database className="h-2.5 w-2.5 mr-0.5" />
-                    {selectedAnalyses.length}
-                  </Badge>
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="mypdfs" className="flex-1 flex flex-col px-3 pb-3 mt-2">
+            {/* Upload area with animated border */}
+            <div className="mb-3">
+              <label className="block">
+                <div className={`relative rounded-xl p-3.5 text-center cursor-pointer transition-all duration-300 ${
+                  uploadingPDF
+                    ? "bg-primary/5 border border-primary/30"
+                    : "border-2 border-dashed border-border/50 hover:border-primary/40 hover:bg-primary/3 hover:shadow-sm"
+                }`}>
+                  {uploadingPDF ? (
+                    <div className="space-y-2">
+                      <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />
+                      <p className="text-xs text-muted-foreground">{pt ? "Processando..." : "Processing..."}</p>
+                      <Progress value={uploadProgress} className="h-1.5" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="h-10 w-10 mx-auto rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-2">
+                        <Upload className="h-4 w-4 text-primary" />
+                      </div>
+                      <p className="text-xs font-medium text-foreground">
+                        {pt ? "Enviar PDFs" : "Upload PDFs"}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                        {pt ? "Clique ou arraste" : "Click or drag"}
+                      </p>
+                    </>
+                  )}
+                </div>
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  accept=".pdf"
+                  multiple
+                  className="hidden"
+                  onChange={handlePDFUpload}
+                  disabled={uploadingPDF}
+                />
+              </label>
+              {uploadedPDFs.some(p => p.status === "error") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearErrorPDFs}
+                  className="w-full text-xs text-destructive hover:text-destructive h-7 mt-1"
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  {pt ? "Limpar erros" : "Clear errors"}
+                </Button>
+              )}
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="space-y-1">
+                {loadingPDFs ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
+                  </div>
+                ) : uploadedPDFs.length === 0 ? (
+                  <div className="text-center py-8">
+                    <File className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                    <p className="text-xs text-muted-foreground">
+                      {pt ? "Nenhum PDF enviado ainda" : "No PDFs uploaded yet"}
+                    </p>
+                  </div>
+                ) : (
+                  uploadedPDFs.map(pdf => {
+                    const isSelected = selectedPDFs.some(p => p.id === pdf.id);
+                    const isProcessed = pdf.status === "processed";
+                    const isProcessing = pdf.status === "processing";
+                    return (
+                      <div
+                        key={pdf.id}
+                        className={`relative group rounded-lg text-xs transition-all duration-200 ${
+                          isSelected
+                            ? "bg-primary/8 border-l-2 border-l-primary shadow-sm shadow-primary/5"
+                            : "hover:bg-muted/50 border-l-2 border-l-transparent"
+                        }`}
+                      >
+                        <button
+                          onClick={() => isProcessed && togglePDF(pdf)}
+                          className="w-full text-left p-2.5"
+                          disabled={!isProcessed}
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${
+                              isProcessed ? "bg-primary/10" : isProcessing ? "bg-amber-500/10" : "bg-destructive/10"
+                            }`}>
+                              <File className={`h-3.5 w-3.5 ${
+                                isProcessed ? "text-primary" : isProcessing ? "text-amber-500" : "text-destructive"
+                              }`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-foreground line-clamp-2">
+                                {pdf.title || pdf.file_name}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge
+                                  variant={isProcessed ? "secondary" : isProcessing ? "outline" : "destructive"}
+                                  className={`text-[9px] px-1.5 py-0 ${
+                                    isProcessed ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" : ""
+                                  }`}
+                                >
+                                  {isProcessed
+                                    ? (pt ? "Processado" : "Processed")
+                                    : isProcessing
+                                      ? (pt ? "Processando" : "Processing")
+                                      : (pt ? "Erro" : "Error")}
+                                </Badge>
+                                {isProcessed && pdf.extracted_text && (
+                                  <span className="text-[10px] text-muted-foreground/50">
+                                    {(pdf.extracted_text.length / 1000).toFixed(0)}k chars
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deletePDF(pdf); }}
+                          className="absolute top-2 right-2 h-5 w-5 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-destructive transition-all"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })
                 )}
-                <Separator orientation="vertical" className="h-4" />
               </div>
-            )}
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
+      </div>
 
-            {/* Group 1: Writing */}
-            <TooltipProvider delayDuration={300}>
-              <div className="flex items-center gap-1 bg-muted/40 rounded-md px-1.5 py-0.5">
-                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mr-0.5">
-                  {pt ? "Escrita" : "Write"}
-                </span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating}
-                      onClick={() => streamAI("draft_section", instructions)}>
-                      <Sparkles className="h-3 w-3" />
-                      {pt ? "Gerar" : "Draft"}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p className="text-xs">{pt ? "Gerar rascunho da seção com citações" : "Generate section draft with citations"}</p></TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
-                      onClick={() => streamAI("continue_writing")}>
-                      <ArrowRight className="h-3 w-3" />
-                      {pt ? "Continuar" : "Continue"}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p className="text-xs">{pt ? "Continuar escrevendo de onde parou" : "Continue writing from where you left off"}</p></TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating}
-                      onClick={() => streamAI("insert_citation")}>
-                      <Quote className="h-3 w-3" />
-                      {pt ? "Citar" : "Cite"}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p className="text-xs">{pt ? "Formatar citações dos papers selecionados" : "Format citations from selected papers"}</p></TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
-                      onClick={() => streamAI("generate_abstract")}>
-                      <Sigma className="h-3 w-3" />
-                      Abstract
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p className="text-xs">{pt ? "Gerar abstract estruturado do artigo" : "Generate structured abstract from article"}</p></TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
-                      onClick={() => streamAI("generate_highlights")}>
-                      <Star className="h-3 w-3" />
-                      Highlights
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p className="text-xs">{pt ? "Gerar Key Findings / Highlights" : "Generate Key Findings / Highlights"}</p></TooltipContent>
-                </Tooltip>
-              </div>
-            </TooltipProvider>
+      {/* ─── Main editor area ─── */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Toolbar — glassmorphism ribbon */}
+        <div className="border-b border-border/30 bg-background/80 backdrop-blur-md px-4 py-2.5 flex items-center gap-2.5 flex-wrap shadow-sm">
+          <Select value={selectedSection} onValueChange={setSelectedSection}>
+            <SelectTrigger className="w-40 h-8 text-xs rounded-lg border-border/40 bg-background/60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SECTIONS.map(s => (
+                <SelectItem key={s.id} value={s.id} className="text-xs">
+                  {s.label[pt ? "pt" : "en"]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-            {/* Group 2: Review */}
-            <TooltipProvider delayDuration={300}>
-              <div className="flex items-center gap-1 bg-muted/40 rounded-md px-1.5 py-0.5">
-                <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mr-0.5">
-                  {pt ? "Revisão" : "Review"}
-                </span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
-                      onClick={() => streamAI("rephrase")}>
-                      <RefreshCw className="h-3 w-3" />
-                      {pt ? "Reformular" : "Rephrase"}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p className="text-xs">{pt ? "Reformular com qualidade de pesquisador sênior" : "Rephrase with senior researcher quality"}</p></TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
-                      onClick={() => streamAI("check_consistency")}>
-                      <ShieldCheck className="h-3 w-3" />
-                      {pt ? "Verificar" : "Check"}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p className="text-xs">{pt ? "Verificar consistência entre claims e evidências" : "Check consistency between claims and evidence"}</p></TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
-                      onClick={() => streamAI("peer_review")}>
-                      <MessageSquareWarning className="h-3 w-3" />
-                      Peer Review
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p className="text-xs">{pt ? "Simular revisão por pares rigorosa" : "Simulate rigorous peer review"}</p></TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" disabled={isGenerating || !editorContent.trim()}
-                      onClick={() => streamAI("improve_hedging")}>
-                      <Eye className="h-3 w-3" />
-                      Hedging
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p className="text-xs">{pt ? "Corrigir linguagem absolutista para hedging científico" : "Fix absolutist language to scientific hedging"}</p></TooltipContent>
-                </Tooltip>
-              </div>
-            </TooltipProvider>
+          <Select value={citationStyle} onValueChange={setCitationStyle}>
+            <SelectTrigger className="w-28 h-8 text-xs rounded-lg border-border/40 bg-background/60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="APA" className="text-xs">APA 7th</SelectItem>
+              <SelectItem value="Vancouver" className="text-xs">Vancouver</SelectItem>
+              <SelectItem value="ABNT" className="text-xs">ABNT</SelectItem>
+            </SelectContent>
+          </Select>
 
-            <Separator orientation="vertical" className="h-6" />
+          <Separator orientation="vertical" className="h-6 bg-border/30" />
 
-            <Button
-              size="sm"
-              variant={activeRightPanel === "capes" ? "default" : "outline"}
-              className={`h-7 text-xs gap-1 ${activeRightPanel === "capes" ? "" : "border-primary/30 text-primary hover:bg-primary/10"}`}
-              onClick={() => setActiveRightPanel(activeRightPanel === "capes" ? "ai" : "capes")}
-            >
-              <GraduationCap className="h-3 w-3" />
-              CAPES APC
-            </Button>
-          </div>
+          {/* Selected sources badges */}
+          {(selectedPapers.length > 0 || selectedPDFs.length > 0 || selectedAnalyses.length > 0) && (
+            <div className="flex items-center gap-1.5">
+              {selectedPapers.length > 0 && (
+                <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20 hover:bg-primary/10 gap-1">
+                  <FileText className="h-2.5 w-2.5" />
+                  {selectedPapers.length}
+                </Badge>
+              )}
+              {selectedPDFs.length > 0 && (
+                <Badge className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/10 dark:text-amber-400 gap-1">
+                  <File className="h-2.5 w-2.5" />
+                  {selectedPDFs.length}
+                </Badge>
+              )}
+              {selectedAnalyses.length > 0 && (
+                <Badge className="text-[10px] bg-accent/10 text-accent border-accent/20 hover:bg-accent/10 gap-1">
+                  <Database className="h-2.5 w-2.5" />
+                  {selectedAnalyses.length}
+                </Badge>
+              )}
+              <Separator orientation="vertical" className="h-4 bg-border/30" />
+            </div>
+          )}
 
-          {/* Instructions bar */}
-          <div className="border-b border-border/40 bg-muted/30 px-4 py-2">
+          {/* Group 1: Writing */}
+          <TooltipProvider delayDuration={300}>
+            <div className="flex items-center gap-0.5 bg-primary/5 border border-primary/10 rounded-lg px-2 py-0.5">
+              <span className="text-[9px] font-bold text-primary/60 uppercase tracking-widest mr-1">
+                {pt ? "Escrita" : "Write"}
+              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating}
+                    onClick={() => streamAI("draft_section", instructions)}>
+                    <Sparkles className="h-3 w-3" />
+                    {pt ? "Gerar" : "Draft"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Gerar rascunho da seção com citações" : "Generate section draft with citations"}</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || !editorContent.trim()}
+                    onClick={() => streamAI("continue_writing")}>
+                    <ArrowRight className="h-3 w-3" />
+                    {pt ? "Continuar" : "Continue"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Continuar escrevendo de onde parou" : "Continue writing from where you left off"}</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating}
+                    onClick={() => streamAI("insert_citation")}>
+                    <Quote className="h-3 w-3" />
+                    {pt ? "Citar" : "Cite"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Formatar citações dos papers selecionados" : "Format citations from selected papers"}</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || !editorContent.trim()}
+                    onClick={() => streamAI("generate_abstract")}>
+                    <Sigma className="h-3 w-3" />
+                    Abstract
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Gerar abstract estruturado do artigo" : "Generate structured abstract from article"}</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || !editorContent.trim()}
+                    onClick={() => streamAI("generate_highlights")}>
+                    <Star className="h-3 w-3" />
+                    Highlights
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Gerar Key Findings / Highlights" : "Generate Key Findings / Highlights"}</p></TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
+
+          {/* Group 2: Review */}
+          <TooltipProvider delayDuration={300}>
+            <div className="flex items-center gap-0.5 bg-accent/5 border border-accent/10 rounded-lg px-2 py-0.5">
+              <span className="text-[9px] font-bold text-accent/60 uppercase tracking-widest mr-1">
+                {pt ? "Revisão" : "Review"}
+              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || !editorContent.trim()}
+                    onClick={() => streamAI("rephrase")}>
+                    <RefreshCw className="h-3 w-3" />
+                    {pt ? "Reformular" : "Rephrase"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Reformular com qualidade de pesquisador sênior" : "Rephrase with senior researcher quality"}</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || !editorContent.trim()}
+                    onClick={() => streamAI("check_consistency")}>
+                    <ShieldCheck className="h-3 w-3" />
+                    {pt ? "Verificar" : "Check"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Verificar consistência entre claims e evidências" : "Check consistency between claims and evidence"}</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || !editorContent.trim()}
+                    onClick={() => streamAI("peer_review")}>
+                    <MessageSquareWarning className="h-3 w-3" />
+                    Peer Review
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Simular revisão por pares rigorosa" : "Simulate rigorous peer review"}</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || !editorContent.trim()}
+                    onClick={() => streamAI("improve_hedging")}>
+                    <Eye className="h-3 w-3" />
+                    Hedging
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Corrigir linguagem absolutista para hedging científico" : "Fix absolutist language to scientific hedging"}</p></TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
+
+          <Separator orientation="vertical" className="h-6 bg-border/30" />
+
+          <Button
+            size="sm"
+            variant={activeRightPanel === "capes" ? "default" : "outline"}
+            className={`h-7 text-xs gap-1 rounded-lg transition-all ${
+              activeRightPanel === "capes"
+                ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-md shadow-primary/20 border-0"
+                : "border-primary/20 text-primary hover:bg-primary/5"
+            }`}
+            onClick={() => setActiveRightPanel(activeRightPanel === "capes" ? "ai" : "capes")}
+          >
+            <GraduationCap className="h-3 w-3" />
+            CAPES APC
+          </Button>
+        </div>
+
+        {/* Instructions bar */}
+        <div className="border-b border-border/30 bg-gradient-to-r from-muted/20 via-muted/30 to-muted/20 px-4 py-2.5">
+          <div className="relative">
+            <Sparkles className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary/40" />
             <Input
               placeholder={pt
                 ? "Instruções adicionais para a IA (ex: foco em estudos clínicos, mencionar limitações...)"
                 : "Additional instructions for the AI (e.g., focus on clinical studies, mention limitations...)"}
               value={instructions}
               onChange={e => setInstructions(e.target.value)}
-              className="h-8 text-xs bg-background"
+              className="h-8 text-xs bg-background/60 border-border/30 pl-8 rounded-lg focus-visible:ring-primary/30 focus-visible:border-primary/30"
             />
           </div>
+        </div>
 
-          {/* Editor + AI output split */}
-          <div className="flex-1 flex overflow-hidden">
-            {/* Editor */}
-            <div className="flex-1 flex flex-col border-r border-border/40">
-              <div className="px-4 py-2 border-b border-border/40 bg-muted/20">
-                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                  <PenLine className="h-3 w-3" />
-                  {pt ? "Editor" : "Editor"}
-                </p>
-              </div>
-              <Textarea
-                ref={editorRef}
-                value={editorContent}
-                onChange={e => setEditorContent(e.target.value)}
-                placeholder={pt
-                  ? "Comece a escrever seu artigo aqui ou use os botões acima para gerar conteúdo com IA..."
-                  : "Start writing your paper here or use the buttons above to generate content with AI..."}
-                className="flex-1 resize-none border-0 rounded-none focus-visible:ring-0 text-sm leading-relaxed p-4 font-serif"
-              />
-              {(() => {
-                const metrics = qualityMetrics();
-                return (
-                  <div className="px-4 py-1.5 border-t border-border/40 bg-muted/20 flex items-center gap-4 text-xs text-muted-foreground">
-                    <span>{editorContent.split(/\s+/).filter(Boolean).length} {pt ? "palavras" : "words"}</span>
-                    {metrics && (
-                      <>
-                        <Separator orientation="vertical" className="h-3" />
-                        <TooltipProvider delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className={`flex items-center gap-1 ${Number(metrics.citationRatio) < 20 && metrics.wordCount > 100 ? "text-amber-500" : ""}`}>
-                                <Quote className="h-2.5 w-2.5" />
-                                {metrics.citations} ({metrics.citationRatio}%)
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent><p className="text-xs">{pt ? "Citações por frase" : "Citations per sentence"}</p></TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className={`flex items-center gap-1 ${Number(metrics.hedgingPer1000) < 3 && metrics.wordCount > 100 ? "text-amber-500" : ""}`}>
-                                <Eye className="h-2.5 w-2.5" />
-                                {metrics.hedgingPer1000}‰
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent><p className="text-xs">{pt ? "Hedging por 1000 palavras (ideal: >5)" : "Hedging per 1000 words (ideal: >5)"}</p></TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="flex items-center gap-1">
-                                TTR {metrics.ttr}%
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent><p className="text-xs">{pt ? "Variedade vocabular (Type-Token Ratio)" : "Vocabulary variety (Type-Token Ratio)"}</p></TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </>
-                    )}
-                    <span className="ml-auto">{editorContent.length} {pt ? "caracteres" : "characters"}</span>
-                  </div>
-                );
-              })()}
+        {/* Editor + AI output split */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Editor */}
+          <div className="flex-1 flex flex-col border-r border-border/30">
+            <div className="px-4 py-2 border-b border-border/20 bg-gradient-to-r from-muted/10 to-transparent">
+              <p className="text-xs font-semibold text-foreground/70 flex items-center gap-1.5 tracking-wide">
+                <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center">
+                  <PenLine className="h-3 w-3 text-primary" />
+                </div>
+                {pt ? "Editor" : "Editor"}
+                {isGenerating && (
+                  <span className="ml-2 flex items-center gap-1 text-primary/60">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                    {pt ? "Gerando..." : "Generating..."}
+                  </span>
+                )}
+              </p>
             </div>
+            <Textarea
+              ref={editorRef}
+              value={editorContent}
+              onChange={e => setEditorContent(e.target.value)}
+              placeholder={pt
+                ? "Comece a escrever seu artigo aqui ou use os botões acima para gerar conteúdo com IA..."
+                : "Start writing your paper here or use the buttons above to generate content with AI..."}
+              className="flex-1 resize-none border-0 rounded-none focus-visible:ring-0 text-sm leading-[1.9] p-6 font-serif shadow-inner shadow-muted/20"
+              style={{
+                backgroundImage: 'repeating-linear-gradient(transparent, transparent 31px, hsl(var(--border) / 0.15) 31px, hsl(var(--border) / 0.15) 32px)',
+                backgroundSize: '100% 32px',
+                backgroundPositionY: '23px',
+              }}
+            />
+            {/* Quality metrics footer */}
+            {(() => {
+              const metrics = qualityMetrics();
+              return (
+                <div className="px-4 py-2 border-t border-border/20 bg-gradient-to-r from-muted/15 via-muted/25 to-muted/15 flex items-center gap-3 text-[11px]">
+                  <span className="text-muted-foreground font-medium">{editorContent.split(/\s+/).filter(Boolean).length} {pt ? "palavras" : "words"}</span>
+                  {metrics && (
+                    <>
+                      <div className="h-3 w-px bg-border/40" />
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md ${
+                              Number(metrics.citationRatio) < 20 && metrics.wordCount > 100
+                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                : "bg-primary/5 text-primary/70"
+                            }`}>
+                              <Quote className="h-2.5 w-2.5" />
+                              {metrics.citations} ({metrics.citationRatio}%)
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent><p className="text-xs">{pt ? "Citações por frase" : "Citations per sentence"}</p></TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md ${
+                              Number(metrics.hedgingPer1000) < 3 && metrics.wordCount > 100
+                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                : "bg-accent/5 text-accent/70"
+                            }`}>
+                              <Eye className="h-2.5 w-2.5" />
+                              {metrics.hedgingPer1000}‰
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent><p className="text-xs">{pt ? "Hedging por 1000 palavras (ideal: >5)" : "Hedging per 1000 words (ideal: >5)"}</p></TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/40 text-muted-foreground">
+                              TTR {metrics.ttr}%
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent><p className="text-xs">{pt ? "Variedade vocabular (Type-Token Ratio)" : "Vocabulary variety (Type-Token Ratio)"}</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </>
+                  )}
+                  <span className="ml-auto text-muted-foreground/50">{editorContent.length} {pt ? "caracteres" : "characters"}</span>
+                </div>
+              );
+            })()}
+          </div>
 
-            {/* Right panel: AI Output or CAPES Advisor */}
-            <div className="w-[45%] flex flex-col bg-muted/10">
-              {activeRightPanel === "ai" ? (
-                <>
-                  <div className="px-4 py-2 border-b border-border/40 bg-muted/20 flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+          {/* Right panel: AI Output or CAPES Advisor */}
+          <div className="w-[45%] flex flex-col bg-gradient-to-b from-primary/[0.02] to-accent/[0.02]">
+            {activeRightPanel === "ai" ? (
+              <>
+                <div className="px-4 py-2 border-b border-border/20 bg-gradient-to-r from-primary/5 to-accent/5 flex items-center justify-between">
+                  <p className="text-xs font-semibold text-foreground/70 flex items-center gap-1.5 tracking-wide">
+                    <div className="h-5 w-5 rounded-md bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-primary" />
-                      {pt ? "Saída da IA" : "AI Output"}
-                      {isGenerating && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
-                    </p>
-                    {aiOutput && !isGenerating && (
-                      <div className="flex gap-1 items-center">
-                        {(() => {
-                          const v = validateCitationsInOutput(aiOutput);
-                          return !v.valid ? (
-                            <Badge variant="destructive" className="text-[9px] h-5 gap-0.5">
-                              <AlertTriangle className="h-2.5 w-2.5" />
-                              {v.invalidIds.length} {pt ? "citação suspeita" : "suspicious"}
-                            </Badge>
-                          ) : v.totalCitations > 0 ? (
-                            <Badge variant="secondary" className="text-[9px] h-5 gap-0.5 bg-green-500/10 text-green-600 border-green-500/20">
-                              <Check className="h-2.5 w-2.5" />
-                              {v.totalCitations} {pt ? "citações válidas" : "valid citations"}
-                            </Badge>
-                          ) : null;
-                        })()}
-                        <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={handleCopy}>
-                          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                          {copied ? (pt ? "Copiado" : "Copied") : (pt ? "Copiar" : "Copy")}
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={handleInsertInEditor}>
-                          <Plus className="h-3 w-3" />
-                          {pt ? "Inserir" : "Insert"}
-                        </Button>
+                    </div>
+                    {pt ? "Saída da IA" : "AI Output"}
+                    {isGenerating && <Loader2 className="h-3 w-3 animate-spin ml-1 text-primary" />}
+                  </p>
+                  {aiOutput && !isGenerating && (
+                    <div className="flex gap-1.5 items-center">
+                      {(() => {
+                        const v = validateCitationsInOutput(aiOutput);
+                        return !v.valid ? (
+                          <Badge className="text-[9px] h-5 gap-0.5 bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/10">
+                            <AlertTriangle className="h-2.5 w-2.5" />
+                            {v.invalidIds.length} {pt ? "citação suspeita" : "suspicious"}
+                          </Badge>
+                        ) : v.totalCitations > 0 ? (
+                          <Badge className="text-[9px] h-5 gap-0.5 bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/10 dark:text-emerald-400">
+                            <Check className="h-2.5 w-2.5" />
+                            {v.totalCitations} {pt ? "citações válidas" : "valid citations"}
+                          </Badge>
+                        ) : null;
+                      })()}
+                      <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2.5 rounded-lg hover:bg-primary/10 hover:text-primary transition-all" onClick={handleCopy}>
+                        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                        {copied ? (pt ? "Copiado" : "Copied") : (pt ? "Copiar" : "Copy")}
+                      </Button>
+                      <Button size="sm" className="h-7 text-xs gap-1 px-3 rounded-lg bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 shadow-sm shadow-primary/20 transition-all border-0" onClick={handleInsertInEditor}>
+                        <Plus className="h-3 w-3" />
+                        {pt ? "Inserir" : "Insert"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <ScrollArea className="flex-1">
+                  <div className="p-6 text-sm leading-[1.9] whitespace-pre-wrap font-serif text-foreground">
+                    {aiOutput ? (
+                      <div className="animate-in fade-in-0 duration-300">{aiOutput}</div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-4">
+                          <Sparkles className="h-7 w-7 text-primary/40" />
+                        </div>
+                        <p className="text-sm font-medium text-muted-foreground/60 max-w-[280px] leading-relaxed">
+                          {pt
+                            ? "Use os botões acima para gerar conteúdo. Selecione papers, PDFs e análises do DataMind no painel esquerdo."
+                            : "Use the buttons above to generate content. Select papers, PDFs and DataMind analyses from the left panel."}
+                        </p>
                       </div>
                     )}
                   </div>
-                  <ScrollArea className="flex-1">
-                    <div className="p-4 text-sm leading-relaxed whitespace-pre-wrap font-serif text-foreground">
-                      {aiOutput || (
-                        <p className="text-muted-foreground italic text-center mt-12">
-                          {pt
-                            ? "Use os botões acima para gerar conteúdo. Selecione papers, PDFs e análises do DataMind no painel esquerdo para contextualizar a escrita."
-                            : "Use the buttons above to generate content. Select papers, PDFs and DataMind analyses from the left panel to contextualize the writing."}
-                        </p>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </>
-              ) : (
-                <CAPESAdvisorPanel
-                  editorContent={editorContent}
-                  onFormatArticle={(publisher) => {
-                    setActiveRightPanel("ai");
-                    streamAI("format_for_journal", `Format this article according to ${publisher} submission guidelines. Publisher: ${publisher}`);
-                  }}
-                  onClose={() => setActiveRightPanel("ai")}
-                  onInsertFormatted={(text) => {
-                    setEditorContent(prev => prev + (prev ? "\n\n" : "") + text);
-                    toast.success(pt ? "Texto formatado inserido" : "Formatted text inserted");
-                  }}
-                />
-              )}
-            </div>
+                </ScrollArea>
+              </>
+            ) : (
+              <CAPESAdvisorPanel
+                editorContent={editorContent}
+                onFormatArticle={(publisher) => {
+                  setActiveRightPanel("ai");
+                  streamAI("format_for_journal", `Format this article according to ${publisher} submission guidelines. Publisher: ${publisher}`);
+                }}
+                onClose={() => setActiveRightPanel("ai")}
+                onInsertFormatted={(text) => {
+                  setEditorContent(prev => prev + (prev ? "\n\n" : "") + text);
+                  toast.success(pt ? "Texto formatado inserido" : "Formatted text inserted");
+                }}
+              />
+            )}
           </div>
         </div>
       </div>
+    </div>
   );
 };
 
