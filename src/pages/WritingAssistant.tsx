@@ -1128,7 +1128,7 @@ const WritingAssistant = () => {
                 editorContent={editorContent}
                 onFormatArticle={(publisher) => {
                   setActiveRightPanel("ai");
-                  streamAI("format_for_journal", `Format this article according to ${publisher} submission guidelines. Publisher: ${publisher}`);
+                  streamAI("format_for_journal", `${editorContent}\n\n---\nFormat this article according to ${publisher} submission guidelines. Publisher: ${publisher}`);
                 }}
                 onClose={() => setActiveRightPanel("ai")}
                 onInsertFormatted={(text) => {
