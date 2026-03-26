@@ -455,6 +455,7 @@ const WritingAssistant = () => {
     setEditorContent("");
     setAiOutput("");
     setSelectedSection("introduction");
+    setAiUsageLog([]);
     toast.info(pt ? "Novo documento criado" : "New document created");
   }, [pt]);
 
