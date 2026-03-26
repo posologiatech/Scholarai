@@ -120,6 +120,10 @@ const WritingAssistant = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // AI usage tracking
+  const [aiUsageLog, setAiUsageLog] = useState<AIUsageEntry[]>([]);
+  const [showAIDeclaration, setShowAIDeclaration] = useState(false);
   // Load papers from saved searches (grouped)
   useEffect(() => {
     if (!user) return;
