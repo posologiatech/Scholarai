@@ -859,31 +859,41 @@ async function fetchRealData(
 /* ── Dynamic analysis prompt builder ── */
 
 function buildAnalysisPrompt(realData: RealDataResult) {
+  const primaryColumns = realData.csv.split("\n")[0] || "";
+  const supplementaryColumns = realData.supplementaryCsv?.split("\n")[0] || "";
+
   let prompt = `Você é um especialista em epidemiologia brasileira. Gere código Python para analisar dados REAIS do DataSUS.
 
-## DADOS REAIS DISPONÍVEIS
-Os dados reais já estão carregados. O código DEVE começar com:
+## CONTEXTO DOS DADOS
+Os dados reais já serão injetados no código final pelo backend nas variáveis:
+- REAL_DATA_CSV
+- POP_DATA_CSV (se houver dados suplementares)
+
+O código deve começar usando:
 \`\`\`python
 import pandas as pd
 import io
 
-REAL_DATA_CSV = """${realData.csv.substring(0, 50000)}"""
-
 df = pd.read_csv(io.StringIO(REAL_DATA_CSV))
 \`\`\`
 
-## Colunas disponíveis:
+## Estrutura do dataset principal
+Cabeçalho CSV:
+${primaryColumns}
+
+Descrição das colunas:
 ${realData.columnsDescription}
 `;
 
   if (realData.supplementaryCsv) {
     prompt += `
 
-## DADOS SUPLEMENTARES (População)
-Carregue também os dados de população para normalização:
-\`\`\`python
-POP_DATA_CSV = """${realData.supplementaryCsv.substring(0, 30000)}"""
+## Dataset suplementar disponível
+Cabeçalho CSV suplementar:
+${supplementaryColumns}
 
+Use também:
+\`\`\`python
 df_pop = pd.read_csv(io.StringIO(POP_DATA_CSV))
 \`\`\`
 ${realData.supplementaryDescription || ""}
@@ -905,6 +915,7 @@ ${realData.supplementaryDescription || ""}
 10. IMPORTANTE: Estes são dados REAIS. Mencione isso na interpretação.
 11. Para agregação anual, some os valores por ano e UF
 12. Configure matplotlib para fontes sem serifa: plt.rcParams['font.family'] = 'DejaVu Sans'
+13. NÃO redefina REAL_DATA_CSV ou POP_DATA_CSV; essas variáveis serão fornecidas pelo backend.
 `;
 
   return prompt;
