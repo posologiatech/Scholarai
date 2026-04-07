@@ -193,12 +193,14 @@ Deno.serve(async (req) => {
       const readableStream = new ReadableStream({
         async start(controller) {
           const send = (data: any) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+          const sentIndexes = new Set<number>();
 
           for (let idx = 0; idx < papers.length; idx++) {
             const p = papers[idx];
             if (p.id && cacheMap.has(p.id)) {
               const cached = cacheMap.get(p.id)!;
               send({ paper_index: idx, value: cached.value, citation_context: cached.citation || undefined, from_cache: true });
+              sentIndexes.add(idx);
             }
           }
 
@@ -223,12 +225,22 @@ Deno.serve(async (req) => {
                       }, { onConflict: 'paper_id,column_name' }).then(() => {});
                     }
                     send({ paper_index: ext.paper_index, value: ext.value, citation_context: ext.citation_context || undefined, from_cache: false });
+                    sentIndexes.add(ext.paper_index);
                   }
                 }
               } catch (err) { console.error('Batch extraction error:', err); }
             });
             await Promise.all(batchPromises);
           }
+
+          // Gap-fill: ensure every paper gets a value
+          for (let i = 0; i < papers.length; i++) {
+            if (!sentIndexes.has(i)) {
+              const fallbackValue = locale === 'pt' ? 'Informações insuficientes para gerar resumo.' : 'Insufficient information to generate summary.';
+              send({ paper_index: i, value: fallbackValue, from_cache: false });
+            }
+          }
+
           send({ done: true });
           controller.close();
         },

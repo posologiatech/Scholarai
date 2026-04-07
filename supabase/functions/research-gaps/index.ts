@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   if ("error" in auth) return auth.error;
 
   try {
-    const { query, papers, locale = 'en' } = await req.json();
+    const { query, papers, locale = 'en', mode } = await req.json();
 
     if (!query || !papers || papers.length === 0) {
       return new Response(JSON.stringify({ error: 'Query and papers required' }), {
@@ -24,6 +24,70 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ─── Column suggestions mode ────────────────────────────────────
+    if (mode === 'suggest_columns') {
+      const samplePapers = papers.slice(0, 8).map((p: any) =>
+        `- "${p.title}" (${p.year || 'n.d.'}): ${(p.abstract || '').slice(0, 200)}`
+      ).join('\n');
+
+      const colPrompt = locale === 'pt'
+        ? `Você é um especialista em metodologia de pesquisa. Dada a pergunta de pesquisa e os artigos abaixo, sugira 3-4 colunas de extração de dados que ajudariam um pesquisador a analisar e comparar esses artigos sistematicamente.
+
+Cada coluna deve extrair informações ESPECÍFICAS e ACIONÁVEIS relevantes para a pergunta de pesquisa.
+
+Foque em colunas que revelem: detalhes metodológicos, achados/métricas principais, características da população/amostra, limitações, ou variáveis específicas do domínio.
+
+NÃO sugira colunas genéricas como "Summary" ou "Resumo" (já incluída por padrão).
+Sugira colunas ESPECÍFICAS para o tema da pesquisa.
+
+Retorne APENAS um array JSON válido (sem markdown):
+[{"name": "Nome Curto (max 5 palavras)", "description": "O que extrair de cada paper (1 frase)"}]`
+        : `You are a research methodology expert. Given the research query and papers below, suggest 3-4 data extraction columns that would help a researcher analyze and compare these papers systematically.
+
+Each column should extract SPECIFIC, ACTIONABLE information relevant to the research question.
+
+Focus on columns that reveal: methodology details, key findings/metrics, population/sample characteristics, limitations, or domain-specific variables.
+
+Do NOT suggest generic columns like "Summary" (already included by default).
+Suggest columns SPECIFIC to the research topic.
+
+Return ONLY a valid JSON array (no markdown):
+[{"name": "Short Name (max 5 words)", "description": "What to extract from each paper (1 sentence)"}]`;
+
+      const colResp = await callAI({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: 'system', content: colPrompt },
+          { role: 'user', content: `Research query: "${query}"\n\nSample papers:\n${samplePapers}` },
+        ],
+        max_tokens: 500,
+        _promptType: 'column_suggestions',
+      });
+
+      if (!colResp.ok) {
+        return new Response(JSON.stringify({ suggested_columns: [] }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const colData = await colResp.json();
+      const colText = colData.choices?.[0]?.message?.content || '[]';
+      const colCleaned = colText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      
+      let suggested_columns = [];
+      try {
+        const jsonMatch = colCleaned.match(/\[[\s\S]*\]/);
+        suggested_columns = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+      } catch {
+        suggested_columns = [];
+      }
+
+      return new Response(JSON.stringify({ suggested_columns }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ─── Research gaps mode (default) ───────────────────────────────
     const papersSummary = papers.slice(0, 15).map((p: any, i: number) =>
       `[${i + 1}] "${p.title}" (${p.authors?.slice(0, 3).join(', ')}, ${p.year || 'n.d.'}). ${p.abstract || ''}`
     ).join('\n\n');
