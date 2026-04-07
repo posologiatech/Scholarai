@@ -129,6 +129,7 @@ const SearchResults = () => {
   const [columns, setColumns] = useState<ColumnDef[]>([
     { name: "Summary", enabled: true },
   ]);
+  const suggestedColumnsLoaded = useRef(false);
   const [columnData, setColumnData] = useState<Record<string, Record<number, string>>>({});
   const [columnCitations, setColumnCitations] = useState<Record<string, Record<number, string>>>({});
   const [columnCacheStatus, setColumnCacheStatus] = useState<Record<string, Record<number, boolean>>>({});
@@ -201,8 +202,44 @@ const SearchResults = () => {
       const enabledCols = columns.filter((c) => c.enabled && !columnData[c.name]);
       enabledCols.forEach((col) => extractColumnData(col.name, col.prompt));
       triggerEmbeddings(papers);
+      // Load AI-suggested columns
+      if (!suggestedColumnsLoaded.current) {
+        suggestedColumnsLoaded.current = true;
+        fetchSuggestedColumns();
+      }
     }
   }, [papers]);
+
+  const fetchSuggestedColumns = async () => {
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const tk = sess?.session?.access_token;
+      if (!tk) return;
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/research-gaps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tk}` },
+        body: JSON.stringify({
+          query,
+          papers: papers.slice(0, 8).map(p => ({ title: p.title, authors: p.authors, year: p.year, abstract: (p.abstract || "").slice(0, 300) })),
+          locale,
+          mode: "suggest_columns",
+        }),
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.suggested_columns?.length) {
+        setColumns(prev => {
+          const existingNames = new Set(prev.map(c => c.name));
+          const newCols = data.suggested_columns
+            .filter((c: any) => !existingNames.has(c.name))
+            .map((c: any) => ({ name: c.name, description: c.description, prompt: c.description, enabled: false, isCustom: false }));
+          return [...prev, ...newCols];
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load suggested columns:", err);
+    }
+  };
 
   const triggerEmbeddings = async (papersToEmbed: Paper[]) => {
     if (embeddingStatus !== 'idle') return;
@@ -1186,14 +1223,22 @@ const SearchResults = () => {
                 className="overflow-auto rounded-lg border border-border"
                 style={{ maxHeight: "calc(100vh - 340px)" }}
               >
-                <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+              <table className="w-full border-collapse" style={{ tableLayout: enabledColumns.length > 0 ? "fixed" : "auto" }}>
                   <colgroup>
-                    {table.getHeaderGroups()[0]?.headers.map((header) => (
-                      <col
-                        key={header.id}
-                        style={{ width: header.getSize(), minWidth: header.getSize(), maxWidth: header.getSize() }}
-                      />
-                    ))}
+                    {table.getHeaderGroups()[0]?.headers.map((header, idx) => {
+                      // Paper column gets fixed width, data columns share remaining
+                      const isPaperCol = header.id === "paper";
+                      const paperWidth = enabledColumns.length > 0 ? 340 : undefined;
+                      return (
+                        <col
+                          key={header.id}
+                          style={isPaperCol && paperWidth
+                            ? { width: paperWidth, minWidth: paperWidth, maxWidth: paperWidth }
+                            : {}
+                          }
+                        />
+                      );
+                    })}
                   </colgroup>
                   <thead className="sticky top-0 z-10 bg-card">
                     {table.getHeaderGroups().map((headerGroup) => (
@@ -1202,7 +1247,10 @@ const SearchResults = () => {
                           <th
                             key={header.id}
                             className="relative py-3 px-3 text-left text-sm font-medium text-muted-foreground group overflow-hidden"
-                            style={{ width: header.getSize(), minWidth: header.getSize(), maxWidth: header.getSize() }}
+                            style={header.id === "paper" && enabledColumns.length > 0
+                              ? { width: 340, minWidth: 340, maxWidth: 340 }
+                              : {}
+                            }
                           >
                             {header.isPlaceholder
                               ? null
@@ -1243,12 +1291,15 @@ const SearchResults = () => {
                           }}
                         >
                           {row.getVisibleCells().map((cell) => {
-                            const size = cell.column.getSize();
+                            const isPaperCell = cell.column.id === "paper";
                             return (
                               <td
                                 key={cell.id}
                                 className="px-3 py-4 align-top overflow-hidden"
-                                style={{ width: size, minWidth: size, maxWidth: size }}
+                                style={isPaperCell && enabledColumns.length > 0
+                                  ? { width: 340, minWidth: 340, maxWidth: 340 }
+                                  : {}
+                                }
                               >
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </td>
