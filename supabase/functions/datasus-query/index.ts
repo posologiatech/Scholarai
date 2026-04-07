@@ -938,7 +938,10 @@ serve(async (req) => {
   }
 
   try {
-    const { userId } = await requireAuth(req);
+    const auth = await requireAuth(req, corsHeaders);
+    if ("error" in auth) return auth.error;
+    const { userId } = auth;
+
     const { messages, query } = await req.json();
 
     if (!messages && !query) {
@@ -951,93 +954,153 @@ serve(async (req) => {
     const chatMessages = messages || [{ role: "user", content: query }];
 
     /* ── Step 1: Extract parameters via AI ── */
-    const extractionResponse = await callAI({
-      messages: [
-        { role: "system", content: EXTRACTION_PROMPT },
-        ...chatMessages,
-      ],
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: "extract_query_params",
-            description: "Extrai parâmetros da pergunta do usuário sobre dados epidemiológicos do DataSUS.",
-            parameters: {
-              type: "object",
-              properties: {
-                explanation: {
-                  type: "string",
-                  description: "Explicação breve sobre o que será analisado",
+    let params: Record<string, any> | null = null;
+
+    try {
+      const extractionResponse = await callAI({
+        messages: [
+          { role: "system", content: EXTRACTION_PROMPT },
+          ...chatMessages,
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "extract_query_params",
+              description: "Extrai parâmetros da pergunta do usuário sobre dados epidemiológicos do DataSUS.",
+              parameters: {
+                type: "object",
+                properties: {
+                  explanation: {
+                    type: "string",
+                    description: "Explicação breve sobre o que será analisado",
+                  },
+                  data_source: {
+                    type: "string",
+                    enum: ["SINAN", "SIM", "SINASC", "SIH", "SIA", "IBGE_AGREGADOS"],
+                    description: "Sistema de informação do DataSUS ou IBGE",
+                  },
+                  disease_or_topic: {
+                    type: "string",
+                    description: "Agravo, doença ou tópico (ex: dengue, tuberculose, mortalidade infantil, população, PIB)",
+                  },
+                  location: {
+                    type: "string",
+                    description: "Localidade: UF, município, região ou Brasil",
+                  },
+                  period: {
+                    type: "string",
+                    description: "Período de análise (ex: 2017-2023, últimos 5 anos)",
+                  },
+                  is_unavailable: {
+                    type: "boolean",
+                    description: "true se os dados solicitados NÃO estão disponíveis nas fontes integradas",
+                  },
+                  unavailable_reason: {
+                    type: "string",
+                    description: "Motivo pelo qual os dados não estão disponíveis (se is_unavailable=true)",
+                  },
                 },
-                data_source: {
-                  type: "string",
-                  enum: ["SINAN", "SIM", "SINASC", "SIH", "SIA", "IBGE_AGREGADOS"],
-                  description: "Sistema de informação do DataSUS ou IBGE",
-                },
-                disease_or_topic: {
-                  type: "string",
-                  description: "Agravo, doença ou tópico (ex: dengue, tuberculose, mortalidade infantil, população, PIB)",
-                },
-                location: {
-                  type: "string",
-                  description: "Localidade: UF, município, região ou Brasil",
-                },
-                period: {
-                  type: "string",
-                  description: "Período de análise (ex: 2017-2023, últimos 5 anos)",
-                },
-                is_unavailable: {
-                  type: "boolean",
-                  description: "true se os dados solicitados NÃO estão disponíveis nas fontes integradas",
-                },
-                unavailable_reason: {
-                  type: "string",
-                  description: "Motivo pelo qual os dados não estão disponíveis (se is_unavailable=true)",
-                },
+                required: ["explanation", "data_source", "disease_or_topic"],
+                additionalProperties: false,
               },
-              required: ["explanation", "data_source", "disease_or_topic"],
-              additionalProperties: false,
             },
           },
-        },
-      ],
-      tool_choice: { type: "function", function: { name: "extract_query_params" } },
-      _userId: userId,
-      _promptType: "datasus-query",
-    } as any);
+        ],
+        tool_choice: { type: "function", function: { name: "extract_query_params" } },
+        _userId: userId,
+        _promptType: "datasus-query",
+      } as any);
 
-    if (!extractionResponse.ok) {
-      const status = extractionResponse.status;
-      if (status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (extractionResponse.ok) {
+        const extractionData = await extractionResponse.json();
+        const toolCall = extractionData.choices?.[0]?.message?.tool_calls?.[0];
+
+        if (toolCall) {
+          params = JSON.parse(toolCall.function.arguments);
+        } else {
+          const textContent = extractionData.choices?.[0]?.message?.content || "";
+          const fencedJson = textContent.match(/```json\s*([\s\S]*?)```/i)?.[1];
+          const jsonStart = textContent.indexOf("{");
+          const jsonEnd = textContent.lastIndexOf("}");
+          const rawJson = fencedJson || (jsonStart !== -1 && jsonEnd > jsonStart ? textContent.slice(jsonStart, jsonEnd + 1) : "");
+          if (rawJson) {
+            params = JSON.parse(rawJson);
+          }
+        }
+      } else {
+        const status = extractionResponse.status;
+        if (status === 429) {
+          return new Response(
+            JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (status === 402) {
+          return new Response(
+            JSON.stringify({ error: "Créditos de IA esgotados." }),
+            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        console.warn(`[datasus-query] Tool-call extraction failed (${status}), trying plain JSON fallback`);
       }
-      if (status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Créditos de IA esgotados." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      return new Response(
-        JSON.stringify({ error: "Falha ao processar a consulta" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    } catch (extractionErr) {
+      console.warn("[datasus-query] Tool-call extraction error, trying fallback:", extractionErr);
     }
 
-    const extractionData = await extractionResponse.json();
-    const toolCall = extractionData.choices?.[0]?.message?.tool_calls?.[0];
+    if (!params) {
+      const fallbackResponse = await callAI({
+        messages: [
+          {
+            role: "system",
+            content: EXTRACTION_PROMPT + "\n\nRetorne APENAS um objeto JSON válido com as chaves: explanation, data_source, disease_or_topic, location, period, is_unavailable, unavailable_reason.",
+          },
+          ...chatMessages,
+        ],
+        _userId: userId,
+        _promptType: "datasus-query",
+      } as any);
 
-    if (!toolCall) {
-      const textContent = extractionData.choices?.[0]?.message?.content || "Não foi possível interpretar sua pergunta. Tente reformular.";
-      return new Response(
-        JSON.stringify({ type: "text", content: textContent }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (!fallbackResponse.ok) {
+        const status = fallbackResponse.status;
+        if (status === 429) {
+          return new Response(
+            JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (status === 402) {
+          return new Response(
+            JSON.stringify({ error: "Créditos de IA esgotados." }),
+            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const errText = await fallbackResponse.text().catch(() => "unknown");
+        console.error(`[datasus-query] Extraction fallback failed (${status}): ${errText}`);
+        return new Response(
+          JSON.stringify({ error: "Falha ao processar a consulta. Tente novamente em alguns instantes." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const fallbackData = await fallbackResponse.json();
+      const textContent = fallbackData.choices?.[0]?.message?.content || "";
+      const fencedJson = textContent.match(/```json\s*([\s\S]*?)```/i)?.[1];
+      const jsonStart = textContent.indexOf("{");
+      const jsonEnd = textContent.lastIndexOf("}");
+      const rawJson = fencedJson || (jsonStart !== -1 && jsonEnd > jsonStart ? textContent.slice(jsonStart, jsonEnd + 1) : "");
+
+      if (!rawJson) {
+        return new Response(
+          JSON.stringify({ type: "text", content: textContent || "Não foi possível interpretar sua pergunta. Tente reformular." }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      params = JSON.parse(rawJson);
     }
 
-    const params = JSON.parse(toolCall.function.arguments);
     const { explanation, data_source, disease_or_topic, location, period, is_unavailable, unavailable_reason } = params;
     const locationStr = location || "Brasil";
     const periodStr = period || "últimos 5 anos";
