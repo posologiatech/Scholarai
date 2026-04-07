@@ -202,8 +202,44 @@ const SearchResults = () => {
       const enabledCols = columns.filter((c) => c.enabled && !columnData[c.name]);
       enabledCols.forEach((col) => extractColumnData(col.name, col.prompt));
       triggerEmbeddings(papers);
+      // Load AI-suggested columns
+      if (!suggestedColumnsLoaded.current) {
+        suggestedColumnsLoaded.current = true;
+        fetchSuggestedColumns();
+      }
     }
   }, [papers]);
+
+  const fetchSuggestedColumns = async () => {
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const tk = sess?.session?.access_token;
+      if (!tk) return;
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/research-gaps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tk}` },
+        body: JSON.stringify({
+          query,
+          papers: papers.slice(0, 8).map(p => ({ title: p.title, authors: p.authors, year: p.year, abstract: (p.abstract || "").slice(0, 300) })),
+          locale,
+          mode: "suggest_columns",
+        }),
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.suggested_columns?.length) {
+        setColumns(prev => {
+          const existingNames = new Set(prev.map(c => c.name));
+          const newCols = data.suggested_columns
+            .filter((c: any) => !existingNames.has(c.name))
+            .map((c: any) => ({ name: c.name, description: c.description, prompt: c.description, enabled: false, isCustom: false }));
+          return [...prev, ...newCols];
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load suggested columns:", err);
+    }
+  };
 
   const triggerEmbeddings = async (papersToEmbed: Paper[]) => {
     if (embeddingStatus !== 'idle') return;
