@@ -1077,52 +1077,81 @@ serve(async (req) => {
     /* ── Step 3: Generate analysis code ── */
     const codeGenerationPrompt = buildAnalysisPrompt(realData);
 
-    const codeResponse = await callAI({
-      messages: [
-        { role: "system", content: codeGenerationPrompt },
-        { role: "user", content: `Pergunta do pesquisador: ${userQuestion}\n\nParâmetros:\n- Fonte: ${data_source}\n- Agravo/tema: ${disease_or_topic}\n- Local: ${locationStr}\n- Período: ${periodStr}\n\nGere o código Python completo para análise e visualização.` },
-      ],
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: "generate_analysis_code",
-            description: "Gera código Python para analisar dados epidemiológicos.",
-            parameters: {
-              type: "object",
-              properties: {
-                python_code: {
-                  type: "string",
-                  description: "Código Python completo para análise e visualização dos dados.",
+    // Try with tool_choice first, fall back to plain prompt if unsupported
+    let pythonCode = "";
+    
+    try {
+      const codeResponse = await callAI({
+        messages: [
+          { role: "system", content: codeGenerationPrompt },
+          { role: "user", content: `Pergunta do pesquisador: ${userQuestion}\n\nParâmetros:\n- Fonte: ${data_source}\n- Agravo/tema: ${disease_or_topic}\n- Local: ${locationStr}\n- Período: ${periodStr}\n\nGere o código Python completo para análise e visualização.` },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "generate_analysis_code",
+              description: "Gera código Python para analisar dados epidemiológicos.",
+              parameters: {
+                type: "object",
+                properties: {
+                  python_code: {
+                    type: "string",
+                    description: "Código Python completo para análise e visualização dos dados.",
+                  },
                 },
+                required: ["python_code"],
+                additionalProperties: false,
               },
-              required: ["python_code"],
-              additionalProperties: false,
             },
           },
-        },
-      ],
-      tool_choice: { type: "function", function: { name: "generate_analysis_code" } },
-      _userId: userId,
-      _promptType: "datasus-analysis",
-    } as any);
+        ],
+        tool_choice: { type: "function", function: { name: "generate_analysis_code" } },
+        _userId: userId,
+        _promptType: "datasus-analysis",
+      } as any);
 
-    if (!codeResponse.ok) {
-      return new Response(
-        JSON.stringify({ error: "Falha ao gerar código de análise" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (codeResponse.ok) {
+        const codeData = await codeResponse.json();
+        const codeToolCall = codeData.choices?.[0]?.message?.tool_calls?.[0];
+        if (codeToolCall) {
+          const codeArgs = JSON.parse(codeToolCall.function.arguments);
+          pythonCode = codeArgs.python_code;
+        } else {
+          const content = codeData.choices?.[0]?.message?.content || "";
+          const codeMatch = content.match(/```python\n?([\s\S]*?)```/);
+          pythonCode = codeMatch ? codeMatch[1] : content;
+        }
+      } else {
+        console.warn(`[datasus-query] Tool-call code generation failed (${codeResponse.status}), trying plain prompt fallback`);
+      }
+    } catch (toolErr) {
+      console.warn("[datasus-query] Tool-call code generation error, trying fallback:", toolErr);
     }
 
-    const codeData = await codeResponse.json();
-    const codeToolCall = codeData.choices?.[0]?.message?.tool_calls?.[0];
+    // Fallback: plain prompt without tool_choice
+    if (!pythonCode) {
+      const fallbackResponse = await callAI({
+        messages: [
+          { role: "system", content: codeGenerationPrompt + "\n\nIMPORTANT: Return ONLY the Python code inside a ```python code block. No other text." },
+          { role: "user", content: `Pergunta do pesquisador: ${userQuestion}\n\nParâmetros:\n- Fonte: ${data_source}\n- Agravo/tema: ${disease_or_topic}\n- Local: ${locationStr}\n- Período: ${periodStr}\n\nGere o código Python completo para análise e visualização.` },
+        ],
+        _userId: userId,
+        _promptType: "datasus-analysis",
+        _skipProviders: [],
+      } as any);
 
-    let pythonCode = "";
-    if (codeToolCall) {
-      const codeArgs = JSON.parse(codeToolCall.function.arguments);
-      pythonCode = codeArgs.python_code;
-    } else {
-      const content = codeData.choices?.[0]?.message?.content || "";
+      if (!fallbackResponse.ok) {
+        const errText = await fallbackResponse.text().catch(() => "unknown");
+        console.error(`[datasus-query] Fallback code generation also failed (${fallbackResponse.status}): ${errText}`);
+        return new Response(
+          JSON.stringify({ error: "Falha ao gerar código de análise. Tente novamente em alguns instantes." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const fallbackData = await fallbackResponse.json();
+      const content = fallbackData.choices?.[0]?.message?.content || "";
       const codeMatch = content.match(/```python\n?([\s\S]*?)```/);
       pythonCode = codeMatch ? codeMatch[1] : content;
     }
