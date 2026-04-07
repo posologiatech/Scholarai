@@ -1247,7 +1247,10 @@ const SearchResults = () => {
                           <th
                             key={header.id}
                             className="relative py-3 px-3 text-left text-sm font-medium text-muted-foreground group overflow-hidden"
-                            style={{ width: header.getSize(), minWidth: header.getSize(), maxWidth: header.getSize() }}
+                            style={header.id === "paper" && enabledColumns.length > 0
+                              ? { width: 340, minWidth: 340, maxWidth: 340 }
+                              : {}
+                            }
                           >
                             {header.isPlaceholder
                               ? null
