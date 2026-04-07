@@ -1291,12 +1291,15 @@ const SearchResults = () => {
                           }}
                         >
                           {row.getVisibleCells().map((cell) => {
-                            const size = cell.column.getSize();
+                            const isPaperCell = cell.column.id === "paper";
                             return (
                               <td
                                 key={cell.id}
                                 className="px-3 py-4 align-top overflow-hidden"
-                                style={{ width: size, minWidth: size, maxWidth: size }}
+                                style={isPaperCell && enabledColumns.length > 0
+                                  ? { width: 340, minWidth: 340, maxWidth: 340 }
+                                  : {}
+                                }
                               >
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </td>
