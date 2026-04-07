@@ -129,6 +129,7 @@ const SearchResults = () => {
   const [columns, setColumns] = useState<ColumnDef[]>([
     { name: "Summary", enabled: true },
   ]);
+  const suggestedColumnsLoaded = useRef(false);
   const [columnData, setColumnData] = useState<Record<string, Record<number, string>>>({});
   const [columnCitations, setColumnCitations] = useState<Record<string, Record<number, string>>>({});
   const [columnCacheStatus, setColumnCacheStatus] = useState<Record<string, Record<number, boolean>>>({});
