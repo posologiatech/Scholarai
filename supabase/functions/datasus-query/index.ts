@@ -939,7 +939,7 @@ serve(async (req) => {
 
   try {
     const auth = await requireAuth(req, corsHeaders);
-    if ("error" in auth) return auth.error;
+    if ("error" in auth && auth.error) return auth.error;
     const { userId } = auth;
 
     const { messages, query } = await req.json();
@@ -1101,7 +1101,15 @@ serve(async (req) => {
       params = JSON.parse(rawJson);
     }
 
-    const { explanation, data_source, disease_or_topic, location, period, is_unavailable, unavailable_reason } = params;
+    if (!params) {
+      return new Response(
+        JSON.stringify({ error: "Não foi possível interpretar a consulta." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const parsedParams = params as Record<string, any>;
+    const { explanation, data_source, disease_or_topic, location, period, is_unavailable, unavailable_reason } = parsedParams;
     const locationStr = location || "Brasil";
     const periodStr = period || "últimos 5 anos";
 
