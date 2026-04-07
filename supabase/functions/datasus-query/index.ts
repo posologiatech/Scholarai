@@ -1238,6 +1238,23 @@ serve(async (req) => {
       pythonCode = codeMatch ? codeMatch[1] : content;
     }
 
+    const runtimeDataPrefix = [
+      "import pandas as pd",
+      "import io",
+      `REAL_DATA_CSV = ${JSON.stringify(realData.csv)}`,
+      ...(realData.supplementaryCsv ? [`POP_DATA_CSV = ${JSON.stringify(realData.supplementaryCsv)}`] : []),
+      "",
+    ].join("\n");
+
+    const normalizedPythonCode = pythonCode
+      .replace(/REAL_DATA_CSV\s*=\s*"""[\s\S]*?"""\s*/g, "")
+      .replace(/POP_DATA_CSV\s*=\s*"""[\s\S]*?"""\s*/g, "")
+      .replace(/import pandas as pd\s*/g, "")
+      .replace(/import io\s*/g, "")
+      .trim();
+
+    pythonCode = `${runtimeDataPrefix}${normalizedPythonCode}`;
+
     const sourceLabel = realData.source.includes("InfoDengue") ? "InfoDengue"
       : realData.source.includes("TabNet") ? "TabNet/SINAN"
       : realData.source.includes("OpenDataSUS") ? "OpenDataSUS"
