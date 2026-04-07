@@ -1223,14 +1223,22 @@ const SearchResults = () => {
                 className="overflow-auto rounded-lg border border-border"
                 style={{ maxHeight: "calc(100vh - 340px)" }}
               >
-                <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+              <table className="w-full border-collapse" style={{ tableLayout: enabledColumns.length > 0 ? "fixed" : "auto" }}>
                   <colgroup>
-                    {table.getHeaderGroups()[0]?.headers.map((header) => (
-                      <col
-                        key={header.id}
-                        style={{ width: header.getSize(), minWidth: header.getSize(), maxWidth: header.getSize() }}
-                      />
-                    ))}
+                    {table.getHeaderGroups()[0]?.headers.map((header, idx) => {
+                      // Paper column gets fixed width, data columns share remaining
+                      const isPaperCol = header.id === "paper";
+                      const paperWidth = enabledColumns.length > 0 ? 340 : undefined;
+                      return (
+                        <col
+                          key={header.id}
+                          style={isPaperCol && paperWidth
+                            ? { width: paperWidth, minWidth: paperWidth, maxWidth: paperWidth }
+                            : {}
+                          }
+                        />
+                      );
+                    })}
                   </colgroup>
                   <thead className="sticky top-0 z-10 bg-card">
                     {table.getHeaderGroups().map((headerGroup) => (
