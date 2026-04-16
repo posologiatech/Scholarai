@@ -207,70 +207,79 @@ export async function callAI(options: ChatCompletionOptions): Promise<Response> 
     const providerConfig = PROVIDERS.find((p) => p.id === keyRecord.provider);
     if (!providerConfig) continue;
 
-    // Skip Anthropic for streaming (complex SSE format differences)
     if (!providerConfig.isOpenAICompatible && options.stream) continue;
-
-    // Skip Groq for tool calling — Llama models have unreliable tool use
     if (keyRecord.provider === "groq" && options.tools && options.tools.length > 0) continue;
 
-    const model = forceProvider ? (cleanOptions.model || providerConfig.defaultModel) : (providerConfig.modelMap[cleanOptions.model || ""] || providerConfig.defaultModel);
+    const primaryModel = forceProvider
+      ? (cleanOptions.model || providerConfig.defaultModel)
+      : (providerConfig.modelMap[cleanOptions.model || ""] || providerConfig.defaultModel);
 
-    let requestBody: any;
-    if (providerConfig.transformRequest) {
-      requestBody = providerConfig.transformRequest({
-        ...cleanOptions,
-        model,
-      });
-    } else {
-      requestBody = { ...cleanOptions, model };
+    // Per-provider fallback models — used when primary returns 503/429 (overload)
+    const modelCandidates: string[] = [primaryModel];
+    if (keyRecord.provider === "google") {
+      for (const alt of ["gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-2.0-flash"]) {
+        if (!modelCandidates.includes(alt)) modelCandidates.push(alt);
+      }
+    } else if (keyRecord.provider === "openai") {
+      for (const alt of ["gpt-4o-mini", "gpt-4o"]) {
+        if (!modelCandidates.includes(alt)) modelCandidates.push(alt);
+      }
     }
 
-    // Remove internal fields
-    delete requestBody.modalities;
-
-    try {
-      console.log(`[ai-caller] Trying provider: ${keyRecord.provider} (model: ${model})`);
-
-      const response = await fetch(providerConfig.baseUrl, {
-        method: "POST",
-        headers: providerConfig.headerFn(keyRecord.api_key),
-        body: JSON.stringify(requestBody),
-      });
-
-      if (response.ok) {
-        console.log(`[ai-caller] SUCCESS with provider: ${keyRecord.provider}`);
-
-        // For non-OpenAI-compatible providers, transform the response
-        if (!providerConfig.isOpenAICompatible && !options.stream) {
-          const data = await response.json();
-          const transformed = transformAnthropicResponse(data);
-          // Log usage (Anthropic uses different usage keys)
-          logAIUsage(keyRecord.provider, model, promptType, {
-            usage: {
-              prompt_tokens: data.usage?.input_tokens ?? 0,
-              completion_tokens: data.usage?.output_tokens ?? 0,
-            },
-          }, userId);
-          return new Response(JSON.stringify(transformed), {
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-
-        // Clone to read usage without consuming the stream
-        if (!options.stream) {
-          const cloned = response.clone();
-          cloned.json().then((data) => {
-            logAIUsage(keyRecord.provider, model, promptType, data, userId);
-          }).catch(() => {});
-        }
-
-        return response;
+    for (const model of modelCandidates) {
+      let requestBody: any;
+      if (providerConfig.transformRequest) {
+        requestBody = providerConfig.transformRequest({ ...cleanOptions, model });
+      } else {
+        requestBody = { ...cleanOptions, model };
       }
+      delete requestBody.modalities;
 
-      const errText = await response.text();
-      console.error(`[ai-caller] Provider ${keyRecord.provider} failed (${response.status}): ${errText}`);
-    } catch (err) {
-      console.error(`[ai-caller] Provider ${keyRecord.provider} error:`, err);
+      try {
+        console.log(`[ai-caller] Trying provider: ${keyRecord.provider} (model: ${model})`);
+
+        const response = await fetch(providerConfig.baseUrl, {
+          method: "POST",
+          headers: providerConfig.headerFn(keyRecord.api_key),
+          body: JSON.stringify(requestBody),
+        });
+
+        if (response.ok) {
+          console.log(`[ai-caller] SUCCESS with provider: ${keyRecord.provider} (model: ${model})`);
+
+          if (!providerConfig.isOpenAICompatible && !options.stream) {
+            const data = await response.json();
+            const transformed = transformAnthropicResponse(data);
+            logAIUsage(keyRecord.provider, model, promptType, {
+              usage: {
+                prompt_tokens: data.usage?.input_tokens ?? 0,
+                completion_tokens: data.usage?.output_tokens ?? 0,
+              },
+            }, userId);
+            return new Response(JSON.stringify(transformed), {
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+
+          if (!options.stream) {
+            const cloned = response.clone();
+            cloned.json().then((data) => {
+              logAIUsage(keyRecord.provider, model, promptType, data, userId);
+            }).catch(() => {});
+          }
+
+          return response;
+        }
+
+        const errText = await response.text();
+        console.error(`[ai-caller] Provider ${keyRecord.provider} (${model}) failed (${response.status}): ${errText.slice(0, 300)}`);
+
+        // 429/5xx are transient → try next candidate model (same provider)
+        const isTransient = [429, 500, 502, 503, 504].includes(response.status);
+        if (!isTransient) break; // hard error (auth/quota/4xx) → skip remaining models
+      } catch (err) {
+        console.error(`[ai-caller] Provider ${keyRecord.provider} (${model}) error:`, err);
+      }
     }
   }
 
