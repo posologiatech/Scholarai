@@ -272,9 +272,11 @@ async function fetchIBGESidra(
 
     let url: string;
     if (topic === "mortality") {
-      url = `https://apisidra.ibge.gov.br/values/t/2681/n3/${ufParam}/p/${periodParam}/v/93/c2/6794`;
+      // Tabela 2681 — variável 343 = "Número de óbitos ocorridos no ano"
+      url = `https://apisidra.ibge.gov.br/values/t/2681/n3/${ufParam}/p/${periodParam}/v/343`;
     } else {
-      url = `https://apisidra.ibge.gov.br/values/t/2612/n3/${ufParam}/p/${periodParam}/v/9324`;
+      // Tabela 2612 — variável 218 = "Nascidos vivos ocorridos no ano"
+      url = `https://apisidra.ibge.gov.br/values/t/2612/n3/${ufParam}/p/${periodParam}/v/218`;
     }
 
     console.log(`IBGE SIDRA fetch: ${url}`);
