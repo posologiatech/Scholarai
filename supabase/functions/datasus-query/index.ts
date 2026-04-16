@@ -272,9 +272,11 @@ async function fetchIBGESidra(
 
     let url: string;
     if (topic === "mortality") {
-      url = `https://apisidra.ibge.gov.br/values/t/2681/n3/${ufParam}/p/${periodParam}/v/93/c2/6794`;
+      // Tabela 2681 — variável 343 = "Número de óbitos ocorridos no ano"
+      url = `https://apisidra.ibge.gov.br/values/t/2681/n3/${ufParam}/p/${periodParam}/v/343`;
     } else {
-      url = `https://apisidra.ibge.gov.br/values/t/2612/n3/${ufParam}/p/${periodParam}/v/9324`;
+      // Tabela 2612 — variável 218 = "Nascidos vivos ocorridos no ano"
+      url = `https://apisidra.ibge.gov.br/values/t/2612/n3/${ufParam}/p/${periodParam}/v/218`;
     }
 
     console.log(`IBGE SIDRA fetch: ${url}`);
@@ -342,61 +344,16 @@ async function fetchIBGESidra(
 /* ── IBGE SIDRA mortality by CID ── */
 
 async function fetchMortalityByCID(
-  cidRange: string,
-  stateCodes: string[],
-  startYear: number,
-  endYear: number,
-  diseaseName: string
+  _cidRange: string,
+  _stateCodes: string[],
+  _startYear: number,
+  _endYear: number,
+  _diseaseName: string
 ): Promise<RealDataResult | null> {
-  try {
-    const years = [];
-    for (let y = startYear; y <= endYear; y++) years.push(y);
-    const periodParam = years.join(",");
-    const allStateKeys = Object.keys(STATE_IBGE_TO_NAME);
-    const isAll = stateCodes.length >= allStateKeys.length;
-    const ufParam = isAll ? "all" : stateCodes.join(",");
-
-    const url = `https://apisidra.ibge.gov.br/values/t/2681/n3/${ufParam}/p/${periodParam}/v/93/c2/6794/c58/2`;
-    console.log(`SIDRA CID fetch: ${url}`);
-
-    const resp = await fetch(url, {
-      headers: { "Accept": "application/json" },
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!resp.ok) {
-      console.warn(`SIDRA CID returned ${resp.status}`);
-      return null;
-    }
-
-    const rawData = await resp.json();
-    if (!Array.isArray(rawData) || rawData.length < 2) return null;
-
-    const rows = rawData.slice(1);
-    const csvLines = [`ano,uf,obitos_doencas_infecciosas`];
-    for (const row of rows) {
-      const year = row["D2N"] || row["D3N"] || "";
-      const state = row["D1N"] || row["D4N"] || "";
-      const value = row["V"] || "0";
-      if (year && state && value !== "...") {
-        csvLines.push(`${year},"${state}",${value.replace(/\./g, "")}`);
-      }
-    }
-    if (csvLines.length < 2) return null;
-
-    return {
-      csv: csvLines.join("\n"),
-      rowCount: csvLines.length - 1,
-      source: `IBGE SIDRA (tabela 2681, Cap. I CID-10) — dados reais de mortalidade por doenças infecciosas e parasitárias (inclui ${diseaseName})`,
-      columnsDescription: `- ano: ano de referência
-- uf: Unidade da Federação
-- obitos_doencas_infecciosas: óbitos por doenças infecciosas e parasitárias (Cap. I CID-10, inclui ${diseaseName})
-Nota: Estes são dados de MORTALIDADE do SIM.`,
-    };
-  } catch (e) {
-    console.error("SIDRA CID fetch error:", e);
-    return null;
-  }
+  // IBGE SIDRA não disponibiliza óbitos por capítulo CID-10 a nível estadual de forma pública.
+  // Para mortalidade específica por causa, o usuário deve consultar o TabNet/SIM diretamente.
+  // Retornar null faz o sistema sinalizar "dados indisponíveis" sem gerar 400.
+  return null;
 }
 
 /* ── OpenDataSUS SRAG Elasticsearch fetcher ── */
