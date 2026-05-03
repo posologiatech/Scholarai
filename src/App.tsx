@@ -57,6 +57,7 @@ import ParticipantPrivacy from "./pages/ParticipantPrivacy";
 import ConsentRevoke from "./pages/ConsentRevoke";
 import DataSUSPage from "./pages/DataSUS";
 import Changelog from "./pages/Changelog";
+import CoauthorshipNetwork from "./pages/CoauthorshipNetwork";
 import OracleAgent from "./components/app/OracleAgent";
 import AdminRoadmapDialog from "./components/app/AdminRoadmapDialog";
 const queryClient = new QueryClient();
@@ -132,6 +133,7 @@ const App = () => (
               <Route path="/survey/respond/:token" element={<SurveyRespond />} />
               <Route path="/consent/revoke/:signatureId" element={<ConsentRevoke />} />
               <Route path="/datasus" element={<ProtectedRoute><DataSUSPage /></ProtectedRoute>} />
+              <Route path="/coauthorship" element={<ProtectedRoute><CoauthorshipNetwork /></ProtectedRoute>} />
               <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
