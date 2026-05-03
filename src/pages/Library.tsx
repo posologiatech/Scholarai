@@ -221,6 +221,11 @@ const Library = () => {
           </div>
         </div>
 
+        {/* Zotero / Mendeley sync */}
+        <div className="mb-8 rounded-xl border border-border/40 bg-card/50 p-4">
+          <ReferenceManagerSync />
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
