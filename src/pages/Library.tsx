@@ -4,6 +4,7 @@ import {
   BookOpen, Trash2, ExternalLink, Loader2, Search, Download, Upload,
   FileText, FileDown, FileUp, Pencil, Check, X,
 } from "lucide-react";
+import ReferenceManagerSync from "@/components/app/ReferenceManagerSync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
