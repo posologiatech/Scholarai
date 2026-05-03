@@ -47,6 +47,7 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
     { label: locale === "pt" ? "Qualidade (RoB)" : "Risk of Bias", href: "/risk-of-bias", icon: ClipboardCheck },
     { label: locale === "pt" ? "Pesquisas" : "Surveys", href: "/surveys", icon: ClipboardList },
     { label: "DataSUS / SINAN", href: "/datasus", icon: Activity },
+    { label: locale === "pt" ? "Rede de Coautorias" : "Co-authorship", href: "/coauthorship", icon: Users },
     { label: locale === "pt" ? "Atualizações" : "Changelog", href: "/changelog", icon: Rocket },
     ...(isAdmin ? [{ label: t("nav.admin"), href: "/admin", icon: Shield }] : []),
   ];

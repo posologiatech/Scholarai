@@ -4,6 +4,7 @@ import {
   BookOpen, Trash2, ExternalLink, Loader2, Search, Download, Upload,
   FileText, FileDown, FileUp, Pencil, Check, X,
 } from "lucide-react";
+import ReferenceManagerSync from "@/components/app/ReferenceManagerSync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -218,6 +219,11 @@ const Library = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+        </div>
+
+        {/* Zotero / Mendeley sync */}
+        <div className="mb-8 rounded-xl border border-border/40 bg-card/50 p-4">
+          <ReferenceManagerSync />
         </div>
 
         {loading ? (
