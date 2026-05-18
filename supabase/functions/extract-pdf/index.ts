@@ -340,16 +340,45 @@ Deno.serve(async (req) => {
 
       const systemPrompt =
         locale === "pt"
-          ? `Você é um assistente de extração de dados acadêmicos. Dado o texto completo de um artigo científico, extraia as informações solicitadas para cada coluna. Responda APENAS usando a função fornecida.`
-          : `You are an academic data extraction assistant. Given the full text of a scientific paper, extract the requested information for each column. Respond ONLY using the provided function.`;
+          ? `Você é um pesquisador científico sênior especializado em extração de dados de artigos acadêmicos com RIGOR METODOLÓGICO.
+
+[REGRAS OBRIGATÓRIAS]
+1. Use SOMENTE informações presentes no texto fornecido. ZERO FABRICAÇÃO.
+2. Para cada coluna solicitada, forneça uma resposta COMPLETA, DETALHADA e ESPECÍFICA — não responda em uma frase genérica.
+3. Estruture as respostas com profundidade adequada:
+   - Para "desenho de estudo" / "metodologia": especifique tipo (ECR, coorte, transversal, revisão sistemática, etc.), população/amostra (N, características), intervenção/exposição, comparador, desfechos primários e secundários, análise estatística usada.
+   - Para "resultados": inclua dados quantitativos quando disponíveis (p-valor, IC95%, OR, RR, tamanho de efeito), com a magnitude do achado.
+   - Para "conclusões": principais achados E limitações reconhecidas.
+   - Para "população": tamanho amostral, critérios de inclusão/exclusão, contexto.
+4. Cite TRECHOS LITERAIS do texto entre aspas quando relevante para sustentar a extração.
+5. Se a informação NÃO estiver no texto, escreva exatamente "Não mencionado no texto" — NUNCA invente.
+6. Cada resposta deve ter no MÍNIMO 3-5 frases substantivas quando a informação estiver disponível.
+7. Responda APENAS usando a função fornecida.`
+          : `You are a senior scientific researcher specialized in extracting data from academic papers with METHODOLOGICAL RIGOR.
+
+[MANDATORY RULES]
+1. Use ONLY information present in the provided text. ZERO FABRICATION.
+2. For each requested column, provide a COMPLETE, DETAILED and SPECIFIC answer — never reply with a generic single sentence.
+3. Structure responses with appropriate depth:
+   - For "study design" / "methodology": specify type (RCT, cohort, cross-sectional, systematic review, etc.), population/sample (N, characteristics), intervention/exposure, comparator, primary and secondary outcomes, statistical analysis used.
+   - For "results": include quantitative data when available (p-value, 95%CI, OR, RR, effect size), with magnitude of findings.
+   - For "conclusions": main findings AND acknowledged limitations.
+   - For "population": sample size, inclusion/exclusion criteria, setting.
+4. Quote LITERAL excerpts from the text when relevant to support extraction.
+5. If information is NOT in the text, write exactly "Not mentioned in text" — NEVER invent.
+6. Each answer must contain at LEAST 3-5 substantive sentences when information is available.
+7. Respond ONLY using the provided function.`;
+
+      // Use a larger window of the paper to avoid losing methods/results sections
+      const paperWindow = textContent.slice(0, 80000);
 
       const dataResponse = await callAI({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-pro",
         messages: [
           { role: "system", content: systemPrompt },
           {
             role: "user",
-            content: `Research question: "${query}"\n\nColumns to extract:\n${columnDetails}\n\nFull paper text:\n${textContent.slice(0, 30000)}`,
+            content: `Research question: "${query}"\n\nColumns to extract (each must be answered in depth, with at least 3-5 sentences when info is available):\n${columnDetails}\n\nFull paper text:\n${paperWindow}`,
           },
         ],
         tools: [
@@ -367,7 +396,7 @@ Deno.serve(async (req) => {
                       type: "object",
                       properties: {
                         column_name: { type: "string" },
-                        value: { type: "string" },
+                        value: { type: "string", description: "Detailed extraction (3-5+ sentences) or 'Não mencionado no texto'" },
                       },
                       required: ["column_name", "value"],
                       additionalProperties: false,
@@ -387,6 +416,12 @@ Deno.serve(async (req) => {
       });
 
       if (!dataResponse.ok) {
+        // Always release "processing" lock on failure to avoid stuck UI
+        await supabase
+          .from("uploaded_papers")
+          .update({ status: "error", updated_at: new Date().toISOString() })
+          .eq("id", paper_id);
+
         if (dataResponse.status === 429) {
           return new Response(
             JSON.stringify({ error: "Rate limit exceeded" }),
@@ -404,6 +439,10 @@ Deno.serve(async (req) => {
       const dataResult = await dataResponse.json();
       const toolCall = dataResult.choices?.[0]?.message?.tool_calls?.[0];
       if (!toolCall) {
+        await supabase
+          .from("uploaded_papers")
+          .update({ status: "error", updated_at: new Date().toISOString() })
+          .eq("id", paper_id);
         return new Response(
           JSON.stringify({ error: "No extraction returned" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -422,6 +461,7 @@ Deno.serve(async (req) => {
         .from("uploaded_papers")
         .update({
           extraction_data: newData,
+          status: "ready",
           updated_at: new Date().toISOString(),
         })
         .eq("id", paper_id);
@@ -430,6 +470,12 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // No columns: just text extraction; mark as ready
+    await supabase
+      .from("uploaded_papers")
+      .update({ status: "ready", updated_at: new Date().toISOString() })
+      .eq("id", paper_id);
 
     return new Response(
       JSON.stringify({
