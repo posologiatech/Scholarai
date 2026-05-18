@@ -72,9 +72,24 @@ const Extraction = () => {
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
-    if (!error && data) setPapers(data as unknown as UploadedPaper[]);
+    if (!error && data) {
+      // Unstick any paper left as "processing" from a prior crashed run (older than 2 min)
+      const now = Date.now();
+      const stuck = (data as any[]).filter(
+        (p) => p.status === "processing" && now - new Date(p.updated_at || p.created_at).getTime() > 2 * 60 * 1000
+      );
+      if (stuck.length > 0) {
+        await supabase
+          .from("uploaded_papers")
+          .update({ status: "uploaded" })
+          .in("id", stuck.map((p) => p.id));
+        stuck.forEach((p) => (p.status = "uploaded"));
+      }
+      setPapers(data as unknown as UploadedPaper[]);
+    }
     setLoading(false);
   };
+
 
   const handleUpload = async (files: FileList | null) => {
     if (!files || !user) return;
