@@ -100,6 +100,7 @@ const DataMind = () => {
   const [cleaningOpen, setCleaningOpen] = useState(false);
   const [showProfiler, setShowProfiler] = useState(false);
   const [profilingDone, setProfilingDone] = useState(false);
+  const [heatmapOpen, setHeatmapOpen] = useState(false);
 
   // Full spreadsheet data (client-side only, not persisted)
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
