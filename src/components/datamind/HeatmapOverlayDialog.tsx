@@ -16,7 +16,7 @@ import { generateHeatmap, mapLatLonToPixels, HeatmapPoint, HeatmapStyle } from "
 import { COLORMAPS, ColormapName } from "@/lib/heatmap/colormaps";
 import { supabase } from "@/integrations/supabase/client";
 
-type Mode = "xy_px" | "xy_norm" | "latlon" | "regions";
+type Mode = "ai_fill" | "xy_px" | "xy_norm" | "latlon" | "regions";
 
 interface Props {
   open: boolean;
@@ -42,7 +42,8 @@ export default function HeatmapOverlayDialog({ open, onOpenChange, data, fileNam
 
   // Data mapping
   const [valueCol, setValueCol] = useState<string>("");
-  const [mode, setMode] = useState<Mode>("xy_px");
+  const [mode, setMode] = useState<Mode>("ai_fill");
+  const [aiLabelCol, setAiLabelCol] = useState<string>("");
   const [xCol, setXCol] = useState<string>("");
   const [yCol, setYCol] = useState<string>("");
   const [latCol, setLatCol] = useState<string>("");
@@ -149,16 +150,72 @@ export default function HeatmapOverlayDialog({ open, onOpenChange, data, fileNam
     return { points, warnings };
   };
 
+  const imageToDataUrl = async (): Promise<string> => {
+    if (!imageEl) throw new Error("Imagem ausente");
+    const c = document.createElement("canvas");
+    c.width = imageEl.naturalWidth;
+    c.height = imageEl.naturalHeight;
+    c.getContext("2d")!.drawImage(imageEl, 0, 0);
+    return c.toDataURL("image/png");
+  };
+
   const handleGenerate = async () => {
     if (!imageEl) return toast.error("Carregue uma imagem base");
     if (!valueCol) return toast.error("Escolha a coluna de valor");
-    const { points, warnings } = buildPoints();
-    if (warnings.length) {
-      toast.error(warnings.join(" "));
-      return;
-    }
+
     setGenerating(true);
     try {
+      if (mode === "ai_fill") {
+        if (!aiLabelCol) {
+          toast.error("Escolha a coluna de rótulo (região/categoria).");
+          setGenerating(false);
+          return;
+        }
+        // Build label→value pairs (aggregate by mean if duplicate labels)
+        const agg = new Map<string, { sum: number; n: number }>();
+        for (const r of data!.rows) {
+          const label = String(r[aiLabelCol] ?? "").trim();
+          const v = Number(r[valueCol]);
+          if (!label || !isFinite(v)) continue;
+          const prev = agg.get(label) || { sum: 0, n: 0 };
+          prev.sum += v; prev.n += 1;
+          agg.set(label, prev);
+        }
+        const dataPairs = Array.from(agg.entries()).map(([label, a]) => ({
+          label,
+          value: +(a.sum / a.n).toFixed(4),
+        }));
+        if (dataPairs.length === 0) {
+          toast.error("Nenhum par rótulo/valor válido encontrado.");
+          setGenerating(false);
+          return;
+        }
+        const baseImage = await imageToDataUrl();
+        toast.info("Gerando mapa de calor com IA (cobertura total)...");
+        const { data: out, error } = await supabase.functions.invoke("refine-heatmap-ai", {
+          body: {
+            mode: "full_fill",
+            baseImage,
+            dataPairs,
+            colormap: style.colormap,
+            title: style.title,
+            unit: style.unit,
+            valueLabel: valueCol,
+            regionLabel: aiLabelCol,
+          },
+        });
+        if (error || out?.error) throw new Error(out?.error || error?.message || "Falha IA");
+        if (!out?.image_url) throw new Error("IA não retornou imagem");
+        setResultUrl(out.image_url);
+        setStep(3);
+        return;
+      }
+
+      const { points, warnings } = buildPoints();
+      if (warnings.length) {
+        toast.error(warnings.join(" "));
+        return;
+      }
       const finalStyle: HeatmapStyle = {
         ...style,
         footer:
@@ -169,9 +226,9 @@ export default function HeatmapOverlayDialog({ open, onOpenChange, data, fileNam
       const url = URL.createObjectURL(blob);
       setResultUrl(url);
       setStep(3);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error("Falha ao gerar o mapa de calor");
+      toast.error(e?.message || "Falha ao gerar o mapa de calor");
     } finally {
       setGenerating(false);
     }
@@ -227,7 +284,8 @@ export default function HeatmapOverlayDialog({ open, onOpenChange, data, fileNam
   const canProceed1 = !!imageEl;
   const canProceed2 =
     !!valueCol &&
-    ((mode === "xy_px" && xCol && yCol) ||
+    ((mode === "ai_fill" && aiLabelCol) ||
+      (mode === "xy_px" && xCol && yCol) ||
       (mode === "xy_norm" && xCol && yCol) ||
       (mode === "latlon" && latCol && lonCol && (bbox.north !== bbox.south) && (bbox.east !== bbox.west)) ||
       (mode === "regions" && regionCol && pins.length > 0));
@@ -310,14 +368,31 @@ export default function HeatmapOverlayDialog({ open, onOpenChange, data, fileNam
                     <Select value={mode} onValueChange={(v) => setMode(v as Mode)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="xy_px">X,Y em pixels</SelectItem>
-                        <SelectItem value="xy_norm">X,Y normalizado (0–1)</SelectItem>
-                        <SelectItem value="latlon">Latitude/Longitude + bbox</SelectItem>
-                        <SelectItem value="regions">Regiões nomeadas (clicar na imagem)</SelectItem>
+                        <SelectItem value="ai_fill">✨ Cobertura total (IA recolore toda a forma)</SelectItem>
+                        <SelectItem value="xy_px">X,Y em pixels (pontos)</SelectItem>
+                        <SelectItem value="xy_norm">X,Y normalizado 0–1 (pontos)</SelectItem>
+                        <SelectItem value="latlon">Latitude/Longitude + bbox (pontos)</SelectItem>
+                        <SelectItem value="regions">Regiões nomeadas — clicar na imagem (pontos)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
+
+                {mode === "ai_fill" && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+                    <div className="text-xs text-muted-foreground">
+                      A IA usará a imagem como referência de forma e recolorirá toda ela como um choropleth/mapa de calor, atribuindo uma cor a cada região conforme o valor.
+                    </div>
+                    <div>
+                      <Label>Coluna de rótulo (nome da região/categoria)</Label>
+                      <Select value={aiLabelCol} onValueChange={setAiLabelCol}>
+                        <SelectTrigger><SelectValue placeholder="Ex: Município, Estado, Bairro..." /></SelectTrigger>
+                        <SelectContent>{columns.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
 
                 {(mode === "xy_px" || mode === "xy_norm") && (
                   <div className="grid grid-cols-2 gap-4">
