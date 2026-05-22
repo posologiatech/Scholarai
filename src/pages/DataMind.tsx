@@ -814,6 +814,40 @@ const DataMind = () => {
         onApply={applyPipelineSteps}
       />
 
+      <HeatmapOverlayDialog
+        open={heatmapOpen}
+        onOpenChange={setHeatmapOpen}
+        data={spreadsheetData}
+        fileName={files[0]?.file_name}
+        onResult={async (pngUrl) => {
+          if (!user) return;
+          try {
+            const blob = await fetch(pngUrl).then((r) => r.blob());
+            const path = `${user.id}/heatmaps/heatmap-${Date.now()}.png`;
+            const { error: upErr } = await supabase.storage.from("datamind-files").upload(path, blob, { contentType: "image/png" });
+            if (upErr) throw upErr;
+            const { data: signed } = await supabase.storage.from("datamind-files").createSignedUrl(path, 60 * 60 * 24 * 365);
+            const url = signed?.signedUrl || pngUrl;
+            const md = `Gerei um mapa de calor a partir dos seus dados.\n\n![Mapa de calor](${url})\n\n[Baixar PNG](${url})`;
+            let activeConvId = conversationId;
+            if (!activeConvId) {
+              activeConvId = await createConversation("Mapa de calor");
+              if (!activeConvId) return;
+            }
+            const { data: inserted } = await supabase.from("datamind_messages").insert({
+              conversation_id: activeConvId,
+              role: "assistant",
+              content: md,
+            }).select().single();
+            if (inserted) setMessages((prev) => [...prev, inserted as Message]);
+            toast({ title: "Mapa de calor salvo na conversa" });
+          } catch (e: any) {
+            toast({ title: "Falha ao salvar", description: e?.message, variant: "destructive" });
+          }
+        }}
+      />
+
+
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
