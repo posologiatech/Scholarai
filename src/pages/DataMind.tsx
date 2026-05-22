@@ -712,6 +712,16 @@ const DataMind = () => {
                     <Sparkles className="h-3.5 w-3.5" />
                     Limpeza
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-xs h-7"
+                    onClick={() => setHeatmapOpen(true)}
+                    title="Sobrepor dados como mapa de calor em uma imagem"
+                  >
+                    <Flame className="h-3.5 w-3.5" />
+                    Mapa de calor
+                  </Button>
                 </>
               )}
               {messages.length > 0 && (
