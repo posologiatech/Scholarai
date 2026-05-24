@@ -1,98 +1,123 @@
-# Heatmap Overlay — DataMind
 
-Nova funcionalidade no DataMind para gerar **mapas de calor profissionais** combinando uma imagem base (mapa, foto aérea, planta arquitetônica, corpo humano, circuito, qualquer figura) com uma coluna numérica de uma planilha. Saída com qualidade de publicação: gradiente calibrado, legenda, escala, título e crédito.
+# Research Hub — Gestão de Projetos de Pesquisa
 
-## Fluxo do usuário
+Novo módulo integrado ao ScholarAI que centraliza o ciclo de vida de um projeto acadêmico: da ideia → publicação, com orientações, tarefas, reuniões, editais e brainstorm IA. Tudo conectado à Library, Systematic Review, Writing Assistant e Knowledge Graph já existentes.
 
-1. No chat do DataMind, usuário clica em **"Mapa de Calor sobre Imagem"** (novo botão no `DataMindInput`/toolbar) ou digita um pedido em linguagem natural ("gere um heatmap dessa imagem usando a coluna temperatura").
-2. Abre um diálogo (`HeatmapOverlayDialog`) com 3 passos:
-   - **Passo 1 — Imagem base**: upload (PNG/JPG) ou seleção de imagem já no chat. Preview à direita.
-   - **Passo 2 — Dados**: escolher a planilha já carregada (ou subir nova) e selecionar:
-     - Coluna de **valor** (numérica, obrigatória) — intensidade do calor.
-     - Modo de **posicionamento** (radio):
-       - `Coordenadas X,Y` — escolher 2 colunas (pixels ou normalizadas 0-1).
-       - `Lat/Lon` — escolher colunas; precisa de bounding box (4 inputs) ou auto-detectar se a imagem tiver georreferência embutida.
-       - `Grade/Região nomeada` — coluna de rótulo (ex.: "Área 1", "Bairro X") + o usuário clica na imagem para marcar o centro de cada rótulo (mini-anotador).
-   - **Passo 3 — Estilo**: paleta (Viridis, Plasma, Jet/clássico vermelho-verde como o exemplo, Cividis, custom 2-cor), opacidade da sobreposição, raio do kernel, suavização (gaussian blur), discretização (contínua ou em N faixas tipo a legenda do exemplo), título, unidade (°C, %, etc.), legenda visível, exibir norte/escala, projeção (apenas informativa).
-3. Clica **Gerar**. Backend produz PNG de alta resolução + retorna para o chat como mensagem com download, "Refazer com ajustes" e "Pinar no dashboard".
+## 1. Arquitetura de dados (Supabase)
 
-## Arquitetura técnica
+Nova entidade **`research_projects`** independente (não reaproveita `workspaces`), com vínculo opcional a workspace para herdar membros/anotações.
 
 ```text
-Cliente (React)                    Edge Function                 Execução
-─────────────────                  ─────────────────             ──────────
-HeatmapOverlayDialog  ──upload──▶  generate-heatmap-overlay  ──▶ Python (matplotlib
-  (3 steps, preview)                 - valida payload              + scipy + PIL)
-                                     - chama runner Python         no datamind-execute
-                                     - persiste resultado          (Pyodide sandbox)
-                                       em Storage bucket           ou Deno+ImageScript
-                                                                   para versão server-side
+research_projects ── research_project_members (roles: PI, Co-PI, orientando_ic, mestrado, doutorado, posdoc, colaborador)
+   │
+   ├── research_project_references   (papers vinculados — FK para papers/saved_searches)
+   ├── research_project_ideas         (brainstorm: ideia, hipótese, método, status)
+   ├── research_idea_nodes + edges    (canvas/mind map — ReactFlow)
+   ├── research_tasks                 (kanban: backlog → doing → review → done; assignee, due_date, prioridade)
+   ├── research_meetings              (data, participantes, agenda, ata IA, action_items)
+   ├── research_advisees              (orientandos: aluno, nível, tema, início, defesa prevista, milestones)
+   ├── research_advisee_milestones    (qualificação, depósito, defesa, prazos)
+   ├── research_publications          (pipeline: rascunho → submetido → revisão → aceito → publicado; journal, DOI)
+   └── research_publication_authors   (ordem, corresponding, contribuição CRediT)
+
+funding_calls                         (editais — global, curados por sistema + manual)
+funding_call_subscriptions            (usuário "segue" edital, recebe alerta de prazo)
+funding_sources                       (CAPES, CNPq, FAPESP, Finep, FAPs estaduais — RSS/API/manual)
 ```
 
-Duas opções de execução — escolho a **server-side** por qualidade:
+RLS: tudo escopo por `research_project_members` via SECURITY DEFINER `is_project_member(uid, project_id)` — segue padrão já estabelecido (`is_workspace_member`).
 
-- **Edge Function `generate-heatmap-overlay`** (Deno) recebe `{image_url, points:[{x,y,value}], style}`, gera o overlay com uma rotina Python rodada via subprocess do runner já existente (`datamind-execute` usa Pyodide no browser). Para qualidade de pôster, criaremos um **runner Python no Edge** via `python-shell` não é possível; portanto:
-  - **Opção A (escolhida)**: rodar o Python no **Pyodide já existente no cliente** (`public/pyodide-worker.js`) com matplotlib — mesma stack do DataMind. Sem custo de servidor extra. Saída como PNG base64.
-  - **Opção B (fallback)**: chamar a AI Gateway com Nano Banana Pro (`google/gemini-3-pro-image-preview`) passando a imagem base + um PNG só com os pontos coloridos (gerado no cliente) e instruindo a IA a "compor um heatmap profissional sobre a imagem". Usada apenas se o usuário marcar **"Aprimorar com IA"**.
+## 2. Telas (rotas novas)
 
-A primeira entrega faz **A** e oferece **B** como toggle opcional ("Refinar com IA").
-
-### Algoritmo (Pyodide / matplotlib)
-
-```python
-# pseudo
-img = PIL.Image.open(base).convert("RGBA")
-H, W = img.size[::-1]
-grid = np.zeros((H, W))
-for x, y, v in points:
-    grid += v * gaussian_kernel(center=(x,y), sigma=radius)
-grid = normalize(grid)
-cmap = matplotlib.cm.get_cmap(palette)
-heat_rgba = cmap(grid)
-heat_rgba[...,3] = alpha * mask_where_data
-out = alpha_composite(img, heat_rgba)
-# adiciona título, colorbar discretizado, escala, norte via matplotlib
+```text
+/research                          Lista de projetos (cards com progresso, próximos prazos)
+/research/new                      Wizard criação (título, área, equipe, papers semente)
+/research/:id                      Overview (KPIs, próximas tarefas, reuniões, atividades)
+/research/:id/team                 Equipe + orientandos + papéis
+/research/:id/tasks                Kanban + lista + Gantt simples
+/research/:id/meetings             Calendário + ata IA + action items
+/research/:id/library              Referências do projeto (importa de Library/SR)
+/research/:id/ideas                Brainstorm: chat IA + canvas mind map (ReactFlow)
+/research/:id/publications         Pipeline editorial (kanban por status)
+/research/:id/advisees             Orientações: timeline por aluno, milestones
+/research/funding                  Editais (global): filtros por área/agência/prazo
+/research/funding/:id              Detalhe do edital + "seguir" + lembrete
 ```
 
-### Reuso de componentes existentes
+Sidebar: novo grupo **"Pesquisa"** com ícones Projetos / Editais.
 
-- `DataMindSpreadsheet` para escolher colunas.
-- `DataMindFilePreview` para preview da imagem base.
-- `IllustrationAnnotator` (já existe) para o modo "Grade/Região nomeada" — clicar e marcar pontos.
-- Toast/usage tracker via `_shared/usage-tracker.ts`.
+## 3. Funcionalidades-chave
 
-## Arquivos
+### 3.1 Projetos & Equipe
+- Wizard de criação com área CNPq, palavras-chave, objetivos, equipe.
+- Papéis: PI, Co-PI, orientando (IC/Mestrado/Doutorado/Pós-doc), colaborador externo.
+- Convite por email (reusa fluxo de workspaces).
 
-Novos:
-- `src/components/datamind/HeatmapOverlayDialog.tsx` — wizard 3 passos.
-- `src/components/datamind/HeatmapStyleControls.tsx` — paleta, opacidade, raio, faixas.
-- `src/components/datamind/HeatmapPointPicker.tsx` — anotador para modo região.
-- `src/lib/heatmap/generateHeatmap.ts` — orquestra Pyodide worker, retorna blob PNG.
-- `public/pyodide-heatmap.py` — script Python carregado pelo worker.
-- `supabase/functions/refine-heatmap-ai/index.ts` — chamada opcional ao Nano Banana Pro (apenas se "Refinar com IA").
+### 3.2 Referências
+- Botão "Importar da Library" e "Importar de Saved Search/SR".
+- Vincula papers do banco `papers` ao projeto; herda RAG/chat-papers já existente.
 
-Editados:
-- `src/components/datamind/DataMindInput.tsx` — botão "Mapa de Calor sobre Imagem".
-- `src/components/datamind/DataMindChat.tsx` — render do resultado (imagem + ações).
-- `src/pages/DataMind.tsx` — registra abertura do diálogo e injeta o resultado como mensagem.
-- `public/pyodide-worker.js` — suportar comando `heatmap_overlay`.
+### 3.3 Tarefas
+- Kanban (dnd-kit), filtros por assignee/prazo, sub-tarefas, checklist.
+- Vista Gantt simples (timeline horizontal por mês).
+- Notificações in-app de prazos.
 
-Sem migração de banco. O PNG resultante usa o bucket `datamind-files` já existente (RLS por pasta `auth.uid()`).
+### 3.4 Reuniões
+- Agendamento simples (data/hora/link), agenda em markdown.
+- **Upload de áudio/transcrição → edge function `meeting-summarize`** (Lovable AI Gemini) gera ata estruturada + action items que viram tarefas com um clique.
 
-## Casos cobertos pela exigência "qualquer imagem"
+### 3.5 Orientações de alunos
+- Por orientando: nível, tema, datas (início, qualificação, depósito, defesa).
+- Timeline visual com milestones; alerta automático 30/15/7 dias antes.
+- Dashboard do orientador: todos os orientandos em uma só tela.
 
-- Mapas geográficos (como o anexo) — modo Lat/Lon com bounding box.
-- Plantas/CAD, raio-X, mapas corporais, circuitos — modo X,Y em pixels.
-- Imagens com regiões nomeadas (bairros, departamentos, órgãos) — modo Região com picker manual.
+### 3.6 Publicações
+- Pipeline kanban: ideia → escrevendo → submetido → em revisão → aceito → publicado.
+- Integração com **Writing Assistant** existente (botão "Abrir no Writing Assistant").
+- Autores com ordem e CRediT taxonomy.
 
-## Rigor científico (memória do projeto)
+### 3.7 Brainstorm IA + Canvas
+- **Chat IA contextual** (`research-brainstorm` edge function): conhece projetos do usuário, papers vinculados, gaps de pesquisa (reusa `research-gaps`). Sugere derivações, hipóteses, métodos.
+- Botão "Promover para canvas" → cria nó no mind map (ReactFlow).
+- Canvas: nós tipados (ideia/hipótese/método/paper/experimento), edges conectam, salva layout.
 
-- Sem fabricação: se faltarem coordenadas, dialog bloqueia geração e mostra "Dados insuficientes".
-- Legenda sempre exibe a unidade e a fonte da coluna escolhida.
-- Saída inclui rodapé: "Gerado por DataMind · base: <arquivo> · dados: <coluna> (n=<N>)".
+### 3.8 Editais de fomento
+- Curadoria híbrida: edge function `funding-sync` semanal puxa RSS/APIs públicas (CNPq RSS, FAPESP RSS, etc.) → IA classifica área → grava em `funding_calls`.
+- Cadastro manual também permitido.
+- Usuário "segue" editais relevantes; recebe alerta in-app e email (via Resend já configurado) X dias antes do prazo.
 
-## Fora do escopo desta entrega
+## 4. Integrações com módulos existentes
+- **Library / Saved Searches** → importa referências.
+- **Systematic Review** → SR pode ser anexada como artefato do projeto.
+- **Writing Assistant** → manuscritos linkam para `research_publications`.
+- **Knowledge Graph** → botão "Ver grafo das referências do projeto".
+- **Research Gaps** → alimenta brainstorm IA.
+- **DataMind** → análises podem ser anexadas como artefatos.
 
-- Animação temporal (séries de heatmaps por data).
-- Georreferenciamento automático via OCR de coordenadas na imagem.
-- Edição vetorial pós-geração.
+## 5. Edge Functions novas
+- `research-brainstorm` — chat IA contextual com projetos+papers do usuário.
+- `meeting-summarize` — transcreve/sumariza áudio de reunião → ata + action items.
+- `funding-sync` (cron semanal) — coleta editais via RSS/APIs + classificação IA.
+- `notify-deadlines` (cron diário) — gera notificações de prazos (tarefas, milestones, editais).
+
+Todas seguem padrão obrigatório: JWT dinâmico, validação Zod, CORS, sem service_role no cliente.
+
+## 6. Roadmap de entrega (sequencial, dentro deste release "completo")
+
+1. **Migração schema** + RLS + SECURITY DEFINER helpers + seeds de funding_sources.
+2. **CRUD projetos + equipe + referências** + lista + overview.
+3. **Tarefas (kanban + Gantt)** + notificações.
+4. **Orientações + milestones** + dashboard.
+5. **Reuniões** + edge function `meeting-summarize`.
+6. **Publicações pipeline** + integração Writing Assistant.
+7. **Brainstorm IA + canvas ReactFlow** + edge `research-brainstorm`.
+8. **Editais** + edge `funding-sync` + cron + alertas.
+9. **Sidebar nav + onboarding** + memória do módulo + i18n PT/EN.
+
+## 7. Riscos & decisões já tomadas
+- Entidade separada de `workspaces` (sua escolha) → mais flexibilidade de papéis acadêmicos, mas duplica algum código de membros. Mitigação: helper compartilhado `useProjectMembers`.
+- Editais via RSS/API podem ser instáveis → fallback manual sempre disponível, IA marca confiança da fonte.
+- Canvas ReactFlow adiciona ~50KB; aceitável dado valor para brainstorm.
+- Transcrição de áudio usa Lovable AI (Gemini) — sem custo extra de Whisper.
+
+Pronto para implementar quando você aprovar.
