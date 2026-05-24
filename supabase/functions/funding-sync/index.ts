@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
     const { data: sources, error: sErr } = await supabase
       .from("funding_sources")
       .select("*")
-      .eq("active", true);
+      .eq("is_active", true);
     if (sErr) throw sErr;
 
     let inserted = 0;
@@ -31,20 +31,21 @@ Deno.serve(async (req) => {
         const xml = await res.text();
         const items = parseRSS(xml);
         for (const item of items.slice(0, 50)) {
-          const external_id = item.guid || item.link || `${src.id}:${item.title}`;
-          // upsert by (source_id, external_id)
+          const external_id = (item.guid || item.link || `${src.id}:${item.title}`).slice(0, 500);
+          const pubDate = item.pubDate ? item.pubDate.slice(0, 10) : null;
           const { error: upErr } = await supabase
             .from("funding_calls")
             .upsert({
               source_id: src.id,
+              agency: src.agency,
               external_id,
-              title: item.title?.slice(0, 500) ?? "Sem título",
+              title: (item.title ?? "Sem título").slice(0, 500),
               description: item.description?.slice(0, 4000) ?? null,
               url: item.link ?? null,
-              published_at: item.pubDate ?? null,
-              raw: item,
-            }, { onConflict: "source_id,external_id" });
-          if (upErr) skipped++; else inserted++;
+              published_at: pubDate,
+              confidence: 0.8,
+            }, { onConflict: "agency,external_id" });
+          if (upErr) { console.error("upsert err", upErr); skipped++; } else inserted++;
         }
         await supabase.from("funding_sources").update({ last_synced_at: new Date().toISOString() }).eq("id", src.id);
       } catch (e) {
