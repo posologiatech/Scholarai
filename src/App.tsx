@@ -58,6 +58,9 @@ import ConsentRevoke from "./pages/ConsentRevoke";
 import DataSUSPage from "./pages/DataSUS";
 import Changelog from "./pages/Changelog";
 import CoauthorshipNetwork from "./pages/CoauthorshipNetwork";
+import ResearchProjects from "./pages/ResearchProjects";
+import ResearchProjectDetail from "./pages/ResearchProjectDetail";
+import ResearchFunding from "./pages/ResearchFunding";
 import OracleAgent from "./components/app/OracleAgent";
 import AdminRoadmapDialog from "./components/app/AdminRoadmapDialog";
 const queryClient = new QueryClient();
@@ -135,6 +138,9 @@ const App = () => (
               <Route path="/datasus" element={<ProtectedRoute><DataSUSPage /></ProtectedRoute>} />
               <Route path="/coauthorship" element={<ProtectedRoute><CoauthorshipNetwork /></ProtectedRoute>} />
               <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
+              <Route path="/research" element={<ProtectedRoute><ResearchProjects /></ProtectedRoute>} />
+              <Route path="/research/funding" element={<ProtectedRoute><ResearchFunding /></ProtectedRoute>} />
+              <Route path="/research/:id" element={<ProtectedRoute><ResearchProjectDetail /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

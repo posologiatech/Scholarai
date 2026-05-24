@@ -8,7 +8,7 @@ import {
   GraduationCap, Globe, LogOut, BookOpen, Table, FileText,
   LayoutDashboard, Shield, ShieldCheck, Palette, BrainCircuit,
   PanelLeftClose, PanelLeft, Network, Users, PenLine, BarChart3, Bell, ClipboardCheck, GitBranch,
-  ClipboardList, Activity, Rocket,
+  ClipboardList, Activity, Rocket, FlaskConical, Award,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -46,6 +46,8 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
     { label: locale === "pt" ? "Alertas" : "Alerts", href: "/alerts", icon: Bell },
     { label: locale === "pt" ? "Qualidade (RoB)" : "Risk of Bias", href: "/risk-of-bias", icon: ClipboardCheck },
     { label: locale === "pt" ? "Pesquisas" : "Surveys", href: "/surveys", icon: ClipboardList },
+    { label: locale === "pt" ? "Projetos de Pesquisa" : "Research Projects", href: "/research", icon: FlaskConical },
+    { label: locale === "pt" ? "Editais de Fomento" : "Funding Calls", href: "/research/funding", icon: Award },
     { label: "DataSUS / SINAN", href: "/datasus", icon: Activity },
     { label: locale === "pt" ? "Rede de Coautorias" : "Co-authorship", href: "/coauthorship", icon: Users },
     { label: locale === "pt" ? "Atualizações" : "Changelog", href: "/changelog", icon: Rocket },
