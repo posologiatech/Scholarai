@@ -819,8 +819,8 @@ const BrainstormTab = ({ projectId, projectTitle }: { projectId: string; project
             </p>
           )}
           {messages.map((m, i) => (
-            <div key={i} className={`${m.role === "user" ? "ml-auto bg-primary/10" : "bg-muted"} rounded-lg p-3 max-w-[90%] text-sm`}>
-              <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none">{m.content}</ReactMarkdown>
+            <div key={i} className={`${m.role === "user" ? "ml-auto bg-primary/10" : "bg-muted"} rounded-lg p-3 max-w-[90%] text-sm prose prose-sm dark:prose-invert`}>
+              <ReactMarkdown>{m.content}</ReactMarkdown>
               {m.role === "assistant" && (
                 <Button size="sm" variant="ghost" className="mt-2 h-6 text-xs" onClick={() => saveIdea(m.content)}>
                   <Lightbulb className="h-3 w-3" />{locale === "pt" ? "Salvar como ideia" : "Save as idea"}
