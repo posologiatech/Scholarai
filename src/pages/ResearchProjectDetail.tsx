@@ -1,7 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
-import AppSidebar from "@/components/app/AppSidebar";
-import ProtectedRoute from "@/components/app/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useResearchProject, useUpdateResearchProject } from "@/hooks/useResearchProjects";
@@ -985,5 +983,5 @@ const Inner = () => {
 };
 
 export default function ResearchProjectDetail() {
-  return <ProtectedRoute><Inner /></ProtectedRoute>;
+  return <Inner />;
 }

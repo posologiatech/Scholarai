@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import AppSidebar from "@/components/app/AppSidebar";
-import ProtectedRoute from "@/components/app/ProtectedRoute";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -156,5 +154,5 @@ const Inner = () => {
 };
 
 export default function ResearchFunding() {
-  return <ProtectedRoute><Inner /></ProtectedRoute>;
+  return <Inner />;
 }

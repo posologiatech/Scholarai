@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import AppSidebar from "@/components/app/AppSidebar";
-import ProtectedRoute from "@/components/app/ProtectedRoute";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -126,5 +124,5 @@ const Inner = () => {
 };
 
 export default function ResearchProjects() {
-  return <ProtectedRoute><Inner /></ProtectedRoute>;
+  return <Inner />;
 }
