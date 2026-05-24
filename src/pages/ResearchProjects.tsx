@@ -126,5 +126,5 @@ const Inner = () => {
 };
 
 export default function ResearchProjects() {
-  return <ProtectedRoute><AppSidebar><Inner /></AppSidebar></ProtectedRoute>;
+  return <ProtectedRoute><Inner /></ProtectedRoute>;
 }
