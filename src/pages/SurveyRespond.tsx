@@ -32,13 +32,11 @@ const SurveyRespond = () => {
     queryKey: ["survey-respond", token],
     queryFn: async () => {
       const { data: dist, error: distErr } = await supabase
-        .from("survey_distributions")
-        .select("survey_id")
-        .eq("anonymous_token", token!)
-        .eq("type", "anonymous_link")
+        .rpc("get_distribution_by_token", { _token: token! })
         .maybeSingle();
 
       if (distErr || !dist) throw new Error("Invalid survey link");
+
 
       const [surveyRes, blocksRes, questionsRes, rulesRes, consentRes] = await Promise.all([
         supabase.from("surveys").select("*").eq("id", dist.survey_id).single(),
