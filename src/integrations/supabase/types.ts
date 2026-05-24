@@ -1006,6 +1006,142 @@ export type Database = {
         }
         Relationships: []
       }
+      funding_call_subscriptions: {
+        Row: {
+          call_id: string
+          created_at: string
+          id: string
+          notified_at: string | null
+          notify_days_before: number
+          user_id: string
+        }
+        Insert: {
+          call_id: string
+          created_at?: string
+          id?: string
+          notified_at?: string | null
+          notify_days_before?: number
+          user_id: string
+        }
+        Update: {
+          call_id?: string
+          created_at?: string
+          id?: string
+          notified_at?: string | null
+          notify_days_before?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funding_call_subscriptions_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "funding_calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funding_calls: {
+        Row: {
+          agency: string
+          amount_brl: number | null
+          areas: string[]
+          confidence: number | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          description: string | null
+          eligibility: string | null
+          external_id: string | null
+          id: string
+          is_manual: boolean
+          published_at: string | null
+          source_id: string | null
+          title: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          agency: string
+          amount_brl?: number | null
+          areas?: string[]
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          deadline?: string | null
+          description?: string | null
+          eligibility?: string | null
+          external_id?: string | null
+          id?: string
+          is_manual?: boolean
+          published_at?: string | null
+          source_id?: string | null
+          title: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          agency?: string
+          amount_brl?: number | null
+          areas?: string[]
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          deadline?: string | null
+          description?: string | null
+          eligibility?: string | null
+          external_id?: string | null
+          id?: string
+          is_manual?: boolean
+          published_at?: string | null
+          source_id?: string | null
+          title?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funding_calls_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "funding_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funding_sources: {
+        Row: {
+          agency: string
+          created_at: string
+          feed_type: string
+          feed_url: string | null
+          id: string
+          is_active: boolean
+          last_synced_at: string | null
+          name: string
+        }
+        Insert: {
+          agency: string
+          created_at?: string
+          feed_type?: string
+          feed_url?: string | null
+          id?: string
+          is_active?: boolean
+          last_synced_at?: string | null
+          name: string
+        }
+        Update: {
+          agency?: string
+          created_at?: string
+          feed_type?: string
+          feed_url?: string | null
+          id?: string
+          is_active?: boolean
+          last_synced_at?: string | null
+          name?: string
+        }
+        Relationships: []
+      }
       illustrations: {
         Row: {
           category: string | null
@@ -1286,6 +1422,619 @@ export type Database = {
             columns: ["search_id"]
             isOneToOne: false
             referencedRelation: "saved_searches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_advisee_milestones: {
+        Row: {
+          advisee_id: string
+          completed_at: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          notes: string | null
+          position: number
+          status: Database["public"]["Enums"]["research_milestone_status"]
+          title: string
+        }
+        Insert: {
+          advisee_id: string
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          position?: number
+          status?: Database["public"]["Enums"]["research_milestone_status"]
+          title: string
+        }
+        Update: {
+          advisee_id?: string
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          position?: number
+          status?: Database["public"]["Enums"]["research_milestone_status"]
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_advisee_milestones_advisee_id_fkey"
+            columns: ["advisee_id"]
+            isOneToOne: false
+            referencedRelation: "research_advisees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_advisees: {
+        Row: {
+          advisor_id: string
+          created_at: string
+          email: string | null
+          expected_defense_date: string | null
+          full_name: string
+          id: string
+          level: Database["public"]["Enums"]["research_advisee_level"]
+          notes: string | null
+          project_id: string
+          start_date: string | null
+          thesis_title: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          advisor_id: string
+          created_at?: string
+          email?: string | null
+          expected_defense_date?: string | null
+          full_name: string
+          id?: string
+          level?: Database["public"]["Enums"]["research_advisee_level"]
+          notes?: string | null
+          project_id: string
+          start_date?: string | null
+          thesis_title?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          advisor_id?: string
+          created_at?: string
+          email?: string | null
+          expected_defense_date?: string | null
+          full_name?: string
+          id?: string
+          level?: Database["public"]["Enums"]["research_advisee_level"]
+          notes?: string | null
+          project_id?: string
+          start_date?: string | null
+          thesis_title?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_advisees_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_idea_edges: {
+        Row: {
+          created_at: string
+          id: string
+          label: string | null
+          project_id: string
+          source_node_id: string
+          target_node_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          project_id: string
+          source_node_id: string
+          target_node_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          project_id?: string
+          source_node_id?: string
+          target_node_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_idea_edges_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_idea_edges_source_node_id_fkey"
+            columns: ["source_node_id"]
+            isOneToOne: false
+            referencedRelation: "research_idea_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_idea_edges_target_node_id_fkey"
+            columns: ["target_node_id"]
+            isOneToOne: false
+            referencedRelation: "research_idea_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_idea_nodes: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          label: string
+          node_type: string
+          position_x: number
+          position_y: number
+          project_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          id?: string
+          label: string
+          node_type?: string
+          position_x?: number
+          position_y?: number
+          project_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          label?: string
+          node_type?: string
+          position_x?: number
+          position_y?: number
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_idea_nodes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_ideas: {
+        Row: {
+          ai_generated: boolean
+          created_at: string
+          created_by: string
+          description: string | null
+          hypothesis: string | null
+          id: string
+          method: string | null
+          project_id: string
+          status: string
+          title: string
+        }
+        Insert: {
+          ai_generated?: boolean
+          created_at?: string
+          created_by: string
+          description?: string | null
+          hypothesis?: string | null
+          id?: string
+          method?: string | null
+          project_id: string
+          status?: string
+          title: string
+        }
+        Update: {
+          ai_generated?: boolean
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          hypothesis?: string | null
+          id?: string
+          method?: string | null
+          project_id?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_ideas_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_meetings: {
+        Row: {
+          action_items: Json
+          agenda: string | null
+          ata: string | null
+          audio_path: string | null
+          created_at: string
+          created_by: string
+          duration_minutes: number
+          id: string
+          meeting_link: string | null
+          participants: Json
+          project_id: string
+          scheduled_at: string
+          title: string
+          transcript: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_items?: Json
+          agenda?: string | null
+          ata?: string | null
+          audio_path?: string | null
+          created_at?: string
+          created_by: string
+          duration_minutes?: number
+          id?: string
+          meeting_link?: string | null
+          participants?: Json
+          project_id: string
+          scheduled_at: string
+          title: string
+          transcript?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_items?: Json
+          agenda?: string | null
+          ata?: string | null
+          audio_path?: string | null
+          created_at?: string
+          created_by?: string
+          duration_minutes?: number
+          id?: string
+          meeting_link?: string | null
+          participants?: Json
+          project_id?: string
+          scheduled_at?: string
+          title?: string
+          transcript?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_meetings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_project_members: {
+        Row: {
+          accepted: boolean
+          created_at: string
+          full_name: string | null
+          id: string
+          invited_email: string | null
+          project_id: string
+          role: Database["public"]["Enums"]["research_member_role"]
+          user_id: string | null
+        }
+        Insert: {
+          accepted?: boolean
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          invited_email?: string | null
+          project_id: string
+          role?: Database["public"]["Enums"]["research_member_role"]
+          user_id?: string | null
+        }
+        Update: {
+          accepted?: boolean
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          invited_email?: string | null
+          project_id?: string
+          role?: Database["public"]["Enums"]["research_member_role"]
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_project_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_project_references: {
+        Row: {
+          added_by: string
+          authors: Json
+          created_at: string
+          doi: string | null
+          external_paper_id: string | null
+          id: string
+          notes: string | null
+          paper_db_id: string | null
+          project_id: string
+          title: string
+          year: number | null
+        }
+        Insert: {
+          added_by: string
+          authors?: Json
+          created_at?: string
+          doi?: string | null
+          external_paper_id?: string | null
+          id?: string
+          notes?: string | null
+          paper_db_id?: string | null
+          project_id: string
+          title: string
+          year?: number | null
+        }
+        Update: {
+          added_by?: string
+          authors?: Json
+          created_at?: string
+          doi?: string | null
+          external_paper_id?: string | null
+          id?: string
+          notes?: string | null
+          paper_db_id?: string | null
+          project_id?: string
+          title?: string
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_project_references_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_projects: {
+        Row: {
+          cnpq_area: string | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          keywords: string[]
+          objectives: string | null
+          owner_id: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["research_project_status"]
+          title: string
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          cnpq_area?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          keywords?: string[]
+          objectives?: string | null
+          owner_id: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["research_project_status"]
+          title: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          cnpq_area?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          keywords?: string[]
+          objectives?: string | null
+          owner_id?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["research_project_status"]
+          title?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
+      research_publication_authors: {
+        Row: {
+          affiliation: string | null
+          author_order: number
+          credit_roles: string[]
+          email: string | null
+          full_name: string
+          id: string
+          is_corresponding: boolean
+          publication_id: string
+          user_id: string | null
+        }
+        Insert: {
+          affiliation?: string | null
+          author_order?: number
+          credit_roles?: string[]
+          email?: string | null
+          full_name: string
+          id?: string
+          is_corresponding?: boolean
+          publication_id: string
+          user_id?: string | null
+        }
+        Update: {
+          affiliation?: string | null
+          author_order?: number
+          credit_roles?: string[]
+          email?: string | null
+          full_name?: string
+          id?: string
+          is_corresponding?: boolean
+          publication_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_publication_authors_publication_id_fkey"
+            columns: ["publication_id"]
+            isOneToOne: false
+            referencedRelation: "research_publications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_publications: {
+        Row: {
+          acceptance_date: string | null
+          created_at: string
+          created_by: string
+          doi: string | null
+          id: string
+          notes: string | null
+          position: number
+          project_id: string
+          publication_date: string | null
+          status: Database["public"]["Enums"]["research_publication_status"]
+          submission_date: string | null
+          target_journal: string | null
+          title: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          acceptance_date?: string | null
+          created_at?: string
+          created_by: string
+          doi?: string | null
+          id?: string
+          notes?: string | null
+          position?: number
+          project_id: string
+          publication_date?: string | null
+          status?: Database["public"]["Enums"]["research_publication_status"]
+          submission_date?: string | null
+          target_journal?: string | null
+          title: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          acceptance_date?: string | null
+          created_at?: string
+          created_by?: string
+          doi?: string | null
+          id?: string
+          notes?: string | null
+          position?: number
+          project_id?: string
+          publication_date?: string | null
+          status?: Database["public"]["Enums"]["research_publication_status"]
+          submission_date?: string | null
+          target_journal?: string | null
+          title?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_publications_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_tasks: {
+        Row: {
+          assignee_id: string | null
+          checklist: Json
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          id: string
+          parent_task_id: string | null
+          position: number
+          priority: Database["public"]["Enums"]["research_task_priority"]
+          project_id: string
+          status: Database["public"]["Enums"]["research_task_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          checklist?: Json
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          parent_task_id?: string | null
+          position?: number
+          priority?: Database["public"]["Enums"]["research_task_priority"]
+          project_id: string
+          status?: Database["public"]["Enums"]["research_task_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          checklist?: Json
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          parent_task_id?: string | null
+          position?: number
+          priority?: Database["public"]["Enums"]["research_task_priority"]
+          project_id?: string
+          status?: Database["public"]["Enums"]["research_task_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "research_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -2578,6 +3327,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_research_project_manager: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_research_project_member: {
+        Args: { _project_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_survey_owner: {
         Args: { _survey_id: string; _user_id: string }
         Returns: boolean
@@ -2610,6 +3367,38 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      research_advisee_level:
+        | "ic"
+        | "mestrado"
+        | "doutorado"
+        | "posdoc"
+        | "tcc"
+        | "especializacao"
+      research_member_role:
+        | "pi"
+        | "co_pi"
+        | "orientando_ic"
+        | "orientando_mestrado"
+        | "orientando_doutorado"
+        | "posdoc"
+        | "colaborador"
+      research_milestone_status: "pending" | "done" | "overdue"
+      research_project_status:
+        | "planejamento"
+        | "em_andamento"
+        | "pausado"
+        | "concluido"
+        | "arquivado"
+      research_publication_status:
+        | "ideia"
+        | "escrevendo"
+        | "submetido"
+        | "em_revisao"
+        | "aceito"
+        | "publicado"
+        | "rejeitado"
+      research_task_priority: "low" | "medium" | "high" | "urgent"
+      research_task_status: "backlog" | "doing" | "review" | "done"
       workspace_role: "owner" | "advisor" | "coauthor" | "reviewer"
     }
     CompositeTypes: {
@@ -2739,6 +3528,42 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      research_advisee_level: [
+        "ic",
+        "mestrado",
+        "doutorado",
+        "posdoc",
+        "tcc",
+        "especializacao",
+      ],
+      research_member_role: [
+        "pi",
+        "co_pi",
+        "orientando_ic",
+        "orientando_mestrado",
+        "orientando_doutorado",
+        "posdoc",
+        "colaborador",
+      ],
+      research_milestone_status: ["pending", "done", "overdue"],
+      research_project_status: [
+        "planejamento",
+        "em_andamento",
+        "pausado",
+        "concluido",
+        "arquivado",
+      ],
+      research_publication_status: [
+        "ideia",
+        "escrevendo",
+        "submetido",
+        "em_revisao",
+        "aceito",
+        "publicado",
+        "rejeitado",
+      ],
+      research_task_priority: ["low", "medium", "high", "urgent"],
+      research_task_status: ["backlog", "doing", "review", "done"],
       workspace_role: ["owner", "advisor", "coauthor", "reviewer"],
     },
   },
