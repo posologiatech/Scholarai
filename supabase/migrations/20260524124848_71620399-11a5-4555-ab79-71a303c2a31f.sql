@@ -1,0 +1,21 @@
+-- Enable pg_cron and pg_net for scheduled funding-sync
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+-- Unschedule prior version if exists
+DO $$ BEGIN
+  PERFORM cron.unschedule('funding-sync-weekly');
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+SELECT cron.schedule(
+  'funding-sync-weekly',
+  '0 6 * * 1', -- every Monday 06:00 UTC
+  $$
+  SELECT net.http_post(
+    url := 'https://opogckyuwexdlczfvvtb.supabase.co/functions/v1/funding-sync',
+    headers := '{"Content-Type":"application/json","apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wb2dja3l1d2V4ZGxjemZ2dnRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5MDg3NjcsImV4cCI6MjA4NzQ4NDc2N30.N1z9sOvwLuGmnZLRtovBJ2b1Y9TFKOpDG0k-VnJ0Lng"}'::jsonb,
+    body := jsonb_build_object('time', now())
+  );
+  $$
+);
