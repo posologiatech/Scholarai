@@ -33,15 +33,15 @@ export const useResearchProject = (id?: string) => {
 };
 
 export const useCreateResearchProject = () => {
-  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: Partial<ResearchProject> & { title: string }) => {
-      if (!user) throw new Error("Not authenticated");
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) throw new Error("Not authenticated");
       const { data, error } = await supabase
         .from("research_projects")
         .insert({
-          owner_id: user.id,
+          owner_id: authData.user.id,
           title: input.title,
           description: input.description ?? null,
           cnpq_area: input.cnpq_area ?? null,
