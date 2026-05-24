@@ -3299,6 +3299,39 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_research_project: {
+        Args: {
+          _cnpq_area?: string
+          _description?: string
+          _end_date?: string
+          _keywords?: string[]
+          _objectives?: string
+          _start_date?: string
+          _status?: Database["public"]["Enums"]["research_project_status"]
+          _title: string
+        }
+        Returns: {
+          cnpq_area: string | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          keywords: string[]
+          objectives: string | null
+          owner_id: string | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["research_project_status"]
+          title: string
+          updated_at: string
+          workspace_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "research_projects"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_workspace: {
         Args: { _description?: string; _name: string }
         Returns: {

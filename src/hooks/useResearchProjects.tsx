@@ -38,20 +38,16 @@ export const useCreateResearchProject = () => {
     mutationFn: async (input: Partial<ResearchProject> & { title: string }) => {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError || !authData.user) throw new Error("Not authenticated");
-      const { data, error } = await supabase
-        .from("research_projects")
-        .insert({
-          owner_id: authData.user.id,
-          title: input.title,
-          description: input.description ?? null,
-          cnpq_area: input.cnpq_area ?? null,
-          keywords: input.keywords ?? [],
-          objectives: input.objectives ?? null,
-          status: input.status ?? "planejamento",
-          start_date: input.start_date ?? null,
-          end_date: input.end_date ?? null,
-        })
-        .select().single();
+      const { data, error } = await (supabase as any).rpc("create_research_project", {
+        _title: input.title,
+        _description: input.description ?? null,
+        _cnpq_area: input.cnpq_area ?? null,
+        _keywords: input.keywords ?? [],
+        _objectives: input.objectives ?? null,
+        _status: input.status ?? "planejamento",
+        _start_date: input.start_date ?? null,
+        _end_date: input.end_date ?? null,
+      });
       if (error) throw error;
       return data as ResearchProject;
     },
