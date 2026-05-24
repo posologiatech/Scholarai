@@ -3316,6 +3316,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      get_distribution_by_token: {
+        Args: { _token: string }
+        Returns: {
+          anonymous_token: string
+          id: string
+          survey_id: string
+          type: string
+        }[]
+      }
       get_workspace_role: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: string
