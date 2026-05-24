@@ -138,6 +138,9 @@ const App = () => (
               <Route path="/datasus" element={<ProtectedRoute><DataSUSPage /></ProtectedRoute>} />
               <Route path="/coauthorship" element={<ProtectedRoute><CoauthorshipNetwork /></ProtectedRoute>} />
               <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
+              <Route path="/research" element={<ProtectedRoute><ResearchProjects /></ProtectedRoute>} />
+              <Route path="/research/funding" element={<ProtectedRoute><ResearchFunding /></ProtectedRoute>} />
+              <Route path="/research/:id" element={<ProtectedRoute><ResearchProjectDetail /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
