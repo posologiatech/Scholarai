@@ -903,6 +903,9 @@ const Inner = () => {
           <TabsTrigger value="advisees"><GraduationCap className="h-4 w-4" />{locale === "pt" ? "Orientações" : "Advisees"}</TabsTrigger>
           <TabsTrigger value="pubs"><FileText className="h-4 w-4" />{locale === "pt" ? "Publicações" : "Publications"}</TabsTrigger>
           <TabsTrigger value="brainstorm"><Lightbulb className="h-4 w-4" />{locale === "pt" ? "Brainstorm IA" : "Brainstorm AI"}</TabsTrigger>
+          <TabsTrigger value="docs"><FileSignature className="h-4 w-4" />{locale === "pt" ? "Documentos" : "Documents"}</TabsTrigger>
+          <TabsTrigger value="budget"><Wallet className="h-4 w-4" />{locale === "pt" ? "Orçamento" : "Budget"}</TabsTrigger>
+          <TabsTrigger value="ethics"><ShieldCheck className="h-4 w-4" />{locale === "pt" ? "Ética" : "Ethics"}</TabsTrigger>
         </TabsList>
         <div className="mt-4">
           <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
@@ -914,6 +917,9 @@ const Inner = () => {
           <TabsContent value="advisees"><AdviseesTab projectId={project.id} /></TabsContent>
           <TabsContent value="pubs"><PublicationsTab projectId={project.id} /></TabsContent>
           <TabsContent value="brainstorm"><BrainstormTab projectId={project.id} projectTitle={project.title} /></TabsContent>
+          <TabsContent value="docs"><DocumentsTab projectId={project.id} /></TabsContent>
+          <TabsContent value="budget"><BudgetTab projectId={project.id} /></TabsContent>
+          <TabsContent value="ethics"><EthicsTab projectId={project.id} /></TabsContent>
         </div>
       </Tabs>
 
