@@ -890,16 +890,18 @@ const Inner = () => {
           <TabsTrigger value="team"><Users2 className="h-4 w-4" />{locale === "pt" ? "Equipe" : "Team"}</TabsTrigger>
           <TabsTrigger value="refs"><BookOpen className="h-4 w-4" />{locale === "pt" ? "Referências" : "References"}</TabsTrigger>
           <TabsTrigger value="tasks"><CheckSquare className="h-4 w-4" />{locale === "pt" ? "Tarefas" : "Tasks"}</TabsTrigger>
+          <TabsTrigger value="schedule"><CalendarRange className="h-4 w-4" />{locale === "pt" ? "Cronograma" : "Schedule"}</TabsTrigger>
           <TabsTrigger value="meetings"><Mic className="h-4 w-4" />{locale === "pt" ? "Reuniões" : "Meetings"}</TabsTrigger>
           <TabsTrigger value="advisees"><GraduationCap className="h-4 w-4" />{locale === "pt" ? "Orientações" : "Advisees"}</TabsTrigger>
           <TabsTrigger value="pubs"><FileText className="h-4 w-4" />{locale === "pt" ? "Publicações" : "Publications"}</TabsTrigger>
           <TabsTrigger value="brainstorm"><Lightbulb className="h-4 w-4" />{locale === "pt" ? "Brainstorm IA" : "Brainstorm AI"}</TabsTrigger>
         </TabsList>
         <div className="mt-4">
-          <TabsContent value="overview"><OverviewTab projectId={project.id} /></TabsContent>
+          <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
           <TabsContent value="team"><TeamTab projectId={project.id} /></TabsContent>
           <TabsContent value="refs"><RefsTab projectId={project.id} /></TabsContent>
           <TabsContent value="tasks"><TasksTab projectId={project.id} /></TabsContent>
+          <TabsContent value="schedule"><ScheduleTab projectId={project.id} /></TabsContent>
           <TabsContent value="meetings"><MeetingsTab projectId={project.id} /></TabsContent>
           <TabsContent value="advisees"><AdviseesTab projectId={project.id} /></TabsContent>
           <TabsContent value="pubs"><PublicationsTab projectId={project.id} /></TabsContent>
