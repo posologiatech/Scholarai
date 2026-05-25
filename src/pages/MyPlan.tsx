@@ -255,7 +255,12 @@ const MyPlan = () => {
             </CardContent>
           </Card>
         )}
+
+        <div className="mt-8">
+          <OrcidConnectCard />
+        </div>
       </main>
+
     </div>
   );
 };
