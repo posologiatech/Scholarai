@@ -831,6 +831,8 @@ const OverviewTab = ({ project }: { project: any }) => {
           </CardContent>
         </Card>
       )}
+
+      <CommentThread projectId={projectId} entityType="project" entityId={projectId} />
     </div>
   );
 };
