@@ -959,6 +959,7 @@ const Inner = () => {
           <TabsContent value="docs"><DocumentsTab projectId={project.id} /></TabsContent>
           <TabsContent value="budget"><BudgetTab projectId={project.id} /></TabsContent>
           <TabsContent value="ethics"><EthicsTab projectId={project.id} /></TabsContent>
+          <TabsContent value="logbook"><LogbookTab projectId={project.id} isManager={isManager} /></TabsContent>
         </div>
       </Tabs>
 
