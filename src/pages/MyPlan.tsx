@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { OrcidConnectCard } from "@/components/research/OrcidConnectCard";
 
 const PLAN_NAMES: Record<string, { label: string; color: string }> = {
   free: { label: "Free", color: "bg-muted text-muted-foreground" },
@@ -255,7 +256,12 @@ const MyPlan = () => {
             </CardContent>
           </Card>
         )}
+
+        <div className="mt-8">
+          <OrcidConnectCard />
+        </div>
       </main>
+
     </div>
   );
 };
