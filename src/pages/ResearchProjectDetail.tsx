@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck, NotebookPen, RefreshCw, ExternalLink } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck, NotebookPen, RefreshCw, ExternalLink, Award } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { STATUS_LABEL, ROLE_LABEL, TASK_STATUS_LABEL, PUB_STATUS_LABEL, type ResearchTaskStatus, type ResearchPublicationStatus, type ResearchMemberRole, type ResearchAdviseeLevel } from "@/lib/research/types";
 import { toast } from "sonner";
@@ -946,6 +946,7 @@ const Inner = () => {
           <TabsTrigger value="budget"><Wallet className="h-4 w-4" />{locale === "pt" ? "Orçamento" : "Budget"}</TabsTrigger>
           <TabsTrigger value="ethics"><ShieldCheck className="h-4 w-4" />{locale === "pt" ? "Ética" : "Ethics"}</TabsTrigger>
           <TabsTrigger value="logbook"><NotebookPen className="h-4 w-4" />{locale === "pt" ? "Diário de Bordo" : "Logbook"}</TabsTrigger>
+          <TabsTrigger value="evals"><Award className="h-4 w-4" />{locale === "pt" ? "Avaliações" : "Evaluations"}</TabsTrigger>
         </TabsList>
         <div className="mt-4">
           <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
@@ -961,6 +962,7 @@ const Inner = () => {
           <TabsContent value="budget"><BudgetTab projectId={project.id} /></TabsContent>
           <TabsContent value="ethics"><EthicsTab projectId={project.id} /></TabsContent>
           <TabsContent value="logbook"><LogbookTab projectId={project.id} isManager={isManager} /></TabsContent>
+          <TabsContent value="evals"><EvaluationsTab projectId={project.id} isManager={isManager} /></TabsContent>
         </div>
       </Tabs>
 
