@@ -22,6 +22,8 @@ import ReactMarkdown from "react-markdown";
 import { ProjectBodyEditor } from "@/components/research/ProjectBodyEditor";
 import { MeetingDetail, NewMeetingDialog } from "@/components/research/MeetingDetail";
 import { ScheduleTab } from "@/components/research/ScheduleTab";
+import { ResearchCopilot } from "@/components/research/ResearchCopilot";
+import { CommentThread } from "@/components/research/CommentThread";
 
 // ===== Tab: Equipe =====
 const TeamTab = ({ projectId }: { projectId: string }) => {
