@@ -628,6 +628,18 @@ const PublicationsTab = ({ projectId }: { projectId: string }) => {
     qc.invalidateQueries({ queryKey: ["research-pubs", projectId] });
   };
 
+  const enrich = async (p: any) => {
+    if (!p.doi) return toast.error(locale === "pt" ? "Adicione um DOI primeiro" : "Add a DOI first");
+    toast.loading(locale === "pt" ? "Buscando métricas..." : "Fetching metrics...", { id: `enr-${p.id}` });
+    const { error } = await supabase.functions.invoke("research-enrich-publication", {
+      body: { publication_id: p.id, doi: p.doi },
+    });
+    toast.dismiss(`enr-${p.id}`);
+    if (error) return toast.error(error.message);
+    toast.success(locale === "pt" ? "Atualizado" : "Updated");
+    qc.invalidateQueries({ queryKey: ["research-pubs", projectId] });
+  };
+
   const statuses: ResearchPublicationStatus[] = ["ideia", "escrevendo", "submetido", "em_revisao", "aceito", "publicado"];
 
   return (
@@ -661,11 +673,18 @@ const PublicationsTab = ({ projectId }: { projectId: string }) => {
                 <Card key={p.id}><CardContent className="p-2 space-y-1">
                   <p className="text-xs font-medium line-clamp-3">{p.title}</p>
                   {p.target_journal && <p className="text-[10px] text-muted-foreground">{p.target_journal}</p>}
+                  {(p.citations_count > 0 || p.altmetric_score) && (
+                    <div className="flex gap-2 text-[10px] text-muted-foreground">
+                      {p.citations_count > 0 && <span>📚 {p.citations_count}</span>}
+                      {p.altmetric_score && <span className="text-orange-600">🌐 {Number(p.altmetric_score).toFixed(0)}</span>}
+                    </div>
+                  )}
                   <div className="flex gap-1 pt-1">
                     <Select value={p.status} onValueChange={(v: any) => move(p.id, v)}>
                       <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
                       <SelectContent>{statuses.map(s => <SelectItem key={s} value={s}>{PUB_STATUS_LABEL[s][locale]}</SelectItem>)}</SelectContent>
                     </Select>
+                    {p.doi && <Button size="icon" variant="ghost" className="h-6 w-6" title={locale === "pt" ? "Atualizar métricas" : "Refresh metrics"} onClick={() => enrich(p)}><RefreshCw className="h-3 w-3" /></Button>}
                     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => remove(p.id)}><Trash2 className="h-3 w-3" /></Button>
                   </div>
                   <Button asChild size="sm" variant="link" className="h-auto p-0 text-[10px]">
