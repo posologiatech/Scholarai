@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { STATUS_LABEL, ROLE_LABEL, TASK_STATUS_LABEL, PUB_STATUS_LABEL, type ResearchTaskStatus, type ResearchPublicationStatus, type ResearchMemberRole, type ResearchAdviseeLevel } from "@/lib/research/types";
 import { toast } from "sonner";
@@ -24,6 +24,9 @@ import { MeetingDetail, NewMeetingDialog } from "@/components/research/MeetingDe
 import { ScheduleTab } from "@/components/research/ScheduleTab";
 import { ResearchCopilot } from "@/components/research/ResearchCopilot";
 import { CommentThread } from "@/components/research/CommentThread";
+import DocumentsTab from "@/components/research/DocumentsTab";
+import BudgetTab from "@/components/research/BudgetTab";
+import EthicsTab from "@/components/research/EthicsTab";
 
 // ===== Tab: Equipe =====
 const TeamTab = ({ projectId }: { projectId: string }) => {
