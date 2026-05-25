@@ -242,7 +242,8 @@ const TasksTab = ({ projectId }: { projectId: string }) => {
     queryKey: ["research-tasks", projectId],
     queryFn: async () => {
       const { data, error } = await supabase.from("research_tasks")
-        .select("*").eq("project_id", projectId).order("position");
+        .select("*, source_meeting:research_meetings!source_meeting_id(id,title,scheduled_at)")
+        .eq("project_id", projectId).order("position");
       if (error) throw error;
       return data ?? [];
     },
