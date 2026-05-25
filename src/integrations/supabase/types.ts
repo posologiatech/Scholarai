@@ -1663,6 +1663,121 @@ export type Database = {
           },
         ]
       }
+      research_meeting_agenda_items: {
+        Row: {
+          completed: boolean
+          created_at: string
+          id: string
+          meeting_id: string
+          notes: string | null
+          position: number
+          source_schedule_item_id: string | null
+          source_task_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          meeting_id: string
+          notes?: string | null
+          position?: number
+          source_schedule_item_id?: string | null
+          source_task_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          meeting_id?: string
+          notes?: string | null
+          position?: number
+          source_schedule_item_id?: string | null
+          source_task_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_meeting_agenda_items_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "research_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_meeting_agenda_items_source_schedule_fkey"
+            columns: ["source_schedule_item_id"]
+            isOneToOne: false
+            referencedRelation: "research_schedule_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_meeting_agenda_items_source_task_id_fkey"
+            columns: ["source_task_id"]
+            isOneToOne: false
+            referencedRelation: "research_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_meeting_attachments: {
+        Row: {
+          agenda_item_id: string | null
+          created_at: string
+          created_by: string | null
+          file_name: string | null
+          file_path: string | null
+          id: string
+          kind: string
+          meeting_id: string
+          mime_type: string | null
+          url: string | null
+        }
+        Insert: {
+          agenda_item_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          kind: string
+          meeting_id: string
+          mime_type?: string | null
+          url?: string | null
+        }
+        Update: {
+          agenda_item_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          kind?: string
+          meeting_id?: string
+          mime_type?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_meeting_attachments_agenda_item_id_fkey"
+            columns: ["agenda_item_id"]
+            isOneToOne: false
+            referencedRelation: "research_meeting_agenda_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_meeting_attachments_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "research_meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_meetings: {
         Row: {
           action_items: Json
@@ -1674,6 +1789,7 @@ export type Database = {
           duration_minutes: number
           id: string
           meeting_link: string | null
+          notes: string | null
           participants: Json
           project_id: string
           scheduled_at: string
@@ -1691,6 +1807,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           meeting_link?: string | null
+          notes?: string | null
           participants?: Json
           project_id: string
           scheduled_at: string
@@ -1708,6 +1825,7 @@ export type Database = {
           duration_minutes?: number
           id?: string
           meeting_link?: string | null
+          notes?: string | null
           participants?: Json
           project_id?: string
           scheduled_at?: string
@@ -1822,6 +1940,7 @@ export type Database = {
           created_at: string
           description: string | null
           end_date: string | null
+          full_content: string | null
           id: string
           keywords: string[]
           objectives: string | null
@@ -1837,6 +1956,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_date?: string | null
+          full_content?: string | null
           id?: string
           keywords?: string[]
           objectives?: string | null
@@ -1852,6 +1972,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_date?: string | null
+          full_content?: string | null
           id?: string
           keywords?: string[]
           objectives?: string | null
@@ -1970,6 +2091,69 @@ export type Database = {
           },
         ]
       }
+      research_schedule_items: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          linked_meeting_id: string | null
+          phase: string | null
+          position: number
+          project_id: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["research_schedule_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          linked_meeting_id?: string | null
+          phase?: string | null
+          position?: number
+          project_id: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["research_schedule_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          linked_meeting_id?: string | null
+          phase?: string | null
+          position?: number
+          project_id?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["research_schedule_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_schedule_items_linked_meeting_id_fkey"
+            columns: ["linked_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "research_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_schedule_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_tasks: {
         Row: {
           assignee_id: string | null
@@ -1984,6 +2168,7 @@ export type Database = {
           position: number
           priority: Database["public"]["Enums"]["research_task_priority"]
           project_id: string
+          source_meeting_id: string | null
           status: Database["public"]["Enums"]["research_task_status"]
           title: string
           updated_at: string
@@ -2001,6 +2186,7 @@ export type Database = {
           position?: number
           priority?: Database["public"]["Enums"]["research_task_priority"]
           project_id: string
+          source_meeting_id?: string | null
           status?: Database["public"]["Enums"]["research_task_status"]
           title: string
           updated_at?: string
@@ -2018,6 +2204,7 @@ export type Database = {
           position?: number
           priority?: Database["public"]["Enums"]["research_task_priority"]
           project_id?: string
+          source_meeting_id?: string | null
           status?: Database["public"]["Enums"]["research_task_status"]
           title?: string
           updated_at?: string
@@ -2035,6 +2222,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_tasks_source_meeting_id_fkey"
+            columns: ["source_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "research_meetings"
             referencedColumns: ["id"]
           },
         ]
@@ -3315,6 +3509,7 @@ export type Database = {
           created_at: string
           description: string | null
           end_date: string | null
+          full_content: string | null
           id: string
           keywords: string[]
           objectives: string | null
@@ -3439,6 +3634,11 @@ export type Database = {
         | "aceito"
         | "publicado"
         | "rejeitado"
+      research_schedule_status:
+        | "planejado"
+        | "em_andamento"
+        | "concluido"
+        | "atrasado"
       research_task_priority: "low" | "medium" | "high" | "urgent"
       research_task_status: "backlog" | "doing" | "review" | "done"
       workspace_role: "owner" | "advisor" | "coauthor" | "reviewer"
@@ -3603,6 +3803,12 @@ export const Constants = {
         "aceito",
         "publicado",
         "rejeitado",
+      ],
+      research_schedule_status: [
+        "planejado",
+        "em_andamento",
+        "concluido",
+        "atrasado",
       ],
       research_task_priority: ["low", "medium", "high", "urgent"],
       research_task_status: ["backlog", "doing", "review", "done"],
