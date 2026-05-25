@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { STATUS_LABEL, ROLE_LABEL, TASK_STATUS_LABEL, PUB_STATUS_LABEL, type ResearchTaskStatus, type ResearchPublicationStatus, type ResearchMemberRole, type ResearchAdviseeLevel } from "@/lib/research/types";
 import { toast } from "sonner";
@@ -24,6 +24,9 @@ import { MeetingDetail, NewMeetingDialog } from "@/components/research/MeetingDe
 import { ScheduleTab } from "@/components/research/ScheduleTab";
 import { ResearchCopilot } from "@/components/research/ResearchCopilot";
 import { CommentThread } from "@/components/research/CommentThread";
+import DocumentsTab from "@/components/research/DocumentsTab";
+import BudgetTab from "@/components/research/BudgetTab";
+import EthicsTab from "@/components/research/EthicsTab";
 
 // ===== Tab: Equipe =====
 const TeamTab = ({ projectId }: { projectId: string }) => {
@@ -900,6 +903,9 @@ const Inner = () => {
           <TabsTrigger value="advisees"><GraduationCap className="h-4 w-4" />{locale === "pt" ? "Orientações" : "Advisees"}</TabsTrigger>
           <TabsTrigger value="pubs"><FileText className="h-4 w-4" />{locale === "pt" ? "Publicações" : "Publications"}</TabsTrigger>
           <TabsTrigger value="brainstorm"><Lightbulb className="h-4 w-4" />{locale === "pt" ? "Brainstorm IA" : "Brainstorm AI"}</TabsTrigger>
+          <TabsTrigger value="docs"><FileSignature className="h-4 w-4" />{locale === "pt" ? "Documentos" : "Documents"}</TabsTrigger>
+          <TabsTrigger value="budget"><Wallet className="h-4 w-4" />{locale === "pt" ? "Orçamento" : "Budget"}</TabsTrigger>
+          <TabsTrigger value="ethics"><ShieldCheck className="h-4 w-4" />{locale === "pt" ? "Ética" : "Ethics"}</TabsTrigger>
         </TabsList>
         <div className="mt-4">
           <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
@@ -911,6 +917,9 @@ const Inner = () => {
           <TabsContent value="advisees"><AdviseesTab projectId={project.id} /></TabsContent>
           <TabsContent value="pubs"><PublicationsTab projectId={project.id} /></TabsContent>
           <TabsContent value="brainstorm"><BrainstormTab projectId={project.id} projectTitle={project.title} /></TabsContent>
+          <TabsContent value="docs"><DocumentsTab projectId={project.id} /></TabsContent>
+          <TabsContent value="budget"><BudgetTab projectId={project.id} /></TabsContent>
+          <TabsContent value="ethics"><EthicsTab projectId={project.id} /></TabsContent>
         </div>
       </Tabs>
 
