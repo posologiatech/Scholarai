@@ -90,6 +90,54 @@ export default function LogbookTab({ projectId, isManager }: { projectId: string
     a.click();
   };
 
+  const exportPdf = async () => {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const margin = 20;
+    const pageW = 210, pageH = 297;
+    const maxW = pageW - margin * 2;
+    let y = margin;
+
+    const ensureSpace = (h: number) => {
+      if (y + h > pageH - margin) { doc.addPage(); y = margin; }
+    };
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(18);
+    doc.text(locale === "pt" ? "Diário de Bordo" : "Lab Notebook", margin, y); y += 8;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(120);
+    doc.text(`${locale === "pt" ? "Exportado em" : "Exported"} ${new Date().toLocaleString()}`, margin, y);
+    y += 8; doc.setTextColor(0);
+
+    entries.forEach((e: any) => {
+      ensureSpace(30);
+      doc.setDrawColor(220); doc.line(margin, y, pageW - margin, y); y += 5;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+      doc.text(`${e.entry_date} — ${e.title}`, margin, y); y += 6;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(100);
+      doc.text(`${TYPE_LABEL[e.entry_type]?.[locale]} · ${e.status}`, margin, y); y += 6;
+      doc.setTextColor(0); doc.setFontSize(10);
+      const lines = doc.splitTextToSize(e.content, maxW);
+      lines.forEach((ln: string) => { ensureSpace(5); doc.text(ln, margin, y); y += 4.5; });
+      if (e.signature_hash) {
+        y += 2; ensureSpace(8);
+        doc.setFontSize(7); doc.setTextColor(120); doc.setFont("courier", "normal");
+        doc.text(`sig:${e.signature_hash}`, margin, y); y += 3;
+        if (e.signed_at) { doc.text(`signed: ${new Date(e.signed_at).toISOString()}`, margin, y); y += 3; }
+        if (e.countersigned_at) { doc.text(`countersigned: ${new Date(e.countersigned_at).toISOString()}`, margin, y); y += 3; }
+        doc.setFont("helvetica", "normal"); doc.setTextColor(0);
+      }
+      y += 4;
+    });
+
+    const total = doc.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
+      doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150);
+      doc.text(`${i} / ${total}`, pageW - margin, pageH - 8, { align: "right" });
+    }
+
+    doc.save(`diario-bordo-${projectId.slice(0, 8)}.pdf`);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -98,8 +146,11 @@ export default function LogbookTab({ projectId, isManager }: { projectId: string
           {entries.length} {locale === "pt" ? "entradas" : "entries"}
         </div>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={exportPdf} disabled={!entries.length}>
+            <Download className="h-4 w-4" />PDF
+          </Button>
           <Button size="sm" variant="outline" onClick={exportMd} disabled={!entries.length}>
-            <Download className="h-4 w-4" />{locale === "pt" ? "Exportar" : "Export"}
+            <Download className="h-4 w-4" />MD
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4" />{locale === "pt" ? "Nova entrada" : "New entry"}</Button></DialogTrigger>
