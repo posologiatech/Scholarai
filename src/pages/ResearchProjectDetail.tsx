@@ -922,7 +922,12 @@ const Inner = () => {
             </>
           )}
         </div>
-        {!editing && <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{locale === "pt" ? "Editar" : "Edit"}</Button>}
+        {!editing && (
+          <div className="flex gap-2">
+            <PresentationMode project={project} />
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{locale === "pt" ? "Editar" : "Edit"}</Button>
+          </div>
+        )}
       </header>
 
       <Tabs defaultValue="overview">
@@ -939,6 +944,7 @@ const Inner = () => {
           <TabsTrigger value="docs"><FileSignature className="h-4 w-4" />{locale === "pt" ? "Documentos" : "Documents"}</TabsTrigger>
           <TabsTrigger value="budget"><Wallet className="h-4 w-4" />{locale === "pt" ? "Orçamento" : "Budget"}</TabsTrigger>
           <TabsTrigger value="ethics"><ShieldCheck className="h-4 w-4" />{locale === "pt" ? "Ética" : "Ethics"}</TabsTrigger>
+          <TabsTrigger value="logbook"><NotebookPen className="h-4 w-4" />{locale === "pt" ? "Diário de Bordo" : "Logbook"}</TabsTrigger>
         </TabsList>
         <div className="mt-4">
           <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
