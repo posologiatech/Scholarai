@@ -1526,6 +1526,62 @@ export type Database = {
           },
         ]
       }
+      research_budget_items: {
+        Row: {
+          created_at: string
+          created_by: string
+          currency: string
+          description: string
+          funder: string | null
+          id: string
+          notes: string | null
+          period_end: string | null
+          period_start: string | null
+          planned_amount: number
+          project_id: string
+          rubrica: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          currency?: string
+          description: string
+          funder?: string | null
+          id?: string
+          notes?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          planned_amount?: number
+          project_id: string
+          rubrica: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          currency?: string
+          description?: string
+          funder?: string | null
+          id?: string
+          notes?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          planned_amount?: number
+          project_id?: string
+          rubrica?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_budget_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_comments: {
         Row: {
           author_id: string
@@ -1608,6 +1664,235 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "research_copilot_messages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_documents: {
+        Row: {
+          content: string | null
+          created_at: string
+          created_by: string
+          doc_type: string
+          file_url: string | null
+          generated_by_ai: boolean
+          id: string
+          metadata: Json
+          project_id: string
+          status: string
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          created_by: string
+          doc_type: string
+          file_url?: string | null
+          generated_by_ai?: boolean
+          id?: string
+          metadata?: Json
+          project_id: string
+          status?: string
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          created_by?: string
+          doc_type?: string
+          file_url?: string | null
+          generated_by_ai?: boolean
+          id?: string
+          metadata?: Json
+          project_id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_ethics_attachments: {
+        Row: {
+          created_at: string
+          file_url: string
+          id: string
+          name: string
+          project_id: string
+          submission_id: string
+          uploaded_by: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          file_url: string
+          id?: string
+          name: string
+          project_id: string
+          submission_id: string
+          uploaded_by: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          file_url?: string
+          id?: string
+          name?: string
+          project_id?: string
+          submission_id?: string
+          uploaded_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_ethics_attachments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_ethics_attachments_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "research_ethics_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_ethics_submissions: {
+        Row: {
+          caae: string | null
+          created_at: string
+          created_by: string
+          decision_date: string | null
+          id: string
+          notes: string | null
+          project_id: string
+          protocol_number: string | null
+          reviewer_notes: string | null
+          status: string
+          submission_type: string
+          submitted_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          caae?: string | null
+          created_at?: string
+          created_by: string
+          decision_date?: string | null
+          id?: string
+          notes?: string | null
+          project_id: string
+          protocol_number?: string | null
+          reviewer_notes?: string | null
+          status?: string
+          submission_type: string
+          submitted_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          caae?: string | null
+          created_at?: string
+          created_by?: string
+          decision_date?: string | null
+          id?: string
+          notes?: string | null
+          project_id?: string
+          protocol_number?: string | null
+          reviewer_notes?: string | null
+          status?: string
+          submission_type?: string
+          submitted_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_ethics_submissions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_expenses: {
+        Row: {
+          amount: number
+          budget_item_id: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          description: string
+          expense_date: string
+          id: string
+          invoice_number: string | null
+          invoice_url: string | null
+          project_id: string
+          status: string
+          supplier: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          budget_item_id?: string | null
+          created_at?: string
+          created_by: string
+          currency?: string
+          description: string
+          expense_date: string
+          id?: string
+          invoice_number?: string | null
+          invoice_url?: string | null
+          project_id: string
+          status?: string
+          supplier?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          budget_item_id?: string | null
+          created_at?: string
+          created_by?: string
+          currency?: string
+          description?: string
+          expense_date?: string
+          id?: string
+          invoice_number?: string | null
+          invoice_url?: string | null
+          project_id?: string
+          status?: string
+          supplier?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_expenses_budget_item_id_fkey"
+            columns: ["budget_item_id"]
+            isOneToOne: false
+            referencedRelation: "research_budget_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_expenses_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "research_projects"
