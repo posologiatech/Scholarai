@@ -1526,6 +1526,95 @@ export type Database = {
           },
         ]
       }
+      research_comments: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          mentions: string[]
+          parent_id: string | null
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          mentions?: string[]
+          parent_id?: string | null
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          mentions?: string[]
+          parent_id?: string | null
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "research_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_comments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_copilot_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          project_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          project_id: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_copilot_messages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_idea_edges: {
         Row: {
           created_at: string
@@ -2093,14 +2182,20 @@ export type Database = {
       }
       research_schedule_items: {
         Row: {
+          assignee_id: string | null
+          color: string | null
           created_at: string
           created_by: string | null
+          dependency_type: string
           description: string | null
           end_date: string | null
           id: string
+          is_milestone: boolean
           linked_meeting_id: string | null
           phase: string | null
           position: number
+          predecessor_id: string | null
+          progress: number
           project_id: string
           start_date: string | null
           status: Database["public"]["Enums"]["research_schedule_status"]
@@ -2108,14 +2203,20 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assignee_id?: string | null
+          color?: string | null
           created_at?: string
           created_by?: string | null
+          dependency_type?: string
           description?: string | null
           end_date?: string | null
           id?: string
+          is_milestone?: boolean
           linked_meeting_id?: string | null
           phase?: string | null
           position?: number
+          predecessor_id?: string | null
+          progress?: number
           project_id: string
           start_date?: string | null
           status?: Database["public"]["Enums"]["research_schedule_status"]
@@ -2123,14 +2224,20 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assignee_id?: string | null
+          color?: string | null
           created_at?: string
           created_by?: string | null
+          dependency_type?: string
           description?: string | null
           end_date?: string | null
           id?: string
+          is_milestone?: boolean
           linked_meeting_id?: string | null
           phase?: string | null
           position?: number
+          predecessor_id?: string | null
+          progress?: number
           project_id?: string
           start_date?: string | null
           status?: Database["public"]["Enums"]["research_schedule_status"]
@@ -2143,6 +2250,13 @@ export type Database = {
             columns: ["linked_meeting_id"]
             isOneToOne: false
             referencedRelation: "research_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_schedule_items_predecessor_id_fkey"
+            columns: ["predecessor_id"]
+            isOneToOne: false
+            referencedRelation: "research_schedule_items"
             referencedColumns: ["id"]
           },
           {
