@@ -61,6 +61,7 @@ import CoauthorshipNetwork from "./pages/CoauthorshipNetwork";
 import ResearchProjects from "./pages/ResearchProjects";
 import ResearchProjectDetail from "./pages/ResearchProjectDetail";
 import ResearchFunding from "./pages/ResearchFunding";
+import AdvisorDashboard from "./pages/AdvisorDashboard";
 import OracleAgent from "./components/app/OracleAgent";
 import AdminRoadmapDialog from "./components/app/AdminRoadmapDialog";
 const queryClient = new QueryClient();
@@ -140,6 +141,7 @@ const App = () => (
               <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
               <Route path="/research" element={<ProtectedRoute><ResearchProjects /></ProtectedRoute>} />
               <Route path="/research/funding" element={<ProtectedRoute><ResearchFunding /></ProtectedRoute>} />
+              <Route path="/research/advisor" element={<ProtectedRoute><AdvisorDashboard /></ProtectedRoute>} />
               <Route path="/research/:id" element={<ProtectedRoute><ResearchProjectDetail /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
