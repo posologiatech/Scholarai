@@ -913,6 +913,8 @@ const Inner = () => {
           <TabsContent value="brainstorm"><BrainstormTab projectId={project.id} projectTitle={project.title} /></TabsContent>
         </div>
       </Tabs>
+
+      <ResearchCopilot projectId={project.id} projectTitle={project.title} />
     </div>
   );
 };
