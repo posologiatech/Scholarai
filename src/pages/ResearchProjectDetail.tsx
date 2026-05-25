@@ -326,11 +326,14 @@ const TasksTab = ({ projectId }: { projectId: string }) => {
                     {t.due_date && <Badge variant="secondary" className="text-[10px]">{new Date(t.due_date).toLocaleDateString()}</Badge>}
                     {t.source_meeting && <Badge variant="outline" className="text-[10px] gap-1"><Mic className="h-2.5 w-2.5" />{t.source_meeting.title}</Badge>}
                   </div>
-                  <div className="flex gap-1 pt-1">
+                  <div className="flex gap-1 pt-1 items-center">
                     <Select value={t.status} onValueChange={(v: any) => moveTask(t.id, v)}>
                       <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>{statuses.map(s => <SelectItem key={s} value={s}>{TASK_STATUS_LABEL[s][locale]}</SelectItem>)}</SelectContent>
-                    </Select>
+                    </Select></div>
+                  <CommentThread projectId={projectId} entityType="task" entityId={t.id} compact />
+                </CardContent></Card>
+              ))}
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => remove(t.id)}><Trash2 className="h-3 w-3" /></Button>
                   </div>
                 </CardContent></Card>
