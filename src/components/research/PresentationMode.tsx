@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { Presentation, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Presentation, ChevronLeft, ChevronRight, X, Download } from "lucide-react";
 
 type Slide = { title: string; body: React.ReactNode };
 
@@ -110,7 +110,44 @@ export default function PresentationMode({ project }: { project: any }) {
         }}>
           <div className="flex items-center justify-between px-6 py-3 border-b">
             <span className="text-sm text-muted-foreground">{i + 1} / {total}</span>
-            <Button size="icon" variant="ghost" onClick={() => setOpen(false)}><X className="h-4 w-4" /></Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={!bundle} onClick={async () => {
+                const { jsPDF } = await import("jspdf");
+                const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+                const W = 297, H = 210, M = 20;
+                const planned = bundle!.budget.reduce((s, b: any) => s + Number(b.planned_amount || 0), 0);
+                const executed = bundle!.expenses.filter((e: any) => e.status !== "rejeitado").reduce((s, e: any) => s + Number(e.amount || 0), 0);
+                const done = bundle!.tasks.filter((t: any) => t.status === "concluida").length;
+                const pubByStatus = bundle!.pubs.reduce((acc: any, p: any) => ({ ...acc, [p.status]: (acc[p.status] || 0) + 1 }), {});
+                const addPage = (title: string, lines: string[], opts: { center?: boolean } = {}) => {
+                  doc.setFont("helvetica", "bold"); doc.setFontSize(28);
+                  doc.text(title, opts.center ? W / 2 : M, M + 10, { align: opts.center ? "center" : "left" });
+                  doc.setFont("helvetica", "normal"); doc.setFontSize(14);
+                  let y = M + 30;
+                  lines.forEach(l => {
+                    const wrapped = doc.splitTextToSize(l, W - M * 2);
+                    wrapped.forEach((w: string) => {
+                      if (y > H - M) { doc.addPage(); y = M; }
+                      doc.text(w, opts.center ? W / 2 : M, y, { align: opts.center ? "center" : "left" });
+                      y += 8;
+                    });
+                  });
+                };
+                addPage(project.title, [project.cnpq_area || "", project.description || ""].filter(Boolean), { center: true });
+                doc.addPage(); addPage(locale === "pt" ? "Objetivos" : "Objectives", [project.objectives || "—"]);
+                doc.addPage(); addPage(locale === "pt" ? "Progresso de Tarefas" : "Task Progress", [`${done} / ${bundle!.tasks.length} ${locale === "pt" ? "concluídas" : "completed"}`], { center: true });
+                doc.addPage(); addPage(locale === "pt" ? "Cronograma" : "Schedule", bundle!.sched.slice(0, 12).map((s: any) => `• ${s.title} (${s.start_date} → ${s.end_date})`));
+                doc.addPage(); addPage(locale === "pt" ? "Publicações" : "Publications", Object.entries(pubByStatus).map(([k, v]) => `${k}: ${v}`));
+                doc.addPage(); addPage(locale === "pt" ? "Orientações" : "Advisees", bundle!.advisees.map((a: any) => `• ${a.full_name} — ${a.level}${a.thesis_title ? ` — ${a.thesis_title}` : ""}`));
+                doc.addPage(); addPage(locale === "pt" ? "Orçamento" : "Budget", [
+                  `${locale === "pt" ? "Previsto" : "Planned"}: R$ ${planned.toLocaleString()}`,
+                  `${locale === "pt" ? "Executado" : "Executed"}: R$ ${executed.toLocaleString()}`,
+                  `${locale === "pt" ? "Saldo" : "Balance"}: R$ ${(planned - executed).toLocaleString()}`,
+                ]);
+                doc.save(`apresentacao-${project.id.slice(0, 8)}.pdf`);
+              }}><Download className="h-4 w-4" />PDF</Button>
+              <Button size="icon" variant="ghost" onClick={() => setOpen(false)}><X className="h-4 w-4" /></Button>
+            </div>
           </div>
           <div className="flex-1 flex items-center justify-center p-12 overflow-auto">
             {slides[i] && (
