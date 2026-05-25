@@ -29,6 +29,7 @@ import BudgetTab from "@/components/research/BudgetTab";
 import EthicsTab from "@/components/research/EthicsTab";
 import LogbookTab from "@/components/research/LogbookTab";
 import PresentationMode from "@/components/research/PresentationMode";
+import EvaluationsTab from "@/components/research/EvaluationsTab";
 
 // ===== Tab: Equipe =====
 const TeamTab = ({ projectId }: { projectId: string }) => {
