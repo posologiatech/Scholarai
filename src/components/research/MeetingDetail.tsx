@@ -276,6 +276,10 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
   const [notes, setNotes] = useState(meeting.notes || "");
   const notesTimer = useRef<number | null>(null);
   const [summarizing, setSummarizing] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
+  const [pickedTasks, setPickedTasks] = useState<Record<string, boolean>>({});
+  const [pickedSchedule, setPickedSchedule] = useState<Record<string, boolean>>({});
 
   const { data: agendaItems = [] } = useQuery({
     queryKey: ["agenda-items", meeting.id],
@@ -285,6 +289,35 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
       return data ?? [];
     },
   });
+
+  const { data: doingTasks = [] } = useQuery({
+    queryKey: ["research-doing-tasks", projectId],
+    enabled: pickerOpen,
+    queryFn: async () => {
+      const { data } = await supabase.from("research_tasks")
+        .select("id,title,due_date,status").eq("project_id", projectId).eq("status", "doing");
+      return data ?? [];
+    },
+  });
+
+  const { data: scheduleItems = [] } = useQuery({
+    queryKey: ["research-schedule-all", projectId],
+    enabled: pickerOpen,
+    queryFn: async () => {
+      const { data } = await supabase.from("research_schedule_items")
+        .select("id,title,start_date,end_date,status")
+        .eq("project_id", projectId)
+        .neq("status", "concluido")
+        .order("start_date", { ascending: true, nullsFirst: false });
+      return data ?? [];
+    },
+  });
+
+  const existingTaskIds = new Set(agendaItems.map((a: any) => a.source_task_id).filter(Boolean));
+  const existingScheduleIds = new Set(agendaItems.map((a: any) => a.source_schedule_item_id).filter(Boolean));
+  const qStr = pickerSearch.toLowerCase();
+  const filteredTasks = doingTasks.filter((t: any) => !existingTaskIds.has(t.id) && t.title.toLowerCase().includes(qStr));
+  const filteredSchedule = scheduleItems.filter((s: any) => !existingScheduleIds.has(s.id) && s.title.toLowerCase().includes(qStr));
 
   const addAgenda = async () => {
     if (!newAgenda.trim()) return;
@@ -302,6 +335,25 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
   const removeAgenda = async (id: string) => {
     await supabase.from("research_meeting_agenda_items").delete().eq("id", id);
     qc.invalidateQueries({ queryKey: ["agenda-items", meeting.id] });
+  };
+
+  const importPicked = async () => {
+    const rows: any[] = [];
+    let pos = agendaItems.length;
+    Object.entries(pickedTasks).filter(([, v]) => v).forEach(([taskId]) => {
+      const t = doingTasks.find((x: any) => x.id === taskId);
+      if (t) rows.push({ meeting_id: meeting.id, title: t.title, source_task_id: taskId, position: pos++ });
+    });
+    Object.entries(pickedSchedule).filter(([, v]) => v).forEach(([sid]) => {
+      const s = scheduleItems.find((x: any) => x.id === sid);
+      if (s) rows.push({ meeting_id: meeting.id, title: s.title, source_schedule_item_id: sid, position: pos++ });
+    });
+    if (!rows.length) { setPickerOpen(false); return; }
+    const { error } = await supabase.from("research_meeting_agenda_items").insert(rows);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["agenda-items", meeting.id] });
+    toast.success(locale === "pt" ? `${rows.length} ponto(s) de pauta adicionados` : `${rows.length} agenda item(s) added`);
+    setPickedTasks({}); setPickedSchedule({}); setPickerSearch(""); setPickerOpen(false);
   };
 
   const saveNotes = (v: string) => {
@@ -329,8 +381,12 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
       </section>
 
       <section>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{locale === "pt" ? "Pontos de pauta" : "Agenda items"} ({agendaItems.length})</h3>
+          <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+            <Sparkles className="h-3.5 w-3.5" />
+            {locale === "pt" ? "Buscar do projeto" : "Pull from project"}
+          </Button>
         </div>
         <div className="space-y-2">
           {agendaItems.map((it: any) => (
@@ -344,6 +400,63 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
             <Button onClick={addAgenda}><Plus className="h-4 w-4" /></Button>
           </div>
         </div>
+
+        <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{locale === "pt" ? "Adicionar à pauta" : "Add to agenda"}</DialogTitle>
+            </DialogHeader>
+            <Input placeholder={locale === "pt" ? "Buscar tarefas e itens do cronograma…" : "Search tasks and schedule items…"}
+              value={pickerSearch} onChange={(e) => setPickerSearch(e.target.value)} autoFocus />
+            <div className="space-y-4">
+              <div className="rounded-lg border p-3 space-y-2">
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <CheckSquare className="h-3.5 w-3.5 text-primary" />
+                  {locale === "pt" ? "Tarefas em andamento" : "Tasks in progress"} ({filteredTasks.length})
+                </p>
+                <div className="space-y-1 max-h-56 overflow-y-auto">
+                  {filteredTasks.length === 0 && (
+                    <p className="text-xs text-muted-foreground px-2 py-1">{locale === "pt" ? "Nenhuma tarefa disponível" : "No tasks available"}</p>
+                  )}
+                  {filteredTasks.map((t: any) => (
+                    <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 px-2 py-1 rounded">
+                      <input type="checkbox" checked={!!pickedTasks[t.id]}
+                        onChange={(e) => setPickedTasks({ ...pickedTasks, [t.id]: e.target.checked })} />
+                      <span className="flex-1">{t.title}</span>
+                      {t.due_date && <span className="text-xs text-muted-foreground">{new Date(t.due_date).toLocaleDateString()}</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-lg border p-3 space-y-2">
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Calendar className="h-3.5 w-3.5 text-primary" />
+                  {locale === "pt" ? "Itens do cronograma" : "Schedule items"} ({filteredSchedule.length})
+                </p>
+                <div className="space-y-1 max-h-56 overflow-y-auto">
+                  {filteredSchedule.length === 0 && (
+                    <p className="text-xs text-muted-foreground px-2 py-1">{locale === "pt" ? "Nenhum item disponível" : "No items available"}</p>
+                  )}
+                  {filteredSchedule.map((s: any) => (
+                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 px-2 py-1 rounded">
+                      <input type="checkbox" checked={!!pickedSchedule[s.id]}
+                        onChange={(e) => setPickedSchedule({ ...pickedSchedule, [s.id]: e.target.checked })} />
+                      <span className="flex-1">{s.title}</span>
+                      {s.start_date && <span className="text-xs text-muted-foreground">{new Date(s.start_date).toLocaleDateString()}</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setPickerOpen(false)}>{locale === "pt" ? "Cancelar" : "Cancel"}</Button>
+              <Button onClick={importPicked}>
+                <Plus className="h-4 w-4" />
+                {locale === "pt" ? "Adicionar à pauta" : "Add to agenda"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </section>
 
       <section>
