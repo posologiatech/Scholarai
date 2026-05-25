@@ -781,19 +781,20 @@ const BrainstormTab = ({ projectId, projectTitle }: { projectId: string; project
 };
 
 // ===== Overview =====
-const OverviewTab = ({ projectId }: { projectId: string }) => {
+const OverviewTab = ({ project }: { project: any }) => {
   const { locale } = useLanguage();
+  const projectId = project.id;
   const { data: tasks = [] } = useQuery({
-    queryKey: ["research-tasks", projectId],
+    queryKey: ["research-tasks-overview", projectId],
     queryFn: async () => {
-      const { data } = await supabase.from("research_tasks").select("*").eq("project_id", projectId);
+      const { data } = await supabase.from("research_tasks").select("status").eq("project_id", projectId);
       return data ?? [];
     },
   });
   const { data: meetings = [] } = useQuery({
-    queryKey: ["research-meetings", projectId],
+    queryKey: ["research-meetings-overview", projectId],
     queryFn: async () => {
-      const { data } = await supabase.from("research_meetings").select("*").eq("project_id", projectId)
+      const { data } = await supabase.from("research_meetings").select("id,title,scheduled_at").eq("project_id", projectId)
         .gte("scheduled_at", new Date().toISOString()).order("scheduled_at").limit(5);
       return data ?? [];
     },
@@ -804,24 +805,29 @@ const OverviewTab = ({ projectId }: { projectId: string }) => {
     done: tasks.filter((t: any) => t.status === "done").length,
   };
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">{locale === "pt" ? "A fazer" : "To do"}</p><p className="text-2xl font-bold">{counts.backlog}</p></CardContent></Card>
-        <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">{locale === "pt" ? "Em andamento" : "In progress"}</p><p className="text-2xl font-bold">{counts.doing}</p></CardContent></Card>
+        <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">{locale === "pt" ? "Fazendo" : "Doing"}</p><p className="text-2xl font-bold">{counts.doing}</p></CardContent></Card>
         <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">{locale === "pt" ? "Concluídas" : "Done"}</p><p className="text-2xl font-bold">{counts.done}</p></CardContent></Card>
+        <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">{locale === "pt" ? "Próx. reuniões" : "Upcoming"}</p><p className="text-2xl font-bold">{meetings.length}</p></CardContent></Card>
       </div>
-      <Card>
-        <CardHeader><CardTitle className="text-base">{locale === "pt" ? "Próximas reuniões" : "Upcoming meetings"}</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
-          {meetings.length === 0 && <p className="text-sm text-muted-foreground">{locale === "pt" ? "Nenhuma agendada." : "None scheduled."}</p>}
-          {meetings.map((m: any) => (
-            <div key={m.id} className="flex justify-between text-sm py-1 border-b last:border-0">
-              <span>{m.title}</span>
-              <span className="text-muted-foreground">{new Date(m.scheduled_at).toLocaleString()}</span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+
+      <ProjectBodyEditor projectId={projectId} initial={project.full_content} />
+
+      {meetings.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">{locale === "pt" ? "Próximas reuniões" : "Upcoming meetings"}</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {meetings.map((m: any) => (
+              <div key={m.id} className="flex justify-between text-sm py-1 border-b last:border-0">
+                <span>{m.title}</span>
+                <span className="text-muted-foreground">{new Date(m.scheduled_at).toLocaleString()}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
