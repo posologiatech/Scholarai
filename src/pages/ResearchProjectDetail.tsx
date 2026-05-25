@@ -865,10 +865,22 @@ const OverviewTab = ({ project }: { project: any }) => {
 const Inner = () => {
   const { id } = useParams<{ id: string }>();
   const { locale } = useLanguage();
+  const { user } = useAuth();
   const { data: project, isLoading } = useResearchProject(id);
   const updateMut = useUpdateResearchProject();
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", description: "", status: "planejamento" as any });
+
+  const { data: myRole } = useQuery({
+    queryKey: ["my-research-role", id, user?.id],
+    enabled: !!id && !!user,
+    queryFn: async () => {
+      const { data } = await supabase.from("research_project_members")
+        .select("role").eq("project_id", id!).eq("user_id", user!.id).maybeSingle();
+      return data?.role ?? null;
+    },
+  });
+  const isManager = !!project && (project.owner_id === user?.id || myRole === "pi" || myRole === "co_pi");
 
   useEffect(() => {
     if (project) setEditForm({ title: project.title, description: project.description || "", status: project.status });
