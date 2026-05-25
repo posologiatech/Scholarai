@@ -330,12 +330,10 @@ const TasksTab = ({ projectId }: { projectId: string }) => {
                     <Select value={t.status} onValueChange={(v: any) => moveTask(t.id, v)}>
                       <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>{statuses.map(s => <SelectItem key={s} value={s}>{TASK_STATUS_LABEL[s][locale]}</SelectItem>)}</SelectContent>
-                    </Select></div>
-                  <CommentThread projectId={projectId} entityType="task" entityId={t.id} compact />
-                </CardContent></Card>
-              ))}
+                    </Select>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => remove(t.id)}><Trash2 className="h-3 w-3" /></Button>
                   </div>
+                  <CommentThread projectId={projectId} entityType="task" entityId={t.id} compact />
                 </CardContent></Card>
               ))}
             </div>
