@@ -11,13 +11,17 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { STATUS_LABEL, ROLE_LABEL, TASK_STATUS_LABEL, PUB_STATUS_LABEL, type ResearchTaskStatus, type ResearchPublicationStatus, type ResearchMemberRole, type ResearchAdviseeLevel } from "@/lib/research/types";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import { ProjectBodyEditor } from "@/components/research/ProjectBodyEditor";
+import { MeetingDetail, NewMeetingDialog } from "@/components/research/MeetingDetail";
+import { ScheduleTab } from "@/components/research/ScheduleTab";
 
 // ===== Tab: Equipe =====
 const TeamTab = ({ projectId }: { projectId: string }) => {
@@ -238,7 +242,8 @@ const TasksTab = ({ projectId }: { projectId: string }) => {
     queryKey: ["research-tasks", projectId],
     queryFn: async () => {
       const { data, error } = await supabase.from("research_tasks")
-        .select("*").eq("project_id", projectId).order("position");
+        .select("*, source_meeting:research_meetings!source_meeting_id(id,title,scheduled_at)")
+        .eq("project_id", projectId).order("position");
       if (error) throw error;
       return data ?? [];
     },
@@ -317,6 +322,7 @@ const TasksTab = ({ projectId }: { projectId: string }) => {
                   <div className="flex items-center gap-1 flex-wrap">
                     <Badge variant={t.priority === "urgent" ? "destructive" : "outline"} className="text-[10px]">{t.priority}</Badge>
                     {t.due_date && <Badge variant="secondary" className="text-[10px]">{new Date(t.due_date).toLocaleDateString()}</Badge>}
+                    {t.source_meeting && <Badge variant="outline" className="text-[10px] gap-1"><Mic className="h-2.5 w-2.5" />{t.source_meeting.title}</Badge>}
                   </div>
                   <div className="flex gap-1 pt-1">
                     <Select value={t.status} onValueChange={(v: any) => moveTask(t.id, v)}>
@@ -338,159 +344,75 @@ const TasksTab = ({ projectId }: { projectId: string }) => {
 // ===== Tab: Meetings =====
 const MeetingsTab = ({ projectId }: { projectId: string }) => {
   const { locale } = useLanguage();
-  const { user } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", scheduled_at: "", meeting_link: "", agenda: "" });
-  const [summarizing, setSummarizing] = useState<string | null>(null);
+  const [selected, setSelected] = useState<any>(null);
 
   const { data: meetings = [] } = useQuery({
     queryKey: ["research-meetings", projectId],
     queryFn: async () => {
       const { data, error } = await supabase.from("research_meetings")
-        .select("*").eq("project_id", projectId).order("scheduled_at", { ascending: false });
+        .select("*, agenda_items:research_meeting_agenda_items(id,completed), attachments:research_meeting_attachments(id)")
+        .eq("project_id", projectId).order("scheduled_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
   });
-
-  const add = async () => {
-    if (!form.title || !form.scheduled_at) return toast.error(locale === "pt" ? "Título e data obrigatórios" : "Title and date required");
-    const { error } = await supabase.from("research_meetings").insert({
-      project_id: projectId, created_by: user!.id,
-      title: form.title, scheduled_at: new Date(form.scheduled_at).toISOString(),
-      meeting_link: form.meeting_link || null, agenda: form.agenda || null,
-    });
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["research-meetings", projectId] });
-    setOpen(false); setForm({ title: "", scheduled_at: "", meeting_link: "", agenda: "" });
-  };
-
-  const summarize = async (id: string, transcript: string) => {
-    if (!transcript.trim()) return toast.error(locale === "pt" ? "Cole a transcrição primeiro" : "Paste transcript first");
-    setSummarizing(id);
-    try {
-      const { data, error } = await supabase.functions.invoke("meeting-summarize", {
-        body: { transcript, meeting_id: id },
-      });
-      if (error) throw error;
-      await supabase.from("research_meetings").update({
-        transcript, ata: data.ata, action_items: data.action_items ?? [],
-      }).eq("id", id);
-      qc.invalidateQueries({ queryKey: ["research-meetings", projectId] });
-      toast.success(locale === "pt" ? "Ata gerada" : "Minutes generated");
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally { setSummarizing(null); }
-  };
 
   const remove = async (id: string) => {
     await supabase.from("research_meetings").delete().eq("id", id);
     qc.invalidateQueries({ queryKey: ["research-meetings", projectId] });
   };
 
-  const convertToTasks = async (meetingId: string, actionItems: any[]) => {
-    if (!actionItems?.length) return;
-    const rows = actionItems.map((a: any) => ({
-      project_id: projectId, created_by: user!.id,
-      title: a.title || a.text || "Action item",
-      description: a.description || null,
-      due_date: a.due_date || null,
-      status: "backlog" as const,
-    }));
-    await supabase.from("research_tasks").insert(rows);
-    qc.invalidateQueries({ queryKey: ["research-tasks", projectId] });
-    toast.success(locale === "pt" ? `${rows.length} tarefas criadas` : `${rows.length} tasks created`);
-  };
-
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4" />{locale === "pt" ? "Agendar reunião" : "Schedule meeting"}</Button></DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>{locale === "pt" ? "Nova reunião" : "New meeting"}</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <div><Label>{locale === "pt" ? "Título" : "Title"}</Label>
-                <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></div>
-              <div><Label>{locale === "pt" ? "Data e hora" : "Date & time"}</Label>
-                <Input type="datetime-local" value={form.scheduled_at} onChange={e => setForm({ ...form, scheduled_at: e.target.value })} /></div>
-              <div><Label>{locale === "pt" ? "Link (Meet/Zoom)" : "Link (Meet/Zoom)"}</Label>
-                <Input value={form.meeting_link} onChange={e => setForm({ ...form, meeting_link: e.target.value })} /></div>
-              <div><Label>{locale === "pt" ? "Pauta" : "Agenda"}</Label>
-                <Textarea value={form.agenda} onChange={e => setForm({ ...form, agenda: e.target.value })} rows={4} /></div>
-            </div>
-            <DialogFooter><Button onClick={add}>{locale === "pt" ? "Agendar" : "Schedule"}</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-muted-foreground">{locale === "pt" ? "Clique em uma reunião para abrir pautas, anotações e encaminhamentos." : "Click a meeting to open agenda, notes and follow-ups."}</p>
+        <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />{locale === "pt" ? "Nova reunião" : "New meeting"}</Button>
       </div>
-      <div className="space-y-3">
-        {meetings.map((m: any) => (
-          <MeetingCard key={m.id} meeting={m} onSummarize={summarize} summarizing={summarizing === m.id}
-            onRemove={remove} onConvert={convertToTasks} locale={locale} />
-        ))}
-        {meetings.length === 0 && <p className="text-sm text-muted-foreground">{locale === "pt" ? "Sem reuniões." : "No meetings."}</p>}
+      <div className="grid md:grid-cols-2 gap-3">
+        {meetings.map((m: any) => {
+          const future = new Date(m.scheduled_at) > new Date();
+          const total = m.agenda_items?.length ?? 0;
+          const done = m.agenda_items?.filter((a: any) => a.completed).length ?? 0;
+          return (
+            <button key={m.id} onClick={() => setSelected(m)}
+              className="group text-left rounded-2xl border bg-card hover:shadow-md hover:border-primary/40 transition-all p-4 relative overflow-hidden">
+              <div className={`absolute top-0 left-0 w-1 h-full ${future ? "bg-blue-500" : "bg-emerald-500"}`} />
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-semibold truncate">{m.title}</h4>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />{new Date(m.scheduled_at).toLocaleString()}
+                  </p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+              <div className="flex items-center gap-2 mt-3 text-xs">
+                <Badge variant={future ? "secondary" : "outline"} className="text-[10px]">{future ? (locale === "pt" ? "Agendada" : "Scheduled") : (locale === "pt" ? "Realizada" : "Held")}</Badge>
+                {total > 0 && <span className="text-muted-foreground">{done}/{total} {locale === "pt" ? "pautas" : "items"}</span>}
+                {m.attachments?.length > 0 && <span className="text-muted-foreground">· {m.attachments.length} {locale === "pt" ? "anexos" : "files"}</span>}
+              </div>
+              <Button size="icon" variant="ghost" className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100"
+                onClick={(e) => { e.stopPropagation(); if (confirm(locale === "pt" ? "Excluir reunião?" : "Delete meeting?")) remove(m.id); }}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </button>
+          );
+        })}
+        {meetings.length === 0 && <p className="text-sm text-muted-foreground col-span-2 text-center py-12">{locale === "pt" ? "Nenhuma reunião agendada." : "No meetings scheduled."}</p>}
       </div>
+
+      <NewMeetingDialog projectId={projectId} open={open} onOpenChange={setOpen} />
+      <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          {selected && <MeetingDetail meeting={selected} projectId={projectId} onClose={() => setSelected(null)} />}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
 
-const MeetingCard = ({ meeting, onSummarize, summarizing, onRemove, onConvert, locale }: any) => {
-  const [transcript, setTranscript] = useState(meeting.transcript || "");
-  const [showTranscript, setShowTranscript] = useState(false);
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <CardTitle className="text-base">{meeting.title}</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              <Calendar className="h-3 w-3 inline mr-1" />
-              {new Date(meeting.scheduled_at).toLocaleString()}
-              {meeting.meeting_link && <> · <a href={meeting.meeting_link} target="_blank" rel="noopener noreferrer" className="text-primary underline">link</a></>}
-            </p>
-          </div>
-          <Button size="icon" variant="ghost" onClick={() => onRemove(meeting.id)}><Trash2 className="h-4 w-4" /></Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {meeting.agenda && <div className="text-sm text-muted-foreground"><strong>{locale === "pt" ? "Pauta:" : "Agenda:"}</strong> {meeting.agenda}</div>}
-        {meeting.ata ? (
-          <div className="bg-muted/30 p-3 rounded-lg prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown>{meeting.ata}</ReactMarkdown>
-          </div>
-        ) : null}
-        {Array.isArray(meeting.action_items) && meeting.action_items.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold">{locale === "pt" ? "Action items" : "Action items"}</p>
-              <Button size="sm" variant="outline" onClick={() => onConvert(meeting.id, meeting.action_items)}>
-                {locale === "pt" ? "Converter em tarefas" : "Convert to tasks"}
-              </Button>
-            </div>
-            <ul className="text-sm space-y-1">
-              {meeting.action_items.map((a: any, i: number) => (
-                <li key={i} className="flex items-start gap-2"><CheckSquare className="h-3 w-3 mt-1 text-primary" /><span>{a.title || a.text}</span></li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <Button size="sm" variant="ghost" onClick={() => setShowTranscript(!showTranscript)}>
-          {showTranscript ? (locale === "pt" ? "Ocultar" : "Hide") : (locale === "pt" ? "Adicionar transcrição/áudio" : "Add transcript/audio")}
-        </Button>
-        {showTranscript && (
-          <div className="space-y-2">
-            <Textarea placeholder={locale === "pt" ? "Cole a transcrição da reunião..." : "Paste the meeting transcript..."}
-              value={transcript} onChange={e => setTranscript(e.target.value)} rows={5} />
-            <Button size="sm" onClick={() => onSummarize(meeting.id, transcript)} disabled={summarizing}>
-              <Sparkles className="h-4 w-4" />{summarizing ? (locale === "pt" ? "Gerando..." : "Generating...") : (locale === "pt" ? "Gerar ata com IA" : "Generate minutes with AI")}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
 
 // ===== Tab: Advisees =====
 const AdviseesTab = ({ projectId }: { projectId: string }) => {
@@ -859,19 +781,20 @@ const BrainstormTab = ({ projectId, projectTitle }: { projectId: string; project
 };
 
 // ===== Overview =====
-const OverviewTab = ({ projectId }: { projectId: string }) => {
+const OverviewTab = ({ project }: { project: any }) => {
   const { locale } = useLanguage();
+  const projectId = project.id;
   const { data: tasks = [] } = useQuery({
-    queryKey: ["research-tasks", projectId],
+    queryKey: ["research-tasks-overview", projectId],
     queryFn: async () => {
-      const { data } = await supabase.from("research_tasks").select("*").eq("project_id", projectId);
+      const { data } = await supabase.from("research_tasks").select("status").eq("project_id", projectId);
       return data ?? [];
     },
   });
   const { data: meetings = [] } = useQuery({
-    queryKey: ["research-meetings", projectId],
+    queryKey: ["research-meetings-overview", projectId],
     queryFn: async () => {
-      const { data } = await supabase.from("research_meetings").select("*").eq("project_id", projectId)
+      const { data } = await supabase.from("research_meetings").select("id,title,scheduled_at").eq("project_id", projectId)
         .gte("scheduled_at", new Date().toISOString()).order("scheduled_at").limit(5);
       return data ?? [];
     },
@@ -882,24 +805,29 @@ const OverviewTab = ({ projectId }: { projectId: string }) => {
     done: tasks.filter((t: any) => t.status === "done").length,
   };
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">{locale === "pt" ? "A fazer" : "To do"}</p><p className="text-2xl font-bold">{counts.backlog}</p></CardContent></Card>
-        <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">{locale === "pt" ? "Em andamento" : "In progress"}</p><p className="text-2xl font-bold">{counts.doing}</p></CardContent></Card>
+        <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">{locale === "pt" ? "Fazendo" : "Doing"}</p><p className="text-2xl font-bold">{counts.doing}</p></CardContent></Card>
         <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">{locale === "pt" ? "Concluídas" : "Done"}</p><p className="text-2xl font-bold">{counts.done}</p></CardContent></Card>
+        <Card><CardContent className="py-4"><p className="text-xs text-muted-foreground">{locale === "pt" ? "Próx. reuniões" : "Upcoming"}</p><p className="text-2xl font-bold">{meetings.length}</p></CardContent></Card>
       </div>
-      <Card>
-        <CardHeader><CardTitle className="text-base">{locale === "pt" ? "Próximas reuniões" : "Upcoming meetings"}</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
-          {meetings.length === 0 && <p className="text-sm text-muted-foreground">{locale === "pt" ? "Nenhuma agendada." : "None scheduled."}</p>}
-          {meetings.map((m: any) => (
-            <div key={m.id} className="flex justify-between text-sm py-1 border-b last:border-0">
-              <span>{m.title}</span>
-              <span className="text-muted-foreground">{new Date(m.scheduled_at).toLocaleString()}</span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+
+      <ProjectBodyEditor projectId={projectId} initial={project.full_content} />
+
+      {meetings.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">{locale === "pt" ? "Próximas reuniões" : "Upcoming meetings"}</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {meetings.map((m: any) => (
+              <div key={m.id} className="flex justify-between text-sm py-1 border-b last:border-0">
+                <span>{m.title}</span>
+                <span className="text-muted-foreground">{new Date(m.scheduled_at).toLocaleString()}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

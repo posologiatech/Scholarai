@@ -12,11 +12,15 @@ export type ResearchPublicationStatus =
 export type ResearchAdviseeLevel =
   | "ic" | "mestrado" | "doutorado" | "posdoc" | "tcc" | "especializacao";
 
+export type ResearchScheduleStatus =
+  | "planejado" | "em_andamento" | "concluido" | "atrasado";
+
 export interface ResearchProject {
   id: string;
   owner_id: string;
   title: string;
   description: string | null;
+  full_content: string | null;
   cnpq_area: string | null;
   keywords: string[];
   objectives: string | null;
@@ -61,3 +65,43 @@ export const PUB_STATUS_LABEL: Record<ResearchPublicationStatus, { pt: string; e
   publicado: { pt: "Publicado", en: "Published" },
   rejeitado: { pt: "Rejeitado", en: "Rejected" },
 };
+
+export const SCHEDULE_STATUS_LABEL: Record<ResearchScheduleStatus, { pt: string; en: string }> = {
+  planejado: { pt: "Planejado", en: "Planned" },
+  em_andamento: { pt: "Em andamento", en: "In progress" },
+  concluido: { pt: "Concluído", en: "Completed" },
+  atrasado: { pt: "Atrasado", en: "Delayed" },
+};
+
+export const PROJECT_BODY_TEMPLATE_PT = `# Introdução
+
+Contexto, problema de pesquisa e justificativa.
+
+# Objetivos
+
+## Objetivo Geral
+
+
+## Objetivos Específicos
+
+-
+-
+
+# Metodologia
+
+Desenho do estudo, população, instrumentos e análise.
+
+# Fases do Projeto
+
+1. Fase 1 —
+2. Fase 2 —
+3. Fase 3 —
+
+# Resultados Esperados
+
+
+# Cronograma resumido
+
+
+# Referências
+`;
