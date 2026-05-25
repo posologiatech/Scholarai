@@ -2037,6 +2037,68 @@ export type Database = {
           },
         ]
       }
+      research_logbook_entries: {
+        Row: {
+          attachments: Json
+          author_id: string
+          content: string
+          countersigned_at: string | null
+          countersigned_by: string | null
+          created_at: string
+          entry_date: string
+          entry_type: string
+          id: string
+          project_id: string
+          signature_hash: string | null
+          signed_at: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          attachments?: Json
+          author_id: string
+          content: string
+          countersigned_at?: string | null
+          countersigned_by?: string | null
+          created_at?: string
+          entry_date?: string
+          entry_type: string
+          id?: string
+          project_id: string
+          signature_hash?: string | null
+          signed_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          attachments?: Json
+          author_id?: string
+          content?: string
+          countersigned_at?: string | null
+          countersigned_by?: string | null
+          created_at?: string
+          entry_date?: string
+          entry_type?: string
+          id?: string
+          project_id?: string
+          signature_hash?: string | null
+          signed_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_logbook_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_meeting_agenda_items: {
         Row: {
           completed: boolean
@@ -2213,6 +2275,83 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_milestone_evaluations: {
+        Row: {
+          advisee_id: string | null
+          comments: string | null
+          created_at: string
+          evaluated_at: string
+          evaluatee_id: string | null
+          evaluator_id: string
+          id: string
+          project_id: string
+          schedule_item_id: string | null
+          score: number | null
+          task_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          advisee_id?: string | null
+          comments?: string | null
+          created_at?: string
+          evaluated_at?: string
+          evaluatee_id?: string | null
+          evaluator_id: string
+          id?: string
+          project_id: string
+          schedule_item_id?: string | null
+          score?: number | null
+          task_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          advisee_id?: string | null
+          comments?: string | null
+          created_at?: string
+          evaluated_at?: string
+          evaluatee_id?: string | null
+          evaluator_id?: string
+          id?: string
+          project_id?: string
+          schedule_item_id?: string | null
+          score?: number | null
+          task_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_milestone_evaluations_advisee_id_fkey"
+            columns: ["advisee_id"]
+            isOneToOne: false
+            referencedRelation: "research_advisees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_milestone_evaluations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_milestone_evaluations_schedule_item_id_fkey"
+            columns: ["schedule_item_id"]
+            isOneToOne: false
+            referencedRelation: "research_schedule_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_milestone_evaluations_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "research_tasks"
             referencedColumns: ["id"]
           },
         ]
@@ -2405,12 +2544,20 @@ export type Database = {
       }
       research_publications: {
         Row: {
+          abstract: string | null
           acceptance_date: string | null
+          altmetric_score: number | null
+          altmetric_url: string | null
+          authors: string[] | null
+          citations_count: number | null
           created_at: string
           created_by: string
           doi: string | null
+          enriched_at: string | null
           id: string
           notes: string | null
+          openalex_id: string | null
+          orcid_put_code: string | null
           position: number
           project_id: string
           publication_date: string | null
@@ -2422,12 +2569,20 @@ export type Database = {
           url: string | null
         }
         Insert: {
+          abstract?: string | null
           acceptance_date?: string | null
+          altmetric_score?: number | null
+          altmetric_url?: string | null
+          authors?: string[] | null
+          citations_count?: number | null
           created_at?: string
           created_by: string
           doi?: string | null
+          enriched_at?: string | null
           id?: string
           notes?: string | null
+          openalex_id?: string | null
+          orcid_put_code?: string | null
           position?: number
           project_id: string
           publication_date?: string | null
@@ -2439,12 +2594,20 @@ export type Database = {
           url?: string | null
         }
         Update: {
+          abstract?: string | null
           acceptance_date?: string | null
+          altmetric_score?: number | null
+          altmetric_url?: string | null
+          authors?: string[] | null
+          citations_count?: number | null
           created_at?: string
           created_by?: string
           doi?: string | null
+          enriched_at?: string | null
           id?: string
           notes?: string | null
+          openalex_id?: string | null
+          orcid_put_code?: string | null
           position?: number
           project_id?: string
           publication_date?: string | null

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, FlaskConical, Calendar, Users2, FileText, Banknote } from "lucide-react";
+import { Plus, FlaskConical, Calendar, Users2, FileText, Banknote, GraduationCap } from "lucide-react";
 import { useResearchProjects, useCreateResearchProject } from "@/hooks/useResearchProjects";
 import { STATUS_LABEL } from "@/lib/research/types";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -53,6 +53,9 @@ const Inner = () => {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link to="/research/advisor"><GraduationCap className="h-4 w-4" />{locale === "pt" ? "Orientador" : "Advisor"}</Link>
+          </Button>
           <Button asChild variant="outline">
             <Link to="/research/funding"><Banknote className="h-4 w-4" />{locale === "pt" ? "Editais" : "Funding"}</Link>
           </Button>

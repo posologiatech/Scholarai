@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck, NotebookPen, RefreshCw, ExternalLink } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { STATUS_LABEL, ROLE_LABEL, TASK_STATUS_LABEL, PUB_STATUS_LABEL, type ResearchTaskStatus, type ResearchPublicationStatus, type ResearchMemberRole, type ResearchAdviseeLevel } from "@/lib/research/types";
 import { toast } from "sonner";
@@ -27,6 +27,8 @@ import { CommentThread } from "@/components/research/CommentThread";
 import DocumentsTab from "@/components/research/DocumentsTab";
 import BudgetTab from "@/components/research/BudgetTab";
 import EthicsTab from "@/components/research/EthicsTab";
+import LogbookTab from "@/components/research/LogbookTab";
+import PresentationMode from "@/components/research/PresentationMode";
 
 // ===== Tab: Equipe =====
 const TeamTab = ({ projectId }: { projectId: string }) => {
@@ -626,6 +628,18 @@ const PublicationsTab = ({ projectId }: { projectId: string }) => {
     qc.invalidateQueries({ queryKey: ["research-pubs", projectId] });
   };
 
+  const enrich = async (p: any) => {
+    if (!p.doi) return toast.error(locale === "pt" ? "Adicione um DOI primeiro" : "Add a DOI first");
+    toast.loading(locale === "pt" ? "Buscando métricas..." : "Fetching metrics...", { id: `enr-${p.id}` });
+    const { error } = await supabase.functions.invoke("research-enrich-publication", {
+      body: { publication_id: p.id, doi: p.doi },
+    });
+    toast.dismiss(`enr-${p.id}`);
+    if (error) return toast.error(error.message);
+    toast.success(locale === "pt" ? "Atualizado" : "Updated");
+    qc.invalidateQueries({ queryKey: ["research-pubs", projectId] });
+  };
+
   const statuses: ResearchPublicationStatus[] = ["ideia", "escrevendo", "submetido", "em_revisao", "aceito", "publicado"];
 
   return (
@@ -659,11 +673,18 @@ const PublicationsTab = ({ projectId }: { projectId: string }) => {
                 <Card key={p.id}><CardContent className="p-2 space-y-1">
                   <p className="text-xs font-medium line-clamp-3">{p.title}</p>
                   {p.target_journal && <p className="text-[10px] text-muted-foreground">{p.target_journal}</p>}
+                  {(p.citations_count > 0 || p.altmetric_score) && (
+                    <div className="flex gap-2 text-[10px] text-muted-foreground">
+                      {p.citations_count > 0 && <span>📚 {p.citations_count}</span>}
+                      {p.altmetric_score && <span className="text-orange-600">🌐 {Number(p.altmetric_score).toFixed(0)}</span>}
+                    </div>
+                  )}
                   <div className="flex gap-1 pt-1">
                     <Select value={p.status} onValueChange={(v: any) => move(p.id, v)}>
                       <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
                       <SelectContent>{statuses.map(s => <SelectItem key={s} value={s}>{PUB_STATUS_LABEL[s][locale]}</SelectItem>)}</SelectContent>
                     </Select>
+                    {p.doi && <Button size="icon" variant="ghost" className="h-6 w-6" title={locale === "pt" ? "Atualizar métricas" : "Refresh metrics"} onClick={() => enrich(p)}><RefreshCw className="h-3 w-3" /></Button>}
                     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => remove(p.id)}><Trash2 className="h-3 w-3" /></Button>
                   </div>
                   <Button asChild size="sm" variant="link" className="h-auto p-0 text-[10px]">
@@ -844,10 +865,22 @@ const OverviewTab = ({ project }: { project: any }) => {
 const Inner = () => {
   const { id } = useParams<{ id: string }>();
   const { locale } = useLanguage();
+  const { user } = useAuth();
   const { data: project, isLoading } = useResearchProject(id);
   const updateMut = useUpdateResearchProject();
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", description: "", status: "planejamento" as any });
+
+  const { data: myRole } = useQuery({
+    queryKey: ["my-research-role", id, user?.id],
+    enabled: !!id && !!user,
+    queryFn: async () => {
+      const { data } = await supabase.from("research_project_members")
+        .select("role").eq("project_id", id!).eq("user_id", user!.id).maybeSingle();
+      return data?.role ?? null;
+    },
+  });
+  const isManager = !!project && (project.owner_id === user?.id || myRole === "pi" || myRole === "co_pi");
 
   useEffect(() => {
     if (project) setEditForm({ title: project.title, description: project.description || "", status: project.status });
@@ -889,7 +922,12 @@ const Inner = () => {
             </>
           )}
         </div>
-        {!editing && <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{locale === "pt" ? "Editar" : "Edit"}</Button>}
+        {!editing && (
+          <div className="flex gap-2">
+            <PresentationMode project={project} />
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{locale === "pt" ? "Editar" : "Edit"}</Button>
+          </div>
+        )}
       </header>
 
       <Tabs defaultValue="overview">
@@ -906,6 +944,7 @@ const Inner = () => {
           <TabsTrigger value="docs"><FileSignature className="h-4 w-4" />{locale === "pt" ? "Documentos" : "Documents"}</TabsTrigger>
           <TabsTrigger value="budget"><Wallet className="h-4 w-4" />{locale === "pt" ? "Orçamento" : "Budget"}</TabsTrigger>
           <TabsTrigger value="ethics"><ShieldCheck className="h-4 w-4" />{locale === "pt" ? "Ética" : "Ethics"}</TabsTrigger>
+          <TabsTrigger value="logbook"><NotebookPen className="h-4 w-4" />{locale === "pt" ? "Diário de Bordo" : "Logbook"}</TabsTrigger>
         </TabsList>
         <div className="mt-4">
           <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
@@ -920,6 +959,7 @@ const Inner = () => {
           <TabsContent value="docs"><DocumentsTab projectId={project.id} /></TabsContent>
           <TabsContent value="budget"><BudgetTab projectId={project.id} /></TabsContent>
           <TabsContent value="ethics"><EthicsTab projectId={project.id} /></TabsContent>
+          <TabsContent value="logbook"><LogbookTab projectId={project.id} isManager={isManager} /></TabsContent>
         </div>
       </Tabs>
 
