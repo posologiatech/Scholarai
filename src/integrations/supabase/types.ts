@@ -1675,6 +1675,56 @@ export type Database = {
           },
         ]
       }
+      research_compliance_items: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          notes: string | null
+          project_id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          project_id: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          project_id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_compliance_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_copilot_messages: {
         Row: {
           content: string
@@ -2494,9 +2544,11 @@ export type Database = {
           end_date: string | null
           full_content: string | null
           id: string
+          is_public: boolean
           keywords: string[]
           objectives: string | null
           owner_id: string | null
+          public_slug: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["research_project_status"]
           title: string
@@ -2510,9 +2562,11 @@ export type Database = {
           end_date?: string | null
           full_content?: string | null
           id?: string
+          is_public?: boolean
           keywords?: string[]
           objectives?: string | null
           owner_id?: string | null
+          public_slug?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["research_project_status"]
           title: string
@@ -2526,9 +2580,11 @@ export type Database = {
           end_date?: string | null
           full_content?: string | null
           id?: string
+          is_public?: boolean
           keywords?: string[]
           objectives?: string | null
           owner_id?: string | null
+          public_slug?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["research_project_status"]
           title?: string
@@ -2660,6 +2716,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "research_publications_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_risk_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string
+          id: string
+          message: string | null
+          project_id: string
+          related_entity_id: string | null
+          related_entity_type: string | null
+          resolved: boolean
+          resolved_at: string | null
+          severity: string
+          title: string
+        }
+        Insert: {
+          alert_type: string
+          created_at?: string
+          id?: string
+          message?: string | null
+          project_id: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+          severity?: string
+          title: string
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string
+          id?: string
+          message?: string | null
+          project_id?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+          severity?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_risk_alerts_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "research_projects"
@@ -4112,9 +4218,11 @@ export type Database = {
           end_date: string | null
           full_content: string | null
           id: string
+          is_public: boolean
           keywords: string[]
           objectives: string | null
           owner_id: string | null
+          public_slug: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["research_project_status"]
           title: string

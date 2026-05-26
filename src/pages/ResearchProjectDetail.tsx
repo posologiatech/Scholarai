@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck, NotebookPen, RefreshCw, ExternalLink, Award } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck, NotebookPen, RefreshCw, ExternalLink, Award, AlertTriangle, Activity, Globe } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { STATUS_LABEL, ROLE_LABEL, TASK_STATUS_LABEL, PUB_STATUS_LABEL, type ResearchTaskStatus, type ResearchPublicationStatus, type ResearchMemberRole, type ResearchAdviseeLevel } from "@/lib/research/types";
 import { toast } from "sonner";
@@ -30,6 +30,10 @@ import EthicsTab from "@/components/research/EthicsTab";
 import LogbookTab from "@/components/research/LogbookTab";
 import PresentationMode from "@/components/research/PresentationMode";
 import EvaluationsTab from "@/components/research/EvaluationsTab";
+import RisksTab from "@/components/research/RisksTab";
+import ComplianceTab from "@/components/research/ComplianceTab";
+import ActivityHeatmap from "@/components/research/ActivityHeatmap";
+import PublicShareCard from "@/components/research/PublicShareCard";
 
 // ===== Tab: Equipe =====
 const TeamTab = ({ projectId }: { projectId: string }) => {
@@ -857,6 +861,8 @@ const OverviewTab = ({ project }: { project: any }) => {
         </Card>
       )}
 
+      <PublicShareCard project={project} />
+
       <CommentThread projectId={projectId} entityType="project" entityId={projectId} />
     </div>
   );
@@ -947,6 +953,9 @@ const Inner = () => {
           <TabsTrigger value="ethics"><ShieldCheck className="h-4 w-4" />{locale === "pt" ? "Ética" : "Ethics"}</TabsTrigger>
           <TabsTrigger value="logbook"><NotebookPen className="h-4 w-4" />{locale === "pt" ? "Diário de Bordo" : "Logbook"}</TabsTrigger>
           <TabsTrigger value="evals"><Award className="h-4 w-4" />{locale === "pt" ? "Avaliações" : "Evaluations"}</TabsTrigger>
+          <TabsTrigger value="risks"><AlertTriangle className="h-4 w-4" />{locale === "pt" ? "Riscos" : "Risks"}</TabsTrigger>
+          <TabsTrigger value="compliance"><ShieldCheck className="h-4 w-4" />{locale === "pt" ? "Conformidade" : "Compliance"}</TabsTrigger>
+          <TabsTrigger value="activity"><Activity className="h-4 w-4" />{locale === "pt" ? "Atividade" : "Activity"}</TabsTrigger>
         </TabsList>
         <div className="mt-4">
           <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
@@ -963,6 +972,9 @@ const Inner = () => {
           <TabsContent value="ethics"><EthicsTab projectId={project.id} /></TabsContent>
           <TabsContent value="logbook"><LogbookTab projectId={project.id} isManager={isManager} /></TabsContent>
           <TabsContent value="evals"><EvaluationsTab projectId={project.id} isManager={isManager} /></TabsContent>
+          <TabsContent value="risks"><RisksTab projectId={project.id} /></TabsContent>
+          <TabsContent value="compliance"><ComplianceTab projectId={project.id} /></TabsContent>
+          <TabsContent value="activity"><ActivityHeatmap projectId={project.id} /></TabsContent>
         </div>
       </Tabs>
 
