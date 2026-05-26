@@ -63,6 +63,7 @@ import ResearchProjectDetail from "./pages/ResearchProjectDetail";
 import ResearchFunding from "./pages/ResearchFunding";
 import AdvisorDashboard from "./pages/AdvisorDashboard";
 import OrcidCallback from "./pages/OrcidCallback";
+import PublicProject from "./pages/PublicProject";
 import OracleAgent from "./components/app/OracleAgent";
 import AdminRoadmapDialog from "./components/app/AdminRoadmapDialog";
 const queryClient = new QueryClient();
@@ -145,6 +146,7 @@ const App = () => (
               <Route path="/research/advisor" element={<ProtectedRoute><AdvisorDashboard /></ProtectedRoute>} />
               <Route path="/research/:id" element={<ProtectedRoute><ResearchProjectDetail /></ProtectedRoute>} />
               <Route path="/orcid/callback" element={<ProtectedRoute><OrcidCallback /></ProtectedRoute>} />
+              <Route path="/p/:slug" element={<PublicProject />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
