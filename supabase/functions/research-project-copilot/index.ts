@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
         []
       ),
       supabase.from("research_schedule_items").select("title,description,phase,status,start_date,end_date,progress,is_milestone,predecessor_id").eq("project_id", project_id).order("start_date", { nullsFirst: false }),
-      supabase.from("research_project_references").select("title,authors,year,doi").eq("project_id", project_id).limit(60),
+      supabase.from("research_project_references").select("title,authors,year,doi,external_paper_id").eq("project_id", project_id).limit(60),
       supabase.from("research_ideas").select("title,description").eq("project_id", project_id).limit(20),
     ]);
 
