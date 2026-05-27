@@ -4310,6 +4310,21 @@ export type Database = {
           source: string
         }[]
       }
+      match_project_paper_chunks: {
+        Args: {
+          _project_id: string
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_text: string
+          paper_id: string
+          paper_title: string
+          similarity: number
+          source: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
