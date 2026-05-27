@@ -122,6 +122,37 @@ Deno.serve(async (req) => {
       ideas.forEach((i: any) => lines.push(`- ${i.title}${i.description ? ": " + clip(i.description, 200) : ""}`));
     }
 
+    // ===== RAG sobre os papers da Biblioteca vinculados =====
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const lastUserMsg = [...messages].reverse().find((m: Msg) => m.role === "user")?.content ?? "";
+    if (LOVABLE_API_KEY && lastUserMsg && refs?.some((r: any) => r.external_paper_id)) {
+      try {
+        const emb = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "google/text-embedding-004", input: lastUserMsg.slice(0, 4000) }),
+        });
+        if (emb.ok) {
+          const ej = await emb.json();
+          const qv = ej.data?.[0]?.embedding;
+          if (Array.isArray(qv)) {
+            const { data: chunks } = await supabase.rpc("match_project_paper_chunks", {
+              query_embedding: qv as any, _project_id: project_id, match_count: 6, match_threshold: 0.35,
+            });
+            if (chunks && chunks.length) {
+              lines.push(`\n## TRECHOS RELEVANTES DA BIBLIOTECA (RAG)`);
+              chunks.forEach((c: any, i: number) => {
+                lines.push(`\n[Ref ${i + 1}: ${clip(c.paper_title, 160)}]\n${clip(c.chunk_text, 900)}`);
+              });
+              lines.push(`\n> Ao usar essas informações, cite inline como [Ref N] e nunca invente conteúdo fora desses trechos.`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("RAG failed:", e);
+      }
+    }
+
     let ctx = lines.join("\n");
     if (ctx.length > MAX_CTX) ctx = ctx.slice(0, MAX_CTX) + "\n…[contexto truncado]";
 
