@@ -1986,8 +1986,11 @@ export type Database = {
           id: string
           invoice_number: string | null
           invoice_url: string | null
+          ocr_data: Json | null
+          ocr_text: string | null
           project_id: string
           status: string
+          suggested_rubrica: string | null
           supplier: string | null
           updated_at: string
         }
@@ -2002,8 +2005,11 @@ export type Database = {
           id?: string
           invoice_number?: string | null
           invoice_url?: string | null
+          ocr_data?: Json | null
+          ocr_text?: string | null
           project_id: string
           status?: string
+          suggested_rubrica?: string | null
           supplier?: string | null
           updated_at?: string
         }
@@ -2018,8 +2024,11 @@ export type Database = {
           id?: string
           invoice_number?: string | null
           invoice_url?: string | null
+          ocr_data?: Json | null
+          ocr_text?: string | null
           project_id?: string
           status?: string
+          suggested_rubrica?: string | null
           supplier?: string | null
           updated_at?: string
         }
@@ -2496,6 +2505,74 @@ export type Database = {
           },
         ]
       }
+      research_outputs: {
+        Row: {
+          authors: Json | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          doi: string | null
+          id: string
+          is_public: boolean
+          license: string | null
+          metrics: Json | null
+          project_id: string
+          release_date: string | null
+          repository: string | null
+          tags: string[] | null
+          title: string
+          type: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          authors?: Json | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          doi?: string | null
+          id?: string
+          is_public?: boolean
+          license?: string | null
+          metrics?: Json | null
+          project_id: string
+          release_date?: string | null
+          repository?: string | null
+          tags?: string[] | null
+          title: string
+          type?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          authors?: Json | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          doi?: string | null
+          id?: string
+          is_public?: boolean
+          license?: string | null
+          metrics?: Json | null
+          project_id?: string
+          release_date?: string | null
+          repository?: string | null
+          tags?: string[] | null
+          title?: string
+          type?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_outputs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_project_members: {
         Row: {
           accepted: boolean
@@ -2595,6 +2672,8 @@ export type Database = {
           end_date: string | null
           folha_rosto_url: string | null
           full_content: string | null
+          funder_template: string | null
+          funding_call_id: string | null
           id: string
           is_public: boolean
           keywords: string[]
@@ -2617,6 +2696,8 @@ export type Database = {
           end_date?: string | null
           folha_rosto_url?: string | null
           full_content?: string | null
+          funder_template?: string | null
+          funding_call_id?: string | null
           id?: string
           is_public?: boolean
           keywords?: string[]
@@ -2639,6 +2720,8 @@ export type Database = {
           end_date?: string | null
           folha_rosto_url?: string | null
           full_content?: string | null
+          funder_template?: string | null
+          funding_call_id?: string | null
           id?: string
           is_public?: boolean
           keywords?: string[]
@@ -2654,7 +2737,15 @@ export type Database = {
           updated_at?: string
           workspace_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "research_projects_funding_call_id_fkey"
+            columns: ["funding_call_id"]
+            isOneToOne: false
+            referencedRelation: "funding_calls"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       research_publication_authors: {
         Row: {
@@ -4281,6 +4372,8 @@ export type Database = {
           end_date: string | null
           folha_rosto_url: string | null
           full_content: string | null
+          funder_template: string | null
+          funding_call_id: string | null
           id: string
           is_public: boolean
           keywords: string[]
