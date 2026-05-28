@@ -17,6 +17,46 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
+
+const MEETING_TEMPLATES = [
+  {
+    id: "1on1",
+    label: { pt: "1:1 Orientação", en: "1:1 Advising" },
+    title: { pt: "Reunião 1:1 de orientação", en: "1:1 advising meeting" },
+    agenda: {
+      pt: ["Avanços desde a última reunião", "Dificuldades e bloqueios", "Leituras da semana", "Próximas entregas (1–2 semanas)", "Dúvidas e feedback do orientador"],
+      en: ["Progress since last meeting", "Difficulties and blockers", "Readings this week", "Next deliverables (1–2 weeks)", "Questions and advisor feedback"],
+    },
+  },
+  {
+    id: "team",
+    label: { pt: "Equipe", en: "Team" },
+    title: { pt: "Reunião de equipe", en: "Team meeting" },
+    agenda: {
+      pt: ["Status por frente de trabalho", "Riscos e dependências", "Decisões pendentes", "Próximos marcos do cronograma", "Encaminhamentos"],
+      en: ["Workstream status", "Risks and dependencies", "Pending decisions", "Upcoming milestones", "Action items"],
+    },
+  },
+  {
+    id: "committee",
+    label: { pt: "Comitê", en: "Committee" },
+    title: { pt: "Reunião com comitê", en: "Committee meeting" },
+    agenda: {
+      pt: ["Apresentação do estado atual", "Resultados parciais", "Aderência ao cronograma e orçamento", "Riscos e mitigações", "Recomendações do comitê"],
+      en: ["Current status presentation", "Partial results", "Schedule and budget adherence", "Risks and mitigations", "Committee recommendations"],
+    },
+  },
+  {
+    id: "kickoff",
+    label: { pt: "Kickoff", en: "Kickoff" },
+    title: { pt: "Kickoff do projeto", en: "Project kickoff" },
+    agenda: {
+      pt: ["Visão e objetivos", "Equipe e papéis (CRediT)", "Cronograma macro e marcos", "Riscos iniciais", "Definição de cadência de reuniões"],
+      en: ["Vision and objectives", "Team and CRediT roles", "Macro schedule and milestones", "Initial risks", "Meeting cadence"],
+    },
+  },
+];
+
 const isYouTube = (u: string) => /youtube\.com|youtu\.be/.test(u);
 const youTubeId = (u: string) => {
   const m = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
@@ -202,8 +242,11 @@ const FollowUpsPanel = ({ meeting, projectId, onRefresh }: any) => {
   const { locale } = useLanguage();
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [items, setItems] = useState<{ title: string; due_date: string }[]>([{ title: "", due_date: "" }]);
+  const [items, setItems] = useState<{ title: string; due_date: string; priority?: string }[]>([{ title: "", due_date: "" }]);
   const [saving, setSaving] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [risks, setRisks] = useState<{ title: string; severity: string }[]>([]);
+  const [decisions, setDecisions] = useState<string[]>([]);
 
   const { data: existing = [] } = useQuery({
     queryKey: ["meeting-followups", meeting.id],
@@ -214,11 +257,36 @@ const FollowUpsPanel = ({ meeting, projectId, onRefresh }: any) => {
     },
   });
 
+  const suggestWithAI = async () => {
+    setSuggesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("research-meeting-followups", {
+        body: { meeting_id: meeting.id },
+      });
+      if (error) throw error;
+      const next = (data?.followups ?? []).map((f: any) => ({
+        title: f.title || "", due_date: f.due_date || "", priority: f.priority || "medium",
+      }));
+      if (next.length) {
+        setItems([...items.filter(i => i.title.trim()), ...next, { title: "", due_date: "" }]);
+        toast.success(locale === "pt" ? `${next.length} sugestão(ões) prontas — revise e salve` : `${next.length} suggestion(s) ready — review and save`);
+      } else {
+        toast.info(locale === "pt" ? "Nada a sugerir ainda. Adicione notas na reunião." : "Nothing to suggest yet. Add meeting notes.");
+      }
+      setRisks(data?.risks ?? []);
+      setDecisions(data?.decisions ?? []);
+    } catch (e: any) {
+      toast.error(e.message || "AI error");
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
   const save = async () => {
     const rows = items.filter(i => i.title.trim()).map(i => ({
       project_id: projectId, created_by: user!.id,
       title: i.title.trim(), due_date: i.due_date || null,
-      status: "backlog" as const, priority: "medium" as const,
+      status: "backlog" as const, priority: (i.priority as any) || "medium",
       source_meeting_id: meeting.id,
     }));
     if (!rows.length) return;
@@ -245,6 +313,22 @@ const FollowUpsPanel = ({ meeting, projectId, onRefresh }: any) => {
           ))}
         </div>
       )}
+      {(risks.length > 0 || decisions.length > 0) && (
+        <div className="grid md:grid-cols-2 gap-2">
+          {risks.length > 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-1">{locale === "pt" ? "Riscos identificados (IA)" : "Risks (AI)"}</p>
+              <ul className="text-xs space-y-1">{risks.map((r, i) => <li key={i}>• <span className="font-medium">[{r.severity}]</span> {r.title}</li>)}</ul>
+            </div>
+          )}
+          {decisions.length > 0 && (
+            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300 mb-1">{locale === "pt" ? "Decisões registradas (IA)" : "Decisions (AI)"}</p>
+              <ul className="text-xs space-y-1">{decisions.map((d, i) => <li key={i}>• {d}</li>)}</ul>
+            </div>
+          )}
+        </div>
+      )}
       <div className="space-y-2">
         {items.map((it, idx) => (
           <div key={idx} className="flex gap-2">
@@ -259,14 +343,21 @@ const FollowUpsPanel = ({ meeting, projectId, onRefresh }: any) => {
             )}
           </div>
         ))}
-        <Button onClick={save} disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-          {locale === "pt" ? "Criar como tarefas" : "Create as tasks"}
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button onClick={save} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+            {locale === "pt" ? "Criar como tarefas" : "Create as tasks"}
+          </Button>
+          <Button variant="outline" onClick={suggestWithAI} disabled={suggesting}>
+            {suggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {locale === "pt" ? "Sugerir com IA" : "Suggest with AI"}
+          </Button>
+        </div>
       </div>
     </div>
   );
 };
+
 
 export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; projectId: string; onClose: () => void }) => {
   const { locale } = useLanguage();
@@ -595,9 +686,24 @@ export const NewMeetingDialog = ({ projectId, open, onOpenChange }: { projectId:
           )}
 
           <div>
-            <Label>{locale === "pt" ? "Pauta livre (uma por linha)" : "Free agenda (one per line)"}</Label>
-            <Textarea value={form.agenda} onChange={(e) => setForm({ ...form, agenda: e.target.value })} rows={3} />
+            <div className="flex items-center justify-between mb-1.5">
+              <Label className="mb-0">{locale === "pt" ? "Pauta livre (uma por linha)" : "Free agenda (one per line)"}</Label>
+              <div className="flex gap-1 flex-wrap">
+                {MEETING_TEMPLATES.map(tpl => (
+                  <Button key={tpl.id} type="button" size="sm" variant="ghost" className="h-6 text-[11px] px-2"
+                    onClick={() => setForm({
+                      ...form,
+                      title: form.title || tpl.title[locale === "pt" ? "pt" : "en"],
+                      agenda: (form.agenda ? form.agenda + "\n" : "") + tpl.agenda[locale === "pt" ? "pt" : "en"].join("\n"),
+                    })}>
+                    {tpl.label[locale === "pt" ? "pt" : "en"]}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <Textarea value={form.agenda} onChange={(e) => setForm({ ...form, agenda: e.target.value })} rows={5} />
           </div>
+
         </div>
         <DialogFooter>
           <Button onClick={create} disabled={saving}>
