@@ -11,9 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ShieldCheck, Sparkles } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, ExternalLink, Upload, FileSignature, Lock, FileText, Download } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "sonner";
+import { supabase as supa } from "@/integrations/supabase/client";
 
 const CATEGORIES = [
   { id: "etica", label_pt: "Ética", label_en: "Ethics" },
@@ -102,6 +103,8 @@ export default function ComplianceTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-4">
+      <PlataformaBrasilCard projectId={projectId} />
+
       <Card className="bg-gradient-to-r from-primary/5 to-transparent">
         <CardContent className="py-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -117,6 +120,7 @@ export default function ComplianceTab({ projectId }: { projectId: string }) {
           </div>
         </CardContent>
       </Card>
+
 
       <div className="flex justify-end">
         <Dialog open={open} onOpenChange={setOpen}>
@@ -164,6 +168,159 @@ export default function ComplianceTab({ projectId }: { projectId: string }) {
           </Card>
         );
       })}
+    </div>
+  );
+}
+
+// ===== Plataforma Brasil / Folha de Rosto / Termo de Sigilo =====
+function PlataformaBrasilCard({ projectId }: { projectId: string }) {
+  const { locale } = useLanguage();
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const t = (pt: string, en: string) => (locale === "pt" ? pt : en);
+  const [editing, setEditing] = useState(false);
+  const [caae, setCaae] = useState("");
+  const [pbUrl, setPbUrl] = useState("");
+  const [uploading, setUploading] = useState<"folha" | "sigilo" | null>(null);
+
+  const { data: project } = useQuery({
+    queryKey: ["project-plataforma-brasil", projectId],
+    queryFn: async () => {
+      const { data } = await supa.from("research_projects")
+        .select("plataforma_brasil_caae, plataforma_brasil_url, folha_rosto_url, termo_sigilo_url")
+        .eq("id", projectId).maybeSingle();
+      if (data) { setCaae(data.plataforma_brasil_caae || ""); setPbUrl(data.plataforma_brasil_url || ""); }
+      return data;
+    },
+  });
+
+  const save = async () => {
+    await supa.from("research_projects")
+      .update({ plataforma_brasil_caae: caae || null, plataforma_brasil_url: pbUrl || null })
+      .eq("id", projectId);
+    qc.invalidateQueries({ queryKey: ["project-plataforma-brasil", projectId] });
+    toast.success(t("Salvo", "Saved"));
+    setEditing(false);
+  };
+
+  const uploadDoc = async (file: File, kind: "folha" | "sigilo") => {
+    if (!user) return;
+    setUploading(kind);
+    const safe = file.name.replace(/[^\w.-]+/g, "_");
+    const path = `${user.id}/${projectId}/${kind}-${Date.now()}-${safe}`;
+    const { error } = await supa.storage.from("research-documents").upload(path, file, { upsert: true });
+    if (error) { toast.error(error.message); setUploading(null); return; }
+    const field = kind === "folha" ? "folha_rosto_url" : "termo_sigilo_url";
+    await supa.from("research_projects").update({ [field]: path }).eq("id", projectId);
+    qc.invalidateQueries({ queryKey: ["project-plataforma-brasil", projectId] });
+    toast.success(t("Documento enviado", "Document uploaded"));
+    setUploading(null);
+  };
+
+  const getDocUrl = async (path: string) => {
+    const { data } = await supa.storage.from("research-documents").createSignedUrl(path, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+  };
+
+  const PB_URL = "https://plataformabrasil.saude.gov.br/login.jsf";
+
+  return (
+    <Card className="border-blue-500/30 bg-gradient-to-br from-blue-500/5 to-transparent">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-blue-500" />
+          {t("Plataforma Brasil & Documentos Regulatórios", "Plataforma Brasil & Regulatory Documents")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="md:col-span-1">
+            <Label className="text-xs">CAAE</Label>
+            {editing ? (
+              <Input value={caae} onChange={(e) => setCaae(e.target.value)} placeholder="00000.0.0000.0000" className="mt-1" />
+            ) : (
+              <p className="text-sm font-mono mt-1">{project?.plataforma_brasil_caae || "—"}</p>
+            )}
+          </div>
+          <div className="md:col-span-2">
+            <Label className="text-xs">{t("URL do protocolo na Plataforma Brasil", "Plataforma Brasil URL")}</Label>
+            {editing ? (
+              <Input value={pbUrl} onChange={(e) => setPbUrl(e.target.value)} placeholder="https://plataformabrasil.saude.gov.br/..." className="mt-1" />
+            ) : project?.plataforma_brasil_url ? (
+              <a href={project.plataforma_brasil_url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline mt-1 inline-flex items-center gap-1">
+                <ExternalLink className="h-3 w-3" />{t("Abrir protocolo", "Open protocol")}
+              </a>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-1">—</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {editing ? (
+            <>
+              <Button size="sm" onClick={save}>{t("Salvar", "Save")}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>{t("Cancelar", "Cancel")}</Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>{t("Editar dados", "Edit info")}</Button>
+              <Button size="sm" variant="secondary" asChild>
+                <a href={PB_URL} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" />{t("Acessar Plataforma Brasil", "Open Plataforma Brasil")}</a>
+              </Button>
+            </>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t">
+          <DocSlot
+            icon={<FileSignature className="h-4 w-4" />}
+            label={t("Folha de Rosto (Plataforma Brasil)", "Cover Sheet (Plataforma Brasil)")}
+            path={project?.folha_rosto_url}
+            uploading={uploading === "folha"}
+            onUpload={(f) => uploadDoc(f, "folha")}
+            onOpen={() => project?.folha_rosto_url && getDocUrl(project.folha_rosto_url)}
+            t={t}
+          />
+          <DocSlot
+            icon={<Lock className="h-4 w-4" />}
+            label={t("Termo de Sigilo / Confidencialidade", "Confidentiality Agreement")}
+            path={project?.termo_sigilo_url}
+            uploading={uploading === "sigilo"}
+            onUpload={(f) => uploadDoc(f, "sigilo")}
+            onOpen={() => project?.termo_sigilo_url && getDocUrl(project.termo_sigilo_url)}
+            t={t}
+          />
+        </div>
+
+        <p className="text-[11px] text-muted-foreground">
+          {t(
+            "A CONEP exige tramitação dos protocolos pelo portal da Plataforma Brasil. Aqui você mantém o CAAE, o link do protocolo e arquivos anexos sincronizados com o projeto.",
+            "CONEP requires protocols to be filed through Plataforma Brasil. Keep your CAAE, protocol URL and uploaded files synced with the project here."
+          )}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DocSlot({ icon, label, path, uploading, onUpload, onOpen, t }: any) {
+  return (
+    <div className="rounded-md border p-3 space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium">{icon}{label}</div>
+      {path ? (
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={onOpen}><Download className="h-3.5 w-3.5" />{t("Abrir", "Open")}</Button>
+          <label className="inline-flex">
+            <Button size="sm" variant="ghost" asChild><span><Upload className="h-3.5 w-3.5" />{t("Substituir", "Replace")}</span></Button>
+            <input type="file" hidden accept=".pdf,.doc,.docx" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
+          </label>
+        </div>
+      ) : (
+        <label className="inline-flex">
+          <Button size="sm" disabled={uploading} asChild><span>{uploading ? t("Enviando…", "Uploading…") : (<><Upload className="h-3.5 w-3.5" />{t("Enviar arquivo", "Upload file")}</>)}</span></Button>
+          <input type="file" hidden accept=".pdf,.doc,.docx" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} />
+        </label>
+      )}
     </div>
   );
 }
