@@ -9,6 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Loader2, Check, FileText, Sparkles, Wand2, Plus, ChevronDown } from "lucide-react";
+import { OverviewVersionsDialog } from "./OverviewVersionsDialog";
 import { PROJECT_BODY_TEMPLATE_PT } from "@/lib/research/types";
 import { useLanguage } from "@/i18n/LanguageContext";
 import ReactMarkdown from "react-markdown";
