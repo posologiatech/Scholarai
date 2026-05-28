@@ -985,6 +985,7 @@ const Inner = () => {
           <TabsContent value="credit"><CreditAuthorshipTab projectId={project.id} projectTitle={project.title} /></TabsContent>
           <TabsContent value="outputs"><OutputsTab projectId={project.id} /></TabsContent>
           <TabsContent value="activity"><ActivityHeatmap projectId={project.id} /></TabsContent>
+          <TabsContent value="integrations"><IntegrationsTab projectId={project.id} /></TabsContent>
         </div>
       </Tabs>
 
