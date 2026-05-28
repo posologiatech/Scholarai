@@ -17,6 +17,46 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
+
+const MEETING_TEMPLATES = [
+  {
+    id: "1on1",
+    label: { pt: "1:1 Orientação", en: "1:1 Advising" },
+    title: { pt: "Reunião 1:1 de orientação", en: "1:1 advising meeting" },
+    agenda: {
+      pt: ["Avanços desde a última reunião", "Dificuldades e bloqueios", "Leituras da semana", "Próximas entregas (1–2 semanas)", "Dúvidas e feedback do orientador"],
+      en: ["Progress since last meeting", "Difficulties and blockers", "Readings this week", "Next deliverables (1–2 weeks)", "Questions and advisor feedback"],
+    },
+  },
+  {
+    id: "team",
+    label: { pt: "Equipe", en: "Team" },
+    title: { pt: "Reunião de equipe", en: "Team meeting" },
+    agenda: {
+      pt: ["Status por frente de trabalho", "Riscos e dependências", "Decisões pendentes", "Próximos marcos do cronograma", "Encaminhamentos"],
+      en: ["Workstream status", "Risks and dependencies", "Pending decisions", "Upcoming milestones", "Action items"],
+    },
+  },
+  {
+    id: "committee",
+    label: { pt: "Comitê", en: "Committee" },
+    title: { pt: "Reunião com comitê", en: "Committee meeting" },
+    agenda: {
+      pt: ["Apresentação do estado atual", "Resultados parciais", "Aderência ao cronograma e orçamento", "Riscos e mitigações", "Recomendações do comitê"],
+      en: ["Current status presentation", "Partial results", "Schedule and budget adherence", "Risks and mitigations", "Committee recommendations"],
+    },
+  },
+  {
+    id: "kickoff",
+    label: { pt: "Kickoff", en: "Kickoff" },
+    title: { pt: "Kickoff do projeto", en: "Project kickoff" },
+    agenda: {
+      pt: ["Visão e objetivos", "Equipe e papéis (CRediT)", "Cronograma macro e marcos", "Riscos iniciais", "Definição de cadência de reuniões"],
+      en: ["Vision and objectives", "Team and CRediT roles", "Macro schedule and milestones", "Initial risks", "Meeting cadence"],
+    },
+  },
+];
+
 const isYouTube = (u: string) => /youtube\.com|youtu\.be/.test(u);
 const youTubeId = (u: string) => {
   const m = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
