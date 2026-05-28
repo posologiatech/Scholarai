@@ -103,6 +103,8 @@ export default function ComplianceTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-4">
+      <PlataformaBrasilCard projectId={projectId} />
+
       <Card className="bg-gradient-to-r from-primary/5 to-transparent">
         <CardContent className="py-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -118,6 +120,7 @@ export default function ComplianceTab({ projectId }: { projectId: string }) {
           </div>
         </CardContent>
       </Card>
+
 
       <div className="flex justify-end">
         <Dialog open={open} onOpenChange={setOpen}>
