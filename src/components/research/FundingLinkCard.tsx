@@ -34,9 +34,9 @@ export default function FundingLinkCard({ projectId }: { projectId: string }) {
   };
   useEffect(() => { load(); }, [projectId]);
 
-  const linkCall = async (id: string) => {
+  const linkCall = async (id: string | null) => {
     await supabase.from("research_projects").update({ funding_call_id: id }).eq("id", projectId);
-    toast.success("Edital vinculado");
+    toast.success(id ? "Edital vinculado" : "Vínculo removido");
     load();
   };
 
