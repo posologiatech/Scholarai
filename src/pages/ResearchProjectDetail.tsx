@@ -935,6 +935,7 @@ const Inner = () => {
         </div>
         {!editing && (
           <div className="flex gap-2">
+            <ExportProjectMenu project={project} />
             <PresentationMode project={project} />
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{locale === "pt" ? "Editar" : "Edit"}</Button>
           </div>
