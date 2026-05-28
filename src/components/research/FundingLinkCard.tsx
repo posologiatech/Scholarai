@@ -87,7 +87,7 @@ export default function FundingLinkCard({ projectId }: { projectId: string }) {
           </div>
           <div className="flex gap-2">
             <Button size="sm" variant="secondary" onClick={seedDeadlines}><Sparkles className="h-3 w-3" /> Gerar marcos no cronograma</Button>
-            <Button size="sm" variant="ghost" onClick={() => linkCall("")}>Desvincular</Button>
+            <Button size="sm" variant="ghost" onClick={() => linkCall(null)}>Desvincular</Button>
           </div>
         </div>
       ) : (
