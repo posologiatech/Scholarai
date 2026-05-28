@@ -963,6 +963,7 @@ const Inner = () => {
           <TabsTrigger value="credit"><UserCheck className="h-4 w-4" />{locale === "pt" ? "Autoria CRediT" : "CRediT"}</TabsTrigger>
           <TabsTrigger value="outputs"><Package className="h-4 w-4" />{locale === "pt" ? "Outputs" : "Outputs"}</TabsTrigger>
           <TabsTrigger value="activity"><Activity className="h-4 w-4" />{locale === "pt" ? "Atividade" : "Activity"}</TabsTrigger>
+          <TabsTrigger value="integrations"><Link2 className="h-4 w-4" />{locale === "pt" ? "Integrações" : "Integrations"}</TabsTrigger>
         </TabsList>
         <div className="mt-4">
           <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
