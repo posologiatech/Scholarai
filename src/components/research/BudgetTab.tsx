@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Trash2, Wallet, Receipt } from "lucide-react";
+import { Plus, Trash2, Wallet, Receipt, Sparkles, Download } from "lucide-react";
 import { toast } from "sonner";
+import FundingLinkCard from "./FundingLinkCard";
 
 type Item = { id: string; rubrica: string; description: string; planned_amount: number; currency: string; funder: string | null; period_start: string | null; period_end: string | null; };
 type Expense = { id: string; budget_item_id: string | null; expense_date: string; amount: number; supplier: string | null; description: string; status: string; invoice_number: string | null; invoice_url: string | null; created_by: string; };
@@ -103,13 +104,73 @@ export default function BudgetTab({ projectId }: { projectId: string }) {
     load();
   };
 
+  const exportCSV = (template: "cnpq" | "fapesp") => {
+    const rows = expenses.map((e) => {
+      const item = items.find((i) => i.id === e.budget_item_id);
+      const rubricaLabel = item ? RUBRICAS.find((r) => r.v === item.rubrica)?.l : "";
+      if (template === "cnpq") {
+        return { Data: e.expense_date, Rubrica: rubricaLabel, Descricao: e.description, Fornecedor: e.supplier || "", NF: e.invoice_number || "", Valor: Number(e.amount).toFixed(2), Status: STATUS.find(s => s.v === e.status)?.l || e.status };
+      }
+      return { "Data despesa": e.expense_date, "Elemento de despesa": rubricaLabel, "Especificação": e.description, "Fornecedor": e.supplier || "", "Documento fiscal": e.invoice_number || "", "Valor (R$)": Number(e.amount).toFixed(2).replace(".", ",") };
+    });
+    if (rows.length === 0) { toast.info("Sem despesas para exportar"); return; }
+    const headers = Object.keys(rows[0]);
+    const csv = [headers.join(";"), ...rows.map(r => headers.map(h => `"${String((r as any)[h] ?? "").replace(/"/g, '""')}"`).join(";"))].join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `prestacao-contas-${template}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
+
+  const runOcr = async (file: File) => {
+    toast.loading("Analisando NF…", { id: "ocr" });
+    try {
+      const b64: string = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(",")[1]);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      const { data, error } = await supabase.functions.invoke("research-expense-ocr", {
+        body: { image_base64: b64, mime_type: file.type || "image/jpeg" },
+      });
+      if (error) throw error;
+      const d = data?.data || {};
+      const matchItem = items.find(i => i.rubrica === d.suggested_rubrica);
+      setEditExp((prev) => ({
+        ...prev,
+        amount: d.amount ?? prev.amount,
+        supplier: d.supplier ?? prev.supplier,
+        invoice_number: d.invoice_number ?? prev.invoice_number,
+        expense_date: d.expense_date ?? prev.expense_date,
+        description: prev.description || (Array.isArray(d.items) ? d.items.map((it: any) => it.description).slice(0, 3).join("; ") : ""),
+        budget_item_id: prev.budget_item_id || matchItem?.id || null,
+        ocr_text: d.raw_text ?? null,
+        ocr_data: d as any,
+        suggested_rubrica: d.suggested_rubrica ?? null,
+      } as any));
+      toast.success("Dados extraídos pela IA", { id: "ocr" });
+    } catch (e: any) {
+      toast.error(e.message || "Falha no OCR", { id: "ocr" });
+    }
+  };
+
   return (
     <div className="space-y-4">
+      <FundingLinkCard projectId={projectId} />
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card className="p-4"><div className="text-xs text-muted-foreground">Previsto</div><div className="text-2xl font-semibold">{fmt(totals.planned)}</div></Card>
         <Card className="p-4"><div className="text-xs text-muted-foreground">Executado</div><div className="text-2xl font-semibold">{fmt(totals.executed)}</div><Progress value={totals.pct} className="mt-2 h-1.5" /></Card>
         <Card className="p-4"><div className="text-xs text-muted-foreground">Saldo</div><div className={`text-2xl font-semibold ${totals.balance < 0 ? "text-destructive" : ""}`}>{fmt(totals.balance)}</div></Card>
       </div>
+
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="outline" onClick={() => exportCSV("cnpq")} className="gap-1"><Download className="h-3.5 w-3.5" /> Exportar CNPq</Button>
+        <Button size="sm" variant="outline" onClick={() => exportCSV("fapesp")} className="gap-1"><Download className="h-3.5 w-3.5" /> Exportar FAPESP</Button>
+      </div>
+
 
       <Card className="p-4">
         <div className="flex items-center justify-between mb-3">
@@ -193,6 +254,14 @@ export default function BudgetTab({ projectId }: { projectId: string }) {
         <DialogContent>
           <DialogHeader><DialogTitle>{editExp.id ? "Editar" : "Nova"} despesa</DialogTitle></DialogHeader>
           <div className="grid gap-3">
+            <label className="flex items-center justify-center gap-2 border border-dashed rounded-md p-3 text-sm cursor-pointer hover:bg-muted/40 transition">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span>Anexar NF/recibo (IA preenche os campos)</span>
+              <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) runOcr(f); }} />
+            </label>
+            {(editExp as any).suggested_rubrica && (
+              <div className="text-xs text-muted-foreground">Sugestão IA: <Badge variant="secondary">{RUBRICAS.find(r => r.v === (editExp as any).suggested_rubrica)?.l}</Badge></div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <Input type="date" value={editExp.expense_date || ""} onChange={(e) => setEditExp({ ...editExp, expense_date: e.target.value })} />
               <Input type="number" step="0.01" placeholder="Valor" value={editExp.amount ?? 0} onChange={(e) => setEditExp({ ...editExp, amount: Number(e.target.value) })} />
