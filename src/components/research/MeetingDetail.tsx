@@ -202,8 +202,11 @@ const FollowUpsPanel = ({ meeting, projectId, onRefresh }: any) => {
   const { locale } = useLanguage();
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [items, setItems] = useState<{ title: string; due_date: string }[]>([{ title: "", due_date: "" }]);
+  const [items, setItems] = useState<{ title: string; due_date: string; priority?: string }[]>([{ title: "", due_date: "" }]);
   const [saving, setSaving] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [risks, setRisks] = useState<{ title: string; severity: string }[]>([]);
+  const [decisions, setDecisions] = useState<string[]>([]);
 
   const { data: existing = [] } = useQuery({
     queryKey: ["meeting-followups", meeting.id],
@@ -214,11 +217,36 @@ const FollowUpsPanel = ({ meeting, projectId, onRefresh }: any) => {
     },
   });
 
+  const suggestWithAI = async () => {
+    setSuggesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("research-meeting-followups", {
+        body: { meeting_id: meeting.id },
+      });
+      if (error) throw error;
+      const next = (data?.followups ?? []).map((f: any) => ({
+        title: f.title || "", due_date: f.due_date || "", priority: f.priority || "medium",
+      }));
+      if (next.length) {
+        setItems([...items.filter(i => i.title.trim()), ...next, { title: "", due_date: "" }]);
+        toast.success(locale === "pt" ? `${next.length} sugestão(ões) prontas — revise e salve` : `${next.length} suggestion(s) ready — review and save`);
+      } else {
+        toast.info(locale === "pt" ? "Nada a sugerir ainda. Adicione notas na reunião." : "Nothing to suggest yet. Add meeting notes.");
+      }
+      setRisks(data?.risks ?? []);
+      setDecisions(data?.decisions ?? []);
+    } catch (e: any) {
+      toast.error(e.message || "AI error");
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
   const save = async () => {
     const rows = items.filter(i => i.title.trim()).map(i => ({
       project_id: projectId, created_by: user!.id,
       title: i.title.trim(), due_date: i.due_date || null,
-      status: "backlog" as const, priority: "medium" as const,
+      status: "backlog" as const, priority: (i.priority as any) || "medium",
       source_meeting_id: meeting.id,
     }));
     if (!rows.length) return;
@@ -245,6 +273,22 @@ const FollowUpsPanel = ({ meeting, projectId, onRefresh }: any) => {
           ))}
         </div>
       )}
+      {(risks.length > 0 || decisions.length > 0) && (
+        <div className="grid md:grid-cols-2 gap-2">
+          {risks.length > 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-1">{locale === "pt" ? "Riscos identificados (IA)" : "Risks (AI)"}</p>
+              <ul className="text-xs space-y-1">{risks.map((r, i) => <li key={i}>• <span className="font-medium">[{r.severity}]</span> {r.title}</li>)}</ul>
+            </div>
+          )}
+          {decisions.length > 0 && (
+            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300 mb-1">{locale === "pt" ? "Decisões registradas (IA)" : "Decisions (AI)"}</p>
+              <ul className="text-xs space-y-1">{decisions.map((d, i) => <li key={i}>• {d}</li>)}</ul>
+            </div>
+          )}
+        </div>
+      )}
       <div className="space-y-2">
         {items.map((it, idx) => (
           <div key={idx} className="flex gap-2">
@@ -259,14 +303,21 @@ const FollowUpsPanel = ({ meeting, projectId, onRefresh }: any) => {
             )}
           </div>
         ))}
-        <Button onClick={save} disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-          {locale === "pt" ? "Criar como tarefas" : "Create as tasks"}
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button onClick={save} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+            {locale === "pt" ? "Criar como tarefas" : "Create as tasks"}
+          </Button>
+          <Button variant="outline" onClick={suggestWithAI} disabled={suggesting}>
+            {suggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {locale === "pt" ? "Sugerir com IA" : "Suggest with AI"}
+          </Button>
+        </div>
       </div>
     </div>
   );
 };
+
 
 export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; projectId: string; onClose: () => void }) => {
   const { locale } = useLanguage();
