@@ -14,7 +14,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck, NotebookPen, RefreshCw, ExternalLink, Award, AlertTriangle, Activity, Globe, UserCheck, Package } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck, NotebookPen, RefreshCw, ExternalLink, Award, AlertTriangle, Activity, Globe, UserCheck, Package, Link2 } from "lucide-react";
+import IntegrationsTab from "@/components/research/IntegrationsTab";
+import ExportProjectMenu from "@/components/research/ExportProjectMenu";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { STATUS_LABEL, ROLE_LABEL, TASK_STATUS_LABEL, PUB_STATUS_LABEL, type ResearchTaskStatus, type ResearchPublicationStatus, type ResearchMemberRole, type ResearchAdviseeLevel } from "@/lib/research/types";
 import { toast } from "sonner";
