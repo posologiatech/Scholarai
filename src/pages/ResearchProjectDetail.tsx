@@ -38,6 +38,7 @@ import ActivityHeatmap from "@/components/research/ActivityHeatmap";
 import PublicShareCard from "@/components/research/PublicShareCard";
 import CreditAuthorshipTab from "@/components/research/CreditAuthorshipTab";
 import OutputsTab from "@/components/research/OutputsTab";
+import NotificationsBell from "@/components/research/NotificationsBell";
 
 // ===== Tab: Equipe =====
 const TeamTab = ({ projectId }: { projectId: string }) => {
