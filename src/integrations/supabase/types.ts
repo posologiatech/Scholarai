@@ -1760,6 +1760,57 @@ export type Database = {
           },
         ]
       }
+      research_credit_contributions: {
+        Row: {
+          author_order: number | null
+          created_at: string
+          id: string
+          is_corresponding: boolean
+          member_id: string
+          notes: string | null
+          project_id: string
+          roles: string[]
+          updated_at: string
+        }
+        Insert: {
+          author_order?: number | null
+          created_at?: string
+          id?: string
+          is_corresponding?: boolean
+          member_id: string
+          notes?: string | null
+          project_id: string
+          roles?: string[]
+          updated_at?: string
+        }
+        Update: {
+          author_order?: number | null
+          created_at?: string
+          id?: string
+          is_corresponding?: boolean
+          member_id?: string
+          notes?: string | null
+          project_id?: string
+          roles?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_credit_contributions_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "research_project_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_credit_contributions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_documents: {
         Row: {
           content: string | null
@@ -2542,15 +2593,19 @@ export type Database = {
           created_at: string
           description: string | null
           end_date: string | null
+          folha_rosto_url: string | null
           full_content: string | null
           id: string
           is_public: boolean
           keywords: string[]
           objectives: string | null
           owner_id: string | null
+          plataforma_brasil_caae: string | null
+          plataforma_brasil_url: string | null
           public_slug: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["research_project_status"]
+          termo_sigilo_url: string | null
           title: string
           updated_at: string
           workspace_id: string | null
@@ -2560,15 +2615,19 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_date?: string | null
+          folha_rosto_url?: string | null
           full_content?: string | null
           id?: string
           is_public?: boolean
           keywords?: string[]
           objectives?: string | null
           owner_id?: string | null
+          plataforma_brasil_caae?: string | null
+          plataforma_brasil_url?: string | null
           public_slug?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["research_project_status"]
+          termo_sigilo_url?: string | null
           title: string
           updated_at?: string
           workspace_id?: string | null
@@ -2578,15 +2637,19 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_date?: string | null
+          folha_rosto_url?: string | null
           full_content?: string | null
           id?: string
           is_public?: boolean
           keywords?: string[]
           objectives?: string | null
           owner_id?: string | null
+          plataforma_brasil_caae?: string | null
+          plataforma_brasil_url?: string | null
           public_slug?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["research_project_status"]
+          termo_sigilo_url?: string | null
           title?: string
           updated_at?: string
           workspace_id?: string | null
@@ -4216,15 +4279,19 @@ export type Database = {
           created_at: string
           description: string | null
           end_date: string | null
+          folha_rosto_url: string | null
           full_content: string | null
           id: string
           is_public: boolean
           keywords: string[]
           objectives: string | null
           owner_id: string | null
+          plataforma_brasil_caae: string | null
+          plataforma_brasil_url: string | null
           public_slug: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["research_project_status"]
+          termo_sigilo_url: string | null
           title: string
           updated_at: string
           workspace_id: string | null
