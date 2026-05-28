@@ -646,9 +646,24 @@ export const NewMeetingDialog = ({ projectId, open, onOpenChange }: { projectId:
           )}
 
           <div>
-            <Label>{locale === "pt" ? "Pauta livre (uma por linha)" : "Free agenda (one per line)"}</Label>
-            <Textarea value={form.agenda} onChange={(e) => setForm({ ...form, agenda: e.target.value })} rows={3} />
+            <div className="flex items-center justify-between mb-1.5">
+              <Label className="mb-0">{locale === "pt" ? "Pauta livre (uma por linha)" : "Free agenda (one per line)"}</Label>
+              <div className="flex gap-1 flex-wrap">
+                {MEETING_TEMPLATES.map(tpl => (
+                  <Button key={tpl.id} type="button" size="sm" variant="ghost" className="h-6 text-[11px] px-2"
+                    onClick={() => setForm({
+                      ...form,
+                      title: form.title || tpl.title[locale === "pt" ? "pt" : "en"],
+                      agenda: (form.agenda ? form.agenda + "\n" : "") + tpl.agenda[locale === "pt" ? "pt" : "en"].join("\n"),
+                    })}>
+                    {tpl.label[locale === "pt" ? "pt" : "en"]}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <Textarea value={form.agenda} onChange={(e) => setForm({ ...form, agenda: e.target.value })} rows={5} />
           </div>
+
         </div>
         <DialogFooter>
           <Button onClick={create} disabled={saving}>
