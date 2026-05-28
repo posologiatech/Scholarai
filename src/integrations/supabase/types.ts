@@ -2186,6 +2186,53 @@ export type Database = {
           },
         ]
       }
+      research_integrations: {
+        Row: {
+          config: Json
+          created_at: string
+          created_by: string | null
+          external_id: string | null
+          external_url: string | null
+          id: string
+          label: string | null
+          project_id: string
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          external_id?: string | null
+          external_url?: string | null
+          id?: string
+          label?: string | null
+          project_id: string
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          external_id?: string | null
+          external_url?: string | null
+          id?: string
+          label?: string | null
+          project_id?: string
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_integrations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_logbook_entries: {
         Row: {
           attachments: Json
@@ -2505,6 +2552,106 @@ export type Database = {
           },
         ]
       }
+      research_notification_prefs: {
+        Row: {
+          created_at: string
+          digest_frequency: string
+          email_digest: boolean
+          id: string
+          notify_comments: boolean
+          notify_meetings: boolean
+          notify_mentions: boolean
+          notify_risks: boolean
+          notify_tasks: boolean
+          project_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          digest_frequency?: string
+          email_digest?: boolean
+          id?: string
+          notify_comments?: boolean
+          notify_meetings?: boolean
+          notify_mentions?: boolean
+          notify_risks?: boolean
+          notify_tasks?: boolean
+          project_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          digest_frequency?: string
+          email_digest?: boolean
+          id?: string
+          notify_comments?: boolean
+          notify_meetings?: boolean
+          notify_mentions?: boolean
+          notify_risks?: boolean
+          notify_tasks?: boolean
+          project_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_notification_prefs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          digest_sent: boolean
+          id: string
+          link: string | null
+          project_id: string | null
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          digest_sent?: boolean
+          id?: string
+          link?: string | null
+          project_id?: string | null
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          digest_sent?: boolean
+          id?: string
+          link?: string | null
+          project_id?: string | null
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_notifications_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_outputs: {
         Row: {
           authors: Json | null
@@ -2566,6 +2713,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "research_outputs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_overview_versions: {
+        Row: {
+          author_id: string | null
+          content: string
+          created_at: string
+          id: string
+          project_id: string
+          summary: string | null
+        }
+        Insert: {
+          author_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          project_id: string
+          summary?: string | null
+        }
+        Update: {
+          author_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_overview_versions_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "research_projects"

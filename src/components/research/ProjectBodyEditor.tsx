@@ -9,6 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Loader2, Check, FileText, Sparkles, Wand2, Plus, ChevronDown } from "lucide-react";
+import { OverviewVersionsDialog } from "./OverviewVersionsDialog";
 import { PROJECT_BODY_TEMPLATE_PT } from "@/lib/research/types";
 import { useLanguage } from "@/i18n/LanguageContext";
 import ReactMarkdown from "react-markdown";
@@ -146,6 +147,7 @@ export const ProjectBodyEditor = ({
             <button onClick={() => setMode("edit")} className={`px-2.5 py-1 ${mode === "edit" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{locale === "pt" ? "Editar" : "Edit"}</button>
             <button onClick={() => setMode("preview")} className={`px-2.5 py-1 ${mode === "preview" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{locale === "pt" ? "Visualizar" : "Preview"}</button>
           </div>
+          <OverviewVersionsDialog projectId={projectId} currentContent={value} onRestore={(t) => setValue(t)} />
           {!value.trim() && (
             <Button variant="outline" size="sm" onClick={insertTemplate}>{locale === "pt" ? "Usar modelo" : "Use template"}</Button>
           )}

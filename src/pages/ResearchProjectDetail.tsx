@@ -14,7 +14,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck, NotebookPen, RefreshCw, ExternalLink, Award, AlertTriangle, Activity, Globe, UserCheck, Package } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck, NotebookPen, RefreshCw, ExternalLink, Award, AlertTriangle, Activity, Globe, UserCheck, Package, Link2 } from "lucide-react";
+import IntegrationsTab from "@/components/research/IntegrationsTab";
+import ExportProjectMenu from "@/components/research/ExportProjectMenu";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { STATUS_LABEL, ROLE_LABEL, TASK_STATUS_LABEL, PUB_STATUS_LABEL, type ResearchTaskStatus, type ResearchPublicationStatus, type ResearchMemberRole, type ResearchAdviseeLevel } from "@/lib/research/types";
 import { toast } from "sonner";
@@ -36,6 +38,7 @@ import ActivityHeatmap from "@/components/research/ActivityHeatmap";
 import PublicShareCard from "@/components/research/PublicShareCard";
 import CreditAuthorshipTab from "@/components/research/CreditAuthorshipTab";
 import OutputsTab from "@/components/research/OutputsTab";
+import NotificationsBell from "@/components/research/NotificationsBell";
 
 // ===== Tab: Equipe =====
 const TeamTab = ({ projectId }: { projectId: string }) => {
@@ -932,7 +935,9 @@ const Inner = () => {
           )}
         </div>
         {!editing && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <NotificationsBell />
+            <ExportProjectMenu project={project} />
             <PresentationMode project={project} />
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{locale === "pt" ? "Editar" : "Edit"}</Button>
           </div>
@@ -960,6 +965,7 @@ const Inner = () => {
           <TabsTrigger value="credit"><UserCheck className="h-4 w-4" />{locale === "pt" ? "Autoria CRediT" : "CRediT"}</TabsTrigger>
           <TabsTrigger value="outputs"><Package className="h-4 w-4" />{locale === "pt" ? "Outputs" : "Outputs"}</TabsTrigger>
           <TabsTrigger value="activity"><Activity className="h-4 w-4" />{locale === "pt" ? "Atividade" : "Activity"}</TabsTrigger>
+          <TabsTrigger value="integrations"><Link2 className="h-4 w-4" />{locale === "pt" ? "Integrações" : "Integrations"}</TabsTrigger>
         </TabsList>
         <div className="mt-4">
           <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
@@ -981,6 +987,7 @@ const Inner = () => {
           <TabsContent value="credit"><CreditAuthorshipTab projectId={project.id} projectTitle={project.title} /></TabsContent>
           <TabsContent value="outputs"><OutputsTab projectId={project.id} /></TabsContent>
           <TabsContent value="activity"><ActivityHeatmap projectId={project.id} /></TabsContent>
+          <TabsContent value="integrations"><IntegrationsTab projectId={project.id} /></TabsContent>
         </div>
       </Tabs>
 
