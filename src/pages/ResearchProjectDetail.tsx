@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
+import { ProjectSubNav, useProjectSubNavState, ALL_TAB_IDS, type TabId } from "@/components/research/ProjectSubNav";
+import { Sheet as MobileSheet, SheetContent as MobileSheetContent, SheetTrigger as MobileSheetTrigger } from "@/components/ui/sheet";
+import { PanelLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useResearchProject, useUpdateResearchProject } from "@/hooks/useResearchProjects";
@@ -907,89 +910,162 @@ const Inner = () => {
     setEditing(false);
   };
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-4"><Button asChild variant="ghost" size="sm"><Link to="/research"><ArrowLeft className="h-4 w-4" />{locale === "pt" ? "Voltar" : "Back"}</Link></Button></div>
-      <header className="mb-6 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          {editing ? (
-            <div className="space-y-2 max-w-2xl">
-              <Input value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} className="text-xl font-bold" />
-              <Textarea value={editForm.description} onChange={e => setEditForm({ ...editForm, description: e.target.value })} rows={2} />
-              <Select value={editForm.status} onValueChange={(v: any) => setEditForm({ ...editForm, status: v })}>
-                <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-                <SelectContent>{(Object.keys(STATUS_LABEL) as (keyof typeof STATUS_LABEL)[]).map(s => <SelectItem key={s} value={s}>{STATUS_LABEL[s][locale]}</SelectItem>)}</SelectContent>
-              </Select>
-              <div className="flex gap-2"><Button size="sm" onClick={save}>{locale === "pt" ? "Salvar" : "Save"}</Button>
-                <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>{locale === "pt" ? "Cancelar" : "Cancel"}</Button></div>
-            </div>
-          ) : (
-            <>
-              <h1 className="text-2xl font-display font-bold">{project.title}</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge>{STATUS_LABEL[project.status][locale]}</Badge>
-                {project.cnpq_area && <span className="text-sm text-muted-foreground">{project.cnpq_area}</span>}
-              </div>
-              {project.description && <p className="text-sm text-muted-foreground mt-2 max-w-3xl">{project.description}</p>}
-            </>
-          )}
-        </div>
-        {!editing && (
-          <div className="flex gap-2 items-center">
-            <NotificationsBell />
-            <ExportProjectMenu project={project} />
-            <PresentationMode project={project} />
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{locale === "pt" ? "Editar" : "Edit"}</Button>
-          </div>
-        )}
-      </header>
+  return <ProjectShell project={project} isManager={isManager} editing={editing} setEditing={setEditing} editForm={editForm} setEditForm={setEditForm} save={save} />;
+};
 
-      <Tabs defaultValue="overview">
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="overview"><FileText className="h-4 w-4" />{locale === "pt" ? "Visão geral" : "Overview"}</TabsTrigger>
-          <TabsTrigger value="team"><Users2 className="h-4 w-4" />{locale === "pt" ? "Equipe" : "Team"}</TabsTrigger>
-          <TabsTrigger value="refs"><BookOpen className="h-4 w-4" />{locale === "pt" ? "Referências" : "References"}</TabsTrigger>
-          <TabsTrigger value="tasks"><CheckSquare className="h-4 w-4" />{locale === "pt" ? "Tarefas" : "Tasks"}</TabsTrigger>
-          <TabsTrigger value="schedule"><CalendarRange className="h-4 w-4" />{locale === "pt" ? "Cronograma" : "Schedule"}</TabsTrigger>
-          <TabsTrigger value="meetings"><Mic className="h-4 w-4" />{locale === "pt" ? "Reuniões" : "Meetings"}</TabsTrigger>
-          <TabsTrigger value="advisees"><GraduationCap className="h-4 w-4" />{locale === "pt" ? "Orientações" : "Advisees"}</TabsTrigger>
-          <TabsTrigger value="pubs"><FileText className="h-4 w-4" />{locale === "pt" ? "Publicações" : "Publications"}</TabsTrigger>
-          <TabsTrigger value="brainstorm"><Lightbulb className="h-4 w-4" />{locale === "pt" ? "Brainstorm IA" : "Brainstorm AI"}</TabsTrigger>
-          <TabsTrigger value="docs"><FileSignature className="h-4 w-4" />{locale === "pt" ? "Documentos" : "Documents"}</TabsTrigger>
-          <TabsTrigger value="budget"><Wallet className="h-4 w-4" />{locale === "pt" ? "Orçamento" : "Budget"}</TabsTrigger>
-          <TabsTrigger value="ethics"><ShieldCheck className="h-4 w-4" />{locale === "pt" ? "Ética" : "Ethics"}</TabsTrigger>
-          <TabsTrigger value="logbook"><NotebookPen className="h-4 w-4" />{locale === "pt" ? "Diário de Bordo" : "Logbook"}</TabsTrigger>
-          <TabsTrigger value="evals"><Award className="h-4 w-4" />{locale === "pt" ? "Avaliações" : "Evaluations"}</TabsTrigger>
-          <TabsTrigger value="risks"><AlertTriangle className="h-4 w-4" />{locale === "pt" ? "Riscos" : "Risks"}</TabsTrigger>
-          <TabsTrigger value="compliance"><ShieldCheck className="h-4 w-4" />{locale === "pt" ? "Conformidade" : "Compliance"}</TabsTrigger>
-          <TabsTrigger value="credit"><UserCheck className="h-4 w-4" />{locale === "pt" ? "Autoria CRediT" : "CRediT"}</TabsTrigger>
-          <TabsTrigger value="outputs"><Package className="h-4 w-4" />{locale === "pt" ? "Outputs" : "Outputs"}</TabsTrigger>
-          <TabsTrigger value="activity"><Activity className="h-4 w-4" />{locale === "pt" ? "Atividade" : "Activity"}</TabsTrigger>
-          <TabsTrigger value="integrations"><Link2 className="h-4 w-4" />{locale === "pt" ? "Integrações" : "Integrations"}</TabsTrigger>
-        </TabsList>
-        <div className="mt-4">
-          <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
-          <TabsContent value="team"><TeamTab projectId={project.id} /></TabsContent>
-          <TabsContent value="refs"><RefsTab projectId={project.id} /></TabsContent>
-          <TabsContent value="tasks"><TasksTab projectId={project.id} /></TabsContent>
-          <TabsContent value="schedule"><ScheduleTab projectId={project.id} /></TabsContent>
-          <TabsContent value="meetings"><MeetingsTab projectId={project.id} /></TabsContent>
-          <TabsContent value="advisees"><AdviseesTab projectId={project.id} /></TabsContent>
-          <TabsContent value="pubs"><PublicationsTab projectId={project.id} /></TabsContent>
-          <TabsContent value="brainstorm"><BrainstormTab projectId={project.id} projectTitle={project.title} /></TabsContent>
-          <TabsContent value="docs"><DocumentsTab projectId={project.id} /></TabsContent>
-          <TabsContent value="budget"><BudgetTab projectId={project.id} /></TabsContent>
-          <TabsContent value="ethics"><EthicsTab projectId={project.id} /></TabsContent>
-          <TabsContent value="logbook"><LogbookTab projectId={project.id} isManager={isManager} /></TabsContent>
-          <TabsContent value="evals"><EvaluationsTab projectId={project.id} isManager={isManager} /></TabsContent>
-          <TabsContent value="risks"><RisksTab projectId={project.id} /></TabsContent>
-          <TabsContent value="compliance"><ComplianceTab projectId={project.id} /></TabsContent>
-          <TabsContent value="credit"><CreditAuthorshipTab projectId={project.id} projectTitle={project.title} /></TabsContent>
-          <TabsContent value="outputs"><OutputsTab projectId={project.id} /></TabsContent>
-          <TabsContent value="activity"><ActivityHeatmap projectId={project.id} /></TabsContent>
-          <TabsContent value="integrations"><IntegrationsTab projectId={project.id} /></TabsContent>
-        </div>
-      </Tabs>
+// ===== Shell with sub-nav =====
+const TAB_RENDERERS: Record<TabId, (p: { project: any; isManager: boolean }) => JSX.Element> = {
+  overview: ({ project }) => <OverviewTab project={project} />,
+  team: ({ project }) => <TeamTab projectId={project.id} />,
+  refs: ({ project }) => <RefsTab projectId={project.id} />,
+  tasks: ({ project }) => <TasksTab projectId={project.id} />,
+  schedule: ({ project }) => <ScheduleTab projectId={project.id} />,
+  meetings: ({ project }) => <MeetingsTab projectId={project.id} />,
+  advisees: ({ project }) => <AdviseesTab projectId={project.id} />,
+  pubs: ({ project }) => <PublicationsTab projectId={project.id} />,
+  brainstorm: ({ project }) => <BrainstormTab projectId={project.id} projectTitle={project.title} />,
+  docs: ({ project }) => <DocumentsTab projectId={project.id} />,
+  budget: ({ project }) => <BudgetTab projectId={project.id} />,
+  ethics: ({ project }) => <EthicsTab projectId={project.id} />,
+  logbook: ({ project, isManager }) => <LogbookTab projectId={project.id} isManager={isManager} />,
+  evals: ({ project, isManager }) => <EvaluationsTab projectId={project.id} isManager={isManager} />,
+  risks: ({ project }) => <RisksTab projectId={project.id} />,
+  compliance: ({ project }) => <ComplianceTab projectId={project.id} />,
+  credit: ({ project }) => <CreditAuthorshipTab projectId={project.id} projectTitle={project.title} />,
+  outputs: ({ project }) => <OutputsTab projectId={project.id} />,
+  activity: ({ project }) => <ActivityHeatmap projectId={project.id} />,
+  integrations: ({ project }) => <IntegrationsTab projectId={project.id} />,
+};
+
+const ProjectShell = ({ project, isManager, editing, setEditing, editForm, setEditForm, save }: any) => {
+  const { locale } = useLanguage();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = (searchParams.get("tab") as TabId) || "overview";
+  const activeTab: TabId = ALL_TAB_IDS.includes(tabParam) ? tabParam : "overview";
+  const { collapsed, toggle } = useProjectSubNavState();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const setTab = (id: TabId) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", id);
+    setSearchParams(next, { replace: true });
+    setMobileOpen(false);
+  };
+
+  // Counters (lightweight)
+  const { data: taskCounts } = useQuery({
+    queryKey: ["research-task-counts", project.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("research_tasks").select("status").eq("project_id", project.id);
+      const arr = data ?? [];
+      return {
+        tasks: arr.filter((t: any) => t.status !== "done").length,
+      };
+    },
+  });
+  const { data: meetingCount } = useQuery({
+    queryKey: ["research-meeting-count", project.id],
+    queryFn: async () => {
+      const { count } = await supabase.from("research_meetings").select("id", { count: "exact", head: true })
+        .eq("project_id", project.id).gte("scheduled_at", new Date().toISOString());
+      return count ?? 0;
+    },
+  });
+  const { data: riskCount } = useQuery({
+    queryKey: ["research-risk-count", project.id],
+    queryFn: async () => {
+      const { count } = await supabase.from("research_risk_alerts" as any).select("id", { count: "exact", head: true })
+        .eq("project_id", project.id).eq("resolved", false);
+      return count ?? 0;
+    },
+  });
+
+  const counters = {
+    tasks: taskCounts?.tasks,
+    meetings: meetingCount || undefined,
+    risks: riskCount || undefined,
+  };
+
+  const Render = TAB_RENDERERS[activeTab];
+
+  const navProps = {
+    projectTitle: project.title,
+    projectStatus: STATUS_LABEL[project.status]?.[locale],
+    activeTab,
+    onTabChange: setTab,
+    counters,
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-3.5rem)] bg-muted/20">
+      {/* Desktop sub-nav */}
+      <div className="hidden lg:flex">
+        <ProjectSubNav {...navProps} collapsed={collapsed} onToggleCollapse={toggle} />
+      </div>
+      {/* Mobile sub-nav */}
+      <MobileSheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <MobileSheetContent side="left" className="p-0 w-64">
+          <ProjectSubNav {...navProps} collapsed={false} onToggleCollapse={() => setMobileOpen(false)} />
+        </MobileSheetContent>
+      </MobileSheet>
+
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Header */}
+        <header className="shrink-0 border-b border-border/60 bg-background/80 backdrop-blur-sm px-4 lg:px-6 py-3">
+          <div className="flex items-center gap-3 mb-2">
+            <MobileSheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden" onClick={() => setMobileOpen(true)}>
+                <PanelLeft className="h-4 w-4" />
+              </Button>
+            </MobileSheetTrigger>
+            <Button asChild variant="ghost" size="sm" className="h-7 -ml-2 text-xs text-muted-foreground hover:text-foreground">
+              <Link to="/research"><ArrowLeft className="h-3.5 w-3.5" />{locale === "pt" ? "Projetos" : "Projects"}</Link>
+            </Button>
+            <span className="text-xs text-muted-foreground">/</span>
+            <span className="text-xs font-medium truncate">{project.title}</span>
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              {editing ? (
+                <div className="space-y-2 max-w-2xl">
+                  <Input value={editForm.title} onChange={(e: any) => setEditForm({ ...editForm, title: e.target.value })} className="text-xl font-bold" />
+                  <Textarea value={editForm.description} onChange={(e: any) => setEditForm({ ...editForm, description: e.target.value })} rows={2} />
+                  <Select value={editForm.status} onValueChange={(v: any) => setEditForm({ ...editForm, status: v })}>
+                    <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                    <SelectContent>{(Object.keys(STATUS_LABEL) as (keyof typeof STATUS_LABEL)[]).map(s => <SelectItem key={s} value={s}>{STATUS_LABEL[s][locale]}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <div className="flex gap-2"><Button size="sm" onClick={save}>{locale === "pt" ? "Salvar" : "Save"}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>{locale === "pt" ? "Cancelar" : "Cancel"}</Button></div>
+                </div>
+              ) : (
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h1 className="text-xl font-semibold tracking-tight truncate">{project.title}</h1>
+                    <Badge variant="secondary" className="text-[10px] h-5 px-2 font-medium">{STATUS_LABEL[project.status][locale]}</Badge>
+                    {project.cnpq_area && <span className="text-xs text-muted-foreground truncate">{project.cnpq_area}</span>}
+                  </div>
+                  {project.description && <p className="text-xs text-muted-foreground mt-1 max-w-3xl line-clamp-1">{project.description}</p>}
+                </div>
+              )}
+            </div>
+            {!editing && (
+              <div className="flex gap-1 items-center shrink-0">
+                <NotificationsBell />
+                <ExportProjectMenu project={project} />
+                <PresentationMode project={project} />
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setEditing(true)}>{locale === "pt" ? "Editar" : "Edit"}</Button>
+              </div>
+            )}
+          </div>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 overflow-auto">
+          <div className="p-4 lg:p-6 max-w-7xl mx-auto">
+            <Render project={project} isManager={isManager} />
+          </div>
+        </main>
+      </div>
 
       <ResearchCopilot projectId={project.id} projectTitle={project.title} />
     </div>

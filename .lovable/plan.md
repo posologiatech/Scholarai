@@ -1,99 +1,75 @@
-# Módulo Projeto de Pesquisa — Plano de funcionalidades "killer"
+# Redesign do menu de Projeto de Pesquisa
 
-Objetivo: transformar o módulo num produto autônomo, tão valioso que justifique sozinho a assinatura da plataforma. Benchmark: Notion + Asana + Monday + Overleaf + Labii + Benchling + LabArchives + ResearchRabbit + Scite + Grant Forward.
+## Problema
+Hoje há 21 tabs renderizadas em duas linhas quebradas (`TabsList flex-wrap`). Visualmente parece um sistema legado: ícones pequenos, sem hierarquia, sem agrupamento, sem indicador de seção ativa moderno, sem busca, sem persistência da aba na URL. Comparado a Monday/ClickUp, falta uma navegação lateral organizada por categorias e um cabeçalho de contexto mais "produto".
 
-O plano está agrupado em 7 pilares. Cada item indica o ganho de valor e o que já existe na base atual (overview, reuniões com pauta/anexos, tarefas, cronograma).
+## Solução (visual + estrutural)
 
----
+Trocar a `TabsList` horizontal por uma **navegação lateral colapsável estilo ClickUp/Linear** dentro da página do projeto, com:
 
-## 1. Inteligência de Pesquisa (o grande diferencial)
+1. **Sub-sidebar do projeto** (coluna fixa à esquerda do conteúdo, largura 240px, colapsa para 56px só com ícones).
+   - Header da sub-sidebar: avatar do projeto (iniciais em gradient), título do projeto truncado, badge de status compacto, e seletor "switcher" de projeto (dropdown).
+   - Itens agrupados em seções com label discreto em uppercase 11px:
+     - **Workspace**: Visão geral, Atividade
+     - **Execução**: Tarefas, Cronograma, Reuniões, Diário de Bordo
+     - **Pessoas**: Equipe, Orientações, Autoria CRediT
+     - **Conhecimento**: Referências, Publicações, Outputs, Documentos, Brainstorm IA
+     - **Governança**: Orçamento, Ética, Conformidade, Riscos, Avaliações
+     - **Sistema**: Integrações
+   - Cada item: ícone 16px + label, hover sutil (bg-muted/60), ativo com barra lateral 2px no primary + bg-primary/8 + texto em primary, contador opcional à direita (ex.: badge cinza com nº de tarefas pendentes / riscos ativos / próximas reuniões).
+   - Footer da sub-sidebar: botão "Pesquisar" (Cmd+K), botão de colapsar.
 
-- **AI Research Copilot do Projeto** — agente lateral que conhece TUDO do projeto (overview, reuniões, tarefas, cronograma, anexos, papers da Biblioteca vinculados). Responde "o que decidimos sobre X na última reunião?", "quais tarefas atrasam o milestone Y?", "resuma o estado atual para o comitê".
-- **Gerador de Próximos Passos** — após cada reunião, IA sugere encaminhamentos, riscos e tarefas com prazos plausíveis baseados no histórico do projeto.
-- **Detecção de Bloqueios e Riscos** — análise semanal: tarefas paradas, dependências do cronograma em risco, ausência de reuniões, gaps no overview. Gera um "Project Health Score".
-- **Vínculo com a Biblioteca e RAG** — anexar papers ao projeto e perguntar em linguagem natural ("quais artigos justificam minha metodologia?"), com citações reais.
-- **Auto-redação do Projeto** — a partir do overview + objetivos + keywords, gera rascunhos de Introdução, Metodologia, Cronograma textual e Resultados Esperados, sempre editáveis (zero fabricação, com citações da Biblioteca).
+2. **Header do projeto redesenhado** (acima do conteúdo, fica fora da sub-sidebar):
+   - Breadcrumb fino: Projetos / Nome do projeto.
+   - Linha 1: título grande (text-2xl font-semibold) editável inline, pill de status com cor semântica + área/edital em texto muted ao lado.
+   - Linha 2: barra de ações alinhada à direita — avatares empilhados da equipe (-space-x-2), divisor, Notificações, Exportar, Modo Apresentação, Editar. Tudo em `variant="ghost" size="sm"` com altura uniforme (h-8) e ícones 14px para look ClickUp/Monday.
+   - Mini-metrics inline: 4 chips compactos (A fazer, Fazendo, Concluídas, Próx. reuniões) — não mais cards gigantes; viram pills clicáveis que filtram/saltam para a tab correspondente.
 
-## 2. Gestão de Orientação e Equipe
+3. **Conteúdo da tab** entra num container `rounded-xl border bg-card` único com padding consistente, em vez de soltar `TabsContent` cru.
 
-- **Modo Orientador/Orientando** — papéis explícitos (PI, co-PI, orientando, bolsista, colaborador). Dashboard do orientador mostra todos os projetos sob sua tutela em um único painel.
-- **Reuniões de Orientação Recorrentes** — template de reunião 1:1 com seções fixas (avanços, dificuldades, próximas entregas, leituras da semana) e linha do tempo de evolução do orientando.
-- **Diário de Bordo do Pesquisador** — registro datado de progresso, hipóteses, decisões metodológicas (estilo Electronic Lab Notebook), assinável e exportável para defesa.
-- **Avaliação por Marcos** — orientador pontua entregas; relatório consolidado vira evidência para bolsa CNPq/CAPES.
+4. **Persistência e UX**:
+   - Aba ativa sincronizada com query string (`?tab=tasks`) usando `useSearchParams` para navegação direta e back/forward funcional.
+   - Memorizar estado colapsado da sub-sidebar em `localStorage` (`research-subnav-collapsed`).
+   - Em telas <1024px (lg breakpoint), sub-sidebar vira um `Sheet` que abre por botão de menu no header.
+   - Atalho `g` + tecla para pular entre seções (ex: g+t = tasks) — bônus opcional.
 
-## 3. Cronograma e Execução (nível Monday/Asana)
+5. **Polimento visual** (tokens semânticos, sem hex):
+   - Sub-sidebar `bg-card`, borda `border-border/60`, sombras `shadow-sm`.
+   - Item ativo: `bg-primary/10 text-primary border-l-2 border-primary` (substitui visual genérico do shadcn Tabs).
+   - Labels de seção: `text-[11px] font-medium text-muted-foreground uppercase tracking-wider px-3 mt-4 mb-1`.
+   - Transições suaves (`transition-all duration-150`) em hover e colapso.
+   - Iconografia consistente (todos `h-4 w-4`, stroke-width 1.75).
 
-- **Gantt interativo de verdade** — drag/resize, dependências (FS/SS), caminho crítico, baseline vs. atual.
-- **Visões múltiplas** — Gantt, Kanban, Calendar, Timeline, Workload por pessoa.
-- **Templates de cronograma por tipo de projeto** — Iniciação Científica, Mestrado, Doutorado, Pós-doc, Edital CNPq Universal, Edital FAPESP, Ensaio Clínico (fases CONEP). Aplicar em 1 clique.
-- **Dependências reuniões ↔ tarefas ↔ cronograma** (parcialmente já existe) — qualquer mudança propaga e alerta.
-- **Burndown e velocity** por sprint/mês.
+## Detalhes técnicos
 
-## 4. Conformidade e Documentos Oficiais
+- **Arquivo novo**: `src/components/research/ProjectSubNav.tsx` exporta:
+  - `ProjectSubNav({ project, activeTab, onTabChange, counters, collapsed, onToggleCollapse })`.
+  - Define `SECTIONS: { id, label, items: { id, icon, labelPt, labelEn, counterKey? }[] }[]`.
+  - Renderiza grupos + itens, com `Tooltip` quando colapsada.
+- **Arquivo novo**: `src/components/research/ProjectHeader.tsx` — header redesenhado com breadcrumb, título, ações e chips de métricas.
+- **Refatoração de `src/pages/ResearchProjectDetail.tsx`**:
+  - Substituir `<Tabs><TabsList>...</TabsList><TabsContent>...` pela estrutura:
+    ```
+    <div className="flex h-[calc(100vh-4rem)]">
+      <ProjectSubNav ... />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <ProjectHeader ... />
+        <div className="flex-1 overflow-auto p-6">
+          {renderActiveTab(activeTab)}
+        </div>
+      </div>
+    </div>
+    ```
+  - Manter `Tabs` apenas como state controller (`value`/`onValueChange`) ou trocar por simples `switch (activeTab)` que renderiza o componente correto — preferir o `switch` para perder o overhead visual do shadcn Tabs.
+  - `useSearchParams` para `tab` (default `overview`).
+  - Hook `useQuery` leve para `counters` (count de tasks por status, riscos ativos, meetings futuras) reaproveitando queries existentes; pode ser derivado em memória sem nova request se as queries das tabs já estão em cache, ou um único `select count` agrupado.
+- **Mobile**: usar `Sheet` do shadcn para a sub-sidebar abaixo de `lg`, com `SheetTrigger` no header (ícone `PanelLeft`).
+- **Sem alterar lógica de cada tab** — só o invólucro e a navegação mudam.
 
-- **Plataforma Brasil / CEP-CONEP** — checklist e gerador de TCLE, TALE, Termo de Sigilo, Folha de Rosto, com metadados LGPD (já há base no módulo clínico — integrar aqui).
-- **Plano de Gestão de Dados (DMP)** — gerador no padrão FAIR / Horizon Europe / CNPq, vinculado ao projeto.
-- **Comitê de Ética — tracker** — submissões, pareceres, emendas, prazos, anexos versionados.
-- **Conflito de Interesse e Autoria** — formulário CRediT (14 papéis) por membro; gera declaração pronta para submissão.
+## Fora de escopo
+- Não mexer no conteúdo interno de cada tab (BudgetTab, ScheduleTab, etc).
+- Não alterar schema do banco.
+- Não tocar na sidebar global do app (`AppSidebar`).
 
-## 5. Financiamento e Prestação de Contas
-
-- **Orçamento do Projeto** — rubricas (custeio, capital, bolsas, diárias), execução vs. previsto, alertas de saldo.
-- **Tracker de Editais** — integração com o módulo Funding existente; vincular projeto a edital, prazos automáticos no cronograma.
-- **Prestação de Contas** — upload de notas fiscais, classificação por rubrica, exportação no template do financiador.
-- **Gerador de Relatório Parcial/Final** — preenche automático com dados do projeto + métricas de produção.
-
-## 6. Produção Científica e Impacto
-
-- **Pipeline de Publicação** — para cada artigo planejado: ideia → rascunho → submissão → revisão → publicação. Vincula ao Writing Assistant, à Biblioteca e ao ORCID.
-- **Vitrine de Outputs** — papers, datasets, códigos, patentes, apresentações, mídia — tudo com DOI/handle quando aplicável.
-- **Indicadores em tempo real** — citações dos outputs (via OpenAlex/Crossref), Altmetric, downloads. Score de impacto do projeto.
-- **Página Pública do Projeto** (opcional) — landing institucional com objetivos, equipe, outputs, financiadores — bom para sites de laboratório.
-
-## 7. Colaboração e Experiência
-
-- **Comentários, menções @ e threads** em qualquer bloco (tarefa, item de pauta, parágrafo do overview, item do cronograma).
-- **Notificações inteligentes** — digest diário, regras por papel ("só me avise se sou responsável e o prazo é <48h").
-- **Versionamento do Overview e documentos** — diff visual estilo Google Docs.
-- **Modo Apresentação** — abre o projeto em formato slides para defesa/banca em 1 clique, montado a partir do overview e métricas.
-- **Exportação completa** — PDF executivo, ZIP com toda a documentação, formato CNPq Lattes/Sucupira.
-- **Integrações** — Google Calendar/Outlook (reuniões), Drive/OneDrive (anexos), Zotero/Mendeley (refs), ORCID (autoria), GitHub (código), Overleaf (manuscritos).
-
----
-
-## Os 5 itens que SOZINHOS justificam a plataforma
-
-Se for preciso priorizar, estes 5 criam o "uau" que nenhum concorrente brasileiro entrega num único produto:
-
-1. **AI Research Copilot do Projeto** (memória total do projeto + RAG na Biblioteca).
-2. **Auto-geração de documentos oficiais** (TCLE, DMP, relatórios CNPq/CAPES, prestação de contas) a partir dos dados já no sistema.
-3. **Gantt com dependências + propagação automática para pauta de reuniões e tarefas**.
-4. **Modo Orientador** com dashboard multi-orientando e diário de bordo assinável.
-5. **Pipeline de Publicação ↔ ORCID ↔ Altmetric** — fechando o ciclo da ideia ao impacto, com indicadores vivos.
-
----
-
-## Sugestão de fases de entrega
-
-```text
-Fase 1 (foundational, 2-3 semanas)
-  - AI Research Copilot do projeto (RAG sobre overview/reuniões/tarefas/cronograma)
-  - Gantt interativo com dependências
-  - Comentários + menções @ + notificações
-
-Fase 2 (compliance & funding, 2-3 semanas)
-  - Gerador de TCLE/DMP/Relatórios
-  - Orçamento + prestação de contas
-  - Tracker de Comitê de Ética
-
-Fase 3 (orientação & impacto, 2-3 semanas)
-  - Modo Orientador + Diário de Bordo
-  - Pipeline de Publicação + ORCID + Altmetric
-  - Modo Apresentação + exportação executiva
-```
-
----
-
-## Pergunta antes de implementar
-
-Quer que eu detalhe um plano técnico de implementação para os **5 itens prioritários** acima, ou prefere escolher 1-2 para começarmos agora (ex.: AI Copilot do Projeto + Gantt interativo)?
+## Resultado esperado
+Página de projeto com presença visual de ferramenta moderna (Linear/ClickUp/Monday): navegação organizada, persistente, com contadores; header limpo com ações agrupadas; conteúdo respira em um card único; comportamento responsivo e com deep-link via URL.
