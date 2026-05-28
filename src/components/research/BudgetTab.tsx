@@ -254,6 +254,14 @@ export default function BudgetTab({ projectId }: { projectId: string }) {
         <DialogContent>
           <DialogHeader><DialogTitle>{editExp.id ? "Editar" : "Nova"} despesa</DialogTitle></DialogHeader>
           <div className="grid gap-3">
+            <label className="flex items-center justify-center gap-2 border border-dashed rounded-md p-3 text-sm cursor-pointer hover:bg-muted/40 transition">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span>Anexar NF/recibo (IA preenche os campos)</span>
+              <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) runOcr(f); }} />
+            </label>
+            {(editExp as any).suggested_rubrica && (
+              <div className="text-xs text-muted-foreground">Sugestão IA: <Badge variant="secondary">{RUBRICAS.find(r => r.v === (editExp as any).suggested_rubrica)?.l}</Badge></div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <Input type="date" value={editExp.expense_date || ""} onChange={(e) => setEditExp({ ...editExp, expense_date: e.target.value })} />
               <Input type="number" step="0.01" placeholder="Valor" value={editExp.amount ?? 0} onChange={(e) => setEditExp({ ...editExp, amount: Number(e.target.value) })} />
