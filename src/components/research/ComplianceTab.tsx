@@ -11,9 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ShieldCheck, Sparkles } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, ExternalLink, Upload, FileSignature, Lock, FileText, Download } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "sonner";
+import { supabase as supa } from "@/integrations/supabase/client";
 
 const CATEGORIES = [
   { id: "etica", label_pt: "Ética", label_en: "Ethics" },
