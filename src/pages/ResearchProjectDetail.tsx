@@ -1013,11 +1013,9 @@ const ProjectShell = ({ project, isManager, editing, setEditing, editForm, setEd
         {/* Header */}
         <header className="shrink-0 border-b border-border/60 bg-background/80 backdrop-blur-sm px-4 lg:px-6 py-3">
           <div className="flex items-center gap-3 mb-2">
-            <MobileSheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden" onClick={() => setMobileOpen(true)}>
-                <PanelLeft className="h-4 w-4" />
-              </Button>
-            </MobileSheetTrigger>
+            <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden" onClick={() => setMobileOpen(true)}>
+              <PanelLeft className="h-4 w-4" />
+            </Button>
             <Button asChild variant="ghost" size="sm" className="h-7 -ml-2 text-xs text-muted-foreground hover:text-foreground">
               <Link to="/research"><ArrowLeft className="h-3.5 w-3.5" />{locale === "pt" ? "Projetos" : "Projects"}</Link>
             </Button>
