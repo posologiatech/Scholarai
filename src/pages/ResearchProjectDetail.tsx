@@ -956,6 +956,7 @@ const Inner = () => {
           <TabsTrigger value="evals"><Award className="h-4 w-4" />{locale === "pt" ? "Avaliações" : "Evaluations"}</TabsTrigger>
           <TabsTrigger value="risks"><AlertTriangle className="h-4 w-4" />{locale === "pt" ? "Riscos" : "Risks"}</TabsTrigger>
           <TabsTrigger value="compliance"><ShieldCheck className="h-4 w-4" />{locale === "pt" ? "Conformidade" : "Compliance"}</TabsTrigger>
+          <TabsTrigger value="credit"><UserCheck className="h-4 w-4" />{locale === "pt" ? "Autoria CRediT" : "CRediT"}</TabsTrigger>
           <TabsTrigger value="activity"><Activity className="h-4 w-4" />{locale === "pt" ? "Atividade" : "Activity"}</TabsTrigger>
         </TabsList>
         <div className="mt-4">
