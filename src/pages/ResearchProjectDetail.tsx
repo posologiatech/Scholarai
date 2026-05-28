@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ProjectSubNav, useProjectSubNavState, ALL_TAB_IDS, type TabId } from "@/components/research/ProjectSubNav";
-import { Sheet, SheetContent as SheetContentUI, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet as MobileSheet, SheetContent as MobileSheetContent, SheetTrigger as MobileSheetTrigger } from "@/components/ui/sheet";
 import { PanelLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
