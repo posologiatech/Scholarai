@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Trash2, Wallet, Receipt } from "lucide-react";
+import { Plus, Trash2, Wallet, Receipt, Sparkles, Download } from "lucide-react";
 import { toast } from "sonner";
+import FundingLinkCard from "./FundingLinkCard";
 
 type Item = { id: string; rubrica: string; description: string; planned_amount: number; currency: string; funder: string | null; period_start: string | null; period_end: string | null; };
 type Expense = { id: string; budget_item_id: string | null; expense_date: string; amount: number; supplier: string | null; description: string; status: string; invoice_number: string | null; invoice_url: string | null; created_by: string; };
