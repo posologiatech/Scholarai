@@ -214,8 +214,37 @@ export default function RisksTab({ projectId }: { projectId: string }) {
     low: active.filter(r => r.severity === "low").length,
   };
 
+  // Project Health Score (0-100): start at 100, subtract weighted penalties
+  const totalRefs = tasks.length + schedule.length + ethics.length + meetings.length;
+  const penalty = counts.critical * 18 + counts.high * 10 + counts.medium * 5 + counts.low * 2;
+  const score = Math.max(0, Math.min(100, 100 - penalty));
+  const scoreLabel = score >= 80 ? t("Saudável", "Healthy") : score >= 60 ? t("Atenção", "Watch") : score >= 40 ? t("Em risco", "At risk") : t("Crítico", "Critical");
+  const scoreColor = score >= 80 ? "text-green-600" : score >= 60 ? "text-amber-600" : score >= 40 ? "text-orange-600" : "text-red-600";
+  const scoreBar = score >= 80 ? "bg-green-500" : score >= 60 ? "bg-amber-500" : score >= 40 ? "bg-orange-500" : "bg-red-500";
+
   return (
     <div className="space-y-4">
+      <Card className="border-2">
+        <CardContent className="py-5">
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">{t("Health Score do Projeto", "Project Health Score")}</p>
+              <div className="flex items-baseline gap-3 mt-1">
+                <span className={`text-4xl font-bold ${scoreColor}`}>{score}</span>
+                <span className={`text-sm font-medium ${scoreColor}`}>{scoreLabel}</span>
+              </div>
+            </div>
+            <div className="text-right text-xs text-muted-foreground">
+              <p>{totalRefs} {t("itens analisados", "items analyzed")}</p>
+              <p>{active.length} {t("alertas ativos", "active alerts")}</p>
+            </div>
+          </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div className={`h-full ${scoreBar} transition-all`} style={{ width: `${score}%` }} />
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {(["critical", "high", "medium", "low"] as Severity[]).map(s => (
           <Card key={s} className={`border ${SEV_COLORS[s]}`}>
@@ -226,6 +255,7 @@ export default function RisksTab({ projectId }: { projectId: string }) {
           </Card>
         ))}
       </div>
+
 
       <div className="flex justify-between items-center">
         <h3 className="font-semibold">{t("Alertas ativos", "Active alerts")} ({active.length})</h3>
