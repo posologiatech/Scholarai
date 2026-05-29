@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, FileText, Download, Trash2, Loader2 } from "lucide-react";
+import { Sparkles, FileText, Download, Trash2, Loader2, Upload, FileSpreadsheet, FileImage, Presentation as PresentationIcon, File as FileIcon } from "lucide-react";
 import { toast } from "sonner";
 
 type Doc = {
@@ -19,6 +19,8 @@ type Doc = {
   version: number;
   generated_by_ai: boolean;
   created_at: string;
+  file_url?: string | null;
+  metadata?: any;
 };
 
 const DOC_TYPES = [
