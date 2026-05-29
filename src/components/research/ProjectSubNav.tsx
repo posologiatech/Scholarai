@@ -33,6 +33,7 @@ export const SECTIONS: Section[] = [
     { id: "team", icon: Users2, pt: "Equipe", en: "Team" },
     { id: "advisees", icon: GraduationCap, pt: "Orientações", en: "Advisees" },
     { id: "credit", icon: UserCheck, pt: "Autoria CRediT", en: "CRediT" },
+    { id: "defense", icon: Award, pt: "Banca", en: "Defense" },
   ]},
   { id: "conhecimento", pt: "Conhecimento", en: "Knowledge", items: [
     { id: "refs", icon: BookOpen, pt: "Referências", en: "References" },
