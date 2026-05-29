@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Trash2, ChevronDown, ChevronRight, Paperclip, FileText,
-  Youtube, Link2, Check, Calendar, Loader2, ArrowRight, CheckSquare, Sparkles,
+  Youtube, Link2, Check, Calendar, Loader2, ArrowRight, CheckSquare, Sparkles, Presentation,
 } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
