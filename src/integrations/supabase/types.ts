@@ -1811,6 +1811,118 @@ export type Database = {
           },
         ]
       }
+      research_defense: {
+        Row: {
+          abstract: string | null
+          created_at: string
+          created_by: string | null
+          defense_date: string | null
+          defense_type: string | null
+          grade: string | null
+          id: string
+          location: string | null
+          meeting_link: string | null
+          modality: string | null
+          notes: string | null
+          project_id: string
+          result: string | null
+          status: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          abstract?: string | null
+          created_at?: string
+          created_by?: string | null
+          defense_date?: string | null
+          defense_type?: string | null
+          grade?: string | null
+          id?: string
+          location?: string | null
+          meeting_link?: string | null
+          modality?: string | null
+          notes?: string | null
+          project_id: string
+          result?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          abstract?: string | null
+          created_at?: string
+          created_by?: string | null
+          defense_date?: string | null
+          defense_type?: string | null
+          grade?: string | null
+          id?: string
+          location?: string | null
+          meeting_link?: string | null
+          modality?: string | null
+          notes?: string | null
+          project_id?: string
+          result?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_defense_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_defense_members: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          institution: string | null
+          lattes_url: string | null
+          name: string
+          notes: string | null
+          position: number | null
+          project_id: string
+          role: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          institution?: string | null
+          lattes_url?: string | null
+          name: string
+          notes?: string | null
+          position?: number | null
+          project_id: string
+          role?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          institution?: string | null
+          lattes_url?: string | null
+          name?: string
+          notes?: string | null
+          position?: number | null
+          project_id?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_defense_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_documents: {
         Row: {
           content: string | null
@@ -2042,6 +2154,53 @@ export type Database = {
           },
           {
             foreignKeyName: "research_expenses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_favorites: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          position: number | null
+          project_id: string
+          title: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          position?: number | null
+          project_id: string
+          title: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          position?: number | null
+          project_id?: string
+          title?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_favorites_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "research_projects"
@@ -3121,6 +3280,7 @@ export type Database = {
           id: string
           is_milestone: boolean
           linked_meeting_id: string | null
+          notes: string | null
           phase: string | null
           position: number
           predecessor_id: string | null
@@ -3142,6 +3302,7 @@ export type Database = {
           id?: string
           is_milestone?: boolean
           linked_meeting_id?: string | null
+          notes?: string | null
           phase?: string | null
           position?: number
           predecessor_id?: string | null
@@ -3163,6 +3324,7 @@ export type Database = {
           id?: string
           is_milestone?: boolean
           linked_meeting_id?: string | null
+          notes?: string | null
           phase?: string | null
           position?: number
           predecessor_id?: string | null
