@@ -13,6 +13,7 @@ import { OverviewVersionsDialog } from "./OverviewVersionsDialog";
 import { PROJECT_BODY_TEMPLATE_PT } from "@/lib/research/types";
 import { useLanguage } from "@/i18n/LanguageContext";
 import ReactMarkdown from "react-markdown";
+import { RichText } from "./RichText";
 import { toast } from "sonner";
 
 type Section =
