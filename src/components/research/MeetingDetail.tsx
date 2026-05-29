@@ -228,9 +228,13 @@ export const AgendaItemRow = ({ item, projectId, onUpdate, onRemove }: any) => {
       </div>
       {open && (
         <CardContent className="pt-0 pb-3 pl-12 space-y-3">
-          <Textarea placeholder={locale === "pt" ? "Anotações da discussão…" : "Discussion notes…"}
-            value={notes} onChange={(e) => { setNotes(e.target.value); scheduleSave({ notes: e.target.value }); }}
-            rows={3} className="text-sm" />
+          <RichEditor
+            value={notes}
+            onChange={(v) => { setNotes(v); scheduleSave({ notes: v }); }}
+            placeholder={locale === "pt" ? "Anotações da discussão (tabelas, imagens, listas)…" : "Discussion notes…"}
+            minHeight={140}
+            storagePrefix={`${projectId}/agenda`}
+          />
           <AttachmentsPanel meetingId={item.meeting_id} agendaItemId={item.id} projectId={projectId} />
         </CardContent>
       )}
