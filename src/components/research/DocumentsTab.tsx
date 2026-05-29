@@ -140,7 +140,15 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
           <h2 className="text-xl font-semibold">Documentos Oficiais</h2>
           <p className="text-sm text-muted-foreground">Gere TCLE, TALE, DMP, Relatórios CNPq/CAPES e mais a partir dos dados do projeto.</p>
         </div>
-        <Button onClick={() => setGenOpen(true)} className="gap-2"><Sparkles className="h-4 w-4" /> Gerar com IA</Button>
+        <div className="flex items-center gap-2">
+          <input ref={fileRef} type="file" multiple className="hidden"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.png,.jpg,.jpeg,.gif,.webp,.zip"
+            onChange={(e) => handleUpload(e.target.files)} />
+          <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading} className="gap-2">
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Enviar arquivo
+          </Button>
+          <Button onClick={() => setGenOpen(true)} className="gap-2"><Sparkles className="h-4 w-4" /> Gerar com IA</Button>
+        </div>
       </div>
 
       {loading ? (
