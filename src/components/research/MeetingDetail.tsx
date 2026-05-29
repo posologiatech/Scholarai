@@ -375,6 +375,7 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
   const notesTimer = useRef<number | null>(null);
   const [summarizing, setSummarizing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [presenting, setPresenting] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
   const [pickedTasks, setPickedTasks] = useState<Record<string, boolean>>({});
   const [pickedSchedule, setPickedSchedule] = useState<Record<string, boolean>>({});
