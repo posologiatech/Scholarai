@@ -161,19 +161,20 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
         <div className="grid gap-2">
           {docs.map((d) => (
             <Card key={d.id} className="p-4 flex items-center justify-between gap-3">
-              <button className="flex items-center gap-3 text-left flex-1" onClick={() => setViewing(d)}>
-                <FileText className="h-5 w-5 text-muted-foreground" />
+              <button className="flex items-center gap-3 text-left flex-1" onClick={() => d.doc_type === "upload" ? window.open(d.file_url!, "_blank") : setViewing(d)}>
+                {d.doc_type === "upload" ? fileIcon(d) : <FileText className="h-5 w-5 text-muted-foreground" />}
                 <div className="flex-1">
                   <div className="font-medium">{d.title}</div>
                   <div className="text-xs text-muted-foreground flex gap-2 items-center">
-                    <Badge variant="secondary" className="text-xs">{DOC_TYPES.find((t) => t.value === d.doc_type)?.label.split("—")[0].trim() || d.doc_type}</Badge>
+                    <Badge variant="secondary" className="text-xs">{d.doc_type === "upload" ? "Arquivo" : (DOC_TYPES.find((t) => t.value === d.doc_type)?.label.split("—")[0].trim() || d.doc_type)}</Badge>
                     {d.generated_by_ai && <Badge variant="outline" className="text-xs">IA</Badge>}
-                    <span>v{d.version}</span>
+                    {d.doc_type !== "upload" && <span>v{d.version}</span>}
+                    {d.doc_type === "upload" && d.metadata?.size && <span>{(d.metadata.size / 1024).toFixed(0)} KB</span>}
                     <span>· {new Date(d.created_at).toLocaleDateString("pt-BR")}</span>
                   </div>
                 </div>
               </button>
-              <Button size="icon" variant="ghost" onClick={() => downloadMd(d)}><Download className="h-4 w-4" /></Button>
+              <Button size="icon" variant="ghost" onClick={() => d.doc_type === "upload" ? window.open(d.file_url!, "_blank") : downloadMd(d)}><Download className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" onClick={() => remove(d.id)}><Trash2 className="h-4 w-4" /></Button>
             </Card>
           ))}
