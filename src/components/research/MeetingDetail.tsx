@@ -463,6 +463,14 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
     setPickedTasks({}); setPickedSchedule({}); setPickerSearch(""); setPickerOpen(false);
   };
 
+  const saveNotes = (v: string) => {
+    setNotes(v);
+    if (notesTimer.current) window.clearTimeout(notesTimer.current);
+    notesTimer.current = window.setTimeout(async () => {
+      await supabase.from("research_meetings").update({ notes: v }).eq("id", meeting.id);
+    }, 800);
+  };
+
   return (
     <div className="space-y-6 pb-12">
       <header className="space-y-2 pb-4 border-b">
