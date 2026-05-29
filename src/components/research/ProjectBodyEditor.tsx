@@ -197,9 +197,8 @@ export const ProjectBodyEditor = ({
                 {locale === "pt" ? "Gerando com IA…" : "Generating…"}
               </div>
             ) : (
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{previewText}</ReactMarkdown>
-              </div>
+              <RichText content={previewText} />
+
             )}
           </div>
           <DialogFooter className="gap-2">
