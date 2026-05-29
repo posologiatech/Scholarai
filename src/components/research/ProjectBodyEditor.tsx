@@ -12,7 +12,7 @@ import { Loader2, Check, FileText, Sparkles, Wand2, Plus, ChevronDown } from "lu
 import { OverviewVersionsDialog } from "./OverviewVersionsDialog";
 import { PROJECT_BODY_TEMPLATE_PT } from "@/lib/research/types";
 import { useLanguage } from "@/i18n/LanguageContext";
-import ReactMarkdown from "react-markdown";
+import { RichText } from "./RichText";
 import { toast } from "sonner";
 
 type Section =
@@ -164,8 +164,8 @@ export const ProjectBodyEditor = ({
             className="min-h-[500px] font-mono text-sm leading-relaxed border-0 focus-visible:ring-0 resize-y bg-transparent p-0"
           />
         ) : (
-          <div className="prose prose-sm dark:prose-invert max-w-none min-h-[500px]">
-            {value.trim() ? <ReactMarkdown>{value}</ReactMarkdown> : <p className="text-muted-foreground">{locale === "pt" ? "Vazio." : "Empty."}</p>}
+          <div className="min-h-[500px]">
+            {value.trim() ? <RichText content={value} /> : <p className="text-muted-foreground">{locale === "pt" ? "Vazio." : "Empty."}</p>}
           </div>
         )}
       </div>
@@ -196,9 +196,8 @@ export const ProjectBodyEditor = ({
                 {locale === "pt" ? "Gerando com IA…" : "Generating…"}
               </div>
             ) : (
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{previewText}</ReactMarkdown>
-              </div>
+              <RichText content={previewText} />
+
             )}
           </div>
           <DialogFooter className="gap-2">

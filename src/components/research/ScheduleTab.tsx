@@ -4,6 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { RichEditor } from "./RichEditor";
+import { RichText } from "./RichText";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -41,6 +43,7 @@ const DEPENDENCY_LABEL: Record<string, { pt: string; en: string }> = {
 interface FormState {
   title: string;
   description: string;
+  notes: string;
   phase: string;
   start_date: string;
   end_date: string;
@@ -53,7 +56,7 @@ interface FormState {
 }
 
 const EMPTY_FORM: FormState = {
-  title: "", description: "", phase: "", start_date: "", end_date: "",
+  title: "", description: "", notes: "", phase: "", start_date: "", end_date: "",
   status: "planejado", predecessor_id: "", dependency_type: "FS",
   progress: 0, is_milestone: false, assignee_id: "",
 };
@@ -107,7 +110,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
   const openEdit = (it: any) => {
     setEditingId(it.id);
     setForm({
-      title: it.title ?? "", description: it.description ?? "", phase: it.phase ?? "",
+      title: it.title ?? "", description: it.description ?? "", notes: it.notes ?? "", phase: it.phase ?? "",
       start_date: it.start_date ?? "", end_date: it.end_date ?? "",
       status: it.status, predecessor_id: it.predecessor_id ?? "",
       dependency_type: it.dependency_type ?? "FS",
@@ -122,7 +125,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
   const submit = async () => {
     if (!form.title) return toast.error(locale === "pt" ? "Título obrigatório" : "Title required");
     const payload = {
-      title: form.title, description: form.description || null, phase: form.phase || null,
+      title: form.title, description: form.description || null, notes: form.notes || null, phase: form.phase || null,
       status: form.status,
       start_date: form.start_date || null, end_date: form.end_date || null,
       predecessor_id: form.predecessor_id || null, dependency_type: form.dependency_type,
@@ -303,7 +306,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
             <DialogTrigger asChild>
               <Button onClick={openCreate} size="sm"><Plus className="h-4 w-4" />{locale === "pt" ? "Novo item" : "New item"}</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>{editingId ? (locale === "pt" ? "Editar item" : "Edit item") : (locale === "pt" ? "Novo item do cronograma" : "New schedule item")}</DialogTitle>
               </DialogHeader>
@@ -370,6 +373,13 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                 </div>
                 <div><Label>{locale === "pt" ? "Descrição" : "Description"}</Label>
                   <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} /></div>
+                <div>
+                  <Label>{locale === "pt" ? "Anotações detalhadas" : "Detailed notes"}</Label>
+                  <p className="text-xs text-muted-foreground mb-1.5">{locale === "pt" ? "Espaço amplo para registrar tudo sobre esta etapa — tabelas, imagens e listas." : "Rich space — tables, images, lists."}</p>
+                  <RichEditor value={form.notes} onChange={(v) => setForm({ ...form, notes: v })} minHeight={220}
+                    storagePrefix={`${projectId}/schedule`}
+                    placeholder={locale === "pt" ? "Informações detalhadas desta etapa…" : "Detailed information…"} />
+                </div>
               </div>
               <DialogFooter><Button onClick={submit}>{editingId ? (locale === "pt" ? "Salvar" : "Save") : (locale === "pt" ? "Criar" : "Create")}</Button></DialogFooter>
             </DialogContent>
@@ -536,6 +546,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                           {pred && <Badge variant="outline" className="text-[10px] gap-1"><Link2 className="h-2.5 w-2.5" />{pred.title}</Badge>}
                         </div>
                         {it.description && <p className="text-sm text-muted-foreground mt-1">{it.description}</p>}
+                        {it.notes && <div className="mt-2 text-sm border-l-2 border-primary/30 pl-3"><RichText content={it.notes} /></div>}
                         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
                           {it.start_date && <span><Calendar className="h-3 w-3 inline mr-1" />{new Date(it.start_date).toLocaleDateString()}{it.end_date && ` → ${new Date(it.end_date).toLocaleDateString()}`}</span>}
                           {node && !node.critical && <span className="text-emerald-600">{locale === "pt" ? `Folga: ${node.slack.toFixed(0)} dias` : `Slack: ${node.slack.toFixed(0)}d`}</span>}

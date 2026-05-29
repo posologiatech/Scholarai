@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, FileText, Download, Trash2, Loader2 } from "lucide-react";
+import { Sparkles, FileText, Download, Trash2, Loader2, Upload, FileSpreadsheet, FileImage, Presentation as PresentationIcon, File as FileIcon } from "lucide-react";
 import { toast } from "sonner";
 
 type Doc = {
@@ -19,6 +19,8 @@ type Doc = {
   version: number;
   generated_by_ai: boolean;
   created_at: string;
+  file_url?: string | null;
+  metadata?: any;
 };
 
 const DOC_TYPES = [
@@ -41,6 +43,8 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
   const [extra, setExtra] = useState("");
   const [generating, setGenerating] = useState(false);
   const [viewing, setViewing] = useState<Doc | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setLoading(true);
@@ -79,6 +83,48 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
     setDocs(docs.filter((d) => d.id !== id));
   };
 
+  const handleUpload = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+    setUploading(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      for (const file of Array.from(files)) {
+        const ext = file.name.split(".").pop() || "bin";
+        const path = `${projectId}/docs/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("research-content").upload(path, file, { upsert: false });
+        if (upErr) throw upErr;
+        const { data: pub } = supabase.storage.from("research-content").getPublicUrl(path);
+        const { error: insErr } = await supabase.from("research_documents").insert({
+          project_id: projectId,
+          created_by: u.user!.id,
+          doc_type: "upload",
+          title: file.name,
+          file_url: pub.publicUrl,
+          generated_by_ai: false,
+          metadata: { size: file.size, mime: file.type, ext },
+        });
+        if (insErr) throw insErr;
+      }
+      toast.success("Arquivo(s) enviado(s)");
+      await load();
+    } catch (e: any) {
+      toast.error(e.message || "Falha no upload");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const fileIcon = (d: Doc) => {
+    const ext = (d.metadata?.ext || "").toLowerCase();
+    if (["xls", "xlsx", "csv"].includes(ext)) return <FileSpreadsheet className="h-5 w-5 text-emerald-600" />;
+    if (["ppt", "pptx"].includes(ext)) return <PresentationIcon className="h-5 w-5 text-orange-600" />;
+    if (["doc", "docx"].includes(ext)) return <FileText className="h-5 w-5 text-blue-600" />;
+    if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) return <FileImage className="h-5 w-5 text-purple-600" />;
+    if (ext === "pdf") return <FileIcon className="h-5 w-5 text-rose-600" />;
+    return <FileText className="h-5 w-5 text-muted-foreground" />;
+  };
+
   const downloadMd = (d: Doc) => {
     const blob = new Blob([d.content || ""], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -94,7 +140,15 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
           <h2 className="text-xl font-semibold">Documentos Oficiais</h2>
           <p className="text-sm text-muted-foreground">Gere TCLE, TALE, DMP, Relatórios CNPq/CAPES e mais a partir dos dados do projeto.</p>
         </div>
-        <Button onClick={() => setGenOpen(true)} className="gap-2"><Sparkles className="h-4 w-4" /> Gerar com IA</Button>
+        <div className="flex items-center gap-2">
+          <input ref={fileRef} type="file" multiple className="hidden"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.png,.jpg,.jpeg,.gif,.webp,.zip"
+            onChange={(e) => handleUpload(e.target.files)} />
+          <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading} className="gap-2">
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Enviar arquivo
+          </Button>
+          <Button onClick={() => setGenOpen(true)} className="gap-2"><Sparkles className="h-4 w-4" /> Gerar com IA</Button>
+        </div>
       </div>
 
       {loading ? (
@@ -107,19 +161,20 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
         <div className="grid gap-2">
           {docs.map((d) => (
             <Card key={d.id} className="p-4 flex items-center justify-between gap-3">
-              <button className="flex items-center gap-3 text-left flex-1" onClick={() => setViewing(d)}>
-                <FileText className="h-5 w-5 text-muted-foreground" />
+              <button className="flex items-center gap-3 text-left flex-1" onClick={() => d.doc_type === "upload" ? window.open(d.file_url!, "_blank") : setViewing(d)}>
+                {d.doc_type === "upload" ? fileIcon(d) : <FileText className="h-5 w-5 text-muted-foreground" />}
                 <div className="flex-1">
                   <div className="font-medium">{d.title}</div>
                   <div className="text-xs text-muted-foreground flex gap-2 items-center">
-                    <Badge variant="secondary" className="text-xs">{DOC_TYPES.find((t) => t.value === d.doc_type)?.label.split("—")[0].trim() || d.doc_type}</Badge>
+                    <Badge variant="secondary" className="text-xs">{d.doc_type === "upload" ? "Arquivo" : (DOC_TYPES.find((t) => t.value === d.doc_type)?.label.split("—")[0].trim() || d.doc_type)}</Badge>
                     {d.generated_by_ai && <Badge variant="outline" className="text-xs">IA</Badge>}
-                    <span>v{d.version}</span>
+                    {d.doc_type !== "upload" && <span>v{d.version}</span>}
+                    {d.doc_type === "upload" && d.metadata?.size && <span>{(d.metadata.size / 1024).toFixed(0)} KB</span>}
                     <span>· {new Date(d.created_at).toLocaleDateString("pt-BR")}</span>
                   </div>
                 </div>
               </button>
-              <Button size="icon" variant="ghost" onClick={() => downloadMd(d)}><Download className="h-4 w-4" /></Button>
+              <Button size="icon" variant="ghost" onClick={() => d.doc_type === "upload" ? window.open(d.file_url!, "_blank") : downloadMd(d)}><Download className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" onClick={() => remove(d.id)}><Trash2 className="h-4 w-4" /></Button>
             </Card>
           ))}

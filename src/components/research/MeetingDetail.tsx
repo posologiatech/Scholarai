@@ -10,11 +10,14 @@ import { Label } from "@/components/ui/label";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Trash2, ChevronDown, ChevronRight, Paperclip, FileText,
-  Youtube, Link2, Check, Calendar, Loader2, ArrowRight, CheckSquare, Sparkles,
+  Youtube, Link2, Check, Calendar, Loader2, ArrowRight, CheckSquare, Sparkles, Presentation,
 } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { RichEditor } from "./RichEditor";
+import { RichText } from "./RichText";
+import { MeetingPresentation } from "./MeetingPresentation";
 
 const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
 
@@ -228,9 +231,13 @@ export const AgendaItemRow = ({ item, projectId, onUpdate, onRemove }: any) => {
       </div>
       {open && (
         <CardContent className="pt-0 pb-3 pl-12 space-y-3">
-          <Textarea placeholder={locale === "pt" ? "Anotações da discussão…" : "Discussion notes…"}
-            value={notes} onChange={(e) => { setNotes(e.target.value); scheduleSave({ notes: e.target.value }); }}
-            rows={3} className="text-sm" />
+          <RichEditor
+            value={notes}
+            onChange={(v) => { setNotes(v); scheduleSave({ notes: v }); }}
+            placeholder={locale === "pt" ? "Anotações da discussão (tabelas, imagens, listas)…" : "Discussion notes…"}
+            minHeight={140}
+            storagePrefix={`${projectId}/agenda`}
+          />
           <AttachmentsPanel meetingId={item.meeting_id} agendaItemId={item.id} projectId={projectId} />
         </CardContent>
       )}
@@ -368,6 +375,7 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
   const notesTimer = useRef<number | null>(null);
   const [summarizing, setSummarizing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [presenting, setPresenting] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
   const [pickedTasks, setPickedTasks] = useState<Record<string, boolean>>({});
   const [pickedSchedule, setPickedSchedule] = useState<Record<string, boolean>>({});
@@ -412,12 +420,20 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
 
   const addAgenda = async () => {
     if (!newAgenda.trim()) return;
+    const title = newAgenda.trim();
     const { error } = await supabase.from("research_meeting_agenda_items").insert({
-      meeting_id: meeting.id, title: newAgenda.trim(), position: agendaItems.length,
+      meeting_id: meeting.id, title, position: agendaItems.length,
     });
     if (error) return toast.error(error.message);
+    // New agenda items automatically become "doing" tasks for the project
+    await supabase.from("research_tasks").insert({
+      project_id: projectId, created_by: user!.id, title,
+      status: "doing", priority: "medium", source_meeting_id: meeting.id,
+    });
     setNewAgenda("");
     qc.invalidateQueries({ queryKey: ["agenda-items", meeting.id] });
+    qc.invalidateQueries({ queryKey: ["research-tasks", projectId] });
+    toast.success(locale === "pt" ? "Pauta criada e adicionada às tarefas (Fazendo)" : "Agenda item created and added to tasks (Doing)");
   };
   const updateAgenda = async (id: string, patch: any) => {
     await supabase.from("research_meeting_agenda_items").update(patch).eq("id", id);
@@ -458,18 +474,27 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
   return (
     <div className="space-y-6 pb-12">
       <header className="space-y-2 pb-4 border-b">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="h-4 w-4" />{new Date(meeting.scheduled_at).toLocaleString()}
-          {meeting.meeting_link && <> · <a href={meeting.meeting_link} target="_blank" rel="noopener noreferrer" className="text-primary underline">{locale === "pt" ? "abrir link" : "open link"}</a></>}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Calendar className="h-4 w-4" />{new Date(meeting.scheduled_at).toLocaleString()}
+            {meeting.meeting_link && <> · <a href={meeting.meeting_link} target="_blank" rel="noopener noreferrer" className="text-primary underline">{locale === "pt" ? "abrir link" : "open link"}</a></>}
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setPresenting(true)}>
+            <Presentation className="h-4 w-4" />{locale === "pt" ? "Apresentar" : "Present"}
+          </Button>
         </div>
         <h2 className="text-2xl font-bold">{meeting.title}</h2>
       </header>
 
       <section>
         <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wider">{locale === "pt" ? "Notas gerais" : "General notes"}</h3>
-        <Textarea value={notes} onChange={(e) => saveNotes(e.target.value)} rows={3}
-          placeholder={locale === "pt" ? "Observações livres sobre a reunião…" : "Free notes about the meeting…"} />
+        <RichEditor value={notes} onChange={saveNotes} minHeight={160}
+          storagePrefix={`${projectId}/meeting`}
+          placeholder={locale === "pt" ? "Observações da reunião — use tabelas, imagens e listas para registrar a discussão de uma fase inteira…" : "Meeting notes — tables, images, lists…"} />
       </section>
+
+      <MeetingPresentation meeting={{ ...meeting, notes }} open={presenting} onClose={() => setPresenting(false)} />
+
 
       <section>
         <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">

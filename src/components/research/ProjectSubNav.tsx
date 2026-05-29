@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { FileText, Users2, BookOpen, CheckSquare, CalendarRange, Mic, GraduationCap, Lightbulb, FileSignature, Wallet, ShieldCheck, NotebookPen, Award, AlertTriangle, UserCheck, Package, Activity, Link2, PanelLeftClose, PanelLeft, Search } from "lucide-react";
+import { FileText, Users2, BookOpen, CheckSquare, CalendarRange, Mic, GraduationCap, Lightbulb, FileSignature, Wallet, ShieldCheck, NotebookPen, Award, AlertTriangle, UserCheck, Package, Activity, Link2, Star, PanelLeftClose, PanelLeft, Search } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 export type TabId =
-  | "overview" | "activity"
+  | "overview" | "activity" | "favorites"
   | "tasks" | "schedule" | "meetings" | "logbook"
-  | "team" | "advisees" | "credit"
+  | "team" | "advisees" | "credit" | "defense"
   | "refs" | "pubs" | "outputs" | "docs" | "brainstorm"
   | "budget" | "ethics" | "compliance" | "risks" | "evals"
   | "integrations";
@@ -21,6 +21,7 @@ export const SECTIONS: Section[] = [
   { id: "workspace", pt: "Workspace", en: "Workspace", items: [
     { id: "overview", icon: FileText, pt: "Visão geral", en: "Overview" },
     { id: "activity", icon: Activity, pt: "Atividade", en: "Activity" },
+    { id: "favorites", icon: Star, pt: "Favoritos", en: "Favorites" },
   ]},
   { id: "execucao", pt: "Execução", en: "Execution", items: [
     { id: "tasks", icon: CheckSquare, pt: "Tarefas", en: "Tasks" },
@@ -32,6 +33,7 @@ export const SECTIONS: Section[] = [
     { id: "team", icon: Users2, pt: "Equipe", en: "Team" },
     { id: "advisees", icon: GraduationCap, pt: "Orientações", en: "Advisees" },
     { id: "credit", icon: UserCheck, pt: "Autoria CRediT", en: "CRediT" },
+    { id: "defense", icon: Award, pt: "Banca", en: "Defense" },
   ]},
   { id: "conhecimento", pt: "Conhecimento", en: "Knowledge", items: [
     { id: "refs", icon: BookOpen, pt: "Referências", en: "References" },

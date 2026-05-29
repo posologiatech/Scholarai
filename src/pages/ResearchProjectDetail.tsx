@@ -41,6 +41,9 @@ import ActivityHeatmap from "@/components/research/ActivityHeatmap";
 import PublicShareCard from "@/components/research/PublicShareCard";
 import CreditAuthorshipTab from "@/components/research/CreditAuthorshipTab";
 import OutputsTab from "@/components/research/OutputsTab";
+import TasksBoard from "@/components/research/TasksBoard";
+import FavoritesTab from "@/components/research/FavoritesTab";
+import DefenseTab from "@/components/research/DefenseTab";
 import NotificationsBell from "@/components/research/NotificationsBell";
 
 // ===== Tab: Equipe =====
@@ -249,118 +252,8 @@ const RefsTab = ({ projectId }: { projectId: string }) => {
     </div>
   );
 };
-
-// ===== Tab: Tasks (Kanban) =====
-const TasksTab = ({ projectId }: { projectId: string }) => {
-  const { locale } = useLanguage();
-  const { user } = useAuth();
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", priority: "medium" as const, due_date: "" });
-
-  const { data: tasks = [] } = useQuery({
-    queryKey: ["research-tasks", projectId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("research_tasks")
-        .select("*, source_meeting:research_meetings!source_meeting_id(id,title,scheduled_at)")
-        .eq("project_id", projectId).order("position");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const grouped = useMemo(() => {
-    const cols: Record<ResearchTaskStatus, any[]> = { backlog: [], doing: [], review: [], done: [] };
-    tasks.forEach((t: any) => cols[t.status as ResearchTaskStatus]?.push(t));
-    return cols;
-  }, [tasks]);
-
-  const add = async () => {
-    if (!form.title) return;
-    await supabase.from("research_tasks").insert({
-      project_id: projectId, created_by: user!.id,
-      title: form.title, description: form.description || null,
-      priority: form.priority, due_date: form.due_date || null,
-      status: "backlog",
-    });
-    qc.invalidateQueries({ queryKey: ["research-tasks", projectId] });
-    setOpen(false); setForm({ title: "", description: "", priority: "medium", due_date: "" });
-  };
-
-  const moveTask = async (id: string, status: ResearchTaskStatus) => {
-    await supabase.from("research_tasks").update({
-      status, completed_at: status === "done" ? new Date().toISOString() : null
-    }).eq("id", id);
-    qc.invalidateQueries({ queryKey: ["research-tasks", projectId] });
-  };
-
-  const remove = async (id: string) => {
-    await supabase.from("research_tasks").delete().eq("id", id);
-    qc.invalidateQueries({ queryKey: ["research-tasks", projectId] });
-  };
-
-  const statuses: ResearchTaskStatus[] = ["backlog", "doing", "review", "done"];
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4" />{locale === "pt" ? "Nova tarefa" : "New task"}</Button></DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>{locale === "pt" ? "Nova tarefa" : "New task"}</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <div><Label>{locale === "pt" ? "Título" : "Title"}</Label>
-                <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></div>
-              <div><Label>{locale === "pt" ? "Descrição" : "Description"}</Label>
-                <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} /></div>
-              <div className="grid grid-cols-2 gap-2">
-                <div><Label>{locale === "pt" ? "Prazo" : "Due"}</Label>
-                  <Input type="date" value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })} /></div>
-                <div><Label>{locale === "pt" ? "Prioridade" : "Priority"}</Label>
-                  <Select value={form.priority} onValueChange={(v: any) => setForm({ ...form, priority: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["low", "medium", "high", "urgent"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                    </SelectContent></Select></div>
-              </div>
-            </div>
-            <DialogFooter><Button onClick={add}>{locale === "pt" ? "Criar" : "Create"}</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        {statuses.map(st => (
-          <div key={st} className="bg-muted/30 rounded-lg p-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider mb-3 text-muted-foreground">
-              {TASK_STATUS_LABEL[st][locale]} <span className="ml-1">({grouped[st].length})</span>
-            </h4>
-            <div className="space-y-2">
-              {grouped[st].map((t: any) => (
-                <Card key={t.id}><CardContent className="p-3 space-y-2">
-                  <p className="text-sm font-medium">{t.title}</p>
-                  {t.description && <p className="text-xs text-muted-foreground line-clamp-2">{t.description}</p>}
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <Badge variant={t.priority === "urgent" ? "destructive" : "outline"} className="text-[10px]">{t.priority}</Badge>
-                    {t.due_date && <Badge variant="secondary" className="text-[10px]">{new Date(t.due_date).toLocaleDateString()}</Badge>}
-                    {t.source_meeting && <Badge variant="outline" className="text-[10px] gap-1"><Mic className="h-2.5 w-2.5" />{t.source_meeting.title}</Badge>}
-                  </div>
-                  <div className="flex gap-1 pt-1 items-center">
-                    <Select value={t.status} onValueChange={(v: any) => moveTask(t.id, v)}>
-                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>{statuses.map(s => <SelectItem key={s} value={s}>{TASK_STATUS_LABEL[s][locale]}</SelectItem>)}</SelectContent>
-                    </Select>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => remove(t.id)}><Trash2 className="h-3 w-3" /></Button>
-                  </div>
-                  <CommentThread projectId={projectId} entityType="task" entityId={t.id} compact />
-                </CardContent></Card>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+// ===== Tab: Tasks (modern Kanban board) =====
+const TasksTab = ({ projectId }: { projectId: string }) => <TasksBoard projectId={projectId} />;
 
 // ===== Tab: Meetings =====
 const MeetingsTab = ({ projectId }: { projectId: string }) => {
@@ -934,6 +827,8 @@ const TAB_RENDERERS: Record<TabId, (p: { project: any; isManager: boolean }) => 
   credit: ({ project }) => <CreditAuthorshipTab projectId={project.id} projectTitle={project.title} />,
   outputs: ({ project }) => <OutputsTab projectId={project.id} />,
   activity: ({ project }) => <ActivityHeatmap projectId={project.id} />,
+  favorites: ({ project }) => <FavoritesTab projectId={project.id} />,
+  defense: ({ project }) => <DefenseTab projectId={project.id} />,
   integrations: ({ project }) => <IntegrationsTab projectId={project.id} />,
 };
 
