@@ -42,6 +42,8 @@ import PublicShareCard from "@/components/research/PublicShareCard";
 import CreditAuthorshipTab from "@/components/research/CreditAuthorshipTab";
 import OutputsTab from "@/components/research/OutputsTab";
 import TasksBoard from "@/components/research/TasksBoard";
+import FavoritesTab from "@/components/research/FavoritesTab";
+import DefenseTab from "@/components/research/DefenseTab";
 import NotificationsBell from "@/components/research/NotificationsBell";
 
 // ===== Tab: Equipe =====
