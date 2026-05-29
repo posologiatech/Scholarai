@@ -21,6 +21,7 @@ export const SECTIONS: Section[] = [
   { id: "workspace", pt: "Workspace", en: "Workspace", items: [
     { id: "overview", icon: FileText, pt: "Visão geral", en: "Overview" },
     { id: "activity", icon: Activity, pt: "Atividade", en: "Activity" },
+    { id: "favorites", icon: Star, pt: "Favoritos", en: "Favorites" },
   ]},
   { id: "execucao", pt: "Execução", en: "Execution", items: [
     { id: "tasks", icon: CheckSquare, pt: "Tarefas", en: "Tasks" },
