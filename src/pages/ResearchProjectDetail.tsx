@@ -253,8 +253,6 @@ const RefsTab = ({ projectId }: { projectId: string }) => {
 // ===== Tab: Tasks (modern Kanban board) =====
 const TasksTab = ({ projectId }: { projectId: string }) => <TasksBoard projectId={projectId} />;
 
-};
-
 // ===== Tab: Meetings =====
 const MeetingsTab = ({ projectId }: { projectId: string }) => {
   const { locale } = useLanguage();
