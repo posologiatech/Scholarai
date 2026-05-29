@@ -163,11 +163,11 @@ export const ProjectBodyEditor = ({
               ? "Escreva aqui o texto completo do projeto. Markdown é suportado. Use 'Auto-redação IA' para gerar seções a partir do seu projeto e da biblioteca."
               : "Write the full project text here. Markdown supported."}
             className="min-h-[500px] font-mono text-sm leading-relaxed border-0 focus-visible:ring-0 resize-y bg-transparent p-0"
+          />
         ) : (
           <div className="min-h-[500px]">
             {value.trim() ? <RichText content={value} /> : <p className="text-muted-foreground">{locale === "pt" ? "Vazio." : "Empty."}</p>}
           </div>
-        )}
         )}
       </div>
 
