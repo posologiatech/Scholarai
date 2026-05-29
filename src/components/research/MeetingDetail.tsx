@@ -15,6 +15,9 @@ import {
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { RichEditor } from "./RichEditor";
+import { RichText } from "./RichText";
+import { MeetingPresentation } from "./MeetingPresentation";
 
 const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
 
