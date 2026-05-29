@@ -43,6 +43,8 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
   const [extra, setExtra] = useState("");
   const [generating, setGenerating] = useState(false);
   const [viewing, setViewing] = useState<Doc | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setLoading(true);
@@ -79,6 +81,48 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
     if (!confirm("Excluir documento?")) return;
     await supabase.from("research_documents").delete().eq("id", id);
     setDocs(docs.filter((d) => d.id !== id));
+  };
+
+  const handleUpload = async (files: FileList | null) => {
+    if (!files || !files.length) return;
+    setUploading(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      for (const file of Array.from(files)) {
+        const ext = file.name.split(".").pop() || "bin";
+        const path = `${projectId}/docs/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("research-content").upload(path, file, { upsert: false });
+        if (upErr) throw upErr;
+        const { data: pub } = supabase.storage.from("research-content").getPublicUrl(path);
+        const { error: insErr } = await supabase.from("research_documents").insert({
+          project_id: projectId,
+          created_by: u.user!.id,
+          doc_type: "upload",
+          title: file.name,
+          file_url: pub.publicUrl,
+          generated_by_ai: false,
+          metadata: { size: file.size, mime: file.type, ext },
+        });
+        if (insErr) throw insErr;
+      }
+      toast.success("Arquivo(s) enviado(s)");
+      await load();
+    } catch (e: any) {
+      toast.error(e.message || "Falha no upload");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const fileIcon = (d: Doc) => {
+    const ext = (d.metadata?.ext || "").toLowerCase();
+    if (["xls", "xlsx", "csv"].includes(ext)) return <FileSpreadsheet className="h-5 w-5 text-emerald-600" />;
+    if (["ppt", "pptx"].includes(ext)) return <PresentationIcon className="h-5 w-5 text-orange-600" />;
+    if (["doc", "docx"].includes(ext)) return <FileText className="h-5 w-5 text-blue-600" />;
+    if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) return <FileImage className="h-5 w-5 text-purple-600" />;
+    if (ext === "pdf") return <FileIcon className="h-5 w-5 text-rose-600" />;
+    return <FileText className="h-5 w-5 text-muted-foreground" />;
   };
 
   const downloadMd = (d: Doc) => {
