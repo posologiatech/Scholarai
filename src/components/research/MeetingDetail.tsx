@@ -487,14 +487,6 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
 
       <MeetingPresentation meeting={{ ...meeting, notes }} open={presenting} onClose={() => setPresenting(false)} />
 
-        <h2 className="text-2xl font-bold">{meeting.title}</h2>
-      </header>
-
-      <section>
-        <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wider">{locale === "pt" ? "Notas gerais" : "General notes"}</h3>
-        <Textarea value={notes} onChange={(e) => saveNotes(e.target.value)} rows={3}
-          placeholder={locale === "pt" ? "Observações livres sobre a reunião…" : "Free notes about the meeting…"} />
-      </section>
 
       <section>
         <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
