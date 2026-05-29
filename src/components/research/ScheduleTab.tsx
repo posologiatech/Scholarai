@@ -41,6 +41,7 @@ const DEPENDENCY_LABEL: Record<string, { pt: string; en: string }> = {
 interface FormState {
   title: string;
   description: string;
+  notes: string;
   phase: string;
   start_date: string;
   end_date: string;
@@ -53,7 +54,7 @@ interface FormState {
 }
 
 const EMPTY_FORM: FormState = {
-  title: "", description: "", phase: "", start_date: "", end_date: "",
+  title: "", description: "", notes: "", phase: "", start_date: "", end_date: "",
   status: "planejado", predecessor_id: "", dependency_type: "FS",
   progress: 0, is_milestone: false, assignee_id: "",
 };
@@ -107,7 +108,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
   const openEdit = (it: any) => {
     setEditingId(it.id);
     setForm({
-      title: it.title ?? "", description: it.description ?? "", phase: it.phase ?? "",
+      title: it.title ?? "", description: it.description ?? "", notes: it.notes ?? "", phase: it.phase ?? "",
       start_date: it.start_date ?? "", end_date: it.end_date ?? "",
       status: it.status, predecessor_id: it.predecessor_id ?? "",
       dependency_type: it.dependency_type ?? "FS",
@@ -122,7 +123,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
   const submit = async () => {
     if (!form.title) return toast.error(locale === "pt" ? "Título obrigatório" : "Title required");
     const payload = {
-      title: form.title, description: form.description || null, phase: form.phase || null,
+      title: form.title, description: form.description || null, notes: form.notes || null, phase: form.phase || null,
       status: form.status,
       start_date: form.start_date || null, end_date: form.end_date || null,
       predecessor_id: form.predecessor_id || null, dependency_type: form.dependency_type,
