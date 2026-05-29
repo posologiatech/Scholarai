@@ -5,9 +5,9 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 export type TabId =
-  | "overview" | "activity"
+  | "overview" | "activity" | "favorites"
   | "tasks" | "schedule" | "meetings" | "logbook"
-  | "team" | "advisees" | "credit"
+  | "team" | "advisees" | "credit" | "defense"
   | "refs" | "pubs" | "outputs" | "docs" | "brainstorm"
   | "budget" | "ethics" | "compliance" | "risks" | "evals"
   | "integrations";
