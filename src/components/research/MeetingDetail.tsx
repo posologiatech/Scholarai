@@ -463,21 +463,30 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
     setPickedTasks({}); setPickedSchedule({}); setPickerSearch(""); setPickerOpen(false);
   };
 
-  const saveNotes = (v: string) => {
-    setNotes(v);
-    if (notesTimer.current) window.clearTimeout(notesTimer.current);
-    notesTimer.current = window.setTimeout(async () => {
-      await supabase.from("research_meetings").update({ notes: v }).eq("id", meeting.id);
-    }, 800);
-  };
-
   return (
     <div className="space-y-6 pb-12">
       <header className="space-y-2 pb-4 border-b">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="h-4 w-4" />{new Date(meeting.scheduled_at).toLocaleString()}
-          {meeting.meeting_link && <> · <a href={meeting.meeting_link} target="_blank" rel="noopener noreferrer" className="text-primary underline">{locale === "pt" ? "abrir link" : "open link"}</a></>}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Calendar className="h-4 w-4" />{new Date(meeting.scheduled_at).toLocaleString()}
+            {meeting.meeting_link && <> · <a href={meeting.meeting_link} target="_blank" rel="noopener noreferrer" className="text-primary underline">{locale === "pt" ? "abrir link" : "open link"}</a></>}
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setPresenting(true)}>
+            <Presentation className="h-4 w-4" />{locale === "pt" ? "Apresentar" : "Present"}
+          </Button>
         </div>
+        <h2 className="text-2xl font-bold">{meeting.title}</h2>
+      </header>
+
+      <section>
+        <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wider">{locale === "pt" ? "Notas gerais" : "General notes"}</h3>
+        <RichEditor value={notes} onChange={saveNotes} minHeight={160}
+          storagePrefix={`${projectId}/meeting`}
+          placeholder={locale === "pt" ? "Observações da reunião — use tabelas, imagens e listas para registrar a discussão de uma fase inteira…" : "Meeting notes — tables, images, lists…"} />
+      </section>
+
+      <MeetingPresentation meeting={{ ...meeting, notes }} open={presenting} onClose={() => setPresenting(false)} />
+
         <h2 className="text-2xl font-bold">{meeting.title}</h2>
       </header>
 
