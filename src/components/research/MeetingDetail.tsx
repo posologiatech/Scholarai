@@ -420,12 +420,20 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
 
   const addAgenda = async () => {
     if (!newAgenda.trim()) return;
+    const title = newAgenda.trim();
     const { error } = await supabase.from("research_meeting_agenda_items").insert({
-      meeting_id: meeting.id, title: newAgenda.trim(), position: agendaItems.length,
+      meeting_id: meeting.id, title, position: agendaItems.length,
     });
     if (error) return toast.error(error.message);
+    // New agenda items automatically become "doing" tasks for the project
+    await supabase.from("research_tasks").insert({
+      project_id: projectId, created_by: user!.id, title,
+      status: "doing", priority: "medium", source_meeting_id: meeting.id,
+    });
     setNewAgenda("");
     qc.invalidateQueries({ queryKey: ["agenda-items", meeting.id] });
+    qc.invalidateQueries({ queryKey: ["research-tasks", projectId] });
+    toast.success(locale === "pt" ? "Pauta criada e adicionada às tarefas (Fazendo)" : "Agenda item created and added to tasks (Doing)");
   };
   const updateAgenda = async (id: string, patch: any) => {
     await supabase.from("research_meeting_agenda_items").update(patch).eq("id", id);
