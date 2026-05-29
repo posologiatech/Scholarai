@@ -304,7 +304,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
             <DialogTrigger asChild>
               <Button onClick={openCreate} size="sm"><Plus className="h-4 w-4" />{locale === "pt" ? "Novo item" : "New item"}</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>{editingId ? (locale === "pt" ? "Editar item" : "Edit item") : (locale === "pt" ? "Novo item do cronograma" : "New schedule item")}</DialogTitle>
               </DialogHeader>
@@ -371,6 +371,13 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                 </div>
                 <div><Label>{locale === "pt" ? "Descrição" : "Description"}</Label>
                   <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} /></div>
+                <div>
+                  <Label>{locale === "pt" ? "Anotações detalhadas" : "Detailed notes"}</Label>
+                  <p className="text-xs text-muted-foreground mb-1.5">{locale === "pt" ? "Espaço amplo para registrar tudo sobre esta etapa — tabelas, imagens e listas." : "Rich space — tables, images, lists."}</p>
+                  <RichEditor value={form.notes} onChange={(v) => setForm({ ...form, notes: v })} minHeight={220}
+                    storagePrefix={`${projectId}/schedule`}
+                    placeholder={locale === "pt" ? "Informações detalhadas desta etapa…" : "Detailed information…"} />
+                </div>
               </div>
               <DialogFooter><Button onClick={submit}>{editingId ? (locale === "pt" ? "Salvar" : "Save") : (locale === "pt" ? "Criar" : "Create")}</Button></DialogFooter>
             </DialogContent>
