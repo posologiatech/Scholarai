@@ -36,7 +36,10 @@ export default function DefenseTab({ projectId }: { projectId: string }) {
   const [defense, setDefense] = useState<any>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [mOpen, setMOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [mForm, setMForm] = useState({ name: "", role: "membro_externo", institution: "", email: "", lattes_url: "", notes: "" });
+  const [directory, setDirectory] = useState<any[]>([]);
+  const [dirSearch, setDirSearch] = useState("");
 
   const load = async () => {
     const { data: d } = await supabase.from("research_defense").select("*").eq("project_id", projectId).maybeSingle();
@@ -44,7 +47,11 @@ export default function DefenseTab({ projectId }: { projectId: string }) {
     const { data: m } = await supabase.from("research_defense_members").select("*").eq("project_id", projectId).order("position").order("created_at");
     setMembers((m as Member[]) || []);
   };
-  useEffect(() => { load(); }, [projectId]);
+  const loadDirectory = async () => {
+    const { data } = await supabase.from("research_examiners").select("*").order("name");
+    setDirectory(data || []);
+  };
+  useEffect(() => { load(); loadDirectory(); }, [projectId]);
 
   const saveField = async (patch: any) => {
     setDefense((d: any) => ({ ...d, ...patch }));
@@ -56,20 +63,76 @@ export default function DefenseTab({ projectId }: { projectId: string }) {
     }
   };
 
-  const addMember = async () => {
+  const openAdd = () => {
+    setEditingId(null);
+    setMForm({ name: "", role: "membro_externo", institution: "", email: "", lattes_url: "", notes: "" });
+    setDirSearch("");
+    setMOpen(true);
+  };
+  const openEdit = (m: Member) => {
+    setEditingId(m.id);
+    setMForm({ name: m.name, role: m.role || "membro_externo", institution: m.institution || "", email: m.email || "", lattes_url: m.lattes_url || "", notes: m.notes || "" });
+    setDirSearch("");
+    setMOpen(true);
+  };
+
+  // Persist a member to the reusable personal directory (upsert by name+email)
+  const syncToDirectory = async (data: { name: string; role: string; institution: string | null; email: string | null; lattes_url: string | null; notes: string | null }) => {
+    if (!user) return;
+    const existing = directory.find(
+      (e) => e.name.trim().toLowerCase() === data.name.trim().toLowerCase() &&
+        (e.email || "").trim().toLowerCase() === (data.email || "").trim().toLowerCase()
+    );
+    if (existing) {
+      await supabase.from("research_examiners").update({
+        role: data.role, institution: data.institution, email: data.email, lattes_url: data.lattes_url, notes: data.notes,
+      }).eq("id", existing.id);
+    } else {
+      await supabase.from("research_examiners").insert({
+        owner_id: user.id, name: data.name, role: data.role, institution: data.institution,
+        email: data.email, lattes_url: data.lattes_url, notes: data.notes,
+      });
+    }
+    loadDirectory();
+  };
+
+  const saveMember = async () => {
     if (!mForm.name.trim()) return toast.error(locale === "pt" ? "Nome obrigatório" : "Name required");
-    const { error } = await supabase.from("research_defense_members").insert({
-      project_id: projectId, name: mForm.name.trim(), role: mForm.role,
+    const payload = {
+      name: mForm.name.trim(), role: mForm.role,
       institution: mForm.institution.trim() || null, email: mForm.email.trim() || null,
       lattes_url: mForm.lattes_url.trim() || null, notes: mForm.notes.trim() || null,
-    });
-    if (error) return toast.error(error.message);
-    setMOpen(false); setMForm({ name: "", role: "membro_externo", institution: "", email: "", lattes_url: "", notes: "" }); load();
+    };
+    if (editingId) {
+      const { error } = await supabase.from("research_defense_members").update(payload).eq("id", editingId);
+      if (error) return toast.error(error.message);
+    } else {
+      const { error } = await supabase.from("research_defense_members").insert({ project_id: projectId, ...payload });
+      if (error) return toast.error(error.message);
+    }
+    await syncToDirectory(payload);
+    setMOpen(false);
+    setEditingId(null);
+    setMForm({ name: "", role: "membro_externo", institution: "", email: "", lattes_url: "", notes: "" });
+    load();
   };
   const removeMember = async (id: string) => {
     await supabase.from("research_defense_members").delete().eq("id", id);
     setMembers(members.filter(m => m.id !== id));
   };
+
+  const pickFromDirectory = (e: any) => {
+    setMForm({
+      name: e.name || "", role: e.role || "membro_externo", institution: e.institution || "",
+      email: e.email || "", lattes_url: e.lattes_url || "", notes: e.notes || "",
+    });
+    setDirSearch("");
+  };
+  const filteredDir = dirSearch.trim()
+    ? directory.filter((e) =>
+        `${e.name} ${e.institution || ""} ${e.email || ""}`.toLowerCase().includes(dirSearch.trim().toLowerCase()))
+    : directory.slice(0, 6);
+
 
   const dt = defense?.defense_date ? new Date(defense.defense_date) : null;
 
