@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Banknote, BellRing, BellOff, ExternalLink, Plus } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "sonner";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 
 const Inner = () => {
   const { locale } = useLanguage();
