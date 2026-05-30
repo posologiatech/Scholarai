@@ -11,6 +11,8 @@ import StepQuality from "@/components/app/systematic-review/StepQuality";
 import StepReport from "@/components/app/systematic-review/StepReport";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { importPapersToReferences } from "@/lib/research/integrations";
 
 const SystematicReview = () => {
   const { locale } = useLanguage();
@@ -95,8 +97,34 @@ const SystematicReview = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <div className="border-b border-border bg-card px-4 py-3">
+      <div className="border-b border-border bg-card px-4 py-3 flex items-center justify-between gap-3">
         <ReviewStepper currentStep={currentStep} onStepClick={setCurrentStep} />
+        {dbId && (
+          <LinkToProjectButton
+            resourceType="systematic_review"
+            resourceId={dbId}
+            label={question || (locale === "pt" ? "Revisão sistemática" : "Systematic review")}
+            attachTable="systematic_reviews"
+            variant="outline"
+            metadata={{ included: includedPaperIds.length, total: papers.length }}
+            onLinked={async (projectId) => {
+              try {
+                const included = papers.filter((p: any) =>
+                  includedPaperIds.includes(p.id || p.paperId || p.external_id),
+                );
+                const toImport = (included.length ? included : papers).map((p: any) => ({
+                  external_paper_id: p.id || p.external_id || null,
+                  title: p.title || "(sem título)",
+                  authors: Array.isArray(p.authors) ? p.authors.join(", ") : (p.authors || null),
+                  year: p.year || null,
+                  doi: p.doi || null,
+                }));
+                const n = await importPapersToReferences(projectId, toImport);
+                if (n > 0) toast.success(locale === "pt" ? `${n} referência(s) importada(s)` : `${n} reference(s) imported`);
+              } catch { /* non-blocking */ }
+            }}
+          />
+        )}
       </div>
 
       <main className="flex-1 px-4 py-8">

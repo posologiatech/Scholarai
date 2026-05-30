@@ -45,6 +45,7 @@ import TasksBoard from "@/components/research/TasksBoard";
 import FavoritesTab from "@/components/research/FavoritesTab";
 import DefenseTab from "@/components/research/DefenseTab";
 import NotificationsBell from "@/components/research/NotificationsBell";
+import ConnectionsTab from "@/components/research/ConnectionsTab";
 
 // ===== Tab: Equipe =====
 const TeamTab = ({ projectId }: { projectId: string }) => {
@@ -879,6 +880,7 @@ const TAB_RENDERERS: Record<TabId, (p: { project: any; isManager: boolean }) => 
   activity: ({ project }) => <ActivityHeatmap projectId={project.id} />,
   favorites: ({ project }) => <FavoritesTab projectId={project.id} />,
   defense: ({ project }) => <DefenseTab projectId={project.id} />,
+  connections: ({ project }) => <ConnectionsTab projectId={project.id} />,
   integrations: ({ project }) => <IntegrationsTab projectId={project.id} />,
 };
 

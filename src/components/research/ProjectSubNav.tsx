@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileText, Users2, BookOpen, CheckSquare, CalendarRange, Mic, GraduationCap, Lightbulb, FileSignature, Wallet, ShieldCheck, NotebookPen, Award, AlertTriangle, UserCheck, Package, Activity, Link2, Star, PanelLeftClose, PanelLeft, Search } from "lucide-react";
+import { FileText, Users2, BookOpen, CheckSquare, CalendarRange, Mic, GraduationCap, Lightbulb, FileSignature, Wallet, ShieldCheck, NotebookPen, Award, AlertTriangle, UserCheck, Package, Activity, Link2, Star, PanelLeftClose, PanelLeft, Search, Workflow } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -8,7 +8,7 @@ export type TabId =
   | "overview" | "activity" | "favorites"
   | "tasks" | "schedule" | "meetings" | "logbook"
   | "team" | "advisees" | "credit" | "defense"
-  | "refs" | "pubs" | "outputs" | "docs" | "brainstorm"
+  | "refs" | "pubs" | "outputs" | "docs" | "brainstorm" | "connections"
   | "budget" | "ethics" | "compliance" | "risks" | "evals"
   | "integrations";
 
@@ -36,6 +36,7 @@ export const SECTIONS: Section[] = [
     { id: "defense", icon: Award, pt: "Banca", en: "Defense" },
   ]},
   { id: "conhecimento", pt: "Conhecimento", en: "Knowledge", items: [
+    { id: "connections", icon: Workflow, pt: "Conexões", en: "Connections" },
     { id: "refs", icon: BookOpen, pt: "Referências", en: "References" },
     { id: "pubs", icon: FileText, pt: "Publicações", en: "Publications" },
     { id: "outputs", icon: Package, pt: "Outputs", en: "Outputs" },

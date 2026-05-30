@@ -35,6 +35,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import * as XLSX from "xlsx";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 
 export interface Conversation {
   id: string;
@@ -684,6 +685,15 @@ const DataMind = () => {
               )}
               {conversationId && (
                 <DataMindCollaboration conversationId={conversationId} />
+              )}
+              {conversationId && (
+                <LinkToProjectButton
+                  resourceType="datamind"
+                  resourceId={conversationId}
+                  label={conversations.find((c) => c.id === conversationId)?.title || "Análise DataMind"}
+                  attachTable="datamind_conversations"
+                  variant="ghost"
+                />
               )}
               {conversationId && messages.length > 0 && (
                 <DataMindVersioning

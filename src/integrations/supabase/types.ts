@@ -473,6 +473,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          research_project_id: string | null
           title: string
           updated_at: string
           user_id: string
@@ -480,6 +481,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          research_project_id?: string | null
           title?: string
           updated_at?: string
           user_id: string
@@ -487,11 +489,20 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          research_project_id?: string | null
           title?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "datamind_conversations_research_project_id_fkey"
+            columns: ["research_project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       datamind_dashboard_items: {
         Row: {
@@ -2978,6 +2989,53 @@ export type Database = {
           },
         ]
       }
+      research_project_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          metadata: Json
+          project_id: string
+          resource_id: string | null
+          resource_type: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          metadata?: Json
+          project_id: string
+          resource_id?: string | null
+          resource_type: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          metadata?: Json
+          project_id?: string
+          resource_id?: string | null
+          resource_type?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_project_links_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_project_members: {
         Row: {
           accepted: boolean
@@ -3556,6 +3614,7 @@ export type Database = {
           id: string
           papers: Json
           query: string
+          research_project_id: string | null
           user_id: string
         }
         Insert: {
@@ -3565,6 +3624,7 @@ export type Database = {
           id?: string
           papers?: Json
           query: string
+          research_project_id?: string | null
           user_id: string
         }
         Update: {
@@ -3574,9 +3634,18 @@ export type Database = {
           id?: string
           papers?: Json
           query?: string
+          research_project_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "saved_searches_research_project_id_fkey"
+            columns: ["research_project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       screening_decisions: {
         Row: {
@@ -4316,6 +4385,7 @@ export type Database = {
           description: string | null
           id: string
           published_at: string | null
+          research_project_id: string | null
           settings: Json
           status: string
           title: string
@@ -4329,6 +4399,7 @@ export type Database = {
           description?: string | null
           id?: string
           published_at?: string | null
+          research_project_id?: string | null
           settings?: Json
           status?: string
           title?: string
@@ -4342,6 +4413,7 @@ export type Database = {
           description?: string | null
           id?: string
           published_at?: string | null
+          research_project_id?: string | null
           settings?: Json
           status?: string
           title?: string
@@ -4350,6 +4422,13 @@ export type Database = {
           workspace_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "surveys_research_project_id_fkey"
+            columns: ["research_project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "surveys_workspace_id_fkey"
             columns: ["workspace_id"]
@@ -4414,6 +4493,7 @@ export type Database = {
           included_paper_ids: string[]
           papers: Json
           report_content: string | null
+          research_project_id: string | null
           research_question: string
           screening_criteria: Json
           screening_results: Json
@@ -4430,6 +4510,7 @@ export type Database = {
           included_paper_ids?: string[]
           papers?: Json
           report_content?: string | null
+          research_project_id?: string | null
           research_question: string
           screening_criteria?: Json
           screening_results?: Json
@@ -4446,6 +4527,7 @@ export type Database = {
           included_paper_ids?: string[]
           papers?: Json
           report_content?: string | null
+          research_project_id?: string | null
           research_question?: string
           screening_criteria?: Json
           screening_results?: Json
@@ -4453,7 +4535,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "systematic_reviews_research_project_id_fkey"
+            columns: ["research_project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       uploaded_papers: {
         Row: {
@@ -4738,6 +4828,7 @@ export type Database = {
           created_at: string
           id: string
           metadata: Json | null
+          research_project_id: string | null
           section: string | null
           selected_paper_ids: Json | null
           title: string
@@ -4750,6 +4841,7 @@ export type Database = {
           created_at?: string
           id?: string
           metadata?: Json | null
+          research_project_id?: string | null
           section?: string | null
           selected_paper_ids?: Json | null
           title?: string
@@ -4762,13 +4854,22 @@ export type Database = {
           created_at?: string
           id?: string
           metadata?: Json | null
+          research_project_id?: string | null
           section?: string | null
           selected_paper_ids?: Json | null
           title?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "writing_documents_research_project_id_fkey"
+            columns: ["research_project_id"]
+            isOneToOne: false
+            referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

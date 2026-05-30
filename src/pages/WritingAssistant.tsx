@@ -25,6 +25,8 @@ import {
 import AIDeclarationDialog, { type AIUsageEntry } from "@/components/app/AIDeclarationDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { promoteWritingToPublication } from "@/lib/research/integrations";
 interface Paper {
   id: string;
   title: string;
@@ -1141,6 +1143,22 @@ const WritingAssistant = () => {
                 </TooltipTrigger>
                 <TooltipContent><p className="text-xs">{pt ? "Salvar documento atual" : "Save current document"}</p></TooltipContent>
               </Tooltip>
+              {currentDocId && (
+                <LinkToProjectButton
+                  resourceType="writing"
+                  resourceId={currentDocId}
+                  label={docTitle || (pt ? "Documento sem título" : "Untitled document")}
+                  attachTable="writing_documents"
+                  variant="ghost"
+                  metadata={{ section: selectedSection }}
+                  onLinked={async (projectId) => {
+                    try {
+                      await promoteWritingToPublication(projectId, docTitle || (pt ? "Manuscrito" : "Manuscript"));
+                      toast.success(pt ? "Documento vinculado e registrado em Publicações" : "Document linked and registered in Publications");
+                    } catch { /* non-blocking */ }
+                  }}
+                />
+              )}
               <Dialog open={showDocManager} onOpenChange={setShowDocManager}>
                 <Tooltip>
                   <TooltipTrigger asChild>

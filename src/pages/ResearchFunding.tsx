@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Banknote, BellRing, BellOff, ExternalLink, Plus } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "sonner";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 
 const Inner = () => {
   const { locale } = useLanguage();
@@ -134,6 +135,14 @@ const Inner = () => {
                     <CardTitle className="text-base mt-2">{c.title}</CardTitle>
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    <LinkToProjectButton
+                      resourceType="funding"
+                      resourceId={c.id}
+                      label={c.title}
+                      url={c.url || undefined}
+                      variant="ghost"
+                      metadata={{ agency: c.agency, deadline: c.deadline }}
+                    />
                     <Button size="icon" variant="ghost" onClick={() => toggleSub(c.id)} title={subscribed ? "Unfollow" : "Follow"}>
                       {subscribed ? <BellRing className="h-4 w-4 text-primary" /> : <BellOff className="h-4 w-4" />}
                     </Button>

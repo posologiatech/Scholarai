@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -196,12 +197,21 @@ const Surveys = () => {
                       {new Date(survey.updated_at).toLocaleDateString()}
                     </td>
                     <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
+                      <div className="flex items-center justify-end gap-1">
+                        <LinkToProjectButton
+                          resourceType="survey"
+                          resourceId={survey.id}
+                          label={survey.title}
+                          attachTable="surveys"
+                          variant="ghost"
+                          metadata={{ status: survey.status }}
+                        />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => navigate(`/surveys/${survey.id}/build`)}>
                             <Pencil className="h-4 w-4 mr-2" />
@@ -228,6 +238,7 @@ const Surveys = () => {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      </div>
                     </td>
                   </tr>
                 ))}
