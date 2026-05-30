@@ -545,8 +545,6 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                           {memberLabel(it.assignee_id) && <Badge variant="outline" className="text-[10px]"><Users className="h-2.5 w-2.5" />{memberLabel(it.assignee_id)}</Badge>}
                           {pred && <Badge variant="outline" className="text-[10px] gap-1"><Link2 className="h-2.5 w-2.5" />{pred.title}</Badge>}
                         </div>
-                        {it.description && <p className="text-sm text-muted-foreground mt-1">{it.description}</p>}
-                        {it.notes && <div className="mt-2 text-sm border-l-2 border-primary/30 pl-3"><RichText content={it.notes} /></div>}
                         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
                           {it.start_date && <span><Calendar className="h-3 w-3 inline mr-1" />{new Date(it.start_date).toLocaleDateString()}{it.end_date && ` → ${new Date(it.end_date).toLocaleDateString()}`}</span>}
                           {node && !node.critical && <span className="text-emerald-600">{locale === "pt" ? `Folga: ${node.slack.toFixed(0)} dias` : `Slack: ${node.slack.toFixed(0)}d`}</span>}
