@@ -175,21 +175,41 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
 
   const submit = async () => {
     if (!form.title) return toast.error(locale === "pt" ? "Título obrigatório" : "Title required");
+    const autoProgress = computeAutoProgress(
+      { status: form.status, start_date: form.start_date, end_date: form.end_date },
+      form.linked_task_ids.map((id) => projectTasks.find((t: any) => t.id === id)).filter(Boolean) as any[],
+    );
     const payload = {
       title: form.title, description: form.description || null, notes: form.notes || null, phase: form.phase || null,
       status: form.status,
       start_date: form.start_date || null, end_date: form.end_date || null,
       predecessor_id: form.predecessor_id || null, dependency_type: form.dependency_type,
-      progress: form.progress, is_milestone: form.is_milestone,
+      progress: form.progress_mode === "manual" ? form.progress : autoProgress,
+      progress_mode: form.progress_mode,
+      is_milestone: form.is_milestone,
       assignee_id: form.assignee_id || null,
     };
-    let error;
+    let error; let savedId = editingId;
     if (editingId) ({ error } = await supabase.from("research_schedule_items").update(payload).eq("id", editingId));
-    else ({ error } = await supabase.from("research_schedule_items").insert({
-      ...payload, project_id: projectId, created_by: user!.id,
-    }));
+    else {
+      const { data, error: insErr } = await supabase.from("research_schedule_items").insert({
+        ...payload, project_id: projectId, created_by: user!.id,
+      }).select("id").single();
+      error = insErr; savedId = data?.id ?? null;
+    }
     if (error) return toast.error(error.message);
+
+    // Sync linked tasks (schedule_item_id) for this item
+    if (savedId) {
+      const previous = (tasksByItem.get(savedId) ?? []).map((t: any) => t.id);
+      const toLink = form.linked_task_ids.filter((id) => !previous.includes(id));
+      const toUnlink = previous.filter((id) => !form.linked_task_ids.includes(id));
+      if (toLink.length) await supabase.from("research_tasks").update({ schedule_item_id: savedId }).in("id", toLink);
+      if (toUnlink.length) await supabase.from("research_tasks").update({ schedule_item_id: null }).in("id", toUnlink);
+    }
+
     qc.invalidateQueries({ queryKey: ["research-schedule", projectId] });
+    qc.invalidateQueries({ queryKey: ["research-tasks-min", projectId] });
     setOpen(false); setForm(EMPTY_FORM); setEditingId(null);
   };
 
