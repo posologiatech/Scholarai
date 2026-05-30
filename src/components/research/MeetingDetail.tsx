@@ -682,6 +682,7 @@ export const NewMeetingDialog = ({ projectId, open, onOpenChange }: { projectId:
   const { user } = useAuth();
   const qc = useQueryClient();
   const [form, setForm] = useState({ title: "", scheduled_at: "", meeting_link: "", agenda: "" });
+  const [rec, setRec] = useState<{ freq: string; interval: number; weekdays: number[]; until: string }>({ freq: "none", interval: 1, weekdays: [], until: "" });
   const [pickedTasks, setPickedTasks] = useState<Record<string, boolean>>({});
   const [pickedSchedule, setPickedSchedule] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
