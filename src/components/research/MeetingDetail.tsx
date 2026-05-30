@@ -463,6 +463,31 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
   const [pickerSearch, setPickerSearch] = useState("");
   const [pickedTasks, setPickedTasks] = useState<Record<string, boolean>>({});
   const [pickedSchedule, setPickedSchedule] = useState<Record<string, boolean>>({});
+  const toLocalInput = (iso: string) => {
+    const d = new Date(iso);
+    const off = d.getTimezoneOffset();
+    return new Date(d.getTime() - off * 60000).toISOString().slice(0, 16);
+  };
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ title: "", scheduled_at: "", meeting_link: "" });
+  const openEdit = () => {
+    setEditForm({ title: meeting.title, scheduled_at: toLocalInput(meeting.scheduled_at), meeting_link: meeting.meeting_link || "" });
+    setEditOpen(true);
+  };
+  const saveEdit = async () => {
+    if (!editForm.scheduled_at) return toast.error(locale === "pt" ? "Informe data e hora" : "Provide date & time");
+    const { error } = await supabase.from("research_meetings").update({
+      title: editForm.title,
+      scheduled_at: new Date(editForm.scheduled_at).toISOString(),
+      meeting_link: editForm.meeting_link || null,
+    }).eq("id", meeting.id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["research-meetings", projectId] });
+    toast.success(locale === "pt" ? "Reunião atualizada" : "Meeting updated");
+    setEditOpen(false);
+  };
+
+
 
   const { data: agendaItems = [] } = useQuery({
     queryKey: ["agenda-items", meeting.id],
