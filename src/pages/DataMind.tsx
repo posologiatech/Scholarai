@@ -35,6 +35,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import * as XLSX from "xlsx";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 
 export interface Conversation {
   id: string;
