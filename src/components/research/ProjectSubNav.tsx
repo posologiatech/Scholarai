@@ -8,7 +8,7 @@ export type TabId =
   | "overview" | "activity" | "favorites"
   | "tasks" | "schedule" | "meetings" | "logbook"
   | "team" | "advisees" | "credit" | "defense"
-  | "refs" | "pubs" | "outputs" | "docs" | "brainstorm"
+  | "refs" | "pubs" | "outputs" | "docs" | "brainstorm" | "connections"
   | "budget" | "ethics" | "compliance" | "risks" | "evals"
   | "integrations";
 
