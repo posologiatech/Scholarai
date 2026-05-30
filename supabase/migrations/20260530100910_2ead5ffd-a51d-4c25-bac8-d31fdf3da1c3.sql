@@ -1,0 +1,2 @@
+ALTER TABLE public.research_documents DROP CONSTRAINT research_documents_doc_type_check;
+ALTER TABLE public.research_documents ADD CONSTRAINT research_documents_doc_type_check CHECK (doc_type = ANY (ARRAY['tcle'::text, 'tale'::text, 'dmp'::text, 'relatorio_parcial'::text, 'relatorio_final'::text, 'folha_rosto'::text, 'termo_sigilo'::text, 'custom'::text, 'upload'::text]));
