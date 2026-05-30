@@ -587,13 +587,42 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar className="h-4 w-4" />{new Date(meeting.scheduled_at).toLocaleString()}
             {meeting.meeting_link && <> · <a href={meeting.meeting_link} target="_blank" rel="noopener noreferrer" className="text-primary underline">{locale === "pt" ? "abrir link" : "open link"}</a></>}
+            {recurrenceLabel(meeting, locale) && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs">
+                <Repeat className="h-3 w-3" />{recurrenceLabel(meeting, locale)}
+              </span>
+            )}
           </div>
-          <Button size="sm" variant="outline" onClick={() => setPresenting(true)}>
-            <Presentation className="h-4 w-4" />{locale === "pt" ? "Apresentar" : "Present"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={openEdit}>
+              <Pencil className="h-4 w-4" />{locale === "pt" ? "Editar" : "Edit"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setPresenting(true)}>
+              <Presentation className="h-4 w-4" />{locale === "pt" ? "Apresentar" : "Present"}
+            </Button>
+          </div>
         </div>
         <h2 className="text-2xl font-bold">{meeting.title}</h2>
       </header>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{locale === "pt" ? "Editar reunião" : "Edit meeting"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>{locale === "pt" ? "Título" : "Title"}</Label>
+              <Input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} /></div>
+            <div><Label>{locale === "pt" ? "Data e hora" : "Date & time"}</Label>
+              <Input type="datetime-local" value={editForm.scheduled_at} onChange={(e) => setEditForm({ ...editForm, scheduled_at: e.target.value })} /></div>
+            <div><Label>{locale === "pt" ? "Link (Meet/Zoom)" : "Link"}</Label>
+              <Input value={editForm.meeting_link} onChange={(e) => setEditForm({ ...editForm, meeting_link: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{locale === "pt" ? "Cancelar" : "Cancel"}</Button>
+            <Button onClick={saveEdit}>{locale === "pt" ? "Salvar" : "Save"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       <section>
         <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wider">{locale === "pt" ? "Notas gerais" : "General notes"}</h3>
