@@ -278,6 +278,27 @@ const Library = () => {
                   </div>
                 )}
                 <div className="flex items-center gap-1">
+                  <LinkToProjectButton
+                    resourceType="search"
+                    resourceId={s.id}
+                    label={s.query}
+                    attachTable="saved_searches"
+                    variant="ghost"
+                    metadata={{ papers: (s.papers as any[])?.length || 0 }}
+                    onLinked={async (projectId) => {
+                      try {
+                        const papers = ((s.papers as any[]) || []).map((p: any) => ({
+                          external_paper_id: p.id || p.external_id || p.paperId || null,
+                          title: p.title || "(sem título)",
+                          authors: Array.isArray(p.authors) ? p.authors.join(", ") : (p.authors || null),
+                          year: p.year || null,
+                          doi: p.doi || null,
+                        }));
+                        const n = await importPapersToReferences(projectId, papers);
+                        if (n > 0) toast.success(pt ? `${n} referência(s) importada(s)` : `${n} reference(s) imported`);
+                      } catch { /* non-blocking */ }
+                    }}
+                  />
                   <Button
                     variant="ghost"
                     size="icon"
