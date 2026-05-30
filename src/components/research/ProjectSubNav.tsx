@@ -36,6 +36,7 @@ export const SECTIONS: Section[] = [
     { id: "defense", icon: Award, pt: "Banca", en: "Defense" },
   ]},
   { id: "conhecimento", pt: "Conhecimento", en: "Knowledge", items: [
+    { id: "connections", icon: Workflow, pt: "Conexões", en: "Connections" },
     { id: "refs", icon: BookOpen, pt: "Referências", en: "References" },
     { id: "pubs", icon: FileText, pt: "Publicações", en: "Publications" },
     { id: "outputs", icon: Package, pt: "Outputs", en: "Outputs" },
