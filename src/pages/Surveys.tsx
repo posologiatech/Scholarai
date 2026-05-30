@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { createSurveyAnalysisTask } from "@/lib/research/integrations";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
