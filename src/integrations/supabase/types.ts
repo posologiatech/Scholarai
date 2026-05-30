@@ -3285,6 +3285,7 @@ export type Database = {
           position: number
           predecessor_id: string | null
           progress: number
+          progress_mode: string
           project_id: string
           start_date: string | null
           status: Database["public"]["Enums"]["research_schedule_status"]
@@ -3307,6 +3308,7 @@ export type Database = {
           position?: number
           predecessor_id?: string | null
           progress?: number
+          progress_mode?: string
           project_id: string
           start_date?: string | null
           status?: Database["public"]["Enums"]["research_schedule_status"]
@@ -3329,6 +3331,7 @@ export type Database = {
           position?: number
           predecessor_id?: string | null
           progress?: number
+          progress_mode?: string
           project_id?: string
           start_date?: string | null
           status?: Database["public"]["Enums"]["research_schedule_status"]
@@ -3373,6 +3376,7 @@ export type Database = {
           position: number
           priority: Database["public"]["Enums"]["research_task_priority"]
           project_id: string
+          schedule_item_id: string | null
           source_meeting_id: string | null
           status: Database["public"]["Enums"]["research_task_status"]
           title: string
@@ -3391,6 +3395,7 @@ export type Database = {
           position?: number
           priority?: Database["public"]["Enums"]["research_task_priority"]
           project_id: string
+          schedule_item_id?: string | null
           source_meeting_id?: string | null
           status?: Database["public"]["Enums"]["research_task_status"]
           title: string
@@ -3409,6 +3414,7 @@ export type Database = {
           position?: number
           priority?: Database["public"]["Enums"]["research_task_priority"]
           project_id?: string
+          schedule_item_id?: string | null
           source_meeting_id?: string | null
           status?: Database["public"]["Enums"]["research_task_status"]
           title?: string
@@ -3427,6 +3433,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_tasks_schedule_item_id_fkey"
+            columns: ["schedule_item_id"]
+            isOneToOne: false
+            referencedRelation: "research_schedule_items"
             referencedColumns: ["id"]
           },
           {
