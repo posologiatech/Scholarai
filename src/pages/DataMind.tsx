@@ -696,6 +696,17 @@ const DataMind = () => {
                 />
               )}
               {conversationId && messages.length > 0 && (
+                <RegisterOutputButton
+                  defaultTitle={conversations.find((c) => c.id === conversationId)?.title || "Análise DataMind"}
+                  outputType="analysis"
+                  description="Análise/relatório gerado no DataMind."
+                  url={`/datamind/${conversationId}`}
+                  linkType="datamind"
+                  linkResourceId={conversationId}
+                  variant="ghost"
+                />
+              )}
+              {conversationId && messages.length > 0 && (
                 <DataMindVersioning
                   conversationId={conversationId}
                   messages={messages}
