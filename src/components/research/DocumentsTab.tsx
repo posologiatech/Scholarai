@@ -172,7 +172,7 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
         <div className="grid gap-2">
           {docs.map((d) => (
             <Card key={d.id} className="p-4 flex items-center justify-between gap-3">
-              <button className="flex items-center gap-3 text-left flex-1" onClick={() => d.doc_type === "upload" ? window.open(d.file_url!, "_blank") : setViewing(d)}>
+              <button className="flex items-center gap-3 text-left flex-1" onClick={() => d.doc_type === "upload" ? setPreviewing(d) : setViewing(d)}>
                 {d.doc_type === "upload" ? fileIcon(d) : <FileText className="h-5 w-5 text-muted-foreground" />}
                 <div className="flex-1">
                   <div className="font-medium">{d.title}</div>
