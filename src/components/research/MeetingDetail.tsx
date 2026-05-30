@@ -715,39 +715,69 @@ export const NewMeetingDialog = ({ projectId, open, onOpenChange }: { projectId:
     if (!form.title || !form.scheduled_at) return toast.error(locale === "pt" ? "Título e data obrigatórios" : "Title and date required");
     setSaving(true);
     try {
-      const { data: meeting, error } = await supabase.from("research_meetings").insert({
-        project_id: projectId, created_by: user!.id,
-        title: form.title, scheduled_at: new Date(form.scheduled_at).toISOString(),
-        meeting_link: form.meeting_link || null, agenda: form.agenda || null,
-      }).select().single();
-      if (error) throw error;
+      const start = new Date(form.scheduled_at);
+      const until = rec.until ? new Date(rec.until) : null;
+      const occurrences = generateOccurrences(start, rec.freq, rec.interval, rec.weekdays, until);
 
-      const items: any[] = [];
-      let pos = 0;
+      // Build the shared agenda titles once
+      const agendaTitles: { title: string; source_task_id?: string; source_schedule_item_id?: string }[] = [];
       Object.entries(pickedTasks).filter(([, v]) => v).forEach(([taskId]) => {
         const t = doingTasks.find((x: any) => x.id === taskId);
-        if (t) items.push({ meeting_id: meeting.id, title: t.title, source_task_id: taskId, position: pos++ });
+        if (t) agendaTitles.push({ title: t.title, source_task_id: taskId });
       });
       Object.entries(pickedSchedule).filter(([, v]) => v).forEach(([sid]) => {
         const s = upcomingSchedule.find((x: any) => x.id === sid);
-        if (s) items.push({ meeting_id: meeting.id, title: s.title, source_schedule_item_id: sid, position: pos++ });
+        if (s) agendaTitles.push({ title: s.title, source_schedule_item_id: sid });
       });
       if (form.agenda?.trim()) {
         form.agenda.split("\n").map(l => l.replace(/^[-*•]\s*/, "").trim()).filter(Boolean).forEach(l => {
-          items.push({ meeting_id: meeting.id, title: l, position: pos++ });
+          agendaTitles.push({ title: l });
         });
       }
-      if (items.length) await supabase.from("research_meeting_agenda_items").insert(items);
+
+      const recCols: any = {
+        recurrence_freq: rec.freq,
+        recurrence_interval: rec.interval,
+        recurrence_weekdays: rec.freq === "weekly" ? rec.weekdays : [],
+        recurrence_until: until ? rec.until : null,
+      };
+
+      let parentId: string | null = null;
+      for (let i = 0; i < occurrences.length; i++) {
+        const occ = occurrences[i];
+        const insertRow: any = {
+          project_id: projectId, created_by: user!.id,
+          title: form.title, scheduled_at: occ.toISOString(),
+          meeting_link: form.meeting_link || null, agenda: form.agenda || null,
+          ...(i === 0 ? recCols : { recurrence_freq: "none", recurrence_interval: 1, recurrence_weekdays: [] }),
+          parent_meeting_id: i === 0 ? null : parentId,
+        };
+        const { data: meeting, error } = await supabase.from("research_meetings").insert(insertRow).select().single();
+        if (error) throw error;
+        if (i === 0) parentId = meeting.id;
+
+        if (agendaTitles.length) {
+          await supabase.from("research_meeting_agenda_items").insert(
+            agendaTitles.map((a, idx) => ({ meeting_id: meeting.id, position: idx, ...a })),
+          );
+        }
+      }
 
       qc.invalidateQueries({ queryKey: ["research-meetings", projectId] });
-      toast.success(locale === "pt" ? "Reunião agendada" : "Meeting scheduled");
+      toast.success(
+        occurrences.length > 1
+          ? (locale === "pt" ? `${occurrences.length} reuniões agendadas` : `${occurrences.length} meetings scheduled`)
+          : (locale === "pt" ? "Reunião agendada" : "Meeting scheduled"),
+      );
       onOpenChange(false);
       setForm({ title: "", scheduled_at: "", meeting_link: "", agenda: "" });
+      setRec({ freq: "none", interval: 1, weekdays: [], until: "" });
       setPickedTasks({}); setPickedSchedule({});
     } catch (e: any) {
       toast.error(e.message);
     } finally { setSaving(false); }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
