@@ -412,6 +412,31 @@ const AdviseesTab = ({ projectId }: { projectId: string }) => {
 const AdviseeCard = ({ advisee, levelLabel, locale, onRemove }: any) => {
   const qc = useQueryClient();
   const [showMilestones, setShowMilestones] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [edit, setEdit] = useState({
+    full_name: advisee.full_name || "", email: advisee.email || "", level: advisee.level,
+    thesis_title: advisee.thesis_title || "", start_date: advisee.start_date || "",
+    expected_defense_date: advisee.expected_defense_date || "",
+  });
+  const openEdit = () => {
+    setEdit({
+      full_name: advisee.full_name || "", email: advisee.email || "", level: advisee.level,
+      thesis_title: advisee.thesis_title || "", start_date: advisee.start_date || "",
+      expected_defense_date: advisee.expected_defense_date || "",
+    });
+    setEditing(true);
+  };
+  const saveEdit = async () => {
+    if (!edit.full_name) return toast.error(locale === "pt" ? "Nome obrigatório" : "Name required");
+    const { error } = await supabase.from("research_advisees").update({
+      full_name: edit.full_name, email: edit.email || null, level: edit.level,
+      thesis_title: edit.thesis_title || null, start_date: edit.start_date || null,
+      expected_defense_date: edit.expected_defense_date || null,
+    }).eq("id", advisee.id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["research-advisees", advisee.project_id] });
+    setEditing(false);
+  };
   const [msForm, setMsForm] = useState({ title: "", due_date: "" });
   const { data: milestones = [] } = useQuery({
     queryKey: ["advisee-milestones", advisee.id],
@@ -444,9 +469,9 @@ const AdviseeCard = ({ advisee, levelLabel, locale, onRemove }: any) => {
   const daysLeft = advisee.expected_defense_date
     ? Math.ceil((new Date(advisee.expected_defense_date).getTime() - Date.now()) / 86400000) : null;
   return (
-    <Card><CardContent className="py-3 space-y-2">
+    <Card className="transition-all hover:border-primary/40 hover:shadow-sm"><CardContent className="py-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
-        <div>
+        <button onClick={openEdit} className="text-left flex-1 min-w-0 cursor-pointer">
           <p className="font-medium">{advisee.full_name} <Badge variant="secondary" className="ml-2">{levelLabel[advisee.level]}</Badge></p>
           {advisee.thesis_title && <p className="text-sm text-muted-foreground">{advisee.thesis_title}</p>}
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mt-1">
@@ -459,12 +484,37 @@ const AdviseeCard = ({ advisee, levelLabel, locale, onRemove }: any) => {
               </Badge>
             )}
           </div>
-        </div>
-        <div className="flex gap-1">
+        </button>
+        <div className="flex gap-1 shrink-0">
           <Button size="sm" variant="ghost" onClick={() => setShowMilestones(!showMilestones)}>{locale === "pt" ? "Marcos" : "Milestones"}</Button>
           <Button size="icon" variant="ghost" onClick={() => onRemove(advisee.id)}><Trash2 className="h-4 w-4" /></Button>
         </div>
       </div>
+      <Dialog open={editing} onOpenChange={setEditing}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{locale === "pt" ? "Editar orientando" : "Edit advisee"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>{locale === "pt" ? "Nome completo" : "Full name"}</Label>
+              <Input value={edit.full_name} onChange={e => setEdit({ ...edit, full_name: e.target.value })} /></div>
+            <div><Label>Email</Label><Input value={edit.email} onChange={e => setEdit({ ...edit, email: e.target.value })} /></div>
+            <div><Label>{locale === "pt" ? "Nível" : "Level"}</Label>
+              <Select value={edit.level} onValueChange={(v: ResearchAdviseeLevel) => setEdit({ ...edit, level: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{(Object.keys(levelLabel) as ResearchAdviseeLevel[]).map(l => <SelectItem key={l} value={l}>{levelLabel[l]}</SelectItem>)}</SelectContent>
+              </Select></div>
+            <div><Label>{locale === "pt" ? "Tema/Tese" : "Thesis topic"}</Label>
+              <Input value={edit.thesis_title} onChange={e => setEdit({ ...edit, thesis_title: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><Label>{locale === "pt" ? "Início" : "Start"}</Label>
+                <Input type="date" value={edit.start_date} onChange={e => setEdit({ ...edit, start_date: e.target.value })} /></div>
+              <div><Label>{locale === "pt" ? "Defesa prevista" : "Expected defense"}</Label>
+                <Input type="date" value={edit.expected_defense_date} onChange={e => setEdit({ ...edit, expected_defense_date: e.target.value })} /></div>
+            </div>
+          </div>
+          <DialogFooter><Button onClick={saveEdit}>{locale === "pt" ? "Salvar" : "Save"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {showMilestones && (
         <div className="border-t pt-3 mt-2 space-y-2">
           <div className="flex gap-2">
