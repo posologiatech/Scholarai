@@ -1,75 +1,67 @@
-# Redesign do menu de Projeto de Pesquisa
+## Objetivo
 
-## Problema
-Hoje há 21 tabs renderizadas em duas linhas quebradas (`TabsList flex-wrap`). Visualmente parece um sistema legado: ícones pequenos, sem hierarquia, sem agrupamento, sem indicador de seção ativa moderno, sem busca, sem persistência da aba na URL. Comparado a Monday/ClickUp, falta uma navegação lateral organizada por categorias e um cabeçalho de contexto mais "produto".
+Transformar o módulo de Projetos de Pesquisa no **centro de gravidade** da plataforma: cada módulo (busca de artigos, Biblioteca, DataMind, Escrita Científica, Surveys, Editais de Fomento, Revisão Sistemática, Meta-análise, Knowledge Graph) passa a poder ser vinculado a um projeto, alimentando-o automaticamente com referências, dados, tarefas, publicações e atividade — eliminando trabalho manual de copiar/colar entre módulos.
 
-## Solução (visual + estrutural)
+## Arquitetura de integração
 
-Trocar a `TabsList` horizontal por uma **navegação lateral colapsável estilo ClickUp/Linear** dentro da página do projeto, com:
+A espinha dorsal é um **vínculo bidirecional** + um **hub central** dentro do projeto.
 
-1. **Sub-sidebar do projeto** (coluna fixa à esquerda do conteúdo, largura 240px, colapsa para 56px só com ícones).
-   - Header da sub-sidebar: avatar do projeto (iniciais em gradient), título do projeto truncado, badge de status compacto, e seletor "switcher" de projeto (dropdown).
-   - Itens agrupados em seções com label discreto em uppercase 11px:
-     - **Workspace**: Visão geral, Atividade
-     - **Execução**: Tarefas, Cronograma, Reuniões, Diário de Bordo
-     - **Pessoas**: Equipe, Orientações, Autoria CRediT
-     - **Conhecimento**: Referências, Publicações, Outputs, Documentos, Brainstorm IA
-     - **Governança**: Orçamento, Ética, Conformidade, Riscos, Avaliações
-     - **Sistema**: Integrações
-   - Cada item: ícone 16px + label, hover sutil (bg-muted/60), ativo com barra lateral 2px no primary + bg-primary/8 + texto em primary, contador opcional à direita (ex.: badge cinza com nº de tarefas pendentes / riscos ativos / próximas reuniões).
-   - Footer da sub-sidebar: botão "Pesquisar" (Cmd+K), botão de colapsar.
+```text
+                ┌─────────────────────────────┐
+                │   PROJETO DE PESQUISA (hub)  │
+                │  aba "Recursos / Conexões"   │
+                └──────────────┬──────────────┘
+        ┌──────────┬───────────┼───────────┬──────────┐
+   Busca/Biblioteca  DataMind  Escrita   Surveys   Editais / RS
+   (papers→refs)   (análises) (→pubs)  (coleta)  (fomento/revisão)
+```
 
-2. **Header do projeto redesenhado** (acima do conteúdo, fica fora da sub-sidebar):
-   - Breadcrumb fino: Projetos / Nome do projeto.
-   - Linha 1: título grande (text-2xl font-semibold) editável inline, pill de status com cor semântica + área/edital em texto muted ao lado.
-   - Linha 2: barra de ações alinhada à direita — avatares empilhados da equipe (-space-x-2), divisor, Notificações, Exportar, Modo Apresentação, Editar. Tudo em `variant="ghost" size="sm"` com altura uniforme (h-8) e ícones 14px para look ClickUp/Monday.
-   - Mini-metrics inline: 4 chips compactos (A fazer, Fazendo, Concluídas, Próx. reuniões) — não mais cards gigantes; viram pills clicáveis que filtram/saltam para a tab correspondente.
+**Mecanismo único:** uma tabela `research_project_links` registra qualquer recurso conectado (tipo + id externo + rótulo + metadados), gerando um feed de atividade e contadores. Em paralelo, cada entidade-mãe dos módulos recebe uma coluna opcional `research_project_id`, permitindo "este recurso pertence ao projeto X" e filtragens nativas nas listagens existentes.
 
-3. **Conteúdo da tab** entra num container `rounded-xl border bg-card` único com padding consistente, em vez de soltar `TabsContent` cru.
+## Fases
 
-4. **Persistência e UX**:
-   - Aba ativa sincronizada com query string (`?tab=tasks`) usando `useSearchParams` para navegação direta e back/forward funcional.
-   - Memorizar estado colapsado da sub-sidebar em `localStorage` (`research-subnav-collapsed`).
-   - Em telas <1024px (lg breakpoint), sub-sidebar vira um `Sheet` que abre por botão de menu no header.
-   - Atalho `g` + tecla para pular entre seções (ex: g+t = tasks) — bônus opcional.
+### Fase 1 — Fundação de vínculo (banco + UI base)
+- Migração: coluna `research_project_id` (FK opcional) em `datamind_conversations`, `surveys`, `writing_documents`, `systematic_reviews`, `saved_searches`.
+- Nova tabela `research_project_links` (project_id, resource_type, resource_id, label, url, metadata, created_by) com GRANTs + RLS via `is_research_project_member`.
+- Nova aba **"Conexões"** no `ProjectSubNav` (seção Conhecimento) com cartões por módulo mostrando recursos vinculados, contadores e botões "Vincular existente" / "Criar novo no contexto do projeto".
+- Seletor reutilizável `<ProjectPicker>` (combobox) usado em todos os módulos para vincular a um projeto.
 
-5. **Polimento visual** (tokens semânticos, sem hex):
-   - Sub-sidebar `bg-card`, borda `border-border/60`, sombras `shadow-sm`.
-   - Item ativo: `bg-primary/10 text-primary border-l-2 border-primary` (substitui visual genérico do shadcn Tabs).
-   - Labels de seção: `text-[11px] font-medium text-muted-foreground uppercase tracking-wider px-3 mt-4 mb-1`.
-   - Transições suaves (`transition-all duration-150`) em hover e colapso.
-   - Iconografia consistente (todos `h-4 w-4`, stroke-width 1.75).
+### Fase 2 — Busca de artigos & Biblioteca → Referências (automação)
+- Em SearchResults/Library: botão "Salvar no projeto" que insere em `research_project_references` e dispara embedding/RAG (já existe `match_project_paper_chunks`).
+- Importação em lote de uma busca salva inteira para as referências do projeto.
+- Referências vinculadas ficam disponíveis ao Copilot do projeto (RAG já implementado) e à Escrita Científica.
+
+### Fase 3 — Escrita Científica ↔ Publicações
+- `writing_documents` ganha `research_project_id`; documentos do projeto aparecem na aba Publicações.
+- Ação "Promover a publicação": ao marcar um documento como submetido, cria/atualiza linha em `research_publications` (status, periódico-alvo, DOI), reaproveitando o enriquecimento OpenAlex/Altmetric já existente.
+- O editor de escrita pode puxar as referências do projeto como base bibliográfica.
+
+### Fase 4 — DataMind ↔ Projeto
+- `datamind_conversations` ganha `research_project_id`; análises do projeto listadas na aba Conexões.
+- Dataset/relatório gerado no DataMind pode ser registrado como **Output** (`research_outputs`) com um clique.
+- Surveys do projeto (dados coletados) podem abrir diretamente no DataMind já vinculadas.
+
+### Fase 5 — Surveys (coleta de dados) ↔ Projeto
+- `surveys` ganha `research_project_id`; aba Conexões mostra surveys e status de coleta (respostas, conclusão).
+- Criar survey "a partir do projeto" herda equipe e contexto; conclusão da coleta gera tarefa automática ("Analisar dados coletados").
+
+### Fase 6 — Editais, Revisão Sistemática e Meta-análise
+- Editais: `funding_call_id` já existe — exibir card do edital vinculado na Visão Geral com prazo e gerar marcos automáticos (já há `FundingLinkCard`); permitir vincular/assinar editais a partir da aba Conexões.
+- `systematic_reviews` ganha `research_project_id`; papers incluídos na RS podem ser importados como referências do projeto em lote.
+- Meta-análise vinculada listada como recurso; resultados exportáveis como Output.
+
+### Fase 7 — Motor de automação e feed unificado
+- Centralizar regras de automação (ex.: vincular busca → cria referências + tarefa; concluir survey → tarefa de análise; promover escrita → publicação) num helper `src/lib/research/integrations.ts`.
+- Toda ação de vínculo grava em `research_project_links` e em `research_notifications`, alimentando a aba Atividade e o sino de notificações já existentes.
 
 ## Detalhes técnicos
 
-- **Arquivo novo**: `src/components/research/ProjectSubNav.tsx` exporta:
-  - `ProjectSubNav({ project, activeTab, onTabChange, counters, collapsed, onToggleCollapse })`.
-  - Define `SECTIONS: { id, label, items: { id, icon, labelPt, labelEn, counterKey? }[] }[]`.
-  - Renderiza grupos + itens, com `Tooltip` quando colapsada.
-- **Arquivo novo**: `src/components/research/ProjectHeader.tsx` — header redesenhado com breadcrumb, título, ações e chips de métricas.
-- **Refatoração de `src/pages/ResearchProjectDetail.tsx`**:
-  - Substituir `<Tabs><TabsList>...</TabsList><TabsContent>...` pela estrutura:
-    ```
-    <div className="flex h-[calc(100vh-4rem)]">
-      <ProjectSubNav ... />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <ProjectHeader ... />
-        <div className="flex-1 overflow-auto p-6">
-          {renderActiveTab(activeTab)}
-        </div>
-      </div>
-    </div>
-    ```
-  - Manter `Tabs` apenas como state controller (`value`/`onValueChange`) ou trocar por simples `switch (activeTab)` que renderiza o componente correto — preferir o `switch` para perder o overhead visual do shadcn Tabs.
-  - `useSearchParams` para `tab` (default `overview`).
-  - Hook `useQuery` leve para `counters` (count de tasks por status, riscos ativos, meetings futuras) reaproveitando queries existentes; pode ser derivado em memória sem nova request se as queries das tabs já estão em cache, ou um único `select count` agrupado.
-- **Mobile**: usar `Sheet` do shadcn para a sub-sidebar abaixo de `lg`, com `SheetTrigger` no header (ícone `PanelLeft`).
-- **Sem alterar lógica de cada tab** — só o invólucro e a navegação mudam.
+- **Banco:** apenas colunas nullable + 1 tabela nova (sem quebrar dados existentes). FKs com `on delete set null` para não apagar recursos ao excluir projeto. GRANTs (`authenticated`, `service_role`) + RLS por `is_research_project_member` em `research_project_links`.
+- **Tipos:** atualizar `src/lib/research/types.ts` (novo `ResearchProjectLink`, `resource_type` enum). O `types.ts` do Supabase é regenerado após a migração.
+- **UI:** novo `ConnectionsTab.tsx` + `ProjectPicker.tsx`; pequenos botões "Vincular ao projeto" injetados nas páginas Library, SearchResults, DataMind, WritingAssistant, Surveys, SystematicReview.
+- **Sem novos secrets** — reutiliza edge functions e RAG já existentes.
+- **i18n:** rótulos PT/EN; saídas de RS/relatórios permanecem em pt-BR conforme regra do projeto.
 
-## Fora de escopo
-- Não mexer no conteúdo interno de cada tab (BudgetTab, ScheduleTab, etc).
-- Não alterar schema do banco.
-- Não tocar na sidebar global do app (`AppSidebar`).
+## Entrega incremental
 
-## Resultado esperado
-Página de projeto com presença visual de ferramenta moderna (Linear/ClickUp/Monday): navegação organizada, persistente, com contadores; header limpo com ações agrupadas; conteúdo respira em um card único; comportamento responsivo e com deep-link via URL.
+Recomendo construir Fase 1 (fundação) + Fase 2 (artigos→referências, maior impacto imediato) primeiro, validar, e seguir para as demais. Posso implementar todas em sequência se preferir.
