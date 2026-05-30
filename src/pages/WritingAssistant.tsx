@@ -25,6 +25,8 @@ import {
 import AIDeclarationDialog, { type AIUsageEntry } from "@/components/app/AIDeclarationDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { promoteWritingToPublication } from "@/lib/research/integrations";
 interface Paper {
   id: string;
   title: string;
