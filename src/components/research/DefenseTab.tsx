@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { GraduationCap, Plus, Trash2, Calendar, MapPin, Video, Users, ExternalLink, Award } from "lucide-react";
+import { GraduationCap, Plus, Trash2, Calendar, MapPin, Video, Users, ExternalLink, Award, Search } from "lucide-react";
 import { toast } from "sonner";
 import { RichEditor } from "./RichEditor";
 
