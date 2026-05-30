@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus, Trash2, Calendar, Link2, Diamond, ChevronDown, ChevronRight,
@@ -25,6 +26,8 @@ import { SCHEDULE_STATUS_LABEL, type ResearchScheduleStatus } from "@/lib/resear
 import { CommentThread } from "./CommentThread";
 import { SCHEDULE_TEMPLATES } from "@/lib/research/scheduleTemplates";
 import { computeCriticalPath } from "@/lib/research/criticalPath";
+import { computeAutoProgress, progressSource } from "@/lib/research/autoProgress";
+import { TASK_STATUS_LABEL } from "@/lib/research/types";
 
 const STATUS_COLOR: Record<ResearchScheduleStatus, string> = {
   planejado: "bg-slate-400",
