@@ -1,5 +1,5 @@
 export type ResearchProjectStatus =
-  | "planejamento" | "em_andamento" | "pausado" | "concluido" | "arquivado";
+  | "planejamento" | "em_andamento" | "pausado" | "concluido" | "arquivado" | "cancelado";
 
 export type ResearchMemberRole =
   | "pi" | "co_pi" | "orientando_ic" | "orientando_mestrado"
@@ -67,6 +67,7 @@ export const STATUS_LABEL: Record<ResearchProjectStatus, { pt: string; en: strin
   pausado: { pt: "Pausado", en: "Paused" },
   concluido: { pt: "Concluído", en: "Completed" },
   arquivado: { pt: "Arquivado", en: "Archived" },
+  cancelado: { pt: "Cancelado", en: "Cancelled" },
 };
 
 export const ROLE_LABEL: Record<ResearchMemberRole, { pt: string; en: string }> = {

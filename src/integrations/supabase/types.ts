@@ -5032,6 +5032,7 @@ export type Database = {
         | "pausado"
         | "concluido"
         | "arquivado"
+        | "cancelado"
       research_publication_status:
         | "ideia"
         | "escrevendo"
@@ -5200,6 +5201,7 @@ export const Constants = {
         "pausado",
         "concluido",
         "arquivado",
+        "cancelado",
       ],
       research_publication_status: [
         "ideia",

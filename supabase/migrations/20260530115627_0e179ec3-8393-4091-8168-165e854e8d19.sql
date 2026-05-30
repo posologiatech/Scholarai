@@ -1,0 +1,1 @@
+ALTER TYPE public.research_project_status ADD VALUE IF NOT EXISTS 'cancelado';
