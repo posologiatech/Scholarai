@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Trash2, ChevronDown, ChevronRight, Paperclip, FileText,
   Youtube, Link2, Check, Calendar, Loader2, ArrowRight, CheckSquare, Sparkles, Presentation,
+  Repeat, Pencil,
 } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -59,6 +60,90 @@ const MEETING_TEMPLATES = [
     },
   },
 ];
+
+export const RECURRENCE_FREQS = [
+  { id: "none", pt: "Não se repete", en: "Does not repeat" },
+  { id: "daily", pt: "Diária", en: "Daily" },
+  { id: "weekly", pt: "Semanal", en: "Weekly" },
+  { id: "monthly", pt: "Mensal", en: "Monthly" },
+  { id: "yearly", pt: "Anual", en: "Yearly" },
+];
+
+// JS getDay(): 0=Dom .. 6=Sáb
+export const WEEKDAYS = [
+  { d: 1, pt: "Seg", en: "Mon" },
+  { d: 2, pt: "Ter", en: "Tue" },
+  { d: 3, pt: "Qua", en: "Wed" },
+  { d: 4, pt: "Qui", en: "Thu" },
+  { d: 5, pt: "Sex", en: "Fri" },
+  { d: 6, pt: "Sáb", en: "Sat" },
+  { d: 0, pt: "Dom", en: "Sun" },
+];
+
+const MAX_OCCURRENCES = 60;
+
+// Generates the list of occurrence Dates (including the first) for a recurrence config.
+export const generateOccurrences = (
+  start: Date,
+  freq: string,
+  interval: number,
+  weekdays: number[],
+  until: Date | null,
+): Date[] => {
+  if (freq === "none") return [start];
+  const step = Math.max(1, interval || 1);
+  const out: Date[] = [];
+  const limit = until ? new Date(until.getFullYear(), until.getMonth(), until.getDate(), 23, 59, 59) : null;
+  const within = (d: Date) => (limit ? d <= limit : true);
+  const h = start.getHours(), mi = start.getMinutes();
+
+  if (freq === "weekly") {
+    const days = weekdays.length ? [...weekdays].sort() : [start.getDay()];
+    // Anchor to Monday of the start week
+    const anchor = new Date(start);
+    anchor.setHours(0, 0, 0, 0);
+    const offsetToMon = (anchor.getDay() + 6) % 7;
+    anchor.setDate(anchor.getDate() - offsetToMon);
+    let week = 0;
+    while (out.length < MAX_OCCURRENCES) {
+      const weekStart = new Date(anchor);
+      weekStart.setDate(anchor.getDate() + week * step * 7);
+      if (limit && weekStart > limit && week > 0) break;
+      for (const wd of days) {
+        const dayOffset = (wd + 6) % 7; // Mon=0 .. Sun=6
+        const occ = new Date(weekStart);
+        occ.setDate(weekStart.getDate() + dayOffset);
+        occ.setHours(h, mi, 0, 0);
+        if (occ >= start && within(occ)) out.push(occ);
+      }
+      week++;
+      if (week > 520) break; // safety: ~10 years
+    }
+    return out.sort((a, b) => a.getTime() - b.getTime()).slice(0, MAX_OCCURRENCES);
+  }
+
+  let cur = new Date(start);
+  while (out.length < MAX_OCCURRENCES && within(cur)) {
+    out.push(new Date(cur));
+    if (freq === "daily") cur.setDate(cur.getDate() + step);
+    else if (freq === "monthly") cur.setMonth(cur.getMonth() + step);
+    else if (freq === "yearly") cur.setFullYear(cur.getFullYear() + step);
+    else break;
+  }
+  return out;
+};
+
+export const recurrenceLabel = (m: any, locale: string) => {
+  const pt = locale === "pt";
+  if (!m.recurrence_freq || m.recurrence_freq === "none") return null;
+  const f = RECURRENCE_FREQS.find((x) => x.id === m.recurrence_freq);
+  const base = f ? (pt ? f.pt : f.en) : m.recurrence_freq;
+  const iv = m.recurrence_interval > 1 ? ` (${pt ? "a cada" : "every"} ${m.recurrence_interval})` : "";
+  const wds = (m.recurrence_weekdays || []).length
+    ? " · " + (m.recurrence_weekdays as number[]).map((d) => WEEKDAYS.find((w) => w.d === d)?.[pt ? "pt" : "en"]).filter(Boolean).join(", ")
+    : "";
+  return base + iv + wds;
+};
 
 const isYouTube = (u: string) => /youtube\.com|youtu\.be/.test(u);
 const youTubeId = (u: string) => {
@@ -379,6 +464,31 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
   const [pickerSearch, setPickerSearch] = useState("");
   const [pickedTasks, setPickedTasks] = useState<Record<string, boolean>>({});
   const [pickedSchedule, setPickedSchedule] = useState<Record<string, boolean>>({});
+  const toLocalInput = (iso: string) => {
+    const d = new Date(iso);
+    const off = d.getTimezoneOffset();
+    return new Date(d.getTime() - off * 60000).toISOString().slice(0, 16);
+  };
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ title: "", scheduled_at: "", meeting_link: "" });
+  const openEdit = () => {
+    setEditForm({ title: meeting.title, scheduled_at: toLocalInput(meeting.scheduled_at), meeting_link: meeting.meeting_link || "" });
+    setEditOpen(true);
+  };
+  const saveEdit = async () => {
+    if (!editForm.scheduled_at) return toast.error(locale === "pt" ? "Informe data e hora" : "Provide date & time");
+    const { error } = await supabase.from("research_meetings").update({
+      title: editForm.title,
+      scheduled_at: new Date(editForm.scheduled_at).toISOString(),
+      meeting_link: editForm.meeting_link || null,
+    }).eq("id", meeting.id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["research-meetings", projectId] });
+    toast.success(locale === "pt" ? "Reunião atualizada" : "Meeting updated");
+    setEditOpen(false);
+  };
+
+
 
   const { data: agendaItems = [] } = useQuery({
     queryKey: ["agenda-items", meeting.id],
@@ -478,13 +588,42 @@ export const MeetingDetail = ({ meeting, projectId, onClose }: { meeting: any; p
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar className="h-4 w-4" />{new Date(meeting.scheduled_at).toLocaleString()}
             {meeting.meeting_link && <> · <a href={meeting.meeting_link} target="_blank" rel="noopener noreferrer" className="text-primary underline">{locale === "pt" ? "abrir link" : "open link"}</a></>}
+            {recurrenceLabel(meeting, locale) && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs">
+                <Repeat className="h-3 w-3" />{recurrenceLabel(meeting, locale)}
+              </span>
+            )}
           </div>
-          <Button size="sm" variant="outline" onClick={() => setPresenting(true)}>
-            <Presentation className="h-4 w-4" />{locale === "pt" ? "Apresentar" : "Present"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={openEdit}>
+              <Pencil className="h-4 w-4" />{locale === "pt" ? "Editar" : "Edit"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setPresenting(true)}>
+              <Presentation className="h-4 w-4" />{locale === "pt" ? "Apresentar" : "Present"}
+            </Button>
+          </div>
         </div>
         <h2 className="text-2xl font-bold">{meeting.title}</h2>
       </header>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{locale === "pt" ? "Editar reunião" : "Edit meeting"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>{locale === "pt" ? "Título" : "Title"}</Label>
+              <Input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} /></div>
+            <div><Label>{locale === "pt" ? "Data e hora" : "Date & time"}</Label>
+              <Input type="datetime-local" value={editForm.scheduled_at} onChange={(e) => setEditForm({ ...editForm, scheduled_at: e.target.value })} /></div>
+            <div><Label>{locale === "pt" ? "Link (Meet/Zoom)" : "Link"}</Label>
+              <Input value={editForm.meeting_link} onChange={(e) => setEditForm({ ...editForm, meeting_link: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{locale === "pt" ? "Cancelar" : "Cancel"}</Button>
+            <Button onClick={saveEdit}>{locale === "pt" ? "Salvar" : "Save"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       <section>
         <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wider">{locale === "pt" ? "Notas gerais" : "General notes"}</h3>
@@ -598,6 +737,7 @@ export const NewMeetingDialog = ({ projectId, open, onOpenChange }: { projectId:
   const { user } = useAuth();
   const qc = useQueryClient();
   const [form, setForm] = useState({ title: "", scheduled_at: "", meeting_link: "", agenda: "" });
+  const [rec, setRec] = useState<{ freq: string; interval: number; weekdays: number[]; until: string }>({ freq: "none", interval: 1, weekdays: [], until: "" });
   const [pickedTasks, setPickedTasks] = useState<Record<string, boolean>>({});
   const [pickedSchedule, setPickedSchedule] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
@@ -630,39 +770,69 @@ export const NewMeetingDialog = ({ projectId, open, onOpenChange }: { projectId:
     if (!form.title || !form.scheduled_at) return toast.error(locale === "pt" ? "Título e data obrigatórios" : "Title and date required");
     setSaving(true);
     try {
-      const { data: meeting, error } = await supabase.from("research_meetings").insert({
-        project_id: projectId, created_by: user!.id,
-        title: form.title, scheduled_at: new Date(form.scheduled_at).toISOString(),
-        meeting_link: form.meeting_link || null, agenda: form.agenda || null,
-      }).select().single();
-      if (error) throw error;
+      const start = new Date(form.scheduled_at);
+      const until = rec.until ? new Date(rec.until) : null;
+      const occurrences = generateOccurrences(start, rec.freq, rec.interval, rec.weekdays, until);
 
-      const items: any[] = [];
-      let pos = 0;
+      // Build the shared agenda titles once
+      const agendaTitles: { title: string; source_task_id?: string; source_schedule_item_id?: string }[] = [];
       Object.entries(pickedTasks).filter(([, v]) => v).forEach(([taskId]) => {
         const t = doingTasks.find((x: any) => x.id === taskId);
-        if (t) items.push({ meeting_id: meeting.id, title: t.title, source_task_id: taskId, position: pos++ });
+        if (t) agendaTitles.push({ title: t.title, source_task_id: taskId });
       });
       Object.entries(pickedSchedule).filter(([, v]) => v).forEach(([sid]) => {
         const s = upcomingSchedule.find((x: any) => x.id === sid);
-        if (s) items.push({ meeting_id: meeting.id, title: s.title, source_schedule_item_id: sid, position: pos++ });
+        if (s) agendaTitles.push({ title: s.title, source_schedule_item_id: sid });
       });
       if (form.agenda?.trim()) {
         form.agenda.split("\n").map(l => l.replace(/^[-*•]\s*/, "").trim()).filter(Boolean).forEach(l => {
-          items.push({ meeting_id: meeting.id, title: l, position: pos++ });
+          agendaTitles.push({ title: l });
         });
       }
-      if (items.length) await supabase.from("research_meeting_agenda_items").insert(items);
+
+      const recCols: any = {
+        recurrence_freq: rec.freq,
+        recurrence_interval: rec.interval,
+        recurrence_weekdays: rec.freq === "weekly" ? rec.weekdays : [],
+        recurrence_until: until ? rec.until : null,
+      };
+
+      let parentId: string | null = null;
+      for (let i = 0; i < occurrences.length; i++) {
+        const occ = occurrences[i];
+        const insertRow: any = {
+          project_id: projectId, created_by: user!.id,
+          title: form.title, scheduled_at: occ.toISOString(),
+          meeting_link: form.meeting_link || null, agenda: form.agenda || null,
+          ...(i === 0 ? recCols : { recurrence_freq: "none", recurrence_interval: 1, recurrence_weekdays: [] }),
+          parent_meeting_id: i === 0 ? null : parentId,
+        };
+        const { data: meeting, error } = await supabase.from("research_meetings").insert(insertRow).select().single();
+        if (error) throw error;
+        if (i === 0) parentId = meeting.id;
+
+        if (agendaTitles.length) {
+          await supabase.from("research_meeting_agenda_items").insert(
+            agendaTitles.map((a, idx) => ({ meeting_id: meeting.id, position: idx, ...a })),
+          );
+        }
+      }
 
       qc.invalidateQueries({ queryKey: ["research-meetings", projectId] });
-      toast.success(locale === "pt" ? "Reunião agendada" : "Meeting scheduled");
+      toast.success(
+        occurrences.length > 1
+          ? (locale === "pt" ? `${occurrences.length} reuniões agendadas` : `${occurrences.length} meetings scheduled`)
+          : (locale === "pt" ? "Reunião agendada" : "Meeting scheduled"),
+      );
       onOpenChange(false);
       setForm({ title: "", scheduled_at: "", meeting_link: "", agenda: "" });
+      setRec({ freq: "none", interval: 1, weekdays: [], until: "" });
       setPickedTasks({}); setPickedSchedule({});
     } catch (e: any) {
       toast.error(e.message);
     } finally { setSaving(false); }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -677,6 +847,55 @@ export const NewMeetingDialog = ({ projectId, open, onOpenChange }: { projectId:
             <div><Label>{locale === "pt" ? "Link (Meet/Zoom)" : "Link"}</Label>
               <Input value={form.meeting_link} onChange={(e) => setForm({ ...form, meeting_link: e.target.value })} /></div>
           </div>
+
+          {/* Recurrence */}
+          <div className="rounded-lg border p-3 space-y-3">
+            <p className="text-sm font-semibold flex items-center gap-2"><Calendar className="h-3.5 w-3.5 text-primary" />
+              {locale === "pt" ? "Recorrência" : "Recurrence"}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">{locale === "pt" ? "Repetir" : "Repeat"}</Label>
+                <select value={rec.freq} onChange={(e) => setRec({ ...rec, freq: e.target.value })}
+                  className="w-full h-9 rounded-md border bg-background px-2 text-sm">
+                  {RECURRENCE_FREQS.map(f => <option key={f.id} value={f.id}>{locale === "pt" ? f.pt : f.en}</option>)}
+                </select>
+              </div>
+              {rec.freq !== "none" && (
+                <div>
+                  <Label className="text-xs">{locale === "pt" ? "A cada" : "Every"}</Label>
+                  <Input type="number" min={1} value={rec.interval}
+                    onChange={(e) => setRec({ ...rec, interval: Math.max(1, parseInt(e.target.value) || 1) })} className="h-9" />
+                </div>
+              )}
+            </div>
+            {rec.freq === "weekly" && (
+              <div>
+                <Label className="text-xs">{locale === "pt" ? "Dias da semana" : "Weekdays"}</Label>
+                <div className="flex gap-1 flex-wrap mt-1">
+                  {WEEKDAYS.map(w => {
+                    const on = rec.weekdays.includes(w.d);
+                    return (
+                      <button key={w.d} type="button"
+                        onClick={() => setRec({ ...rec, weekdays: on ? rec.weekdays.filter(x => x !== w.d) : [...rec.weekdays, w.d] })}
+                        className={`h-8 w-10 rounded-md border text-xs font-medium transition-colors ${on ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"}`}>
+                        {locale === "pt" ? w.pt : w.en}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {rec.freq !== "none" && (
+              <div>
+                <Label className="text-xs">{locale === "pt" ? "Repetir até (opcional)" : "Repeat until (optional)"}</Label>
+                <Input type="date" value={rec.until} onChange={(e) => setRec({ ...rec, until: e.target.value })} className="h-9" />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {locale === "pt" ? "Sem data limite, são criadas até 60 ocorrências. As reuniões próximas são notificadas automaticamente." : "Without an end date, up to 60 occurrences are created. Upcoming meetings are notified automatically."}
+                </p>
+              </div>
+            )}
+          </div>
+
 
           {doingTasks.length > 0 && (
             <div className="rounded-lg border p-3 space-y-2">

@@ -2620,8 +2620,14 @@ export type Database = {
           id: string
           meeting_link: string | null
           notes: string | null
+          parent_meeting_id: string | null
           participants: Json
           project_id: string
+          recurrence_freq: string
+          recurrence_interval: number
+          recurrence_until: string | null
+          recurrence_weekdays: number[]
+          reminder_sent_at: string | null
           scheduled_at: string
           title: string
           transcript: string | null
@@ -2638,8 +2644,14 @@ export type Database = {
           id?: string
           meeting_link?: string | null
           notes?: string | null
+          parent_meeting_id?: string | null
           participants?: Json
           project_id: string
+          recurrence_freq?: string
+          recurrence_interval?: number
+          recurrence_until?: string | null
+          recurrence_weekdays?: number[]
+          reminder_sent_at?: string | null
           scheduled_at: string
           title: string
           transcript?: string | null
@@ -2656,14 +2668,27 @@ export type Database = {
           id?: string
           meeting_link?: string | null
           notes?: string | null
+          parent_meeting_id?: string | null
           participants?: Json
           project_id?: string
+          recurrence_freq?: string
+          recurrence_interval?: number
+          recurrence_until?: string | null
+          recurrence_weekdays?: number[]
+          reminder_sent_at?: string | null
           scheduled_at?: string
           title?: string
           transcript?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "research_meetings_parent_meeting_id_fkey"
+            columns: ["parent_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "research_meetings"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "research_meetings_project_id_fkey"
             columns: ["project_id"]
