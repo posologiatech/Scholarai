@@ -45,6 +45,7 @@ import TasksBoard from "@/components/research/TasksBoard";
 import FavoritesTab from "@/components/research/FavoritesTab";
 import DefenseTab from "@/components/research/DefenseTab";
 import NotificationsBell from "@/components/research/NotificationsBell";
+import ConnectionsTab from "@/components/research/ConnectionsTab";
 
 // ===== Tab: Equipe =====
 const TeamTab = ({ projectId }: { projectId: string }) => {
