@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import * as XLSX from "xlsx";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { RegisterOutputButton } from "@/components/research/RegisterOutputButton";
 
 export interface Conversation {
   id: string;
