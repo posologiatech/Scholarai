@@ -101,6 +101,49 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
     },
   });
 
+  const { data: projectTasks = [] } = useQuery({
+    queryKey: ["research-tasks-min", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("research_tasks")
+        .select("id, title, status, schedule_item_id").eq("project_id", projectId);
+      return (data ?? []) as any[];
+    },
+  });
+
+  const tasksByItem = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const t of projectTasks) {
+      if (!t.schedule_item_id) continue;
+      if (!m.has(t.schedule_item_id)) m.set(t.schedule_item_id, []);
+      m.get(t.schedule_item_id)!.push(t);
+    }
+    return m;
+  }, [projectTasks]);
+
+  const effectiveProgress = (it: any): number =>
+    it.progress_mode === "manual"
+      ? (it.progress ?? 0)
+      : computeAutoProgress(it, tasksByItem.get(it.id));
+
+  // Persist auto-computed progress so other views (Gantt fill, burndown) stay consistent
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let changed = false;
+      for (const it of items as any[]) {
+        if (it.progress_mode === "manual") continue;
+        const auto = computeAutoProgress(it, tasksByItem.get(it.id));
+        if (auto !== (it.progress ?? 0)) {
+          await supabase.from("research_schedule_items").update({ progress: auto }).eq("id", it.id);
+          changed = true;
+        }
+      }
+      if (changed && !cancelled) qc.invalidateQueries({ queryKey: ["research-schedule", projectId] });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, tasksByItem]);
+
   const memberLabel = (mid: string | null) => {
     if (!mid) return null;
     const m: any = members.find((x: any) => x.id === mid);
