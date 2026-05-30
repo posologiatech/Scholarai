@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { GraduationCap, Plus, Trash2, Calendar, MapPin, Video, Users, ExternalLink, Award } from "lucide-react";
+import { GraduationCap, Plus, Trash2, Calendar, MapPin, Video, Users, ExternalLink, Award, Search } from "lucide-react";
 import { toast } from "sonner";
 import { RichEditor } from "./RichEditor";
 
@@ -36,7 +36,10 @@ export default function DefenseTab({ projectId }: { projectId: string }) {
   const [defense, setDefense] = useState<any>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [mOpen, setMOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [mForm, setMForm] = useState({ name: "", role: "membro_externo", institution: "", email: "", lattes_url: "", notes: "" });
+  const [directory, setDirectory] = useState<any[]>([]);
+  const [dirSearch, setDirSearch] = useState("");
 
   const load = async () => {
     const { data: d } = await supabase.from("research_defense").select("*").eq("project_id", projectId).maybeSingle();
@@ -44,7 +47,11 @@ export default function DefenseTab({ projectId }: { projectId: string }) {
     const { data: m } = await supabase.from("research_defense_members").select("*").eq("project_id", projectId).order("position").order("created_at");
     setMembers((m as Member[]) || []);
   };
-  useEffect(() => { load(); }, [projectId]);
+  const loadDirectory = async () => {
+    const { data } = await supabase.from("research_examiners").select("*").order("name");
+    setDirectory(data || []);
+  };
+  useEffect(() => { load(); loadDirectory(); }, [projectId]);
 
   const saveField = async (patch: any) => {
     setDefense((d: any) => ({ ...d, ...patch }));
@@ -56,20 +63,76 @@ export default function DefenseTab({ projectId }: { projectId: string }) {
     }
   };
 
-  const addMember = async () => {
+  const openAdd = () => {
+    setEditingId(null);
+    setMForm({ name: "", role: "membro_externo", institution: "", email: "", lattes_url: "", notes: "" });
+    setDirSearch("");
+    setMOpen(true);
+  };
+  const openEdit = (m: Member) => {
+    setEditingId(m.id);
+    setMForm({ name: m.name, role: m.role || "membro_externo", institution: m.institution || "", email: m.email || "", lattes_url: m.lattes_url || "", notes: m.notes || "" });
+    setDirSearch("");
+    setMOpen(true);
+  };
+
+  // Persist a member to the reusable personal directory (upsert by name+email)
+  const syncToDirectory = async (data: { name: string; role: string; institution: string | null; email: string | null; lattes_url: string | null; notes: string | null }) => {
+    if (!user) return;
+    const existing = directory.find(
+      (e) => e.name.trim().toLowerCase() === data.name.trim().toLowerCase() &&
+        (e.email || "").trim().toLowerCase() === (data.email || "").trim().toLowerCase()
+    );
+    if (existing) {
+      await supabase.from("research_examiners").update({
+        role: data.role, institution: data.institution, email: data.email, lattes_url: data.lattes_url, notes: data.notes,
+      }).eq("id", existing.id);
+    } else {
+      await supabase.from("research_examiners").insert({
+        owner_id: user.id, name: data.name, role: data.role, institution: data.institution,
+        email: data.email, lattes_url: data.lattes_url, notes: data.notes,
+      });
+    }
+    loadDirectory();
+  };
+
+  const saveMember = async () => {
     if (!mForm.name.trim()) return toast.error(locale === "pt" ? "Nome obrigatório" : "Name required");
-    const { error } = await supabase.from("research_defense_members").insert({
-      project_id: projectId, name: mForm.name.trim(), role: mForm.role,
+    const payload = {
+      name: mForm.name.trim(), role: mForm.role,
       institution: mForm.institution.trim() || null, email: mForm.email.trim() || null,
       lattes_url: mForm.lattes_url.trim() || null, notes: mForm.notes.trim() || null,
-    });
-    if (error) return toast.error(error.message);
-    setMOpen(false); setMForm({ name: "", role: "membro_externo", institution: "", email: "", lattes_url: "", notes: "" }); load();
+    };
+    if (editingId) {
+      const { error } = await supabase.from("research_defense_members").update(payload).eq("id", editingId);
+      if (error) return toast.error(error.message);
+    } else {
+      const { error } = await supabase.from("research_defense_members").insert({ project_id: projectId, ...payload });
+      if (error) return toast.error(error.message);
+    }
+    await syncToDirectory(payload);
+    setMOpen(false);
+    setEditingId(null);
+    setMForm({ name: "", role: "membro_externo", institution: "", email: "", lattes_url: "", notes: "" });
+    load();
   };
   const removeMember = async (id: string) => {
     await supabase.from("research_defense_members").delete().eq("id", id);
     setMembers(members.filter(m => m.id !== id));
   };
+
+  const pickFromDirectory = (e: any) => {
+    setMForm({
+      name: e.name || "", role: e.role || "membro_externo", institution: e.institution || "",
+      email: e.email || "", lattes_url: e.lattes_url || "", notes: e.notes || "",
+    });
+    setDirSearch("");
+  };
+  const filteredDir = dirSearch.trim()
+    ? directory.filter((e) =>
+        `${e.name} ${e.institution || ""} ${e.email || ""}`.toLowerCase().includes(dirSearch.trim().toLowerCase()))
+    : directory.slice(0, 6);
+
 
   const dt = defense?.defense_date ? new Date(defense.defense_date) : null;
 
@@ -127,11 +190,30 @@ export default function DefenseTab({ projectId }: { projectId: string }) {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold flex items-center gap-2"><Users className="h-4 w-4" />{locale === "pt" ? "Membros da banca" : "Committee members"} <Badge variant="secondary">{members.length}</Badge></h3>
-          <Dialog open={mOpen} onOpenChange={setMOpen}>
-            <DialogTrigger asChild><Button size="sm" variant="outline"><Plus className="h-4 w-4" />{locale === "pt" ? "Adicionar" : "Add"}</Button></DialogTrigger>
+          <Button size="sm" variant="outline" onClick={openAdd}><Plus className="h-4 w-4" />{locale === "pt" ? "Adicionar" : "Add"}</Button>
+          <Dialog open={mOpen} onOpenChange={(o) => { setMOpen(o); if (!o) setEditingId(null); }}>
             <DialogContent>
-              <DialogHeader><DialogTitle>{locale === "pt" ? "Membro da banca" : "Committee member"}</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{editingId ? (locale === "pt" ? "Editar membro" : "Edit member") : (locale === "pt" ? "Membro da banca" : "Committee member")}</DialogTitle></DialogHeader>
               <div className="space-y-3">
+                {!editingId && (
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                    <Label className="text-xs flex items-center gap-1.5"><Search className="h-3.5 w-3.5" />{locale === "pt" ? "Buscar professor já cadastrado" : "Search saved professor"}</Label>
+                    <Input value={dirSearch} onChange={e => setDirSearch(e.target.value)} placeholder={locale === "pt" ? "Nome, instituição ou email…" : "Name, institution or email…"} />
+                    {filteredDir.length > 0 ? (
+                      <div className="max-h-40 overflow-y-auto space-y-1">
+                        {filteredDir.map(e => (
+                          <button key={e.id} type="button" onClick={() => pickFromDirectory(e)}
+                            className="w-full text-left rounded-md px-2 py-1.5 hover:bg-accent transition-colors">
+                            <div className="text-sm font-medium">{e.name}</div>
+                            <div className="text-xs text-muted-foreground">{[e.institution, e.email].filter(Boolean).join(" · ") || (ROLES.find(r => r.v === e.role)?.l || "")}</div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">{locale === "pt" ? "Nenhum professor cadastrado encontrado." : "No saved professor found."}</p>
+                    )}
+                  </div>
+                )}
                 <div><Label>{locale === "pt" ? "Nome" : "Name"}</Label><Input value={mForm.name} onChange={e => setMForm({ ...mForm, name: e.target.value })} autoFocus /></div>
                 <div><Label>{locale === "pt" ? "Função" : "Role"}</Label>
                   <Select value={mForm.role} onValueChange={(v) => setMForm({ ...mForm, role: v })}>
@@ -145,7 +227,7 @@ export default function DefenseTab({ projectId }: { projectId: string }) {
                 </div>
                 <div><Label>{locale === "pt" ? "Observações" : "Notes"}</Label><Textarea value={mForm.notes} onChange={e => setMForm({ ...mForm, notes: e.target.value })} rows={2} /></div>
               </div>
-              <DialogFooter><Button onClick={addMember}>{locale === "pt" ? "Adicionar" : "Add"}</Button></DialogFooter>
+              <DialogFooter><Button onClick={saveMember}>{editingId ? (locale === "pt" ? "Salvar" : "Save") : (locale === "pt" ? "Adicionar" : "Add")}</Button></DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
@@ -154,7 +236,7 @@ export default function DefenseTab({ projectId }: { projectId: string }) {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {members.map(m => (
-              <Card key={m.id} className="p-4 group">
+              <Card key={m.id} className="p-4 group cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all" onClick={() => openEdit(m)}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -163,10 +245,10 @@ export default function DefenseTab({ projectId }: { projectId: string }) {
                     </div>
                     {m.institution && <p className="text-sm text-muted-foreground">{m.institution}</p>}
                     {m.email && <p className="text-xs text-muted-foreground">{m.email}</p>}
-                    {m.lattes_url && <a href={m.lattes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary flex items-center gap-1 mt-0.5">Lattes <ExternalLink className="h-3 w-3" /></a>}
+                    {m.lattes_url && <a href={m.lattes_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-primary flex items-center gap-1 mt-0.5">Lattes <ExternalLink className="h-3 w-3" /></a>}
                     {m.notes && <p className="text-xs text-muted-foreground mt-1">{m.notes}</p>}
                   </div>
-                  <button onClick={() => removeMember(m.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive shrink-0"><Trash2 className="h-3.5 w-3.5" /></button>
+                  <button onClick={(e) => { e.stopPropagation(); removeMember(m.id); }} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive shrink-0"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
               </Card>
             ))}

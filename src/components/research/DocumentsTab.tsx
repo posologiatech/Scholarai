@@ -43,6 +43,7 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
   const [extra, setExtra] = useState("");
   const [generating, setGenerating] = useState(false);
   const [viewing, setViewing] = useState<Doc | null>(null);
+  const [previewing, setPreviewing] = useState<Doc | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -133,6 +134,16 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
     URL.revokeObjectURL(url);
   };
 
+  const previewUrl = (d: Doc): string | null => {
+    if (!d.file_url) return null;
+    const ext = (d.metadata?.ext || d.title.split(".").pop() || "").toLowerCase();
+    if (["pdf", "png", "jpg", "jpeg", "gif", "webp", "txt"].includes(ext)) return d.file_url;
+    if (["doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv"].includes(ext)) {
+      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(d.file_url)}`;
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -161,7 +172,7 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
         <div className="grid gap-2">
           {docs.map((d) => (
             <Card key={d.id} className="p-4 flex items-center justify-between gap-3">
-              <button className="flex items-center gap-3 text-left flex-1" onClick={() => d.doc_type === "upload" ? window.open(d.file_url!, "_blank") : setViewing(d)}>
+              <button className="flex items-center gap-3 text-left flex-1" onClick={() => d.doc_type === "upload" ? setPreviewing(d) : setViewing(d)}>
                 {d.doc_type === "upload" ? fileIcon(d) : <FileText className="h-5 w-5 text-muted-foreground" />}
                 <div className="flex-1">
                   <div className="font-medium">{d.title}</div>
@@ -230,6 +241,41 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
               setViewing(null); load();
             }}>Salvar</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!previewing} onOpenChange={(o) => !o && setPreviewing(null)}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[88vh] p-0 overflow-hidden flex flex-col gap-0">
+          <DialogHeader className="px-4 py-3 border-b flex-row items-center justify-between space-y-0">
+            <DialogTitle className="truncate text-base">{previewing?.title}</DialogTitle>
+            <div className="flex items-center gap-2 pr-6">
+              {previewing?.file_url && (
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => window.open(previewing.file_url!, "_blank")}>
+                  <Download className="h-3.5 w-3.5" /> Baixar
+                </Button>
+              )}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 bg-muted/30 overflow-hidden">
+            {previewing && previewUrl(previewing) ? (
+              <iframe
+                src={previewUrl(previewing)!}
+                title={previewing.title}
+                className="w-full h-full border-0"
+              />
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center gap-3 p-6">
+                <FileIcon className="h-12 w-12 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Pré-visualização não disponível para este tipo de arquivo. Você pode baixá-lo para abrir no seu computador.
+                </p>
+                {previewing?.file_url && (
+                  <Button onClick={() => window.open(previewing.file_url!, "_blank")} className="gap-2">
+                    <Download className="h-4 w-4" /> Baixar arquivo
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
