@@ -879,6 +879,7 @@ const TAB_RENDERERS: Record<TabId, (p: { project: any; isManager: boolean }) => 
   activity: ({ project }) => <ActivityHeatmap projectId={project.id} />,
   favorites: ({ project }) => <FavoritesTab projectId={project.id} />,
   defense: ({ project }) => <DefenseTab projectId={project.id} />,
+  connections: ({ project }) => <ConnectionsTab projectId={project.id} />,
   integrations: ({ project }) => <IntegrationsTab projectId={project.id} />,
 };
 
