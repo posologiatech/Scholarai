@@ -134,6 +134,16 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
     URL.revokeObjectURL(url);
   };
 
+  const previewUrl = (d: Doc): string | null => {
+    if (!d.file_url) return null;
+    const ext = (d.metadata?.ext || d.title.split(".").pop() || "").toLowerCase();
+    if (["pdf", "png", "jpg", "jpeg", "gif", "webp", "txt"].includes(ext)) return d.file_url;
+    if (["doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv"].includes(ext)) {
+      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(d.file_url)}`;
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
