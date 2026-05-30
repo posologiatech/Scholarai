@@ -56,6 +56,7 @@ import {
   type ColumnDef as TanStackColumnDef,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { SavePapersToProjectButton } from "@/components/research/SavePapersToProjectButton";
 
 interface Paper {
   id: string;
