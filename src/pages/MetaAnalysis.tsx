@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { RegisterOutputButton } from "@/components/research/RegisterOutputButton";
 
 interface Study {
   id: string;
@@ -252,6 +253,13 @@ const MetaAnalysis = () => {
                     <Download className="h-3.5 w-3.5" />
                     {pt ? "Exportar PDF" : "Export PDF"}
                   </Button>
+                  <RegisterOutputButton
+                    defaultTitle={pt ? `Meta-análise (${effectType})` : `Meta-analysis (${effectType})`}
+                    outputType="analysis"
+                    description={pt ? "Resultado de meta-análise gerado na plataforma." : "Meta-analysis result generated on the platform."}
+                    linkType="meta_analysis"
+                    metrics={results}
+                  />
                 </>
               )}
             </div>

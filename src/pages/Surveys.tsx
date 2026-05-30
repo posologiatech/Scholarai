@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { createSurveyAnalysisTask } from "@/lib/research/integrations";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -205,6 +206,11 @@ const Surveys = () => {
                           attachTable="surveys"
                           variant="ghost"
                           metadata={{ status: survey.status }}
+                          onLinked={async (projectId) => {
+                            if (["completed", "closed", "encerrada", "concluida"].includes(String(survey.status))) {
+                              try { await createSurveyAnalysisTask(projectId, survey.title); } catch { /* non-blocking */ }
+                            }
+                          }}
                         />
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
