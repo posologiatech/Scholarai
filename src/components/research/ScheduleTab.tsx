@@ -27,7 +27,7 @@ import { SCHEDULE_STATUS_LABEL, type ResearchScheduleStatus } from "@/lib/resear
 import { CommentThread } from "./CommentThread";
 import { SCHEDULE_TEMPLATES } from "@/lib/research/scheduleTemplates";
 import { computeCriticalPath } from "@/lib/research/criticalPath";
-import { computeAutoProgress, progressSource } from "@/lib/research/autoProgress";
+import { computeAutoProgress } from "@/lib/research/autoProgress";
 import { TASK_STATUS_LABEL } from "@/lib/research/types";
 
 const STATUS_COLOR: Record<ResearchScheduleStatus, string> = {
