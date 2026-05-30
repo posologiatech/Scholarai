@@ -60,6 +60,90 @@ const MEETING_TEMPLATES = [
   },
 ];
 
+export const RECURRENCE_FREQS = [
+  { id: "none", pt: "Não se repete", en: "Does not repeat" },
+  { id: "daily", pt: "Diária", en: "Daily" },
+  { id: "weekly", pt: "Semanal", en: "Weekly" },
+  { id: "monthly", pt: "Mensal", en: "Monthly" },
+  { id: "yearly", pt: "Anual", en: "Yearly" },
+];
+
+// JS getDay(): 0=Dom .. 6=Sáb
+export const WEEKDAYS = [
+  { d: 1, pt: "Seg", en: "Mon" },
+  { d: 2, pt: "Ter", en: "Tue" },
+  { d: 3, pt: "Qua", en: "Wed" },
+  { d: 4, pt: "Qui", en: "Thu" },
+  { d: 5, pt: "Sex", en: "Fri" },
+  { d: 6, pt: "Sáb", en: "Sat" },
+  { d: 0, pt: "Dom", en: "Sun" },
+];
+
+const MAX_OCCURRENCES = 60;
+
+// Generates the list of occurrence Dates (including the first) for a recurrence config.
+export const generateOccurrences = (
+  start: Date,
+  freq: string,
+  interval: number,
+  weekdays: number[],
+  until: Date | null,
+): Date[] => {
+  if (freq === "none") return [start];
+  const step = Math.max(1, interval || 1);
+  const out: Date[] = [];
+  const limit = until ? new Date(until.getFullYear(), until.getMonth(), until.getDate(), 23, 59, 59) : null;
+  const within = (d: Date) => (limit ? d <= limit : true);
+  const h = start.getHours(), mi = start.getMinutes();
+
+  if (freq === "weekly") {
+    const days = weekdays.length ? [...weekdays].sort() : [start.getDay()];
+    // Anchor to Monday of the start week
+    const anchor = new Date(start);
+    anchor.setHours(0, 0, 0, 0);
+    const offsetToMon = (anchor.getDay() + 6) % 7;
+    anchor.setDate(anchor.getDate() - offsetToMon);
+    let week = 0;
+    while (out.length < MAX_OCCURRENCES) {
+      const weekStart = new Date(anchor);
+      weekStart.setDate(anchor.getDate() + week * step * 7);
+      if (limit && weekStart > limit && week > 0) break;
+      for (const wd of days) {
+        const dayOffset = (wd + 6) % 7; // Mon=0 .. Sun=6
+        const occ = new Date(weekStart);
+        occ.setDate(weekStart.getDate() + dayOffset);
+        occ.setHours(h, mi, 0, 0);
+        if (occ >= start && within(occ)) out.push(occ);
+      }
+      week++;
+      if (week > 520) break; // safety: ~10 years
+    }
+    return out.sort((a, b) => a.getTime() - b.getTime()).slice(0, MAX_OCCURRENCES);
+  }
+
+  let cur = new Date(start);
+  while (out.length < MAX_OCCURRENCES && within(cur)) {
+    out.push(new Date(cur));
+    if (freq === "daily") cur.setDate(cur.getDate() + step);
+    else if (freq === "monthly") cur.setMonth(cur.getMonth() + step);
+    else if (freq === "yearly") cur.setFullYear(cur.getFullYear() + step);
+    else break;
+  }
+  return out;
+};
+
+export const recurrenceLabel = (m: any, locale: string) => {
+  const pt = locale === "pt";
+  if (!m.recurrence_freq || m.recurrence_freq === "none") return null;
+  const f = RECURRENCE_FREQS.find((x) => x.id === m.recurrence_freq);
+  const base = f ? (pt ? f.pt : f.en) : m.recurrence_freq;
+  const iv = m.recurrence_interval > 1 ? ` (${pt ? "a cada" : "every"} ${m.recurrence_interval})` : "";
+  const wds = (m.recurrence_weekdays || []).length
+    ? " · " + (m.recurrence_weekdays as number[]).map((d) => WEEKDAYS.find((w) => w.d === d)?.[pt ? "pt" : "en"]).filter(Boolean).join(", ")
+    : "";
+  return base + iv + wds;
+};
+
 const isYouTube = (u: string) => /youtube\.com|youtu\.be/.test(u);
 const youTubeId = (u: string) => {
   const m = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
