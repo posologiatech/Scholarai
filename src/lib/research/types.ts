@@ -15,6 +15,36 @@ export type ResearchAdviseeLevel =
 export type ResearchScheduleStatus =
   | "planejado" | "em_andamento" | "concluido" | "atrasado";
 
+export type ResearchLinkType =
+  | "search" | "library" | "datamind" | "writing"
+  | "survey" | "systematic_review" | "meta_analysis" | "funding" | "knowledge_graph";
+
+export interface ResearchProjectLink {
+  id: string;
+  project_id: string;
+  resource_type: ResearchLinkType;
+  resource_id: string | null;
+  label: string | null;
+  url: string | null;
+  metadata: Record<string, any>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const LINK_TYPE_LABEL: Record<ResearchLinkType, { pt: string; en: string; route: string }> = {
+  search: { pt: "Busca salva", en: "Saved search", route: "/search" },
+  library: { pt: "Biblioteca", en: "Library", route: "/library" },
+  datamind: { pt: "Análise DataMind", en: "DataMind analysis", route: "/datamind" },
+  writing: { pt: "Escrita científica", en: "Scientific writing", route: "/writing" },
+  survey: { pt: "Pesquisa (coleta)", en: "Survey", route: "/surveys" },
+  systematic_review: { pt: "Revisão sistemática", en: "Systematic review", route: "/systematic-review" },
+  meta_analysis: { pt: "Meta-análise", en: "Meta-analysis", route: "/meta-analysis" },
+  funding: { pt: "Edital de fomento", en: "Funding call", route: "/research/funding" },
+  knowledge_graph: { pt: "Knowledge Graph", en: "Knowledge Graph", route: "/knowledge-graph" },
+};
+
+
 export interface ResearchProject {
   id: string;
   owner_id: string;
