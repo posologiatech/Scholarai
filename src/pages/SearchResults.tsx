@@ -1103,6 +1103,20 @@ const SearchResults = () => {
             <span>{locale === "pt" ? "Salvar na biblioteca" : "Save to library"}</span>
           </button>
 
+          {/* Save to research project */}
+          <SavePapersToProjectButton
+            disabled={filtered.length === 0}
+            searchLabel={query}
+            searchUrl={`/search?q=${encodeURIComponent(query)}`}
+            papers={filtered.map((p) => ({
+              external_paper_id: p.id || null,
+              title: p.title || (locale === "pt" ? "(sem título)" : "(untitled)"),
+              authors: Array.isArray(p.authors) ? p.authors.join(", ") : (p.authors || null),
+              year: p.year || null,
+              doi: p.doi || null,
+            }))}
+          />
+
           {/* Toggle panel - push right */}
           <div className="ml-auto">
             <Button
