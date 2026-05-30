@@ -162,7 +162,10 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
       start_date: it.start_date ?? "", end_date: it.end_date ?? "",
       status: it.status, predecessor_id: it.predecessor_id ?? "",
       dependency_type: it.dependency_type ?? "FS",
-      progress: it.progress ?? 0, is_milestone: it.is_milestone ?? false,
+      progress: it.progress ?? 0,
+      progress_mode: (it.progress_mode === "manual" ? "manual" : "auto"),
+      linked_task_ids: (tasksByItem.get(it.id) ?? []).map((t: any) => t.id),
+      is_milestone: it.is_milestone ?? false,
       assignee_id: it.assignee_id ?? "",
     });
     setOpen(true);
