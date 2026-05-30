@@ -214,3 +214,67 @@ export async function promoteWritingToPublication(projectId: string, title: stri
   if (error) throw error;
   return data.id as string;
 }
+
+/**
+ * Register a resource (DataMind report, dataset, meta-analysis result, etc.) as a
+ * project Output (research_outputs). Deduped by title within the project.
+ */
+export async function registerOutput(
+  projectId: string,
+  input: {
+    title: string;
+    type: string; // dataset | report | analysis | software | patent | other
+    description?: string | null;
+    url?: string | null;
+    metrics?: Record<string, any> | null;
+  },
+) {
+  const userId = await getUserId();
+  if (!userId) throw new Error("Not authenticated");
+
+  const { data: existing } = await (supabase as any)
+    .from("research_outputs")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("title", input.title)
+    .maybeSingle();
+  if (existing?.id) return existing.id as string;
+
+  const { data, error } = await (supabase as any)
+    .from("research_outputs")
+    .insert({
+      project_id: projectId,
+      title: input.title,
+      type: input.type,
+      description: input.description ?? null,
+      url: input.url ?? null,
+      metrics: input.metrics ?? null,
+      created_by: userId,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+/**
+ * When a survey's data collection is finished, create an automatic
+ * "Analyze collected data" task on the linked project.
+ */
+export async function createSurveyAnalysisTask(projectId: string, surveyTitle: string) {
+  await createProjectTask(
+    projectId,
+    `Analisar dados coletados — ${surveyTitle}`,
+    {
+      description: "Tarefa gerada automaticamente ao concluir a coleta de dados da pesquisa.",
+      status: "doing",
+      priority: "high",
+    },
+  );
+  await notifyProject(
+    projectId,
+    "survey_completed",
+    `Coleta concluída: ${surveyTitle}`,
+    "Uma tarefa de análise de dados foi criada automaticamente.",
+  );
+}
