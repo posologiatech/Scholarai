@@ -618,7 +618,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                       const e = new Date(it.end_date).getTime();
                       const left = ((s - startMs) / totalMs) * 100;
                       const width = Math.max(1, ((e - s) / totalMs) * 100);
-                      const progress = it.progress ?? 0;
+                      const progress = effectiveProgress(it);
                       const isMilestone = it.is_milestone;
                       const isCrit = showCritical && cpm.get(it.id)?.critical;
                       return (
@@ -689,7 +689,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                           {it.is_milestone && <Diamond className="h-3.5 w-3.5 text-amber-500 rotate-45" />}
                           <h4 className="font-medium">{it.title}</h4>
                           {it.phase && <Badge variant="outline" className="text-[10px]">{it.phase}</Badge>}
-                          {(it.progress ?? 0) > 0 && <Badge variant="secondary" className="text-[10px]">{it.progress}%</Badge>}
+                          {effectiveProgress(it) > 0 && <Badge variant="secondary" className="text-[10px]">{effectiveProgress(it)}%{it.progress_mode !== "manual" && <Sparkles className="h-2.5 w-2.5 ml-0.5" />}</Badge>}
                           {node?.critical && <Badge className="text-[10px] bg-rose-500"><Flame className="h-2.5 w-2.5" />{locale === "pt" ? "Crítico" : "Critical"}</Badge>}
                           {memberLabel(it.assignee_id) && <Badge variant="outline" className="text-[10px]"><Users className="h-2.5 w-2.5" />{memberLabel(it.assignee_id)}</Badge>}
                           {pred && <Badge variant="outline" className="text-[10px] gap-1"><Link2 className="h-2.5 w-2.5" />{pred.title}</Badge>}
