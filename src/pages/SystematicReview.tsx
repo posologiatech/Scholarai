@@ -11,6 +11,8 @@ import StepQuality from "@/components/app/systematic-review/StepQuality";
 import StepReport from "@/components/app/systematic-review/StepReport";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { importPapersToReferences } from "@/lib/research/integrations";
 
 const SystematicReview = () => {
   const { locale } = useLanguage();
