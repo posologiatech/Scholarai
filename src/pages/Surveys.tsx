@@ -205,6 +205,11 @@ const Surveys = () => {
                           attachTable="surveys"
                           variant="ghost"
                           metadata={{ status: survey.status }}
+                          onLinked={async (projectId) => {
+                            if (["completed", "closed", "encerrada", "concluida"].includes(String(survey.status))) {
+                              try { await createSurveyAnalysisTask(projectId, survey.title); } catch { /* non-blocking */ }
+                            }
+                          }}
                         />
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
