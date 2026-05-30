@@ -184,3 +184,34 @@ export async function attachEntityToProject(
     .eq("id", id);
   if (error) throw error;
 }
+
+/**
+ * Promote a writing document to the project's Publications list (status "escrevendo").
+ * Deduped by title so re-linking does not create duplicates.
+ */
+export async function promoteWritingToPublication(projectId: string, title: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error("Not authenticated");
+
+  const { data: existing } = await (supabase as any)
+    .from("research_publications")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("title", title)
+    .maybeSingle();
+  if (existing?.id) return existing.id as string;
+
+  const { data, error } = await (supabase as any)
+    .from("research_publications")
+    .insert({
+      project_id: projectId,
+      title,
+      status: "escrevendo",
+      pub_type: "article",
+      created_by: userId,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
