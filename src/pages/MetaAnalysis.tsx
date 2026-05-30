@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { RegisterOutputButton } from "@/components/research/RegisterOutputButton";
 
 interface Study {
   id: string;
