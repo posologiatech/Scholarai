@@ -411,9 +411,86 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                       </SelectContent>
                     </Select></div>
                 </div>
-                <div>
-                  <Label>{locale === "pt" ? `Progresso: ${form.progress}%` : `Progress: ${form.progress}%`}</Label>
-                  <Slider min={0} max={100} step={5} value={[form.progress]} onValueChange={([v]) => setForm({ ...form, progress: v })} className="mt-2" />
+                <div className="rounded-lg border p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-sm">{locale === "pt" ? "Progresso automático" : "Automatic progress"}</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {locale === "pt"
+                          ? "Calculado pelas tarefas vinculadas ou, na ausência delas, por status + tempo decorrido."
+                          : "Computed from linked tasks, or status + elapsed time when none."}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={form.progress_mode === "auto"}
+                      onCheckedChange={(v) => setForm({ ...form, progress_mode: v ? "auto" : "manual" })}
+                    />
+                  </div>
+
+                  {form.progress_mode === "manual" ? (
+                    <div>
+                      <Label>{locale === "pt" ? `Progresso (manual): ${form.progress}%` : `Progress (manual): ${form.progress}%`}</Label>
+                      <Slider min={0} max={100} step={5} value={[form.progress]} onValueChange={([v]) => setForm({ ...form, progress: v })} className="mt-2" />
+                    </div>
+                  ) : (
+                    (() => {
+                      const linked = form.linked_task_ids
+                        .map((id) => projectTasks.find((t: any) => t.id === id))
+                        .filter(Boolean) as any[];
+                      const previewAuto = computeAutoProgress(
+                        { status: form.status, start_date: form.start_date, end_date: form.end_date },
+                        linked,
+                      );
+                      return (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium">{locale === "pt" ? "Progresso calculado" : "Computed progress"}</span>
+                            <Badge variant="secondary">{previewAuto}%</Badge>
+                          </div>
+                          <Progress value={previewAuto} className="h-2" />
+                          <p className="text-[11px] text-muted-foreground">
+                            {linked.length > 0
+                              ? (locale === "pt"
+                                  ? `Baseado em ${linked.length} tarefa(s) vinculada(s).`
+                                  : `Based on ${linked.length} linked task(s).`)
+                              : (locale === "pt"
+                                  ? "Sem tarefas vinculadas — estimado por status + tempo."
+                                  : "No linked tasks — estimated by status + time.")}
+                          </p>
+                        </div>
+                      );
+                    })()
+                  )}
+
+                  <div>
+                    <Label className="text-xs">{locale === "pt" ? "Tarefas vinculadas" : "Linked tasks"}</Label>
+                    <div className="mt-1.5 max-h-40 overflow-y-auto rounded-md border divide-y">
+                      {projectTasks.filter((t: any) => !t.schedule_item_id || form.linked_task_ids.includes(t.id) || (editingId && t.schedule_item_id === editingId)).length === 0 ? (
+                        <p className="text-xs text-muted-foreground p-2">{locale === "pt" ? "Nenhuma tarefa disponível." : "No tasks available."}</p>
+                      ) : (
+                        projectTasks
+                          .filter((t: any) => !t.schedule_item_id || form.linked_task_ids.includes(t.id) || (editingId && t.schedule_item_id === editingId))
+                          .map((t: any) => {
+                            const checked = form.linked_task_ids.includes(t.id);
+                            return (
+                              <label key={t.id} className="flex items-center gap-2 p-2 text-sm cursor-pointer hover:bg-muted/50">
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(v) => setForm({
+                                    ...form,
+                                    linked_task_ids: v
+                                      ? [...form.linked_task_ids, t.id]
+                                      : form.linked_task_ids.filter((id) => id !== t.id),
+                                  })}
+                                />
+                                <span className="truncate flex-1">{t.title}</span>
+                                <Badge variant="outline" className="text-[10px]">{TASK_STATUS_LABEL[t.status as keyof typeof TASK_STATUS_LABEL]?.[locale] ?? t.status}</Badge>
+                              </label>
+                            );
+                          })
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
