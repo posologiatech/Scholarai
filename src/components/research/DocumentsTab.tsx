@@ -243,6 +243,41 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={!!previewing} onOpenChange={(o) => !o && setPreviewing(null)}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[88vh] p-0 overflow-hidden flex flex-col gap-0">
+          <DialogHeader className="px-4 py-3 border-b flex-row items-center justify-between space-y-0">
+            <DialogTitle className="truncate text-base">{previewing?.title}</DialogTitle>
+            <div className="flex items-center gap-2 pr-6">
+              {previewing?.file_url && (
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => window.open(previewing.file_url!, "_blank")}>
+                  <Download className="h-3.5 w-3.5" /> Baixar
+                </Button>
+              )}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 bg-muted/30 overflow-hidden">
+            {previewing && previewUrl(previewing) ? (
+              <iframe
+                src={previewUrl(previewing)!}
+                title={previewing.title}
+                className="w-full h-full border-0"
+              />
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center gap-3 p-6">
+                <FileIcon className="h-12 w-12 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Pré-visualização não disponível para este tipo de arquivo. Você pode baixá-lo para abrir no seu computador.
+                </p>
+                {previewing?.file_url && (
+                  <Button onClick={() => window.open(previewing.file_url!, "_blank")} className="gap-2">
+                    <Download className="h-4 w-4" /> Baixar arquivo
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
