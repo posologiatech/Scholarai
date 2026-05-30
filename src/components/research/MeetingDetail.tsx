@@ -793,6 +793,55 @@ export const NewMeetingDialog = ({ projectId, open, onOpenChange }: { projectId:
               <Input value={form.meeting_link} onChange={(e) => setForm({ ...form, meeting_link: e.target.value })} /></div>
           </div>
 
+          {/* Recurrence */}
+          <div className="rounded-lg border p-3 space-y-3">
+            <p className="text-sm font-semibold flex items-center gap-2"><Calendar className="h-3.5 w-3.5 text-primary" />
+              {locale === "pt" ? "Recorrência" : "Recurrence"}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">{locale === "pt" ? "Repetir" : "Repeat"}</Label>
+                <select value={rec.freq} onChange={(e) => setRec({ ...rec, freq: e.target.value })}
+                  className="w-full h-9 rounded-md border bg-background px-2 text-sm">
+                  {RECURRENCE_FREQS.map(f => <option key={f.id} value={f.id}>{locale === "pt" ? f.pt : f.en}</option>)}
+                </select>
+              </div>
+              {rec.freq !== "none" && (
+                <div>
+                  <Label className="text-xs">{locale === "pt" ? "A cada" : "Every"}</Label>
+                  <Input type="number" min={1} value={rec.interval}
+                    onChange={(e) => setRec({ ...rec, interval: Math.max(1, parseInt(e.target.value) || 1) })} className="h-9" />
+                </div>
+              )}
+            </div>
+            {rec.freq === "weekly" && (
+              <div>
+                <Label className="text-xs">{locale === "pt" ? "Dias da semana" : "Weekdays"}</Label>
+                <div className="flex gap-1 flex-wrap mt-1">
+                  {WEEKDAYS.map(w => {
+                    const on = rec.weekdays.includes(w.d);
+                    return (
+                      <button key={w.d} type="button"
+                        onClick={() => setRec({ ...rec, weekdays: on ? rec.weekdays.filter(x => x !== w.d) : [...rec.weekdays, w.d] })}
+                        className={`h-8 w-10 rounded-md border text-xs font-medium transition-colors ${on ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"}`}>
+                        {locale === "pt" ? w.pt : w.en}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {rec.freq !== "none" && (
+              <div>
+                <Label className="text-xs">{locale === "pt" ? "Repetir até (opcional)" : "Repeat until (optional)"}</Label>
+                <Input type="date" value={rec.until} onChange={(e) => setRec({ ...rec, until: e.target.value })} className="h-9" />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {locale === "pt" ? "Sem data limite, são criadas até 60 ocorrências. As reuniões próximas são notificadas automaticamente." : "Without an end date, up to 60 occurrences are created. Upcoming meetings are notified automatically."}
+                </p>
+              </div>
+            )}
+          </div>
+
+
           {doingTasks.length > 0 && (
             <div className="rounded-lg border p-3 space-y-2">
               <p className="text-sm font-semibold flex items-center gap-2"><Sparkles className="h-3.5 w-3.5 text-primary" />
