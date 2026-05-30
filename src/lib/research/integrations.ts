@@ -207,7 +207,6 @@ export async function promoteWritingToPublication(projectId: string, title: stri
       project_id: projectId,
       title,
       status: "escrevendo",
-      pub_type: "article",
       created_by: userId,
     })
     .select("id")
