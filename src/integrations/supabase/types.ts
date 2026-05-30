@@ -2086,6 +2086,45 @@ export type Database = {
           },
         ]
       }
+      research_examiners: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          institution: string | null
+          lattes_url: string | null
+          name: string
+          notes: string | null
+          owner_id: string
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          institution?: string | null
+          lattes_url?: string | null
+          name: string
+          notes?: string | null
+          owner_id?: string
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          institution?: string | null
+          lattes_url?: string | null
+          name?: string
+          notes?: string | null
+          owner_id?: string
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       research_expenses: {
         Row: {
           amount: number

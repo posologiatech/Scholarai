@@ -43,6 +43,7 @@ export default function DocumentsTab({ projectId }: { projectId: string }) {
   const [extra, setExtra] = useState("");
   const [generating, setGenerating] = useState(false);
   const [viewing, setViewing] = useState<Doc | null>(null);
+  const [previewing, setPreviewing] = useState<Doc | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
