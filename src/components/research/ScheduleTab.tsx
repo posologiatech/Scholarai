@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus, Trash2, Calendar, Link2, Diamond, ChevronDown, ChevronRight,
@@ -25,6 +27,8 @@ import { SCHEDULE_STATUS_LABEL, type ResearchScheduleStatus } from "@/lib/resear
 import { CommentThread } from "./CommentThread";
 import { SCHEDULE_TEMPLATES } from "@/lib/research/scheduleTemplates";
 import { computeCriticalPath } from "@/lib/research/criticalPath";
+import { computeAutoProgress } from "@/lib/research/autoProgress";
+import { TASK_STATUS_LABEL } from "@/lib/research/types";
 
 const STATUS_COLOR: Record<ResearchScheduleStatus, string> = {
   planejado: "bg-slate-400",
@@ -51,6 +55,8 @@ interface FormState {
   predecessor_id: string;
   dependency_type: "FS" | "SS" | "FF" | "SF";
   progress: number;
+  progress_mode: "auto" | "manual";
+  linked_task_ids: string[];
   is_milestone: boolean;
   assignee_id: string;
 }
@@ -58,7 +64,7 @@ interface FormState {
 const EMPTY_FORM: FormState = {
   title: "", description: "", notes: "", phase: "", start_date: "", end_date: "",
   status: "planejado", predecessor_id: "", dependency_type: "FS",
-  progress: 0, is_milestone: false, assignee_id: "",
+  progress: 0, progress_mode: "auto", linked_task_ids: [], is_milestone: false, assignee_id: "",
 };
 
 const dayMs = 86400000;
@@ -96,6 +102,49 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
     },
   });
 
+  const { data: projectTasks = [] } = useQuery({
+    queryKey: ["research-tasks-min", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("research_tasks")
+        .select("id, title, status, schedule_item_id").eq("project_id", projectId);
+      return (data ?? []) as any[];
+    },
+  });
+
+  const tasksByItem = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const t of projectTasks) {
+      if (!t.schedule_item_id) continue;
+      if (!m.has(t.schedule_item_id)) m.set(t.schedule_item_id, []);
+      m.get(t.schedule_item_id)!.push(t);
+    }
+    return m;
+  }, [projectTasks]);
+
+  const effectiveProgress = (it: any): number =>
+    it.progress_mode === "manual"
+      ? (it.progress ?? 0)
+      : computeAutoProgress(it, tasksByItem.get(it.id));
+
+  // Persist auto-computed progress so other views (Gantt fill, burndown) stay consistent
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let changed = false;
+      for (const it of items as any[]) {
+        if (it.progress_mode === "manual") continue;
+        const auto = computeAutoProgress(it, tasksByItem.get(it.id));
+        if (auto !== (it.progress ?? 0)) {
+          await supabase.from("research_schedule_items").update({ progress: auto }).eq("id", it.id);
+          changed = true;
+        }
+      }
+      if (changed && !cancelled) qc.invalidateQueries({ queryKey: ["research-schedule", projectId] });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, tasksByItem]);
+
   const memberLabel = (mid: string | null) => {
     if (!mid) return null;
     const m: any = members.find((x: any) => x.id === mid);
@@ -114,7 +163,10 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
       start_date: it.start_date ?? "", end_date: it.end_date ?? "",
       status: it.status, predecessor_id: it.predecessor_id ?? "",
       dependency_type: it.dependency_type ?? "FS",
-      progress: it.progress ?? 0, is_milestone: it.is_milestone ?? false,
+      progress: it.progress ?? 0,
+      progress_mode: (it.progress_mode === "manual" ? "manual" : "auto"),
+      linked_task_ids: (tasksByItem.get(it.id) ?? []).map((t: any) => t.id),
+      is_milestone: it.is_milestone ?? false,
       assignee_id: it.assignee_id ?? "",
     });
     setOpen(true);
@@ -124,21 +176,41 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
 
   const submit = async () => {
     if (!form.title) return toast.error(locale === "pt" ? "Título obrigatório" : "Title required");
+    const autoProgress = computeAutoProgress(
+      { status: form.status, start_date: form.start_date, end_date: form.end_date },
+      form.linked_task_ids.map((id) => projectTasks.find((t: any) => t.id === id)).filter(Boolean) as any[],
+    );
     const payload = {
       title: form.title, description: form.description || null, notes: form.notes || null, phase: form.phase || null,
       status: form.status,
       start_date: form.start_date || null, end_date: form.end_date || null,
       predecessor_id: form.predecessor_id || null, dependency_type: form.dependency_type,
-      progress: form.progress, is_milestone: form.is_milestone,
+      progress: form.progress_mode === "manual" ? form.progress : autoProgress,
+      progress_mode: form.progress_mode,
+      is_milestone: form.is_milestone,
       assignee_id: form.assignee_id || null,
     };
-    let error;
+    let error; let savedId = editingId;
     if (editingId) ({ error } = await supabase.from("research_schedule_items").update(payload).eq("id", editingId));
-    else ({ error } = await supabase.from("research_schedule_items").insert({
-      ...payload, project_id: projectId, created_by: user!.id,
-    }));
+    else {
+      const { data, error: insErr } = await supabase.from("research_schedule_items").insert({
+        ...payload, project_id: projectId, created_by: user!.id,
+      }).select("id").single();
+      error = insErr; savedId = data?.id ?? null;
+    }
     if (error) return toast.error(error.message);
+
+    // Sync linked tasks (schedule_item_id) for this item
+    if (savedId) {
+      const previous = (tasksByItem.get(savedId) ?? []).map((t: any) => t.id);
+      const toLink = form.linked_task_ids.filter((id) => !previous.includes(id));
+      const toUnlink = previous.filter((id) => !form.linked_task_ids.includes(id));
+      if (toLink.length) await supabase.from("research_tasks").update({ schedule_item_id: savedId }).in("id", toLink);
+      if (toUnlink.length) await supabase.from("research_tasks").update({ schedule_item_id: null }).in("id", toUnlink);
+    }
+
     qc.invalidateQueries({ queryKey: ["research-schedule", projectId] });
+    qc.invalidateQueries({ queryKey: ["research-tasks-min", projectId] });
     setOpen(false); setForm(EMPTY_FORM); setEditingId(null);
   };
 
@@ -340,9 +412,86 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                       </SelectContent>
                     </Select></div>
                 </div>
-                <div>
-                  <Label>{locale === "pt" ? `Progresso: ${form.progress}%` : `Progress: ${form.progress}%`}</Label>
-                  <Slider min={0} max={100} step={5} value={[form.progress]} onValueChange={([v]) => setForm({ ...form, progress: v })} className="mt-2" />
+                <div className="rounded-lg border p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-sm">{locale === "pt" ? "Progresso automático" : "Automatic progress"}</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {locale === "pt"
+                          ? "Calculado pelas tarefas vinculadas ou, na ausência delas, por status + tempo decorrido."
+                          : "Computed from linked tasks, or status + elapsed time when none."}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={form.progress_mode === "auto"}
+                      onCheckedChange={(v) => setForm({ ...form, progress_mode: v ? "auto" : "manual" })}
+                    />
+                  </div>
+
+                  {form.progress_mode === "manual" ? (
+                    <div>
+                      <Label>{locale === "pt" ? `Progresso (manual): ${form.progress}%` : `Progress (manual): ${form.progress}%`}</Label>
+                      <Slider min={0} max={100} step={5} value={[form.progress]} onValueChange={([v]) => setForm({ ...form, progress: v })} className="mt-2" />
+                    </div>
+                  ) : (
+                    (() => {
+                      const linked = form.linked_task_ids
+                        .map((id) => projectTasks.find((t: any) => t.id === id))
+                        .filter(Boolean) as any[];
+                      const previewAuto = computeAutoProgress(
+                        { status: form.status, start_date: form.start_date, end_date: form.end_date },
+                        linked,
+                      );
+                      return (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium">{locale === "pt" ? "Progresso calculado" : "Computed progress"}</span>
+                            <Badge variant="secondary">{previewAuto}%</Badge>
+                          </div>
+                          <Progress value={previewAuto} className="h-2" />
+                          <p className="text-[11px] text-muted-foreground">
+                            {linked.length > 0
+                              ? (locale === "pt"
+                                  ? `Baseado em ${linked.length} tarefa(s) vinculada(s).`
+                                  : `Based on ${linked.length} linked task(s).`)
+                              : (locale === "pt"
+                                  ? "Sem tarefas vinculadas — estimado por status + tempo."
+                                  : "No linked tasks — estimated by status + time.")}
+                          </p>
+                        </div>
+                      );
+                    })()
+                  )}
+
+                  <div>
+                    <Label className="text-xs">{locale === "pt" ? "Tarefas vinculadas" : "Linked tasks"}</Label>
+                    <div className="mt-1.5 max-h-40 overflow-y-auto rounded-md border divide-y">
+                      {projectTasks.filter((t: any) => !t.schedule_item_id || form.linked_task_ids.includes(t.id) || (editingId && t.schedule_item_id === editingId)).length === 0 ? (
+                        <p className="text-xs text-muted-foreground p-2">{locale === "pt" ? "Nenhuma tarefa disponível." : "No tasks available."}</p>
+                      ) : (
+                        projectTasks
+                          .filter((t: any) => !t.schedule_item_id || form.linked_task_ids.includes(t.id) || (editingId && t.schedule_item_id === editingId))
+                          .map((t: any) => {
+                            const checked = form.linked_task_ids.includes(t.id);
+                            return (
+                              <label key={t.id} className="flex items-center gap-2 p-2 text-sm cursor-pointer hover:bg-muted/50">
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(v) => setForm({
+                                    ...form,
+                                    linked_task_ids: v
+                                      ? [...form.linked_task_ids, t.id]
+                                      : form.linked_task_ids.filter((id) => id !== t.id),
+                                  })}
+                                />
+                                <span className="truncate flex-1">{t.title}</span>
+                                <Badge variant="outline" className="text-[10px]">{TASK_STATUS_LABEL[t.status as keyof typeof TASK_STATUS_LABEL]?.[locale] ?? t.status}</Badge>
+                              </label>
+                            );
+                          })
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
@@ -469,7 +618,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                       const e = new Date(it.end_date).getTime();
                       const left = ((s - startMs) / totalMs) * 100;
                       const width = Math.max(1, ((e - s) / totalMs) * 100);
-                      const progress = it.progress ?? 0;
+                      const progress = effectiveProgress(it);
                       const isMilestone = it.is_milestone;
                       const isCrit = showCritical && cpm.get(it.id)?.critical;
                       return (
@@ -540,7 +689,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                           {it.is_milestone && <Diamond className="h-3.5 w-3.5 text-amber-500 rotate-45" />}
                           <h4 className="font-medium">{it.title}</h4>
                           {it.phase && <Badge variant="outline" className="text-[10px]">{it.phase}</Badge>}
-                          {(it.progress ?? 0) > 0 && <Badge variant="secondary" className="text-[10px]">{it.progress}%</Badge>}
+                          {effectiveProgress(it) > 0 && <Badge variant="secondary" className="text-[10px]">{effectiveProgress(it)}%{it.progress_mode !== "manual" && <Sparkles className="h-2.5 w-2.5 ml-0.5" />}</Badge>}
                           {node?.critical && <Badge className="text-[10px] bg-rose-500"><Flame className="h-2.5 w-2.5" />{locale === "pt" ? "Crítico" : "Critical"}</Badge>}
                           {memberLabel(it.assignee_id) && <Badge variant="outline" className="text-[10px]"><Users className="h-2.5 w-2.5" />{memberLabel(it.assignee_id)}</Badge>}
                           {pred && <Badge variant="outline" className="text-[10px] gap-1"><Link2 className="h-2.5 w-2.5" />{pred.title}</Badge>}
