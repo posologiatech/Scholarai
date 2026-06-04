@@ -2640,6 +2640,7 @@ export type Database = {
           recurrence_weekdays: number[]
           reminder_sent_at: string | null
           scheduled_at: string
+          status: string
           title: string
           transcript: string | null
           updated_at: string
@@ -2664,6 +2665,7 @@ export type Database = {
           recurrence_weekdays?: number[]
           reminder_sent_at?: string | null
           scheduled_at: string
+          status?: string
           title: string
           transcript?: string | null
           updated_at?: string
@@ -2688,6 +2690,7 @@ export type Database = {
           recurrence_weekdays?: number[]
           reminder_sent_at?: string | null
           scheduled_at?: string
+          status?: string
           title?: string
           transcript?: string | null
           updated_at?: string
