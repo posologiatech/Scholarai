@@ -17,7 +17,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck, NotebookPen, RefreshCw, ExternalLink, Award, AlertTriangle, Activity, Globe, UserCheck, Package, Link2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ArrowLeft, Plus, Trash2, Calendar, Users2, FileText, BookOpen, Lightbulb, Mic, GraduationCap, CheckSquare, Send, Sparkles, CalendarRange, ChevronRight, FileSignature, Wallet, ShieldCheck, NotebookPen, RefreshCw, ExternalLink, Award, AlertTriangle, Activity, Globe, UserCheck, Package, Link2, MoreVertical, CheckCircle2, XCircle, PlayCircle } from "lucide-react";
 import IntegrationsTab from "@/components/research/IntegrationsTab";
 import ExportProjectMenu from "@/components/research/ExportProjectMenu";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -257,11 +258,19 @@ const RefsTab = ({ projectId }: { projectId: string }) => {
 const TasksTab = ({ projectId }: { projectId: string }) => <TasksBoard projectId={projectId} />;
 
 // ===== Tab: Meetings =====
+type MeetingStatus = "ativa" | "concluida" | "cancelada";
+const MEETING_STATUS_LABEL: Record<MeetingStatus, { pt: string; en: string }> = {
+  ativa: { pt: "Ativa", en: "Active" },
+  concluida: { pt: "Concluída", en: "Completed" },
+  cancelada: { pt: "Cancelada", en: "Cancelled" },
+};
+
 const MeetingsTab = ({ projectId }: { projectId: string }) => {
   const { locale } = useLanguage();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<any>(null);
+  const [statusTab, setStatusTab] = useState<MeetingStatus>("ativa");
 
   const { data: meetings = [] } = useQuery({
     queryKey: ["research-meetings", projectId],
@@ -279,43 +288,87 @@ const MeetingsTab = ({ projectId }: { projectId: string }) => {
     qc.invalidateQueries({ queryKey: ["research-meetings", projectId] });
   };
 
+  const setStatus = async (id: string, status: MeetingStatus) => {
+    await supabase.from("research_meetings").update({ status }).eq("id", id);
+    qc.invalidateQueries({ queryKey: ["research-meetings", projectId] });
+  };
+
+  const counts: Record<MeetingStatus, number> = { ativa: 0, concluida: 0, cancelada: 0 };
+  meetings.forEach((m: any) => {
+    const s = (m.status ?? "ativa") as MeetingStatus;
+    if (counts[s] !== undefined) counts[s] += 1;
+  });
+  const filtered = meetings.filter((m: any) => ((m.status ?? "ativa") as MeetingStatus) === statusTab);
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <p className="text-sm text-muted-foreground">{locale === "pt" ? "Clique em uma reunião para abrir pautas, anotações e encaminhamentos." : "Click a meeting to open agenda, notes and follow-ups."}</p>
         <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />{locale === "pt" ? "Nova reunião" : "New meeting"}</Button>
       </div>
+
+      <Tabs value={statusTab} onValueChange={(v) => setStatusTab(v as MeetingStatus)}>
+        <TabsList>
+          <TabsTrigger value="ativa">{locale === "pt" ? "Ativas" : "Active"}<Badge variant="secondary" className="ml-2">{counts.ativa}</Badge></TabsTrigger>
+          <TabsTrigger value="concluida">{locale === "pt" ? "Concluídas" : "Completed"}<Badge variant="secondary" className="ml-2">{counts.concluida}</Badge></TabsTrigger>
+          <TabsTrigger value="cancelada">{locale === "pt" ? "Canceladas" : "Cancelled"}<Badge variant="secondary" className="ml-2">{counts.cancelada}</Badge></TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="grid md:grid-cols-2 gap-3">
-        {meetings.map((m: any) => {
-          const future = new Date(m.scheduled_at) > new Date();
+        {filtered.map((m: any) => {
+          const status = (m.status ?? "ativa") as MeetingStatus;
           const total = m.agenda_items?.length ?? 0;
           const done = m.agenda_items?.filter((a: any) => a.completed).length ?? 0;
+          const accent = status === "concluida" ? "bg-emerald-500" : status === "cancelada" ? "bg-destructive" : "bg-blue-500";
           return (
-            <button key={m.id} onClick={() => setSelected(m)}
-              className="group text-left rounded-2xl border bg-card hover:shadow-md hover:border-primary/40 transition-all p-4 relative overflow-hidden">
-              <div className={`absolute top-0 left-0 w-1 h-full ${future ? "bg-blue-500" : "bg-emerald-500"}`} />
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <h4 className="font-semibold truncate">{m.title}</h4>
-                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />{new Date(m.scheduled_at).toLocaleString()}
-                  </p>
+            <div key={m.id} className="group text-left rounded-2xl border bg-card hover:shadow-md hover:border-primary/40 transition-all p-4 relative overflow-hidden">
+              <div className={`absolute top-0 left-0 w-1 h-full ${accent}`} />
+              <button onClick={() => setSelected(m)} className="w-full text-left">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-semibold truncate">{m.title}</h4>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />{new Date(m.scheduled_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-              </div>
-              <div className="flex items-center gap-2 mt-3 text-xs">
-                <Badge variant={future ? "secondary" : "outline"} className="text-[10px]">{future ? (locale === "pt" ? "Agendada" : "Scheduled") : (locale === "pt" ? "Realizada" : "Held")}</Badge>
-                {total > 0 && <span className="text-muted-foreground">{done}/{total} {locale === "pt" ? "pautas" : "items"}</span>}
-                {m.attachments?.length > 0 && <span className="text-muted-foreground">· {m.attachments.length} {locale === "pt" ? "anexos" : "files"}</span>}
-              </div>
-              <Button size="icon" variant="ghost" className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100"
-                onClick={(e) => { e.stopPropagation(); if (confirm(locale === "pt" ? "Excluir reunião?" : "Delete meeting?")) remove(m.id); }}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </button>
+                <div className="flex items-center gap-2 mt-3 text-xs">
+                  <Badge variant="outline" className="text-[10px]">{MEETING_STATUS_LABEL[status][locale]}</Badge>
+                  {total > 0 && <span className="text-muted-foreground">{done}/{total} {locale === "pt" ? "pautas" : "items"}</span>}
+                  {m.attachments?.length > 0 && <span className="text-muted-foreground">· {m.attachments.length} {locale === "pt" ? "anexos" : "files"}</span>}
+                </div>
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="ghost" className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100"
+                    onClick={(e) => e.stopPropagation()}>
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>{locale === "pt" ? "Alterar status" : "Change status"}</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => setStatus(m.id, "ativa")}>
+                    <PlayCircle className="h-4 w-4 text-blue-500" />{locale === "pt" ? "Marcar como ativa" : "Mark active"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setStatus(m.id, "concluida")}>
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />{locale === "pt" ? "Marcar como concluída" : "Mark completed"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setStatus(m.id, "cancelada")}>
+                    <XCircle className="h-4 w-4 text-amber-500" />{locale === "pt" ? "Marcar como cancelada" : "Mark cancelled"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-destructive focus:text-destructive"
+                    onClick={() => { if (confirm(locale === "pt" ? "Excluir reunião?" : "Delete meeting?")) remove(m.id); }}>
+                    <Trash2 className="h-4 w-4" />{locale === "pt" ? "Excluir reunião" : "Delete meeting"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           );
         })}
-        {meetings.length === 0 && <p className="text-sm text-muted-foreground col-span-2 text-center py-12">{locale === "pt" ? "Nenhuma reunião agendada." : "No meetings scheduled."}</p>}
+        {filtered.length === 0 && <p className="text-sm text-muted-foreground col-span-2 text-center py-12">{locale === "pt" ? "Nenhuma reunião nesta aba." : "No meetings in this tab."}</p>}
       </div>
 
       <NewMeetingDialog projectId={projectId} open={open} onOpenChange={setOpen} />
@@ -327,6 +380,7 @@ const MeetingsTab = ({ projectId }: { projectId: string }) => {
     </div>
   );
 };
+
 
 
 // ===== Tab: Advisees =====
