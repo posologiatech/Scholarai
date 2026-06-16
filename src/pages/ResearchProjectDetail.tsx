@@ -436,11 +436,19 @@ const AdviseesTab = ({ projectId }: { projectId: string }) => {
       <div className="flex justify-end">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4" />{locale === "pt" ? "Novo orientando" : "New advisee"}</Button></DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{locale === "pt" ? "Novo orientando" : "New advisee"}</DialogTitle></DialogHeader>
             <div className="space-y-3">
+              <div><Label>{locale === "pt" ? "Foto" : "Photo"}</Label>
+                <AdviseePhotoUpload value={form.photo_url} onChange={url => setForm({ ...form, photo_url: url })} /></div>
               <div><Label>{locale === "pt" ? "Nome completo" : "Full name"}</Label>
                 <Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label>{locale === "pt" ? "Matrícula" : "Registration"}</Label>
+                  <Input value={form.registration_number} onChange={e => setForm({ ...form, registration_number: e.target.value })} /></div>
+                <div><Label>WhatsApp</Label>
+                  <Input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="(00) 00000-0000" /></div>
+              </div>
               <div><Label>Email</Label><Input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
               <div><Label>{locale === "pt" ? "Nível" : "Level"}</Label>
                 <Select value={form.level} onValueChange={(v: ResearchAdviseeLevel) => setForm({ ...form, level: v })}>
