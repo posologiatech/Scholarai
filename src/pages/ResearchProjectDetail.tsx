@@ -574,11 +574,19 @@ const AdviseeCard = ({ advisee, levelLabel, locale, onRemove }: any) => {
         </div>
       </div>
       <Dialog open={editing} onOpenChange={setEditing}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{locale === "pt" ? "Editar orientando" : "Edit advisee"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            <div><Label>{locale === "pt" ? "Foto" : "Photo"}</Label>
+              <AdviseePhotoUpload value={edit.photo_url} onChange={url => setEdit({ ...edit, photo_url: url })} /></div>
             <div><Label>{locale === "pt" ? "Nome completo" : "Full name"}</Label>
               <Input value={edit.full_name} onChange={e => setEdit({ ...edit, full_name: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><Label>{locale === "pt" ? "Matrícula" : "Registration"}</Label>
+                <Input value={edit.registration_number} onChange={e => setEdit({ ...edit, registration_number: e.target.value })} /></div>
+              <div><Label>WhatsApp</Label>
+                <Input value={edit.whatsapp} onChange={e => setEdit({ ...edit, whatsapp: e.target.value })} placeholder="(00) 00000-0000" /></div>
+            </div>
             <div><Label>Email</Label><Input value={edit.email} onChange={e => setEdit({ ...edit, email: e.target.value })} /></div>
             <div><Label>{locale === "pt" ? "Nível" : "Level"}</Label>
               <Select value={edit.level} onValueChange={(v: ResearchAdviseeLevel) => setEdit({ ...edit, level: v })}>
