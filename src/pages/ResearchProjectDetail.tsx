@@ -546,18 +546,26 @@ const AdviseeCard = ({ advisee, levelLabel, locale, onRemove }: any) => {
   return (
     <Card className="transition-all hover:border-primary/40 hover:shadow-sm"><CardContent className="py-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
-        <button onClick={openEdit} className="text-left flex-1 min-w-0 cursor-pointer">
-          <p className="font-medium">{advisee.full_name} <Badge variant="secondary" className="ml-2">{levelLabel[advisee.level]}</Badge></p>
-          {advisee.thesis_title && <p className="text-sm text-muted-foreground">{advisee.thesis_title}</p>}
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mt-1">
-            {advisee.email && <span>{advisee.email}</span>}
-            {advisee.start_date && <span>{locale === "pt" ? "Início:" : "Start:"} {new Date(advisee.start_date).toLocaleDateString()}</span>}
-            {advisee.expected_defense_date && (
-              <Badge variant={daysLeft !== null && daysLeft < 30 ? "destructive" : "outline"}>
-                {locale === "pt" ? "Defesa:" : "Defense:"} {new Date(advisee.expected_defense_date).toLocaleDateString()}
-                {daysLeft !== null && ` (${daysLeft}d)`}
-              </Badge>
-            )}
+        <button onClick={openEdit} className="text-left flex-1 min-w-0 cursor-pointer flex gap-3 items-start">
+          <Avatar className="h-10 w-10 shrink-0">
+            <AvatarImage src={advisee.photo_url || undefined} alt={advisee.full_name} />
+            <AvatarFallback><UserIcon className="h-5 w-5 text-muted-foreground" /></AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="font-medium">{advisee.full_name} <Badge variant="secondary" className="ml-2">{levelLabel[advisee.level]}</Badge></p>
+            {advisee.thesis_title && <p className="text-sm text-muted-foreground">{advisee.thesis_title}</p>}
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mt-1">
+              {advisee.registration_number && <span>{locale === "pt" ? "Matrícula:" : "ID:"} {advisee.registration_number}</span>}
+              {advisee.whatsapp && <span>WhatsApp: {advisee.whatsapp}</span>}
+              {advisee.email && <span>{advisee.email}</span>}
+              {advisee.start_date && <span>{locale === "pt" ? "Início:" : "Start:"} {new Date(advisee.start_date).toLocaleDateString()}</span>}
+              {advisee.expected_defense_date && (
+                <Badge variant={daysLeft !== null && daysLeft < 30 ? "destructive" : "outline"}>
+                  {locale === "pt" ? "Defesa:" : "Defense:"} {new Date(advisee.expected_defense_date).toLocaleDateString()}
+                  {daysLeft !== null && ` (${daysLeft}d)`}
+                </Badge>
+              )}
+            </div>
           </div>
         </button>
         <div className="flex gap-1 shrink-0">
