@@ -409,6 +409,9 @@ const AdviseesTab = ({ projectId }: { projectId: string }) => {
     const { error } = await supabase.from("research_advisees").insert({
       project_id: projectId, advisor_id: user!.id,
       full_name: form.full_name, email: form.email || null,
+      registration_number: form.registration_number || null,
+      whatsapp: form.whatsapp || null,
+      photo_url: form.photo_url || null,
       level: form.level, thesis_title: form.thesis_title || null,
       start_date: form.start_date || null,
       expected_defense_date: form.expected_defense_date || null,
@@ -416,7 +419,7 @@ const AdviseesTab = ({ projectId }: { projectId: string }) => {
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["research-advisees", projectId] });
     setOpen(false);
-    setForm({ full_name: "", email: "", level: "mestrado", thesis_title: "", start_date: "", expected_defense_date: "" });
+    setForm({ full_name: "", email: "", registration_number: "", whatsapp: "", photo_url: "", level: "mestrado", thesis_title: "", start_date: "", expected_defense_date: "" });
   };
 
   const remove = async (id: string) => {
