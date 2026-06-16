@@ -483,13 +483,17 @@ const AdviseeCard = ({ advisee, levelLabel, locale, onRemove }: any) => {
   const [showMilestones, setShowMilestones] = useState(false);
   const [editing, setEditing] = useState(false);
   const [edit, setEdit] = useState({
-    full_name: advisee.full_name || "", email: advisee.email || "", level: advisee.level,
+    full_name: advisee.full_name || "", email: advisee.email || "",
+    registration_number: advisee.registration_number || "", whatsapp: advisee.whatsapp || "",
+    photo_url: advisee.photo_url || "", level: advisee.level,
     thesis_title: advisee.thesis_title || "", start_date: advisee.start_date || "",
     expected_defense_date: advisee.expected_defense_date || "",
   });
   const openEdit = () => {
     setEdit({
-      full_name: advisee.full_name || "", email: advisee.email || "", level: advisee.level,
+      full_name: advisee.full_name || "", email: advisee.email || "",
+      registration_number: advisee.registration_number || "", whatsapp: advisee.whatsapp || "",
+      photo_url: advisee.photo_url || "", level: advisee.level,
       thesis_title: advisee.thesis_title || "", start_date: advisee.start_date || "",
       expected_defense_date: advisee.expected_defense_date || "",
     });
@@ -499,6 +503,8 @@ const AdviseeCard = ({ advisee, levelLabel, locale, onRemove }: any) => {
     if (!edit.full_name) return toast.error(locale === "pt" ? "Nome obrigatório" : "Name required");
     const { error } = await supabase.from("research_advisees").update({
       full_name: edit.full_name, email: edit.email || null, level: edit.level,
+      registration_number: edit.registration_number || null, whatsapp: edit.whatsapp || null,
+      photo_url: edit.photo_url || null,
       thesis_title: edit.thesis_title || null, start_date: edit.start_date || null,
       expected_defense_date: edit.expected_defense_date || null,
     }).eq("id", advisee.id);
