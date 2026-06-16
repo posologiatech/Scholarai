@@ -1530,11 +1530,14 @@ export type Database = {
           id: string
           level: Database["public"]["Enums"]["research_advisee_level"]
           notes: string | null
+          photo_url: string | null
           project_id: string
+          registration_number: string | null
           start_date: string | null
           thesis_title: string | null
           updated_at: string
           user_id: string | null
+          whatsapp: string | null
         }
         Insert: {
           advisor_id: string
@@ -1545,11 +1548,14 @@ export type Database = {
           id?: string
           level?: Database["public"]["Enums"]["research_advisee_level"]
           notes?: string | null
+          photo_url?: string | null
           project_id: string
+          registration_number?: string | null
           start_date?: string | null
           thesis_title?: string | null
           updated_at?: string
           user_id?: string | null
+          whatsapp?: string | null
         }
         Update: {
           advisor_id?: string
@@ -1560,11 +1566,14 @@ export type Database = {
           id?: string
           level?: Database["public"]["Enums"]["research_advisee_level"]
           notes?: string | null
+          photo_url?: string | null
           project_id?: string
+          registration_number?: string | null
           start_date?: string | null
           thesis_title?: string | null
           updated_at?: string
           user_id?: string | null
+          whatsapp?: string | null
         }
         Relationships: [
           {

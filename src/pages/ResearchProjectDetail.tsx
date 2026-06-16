@@ -28,6 +28,9 @@ import ReactMarkdown from "react-markdown";
 import { ProjectBodyEditor } from "@/components/research/ProjectBodyEditor";
 import { MeetingDetail, NewMeetingDialog } from "@/components/research/MeetingDetail";
 import { ScheduleTab } from "@/components/research/ScheduleTab";
+import { AdviseePhotoUpload } from "@/components/research/AdviseePhotoUpload";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { User as UserIcon } from "lucide-react";
 import { ResearchCopilot } from "@/components/research/ResearchCopilot";
 import { CommentThread } from "@/components/research/CommentThread";
 import DocumentsTab from "@/components/research/DocumentsTab";
@@ -389,7 +392,7 @@ const AdviseesTab = ({ projectId }: { projectId: string }) => {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ full_name: "", email: "", level: "mestrado" as ResearchAdviseeLevel, thesis_title: "", start_date: "", expected_defense_date: "" });
+  const [form, setForm] = useState({ full_name: "", email: "", registration_number: "", whatsapp: "", photo_url: "", level: "mestrado" as ResearchAdviseeLevel, thesis_title: "", start_date: "", expected_defense_date: "" });
 
   const { data: advisees = [] } = useQuery({
     queryKey: ["research-advisees", projectId],
@@ -406,6 +409,9 @@ const AdviseesTab = ({ projectId }: { projectId: string }) => {
     const { error } = await supabase.from("research_advisees").insert({
       project_id: projectId, advisor_id: user!.id,
       full_name: form.full_name, email: form.email || null,
+      registration_number: form.registration_number || null,
+      whatsapp: form.whatsapp || null,
+      photo_url: form.photo_url || null,
       level: form.level, thesis_title: form.thesis_title || null,
       start_date: form.start_date || null,
       expected_defense_date: form.expected_defense_date || null,
@@ -413,7 +419,7 @@ const AdviseesTab = ({ projectId }: { projectId: string }) => {
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["research-advisees", projectId] });
     setOpen(false);
-    setForm({ full_name: "", email: "", level: "mestrado", thesis_title: "", start_date: "", expected_defense_date: "" });
+    setForm({ full_name: "", email: "", registration_number: "", whatsapp: "", photo_url: "", level: "mestrado", thesis_title: "", start_date: "", expected_defense_date: "" });
   };
 
   const remove = async (id: string) => {
@@ -430,11 +436,19 @@ const AdviseesTab = ({ projectId }: { projectId: string }) => {
       <div className="flex justify-end">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4" />{locale === "pt" ? "Novo orientando" : "New advisee"}</Button></DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{locale === "pt" ? "Novo orientando" : "New advisee"}</DialogTitle></DialogHeader>
             <div className="space-y-3">
+              <div><Label>{locale === "pt" ? "Foto" : "Photo"}</Label>
+                <AdviseePhotoUpload value={form.photo_url} onChange={url => setForm({ ...form, photo_url: url })} /></div>
               <div><Label>{locale === "pt" ? "Nome completo" : "Full name"}</Label>
                 <Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label>{locale === "pt" ? "Matrícula" : "Registration"}</Label>
+                  <Input value={form.registration_number} onChange={e => setForm({ ...form, registration_number: e.target.value })} /></div>
+                <div><Label>WhatsApp</Label>
+                  <Input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="(00) 00000-0000" /></div>
+              </div>
               <div><Label>Email</Label><Input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
               <div><Label>{locale === "pt" ? "Nível" : "Level"}</Label>
                 <Select value={form.level} onValueChange={(v: ResearchAdviseeLevel) => setForm({ ...form, level: v })}>
@@ -469,13 +483,17 @@ const AdviseeCard = ({ advisee, levelLabel, locale, onRemove }: any) => {
   const [showMilestones, setShowMilestones] = useState(false);
   const [editing, setEditing] = useState(false);
   const [edit, setEdit] = useState({
-    full_name: advisee.full_name || "", email: advisee.email || "", level: advisee.level,
+    full_name: advisee.full_name || "", email: advisee.email || "",
+    registration_number: advisee.registration_number || "", whatsapp: advisee.whatsapp || "",
+    photo_url: advisee.photo_url || "", level: advisee.level,
     thesis_title: advisee.thesis_title || "", start_date: advisee.start_date || "",
     expected_defense_date: advisee.expected_defense_date || "",
   });
   const openEdit = () => {
     setEdit({
-      full_name: advisee.full_name || "", email: advisee.email || "", level: advisee.level,
+      full_name: advisee.full_name || "", email: advisee.email || "",
+      registration_number: advisee.registration_number || "", whatsapp: advisee.whatsapp || "",
+      photo_url: advisee.photo_url || "", level: advisee.level,
       thesis_title: advisee.thesis_title || "", start_date: advisee.start_date || "",
       expected_defense_date: advisee.expected_defense_date || "",
     });
@@ -485,6 +503,8 @@ const AdviseeCard = ({ advisee, levelLabel, locale, onRemove }: any) => {
     if (!edit.full_name) return toast.error(locale === "pt" ? "Nome obrigatório" : "Name required");
     const { error } = await supabase.from("research_advisees").update({
       full_name: edit.full_name, email: edit.email || null, level: edit.level,
+      registration_number: edit.registration_number || null, whatsapp: edit.whatsapp || null,
+      photo_url: edit.photo_url || null,
       thesis_title: edit.thesis_title || null, start_date: edit.start_date || null,
       expected_defense_date: edit.expected_defense_date || null,
     }).eq("id", advisee.id);
@@ -526,18 +546,26 @@ const AdviseeCard = ({ advisee, levelLabel, locale, onRemove }: any) => {
   return (
     <Card className="transition-all hover:border-primary/40 hover:shadow-sm"><CardContent className="py-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
-        <button onClick={openEdit} className="text-left flex-1 min-w-0 cursor-pointer">
-          <p className="font-medium">{advisee.full_name} <Badge variant="secondary" className="ml-2">{levelLabel[advisee.level]}</Badge></p>
-          {advisee.thesis_title && <p className="text-sm text-muted-foreground">{advisee.thesis_title}</p>}
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mt-1">
-            {advisee.email && <span>{advisee.email}</span>}
-            {advisee.start_date && <span>{locale === "pt" ? "Início:" : "Start:"} {new Date(advisee.start_date).toLocaleDateString()}</span>}
-            {advisee.expected_defense_date && (
-              <Badge variant={daysLeft !== null && daysLeft < 30 ? "destructive" : "outline"}>
-                {locale === "pt" ? "Defesa:" : "Defense:"} {new Date(advisee.expected_defense_date).toLocaleDateString()}
-                {daysLeft !== null && ` (${daysLeft}d)`}
-              </Badge>
-            )}
+        <button onClick={openEdit} className="text-left flex-1 min-w-0 cursor-pointer flex gap-3 items-start">
+          <Avatar className="h-10 w-10 shrink-0">
+            <AvatarImage src={advisee.photo_url || undefined} alt={advisee.full_name} />
+            <AvatarFallback><UserIcon className="h-5 w-5 text-muted-foreground" /></AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="font-medium">{advisee.full_name} <Badge variant="secondary" className="ml-2">{levelLabel[advisee.level]}</Badge></p>
+            {advisee.thesis_title && <p className="text-sm text-muted-foreground">{advisee.thesis_title}</p>}
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mt-1">
+              {advisee.registration_number && <span>{locale === "pt" ? "Matrícula:" : "ID:"} {advisee.registration_number}</span>}
+              {advisee.whatsapp && <span>WhatsApp: {advisee.whatsapp}</span>}
+              {advisee.email && <span>{advisee.email}</span>}
+              {advisee.start_date && <span>{locale === "pt" ? "Início:" : "Start:"} {new Date(advisee.start_date).toLocaleDateString()}</span>}
+              {advisee.expected_defense_date && (
+                <Badge variant={daysLeft !== null && daysLeft < 30 ? "destructive" : "outline"}>
+                  {locale === "pt" ? "Defesa:" : "Defense:"} {new Date(advisee.expected_defense_date).toLocaleDateString()}
+                  {daysLeft !== null && ` (${daysLeft}d)`}
+                </Badge>
+              )}
+            </div>
           </div>
         </button>
         <div className="flex gap-1 shrink-0">
@@ -546,11 +574,19 @@ const AdviseeCard = ({ advisee, levelLabel, locale, onRemove }: any) => {
         </div>
       </div>
       <Dialog open={editing} onOpenChange={setEditing}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{locale === "pt" ? "Editar orientando" : "Edit advisee"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            <div><Label>{locale === "pt" ? "Foto" : "Photo"}</Label>
+              <AdviseePhotoUpload value={edit.photo_url} onChange={url => setEdit({ ...edit, photo_url: url })} /></div>
             <div><Label>{locale === "pt" ? "Nome completo" : "Full name"}</Label>
               <Input value={edit.full_name} onChange={e => setEdit({ ...edit, full_name: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><Label>{locale === "pt" ? "Matrícula" : "Registration"}</Label>
+                <Input value={edit.registration_number} onChange={e => setEdit({ ...edit, registration_number: e.target.value })} /></div>
+              <div><Label>WhatsApp</Label>
+                <Input value={edit.whatsapp} onChange={e => setEdit({ ...edit, whatsapp: e.target.value })} placeholder="(00) 00000-0000" /></div>
+            </div>
             <div><Label>Email</Label><Input value={edit.email} onChange={e => setEdit({ ...edit, email: e.target.value })} /></div>
             <div><Label>{locale === "pt" ? "Nível" : "Level"}</Label>
               <Select value={edit.level} onValueChange={(v: ResearchAdviseeLevel) => setEdit({ ...edit, level: v })}>
