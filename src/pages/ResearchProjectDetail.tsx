@@ -392,7 +392,7 @@ const AdviseesTab = ({ projectId }: { projectId: string }) => {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ full_name: "", email: "", level: "mestrado" as ResearchAdviseeLevel, thesis_title: "", start_date: "", expected_defense_date: "" });
+  const [form, setForm] = useState({ full_name: "", email: "", registration_number: "", whatsapp: "", photo_url: "", level: "mestrado" as ResearchAdviseeLevel, thesis_title: "", start_date: "", expected_defense_date: "" });
 
   const { data: advisees = [] } = useQuery({
     queryKey: ["research-advisees", projectId],
