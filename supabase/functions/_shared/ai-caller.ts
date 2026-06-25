@@ -49,8 +49,8 @@ const PROVIDERS: ProviderConfig[] = [
     id: "google",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     headerFn: (key) => ({ Authorization: `Bearer ${key}`, "Content-Type": "application/json" }),
-    modelMap: { "google/gemini-3-flash-preview": "gemini-2.5-flash" },
-    defaultModel: "gemini-2.5-flash",
+    modelMap: { "google/gemini-3-flash-preview": "gemini-3.5-flash" },
+    defaultModel: "gemini-3.5-flash",
     isOpenAICompatible: true,
   },
   {
