@@ -214,7 +214,16 @@ export default function HeatmapOverlayDialog({ open, onOpenChange, data, fileNam
             regionLabel: aiLabelCol,
           },
         });
-        if (error || out?.error) throw new Error(out?.error || error?.message || "Falha IA");
+        if (error) {
+          // supabase-js puts non-2xx responses in error.context; try to read the real message
+          let msg = out?.error || error.message;
+          try {
+            const ctxBody = await (error as any)?.context?.json?.();
+            if (ctxBody?.error) msg = ctxBody.error;
+          } catch { /* ignore */ }
+          throw new Error(msg || "Falha IA");
+        }
+        if (out?.error) throw new Error(out.error);
         if (!out?.image_url) throw new Error("IA não retornou imagem");
         setResultUrl(out.image_url);
         setStep(3);
