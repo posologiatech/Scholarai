@@ -150,13 +150,23 @@ export default function HeatmapOverlayDialog({ open, onOpenChange, data, fileNam
     return { points, warnings };
   };
 
-  const imageToDataUrl = async (): Promise<string> => {
+  const imageToDataUrl = async (maxDim = 1536): Promise<string> => {
     if (!imageEl) throw new Error("Imagem ausente");
+    const nw = imageEl.naturalWidth;
+    const nh = imageEl.naturalHeight;
+    // Downscale large images so the base64 payload stays within AI gateway limits
+    const ratio = Math.min(1, maxDim / Math.max(nw, nh));
+    const w = Math.max(1, Math.round(nw * ratio));
+    const h = Math.max(1, Math.round(nh * ratio));
     const c = document.createElement("canvas");
-    c.width = imageEl.naturalWidth;
-    c.height = imageEl.naturalHeight;
-    c.getContext("2d")!.drawImage(imageEl, 0, 0);
-    return c.toDataURL("image/png");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d")!;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(imageEl, 0, 0, w, h);
+    // JPEG keeps the payload small for photos/large maps; PNG transparency isn't needed here
+    return c.toDataURL("image/jpeg", 0.9);
   };
 
   const handleGenerate = async () => {
@@ -204,7 +214,16 @@ export default function HeatmapOverlayDialog({ open, onOpenChange, data, fileNam
             regionLabel: aiLabelCol,
           },
         });
-        if (error || out?.error) throw new Error(out?.error || error?.message || "Falha IA");
+        if (error) {
+          // supabase-js puts non-2xx responses in error.context; try to read the real message
+          let msg = out?.error || error.message;
+          try {
+            const ctxBody = await (error as any)?.context?.json?.();
+            if (ctxBody?.error) msg = ctxBody.error;
+          } catch { /* ignore */ }
+          throw new Error(msg || "Falha IA");
+        }
+        if (out?.error) throw new Error(out.error);
         if (!out?.image_url) throw new Error("IA não retornou imagem");
         setResultUrl(out.image_url);
         setStep(3);
