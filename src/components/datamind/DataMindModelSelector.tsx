@@ -48,10 +48,11 @@ const DataMindModelSelector = ({ value, onChange }: Props) => {
         const { data, error } = await supabase.functions.invoke("datamind-providers");
         if (!error && data?.providers) {
           setProviders(data.providers);
-          // Set default if no value
+          // Set default if no value — prefer Google (best cheap Gemini) for analyses
           if (!value && data.providers.length > 0) {
-            const first = data.providers[0];
-            onChange({ provider: first.id, model: first.models[0].id });
+            const google = data.providers.find((p: Provider) => p.id === "google");
+            const preferred = google || data.providers[0];
+            onChange({ provider: preferred.id, model: preferred.models[0].id });
           }
         }
       } catch (e) {
