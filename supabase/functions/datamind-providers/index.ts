@@ -52,6 +52,8 @@ const PROVIDER_MODELS: Record<string, ProviderInfo> = {
     id: "google",
     name: "Google AI",
     models: [
+      { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", description: "Melhor custo-benefício, rápido e eficiente" },
+      { id: "gemini-3-flash", name: "Gemini 3 Flash", description: "Rápido e econômico" },
       { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Rápido e eficiente" },
       { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Mais capaz" },
     ],
