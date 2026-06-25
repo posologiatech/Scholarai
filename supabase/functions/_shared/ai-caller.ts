@@ -217,7 +217,7 @@ export async function callAI(options: ChatCompletionOptions): Promise<Response> 
     // Per-provider fallback models — used when primary returns 503/429 (overload)
     const modelCandidates: string[] = [primaryModel];
     if (keyRecord.provider === "google") {
-      for (const alt of ["gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-2.0-flash"]) {
+      for (const alt of ["gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"]) {
         if (!modelCandidates.includes(alt)) modelCandidates.push(alt);
       }
     } else if (keyRecord.provider === "openai") {
