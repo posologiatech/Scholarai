@@ -80,9 +80,11 @@ serve(async (req) => {
 
     const providers: ProviderInfo[] = [];
 
-    // Add external providers with active keys
+    // Add external providers with active keys — always prioritize Google first
     if (activeKeys) {
       const uniqueProviders = [...new Set(activeKeys.map((k) => k.provider))];
+      // Google models are the preferred default for analyses
+      uniqueProviders.sort((a, b) => (a === "google" ? -1 : b === "google" ? 1 : 0));
       for (const providerId of uniqueProviders) {
         const info = PROVIDER_MODELS[providerId];
         if (info) providers.push(info);
