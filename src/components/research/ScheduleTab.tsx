@@ -521,7 +521,10 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                   )}
                 </div>
                 <div><Label>{locale === "pt" ? "Descrição" : "Description"}</Label>
-                  <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} /></div>
+                  <p className="text-xs text-muted-foreground mb-1.5">{locale === "pt" ? "Suporta markdown — use \"Ver\" para visualizar tabelas formatadas." : "Supports markdown — use \"View\" to see formatted tables."}</p>
+                  <RichEditor value={form.description} onChange={(v) => setForm({ ...form, description: v })} minHeight={200}
+                    storagePrefix={`${projectId}/schedule-desc`}
+                    placeholder={locale === "pt" ? "Descrição desta etapa…" : "Description…"} /></div>
                 <div>
                   <Label>{locale === "pt" ? "Anotações detalhadas" : "Detailed notes"}</Label>
                   <p className="text-xs text-muted-foreground mb-1.5">{locale === "pt" ? "Espaço amplo para registrar tudo sobre esta etapa — tabelas, imagens e listas." : "Rich space — tables, images, lists."}</p>
