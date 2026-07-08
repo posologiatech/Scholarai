@@ -2,6 +2,49 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 
+const isPipeRow = (line: string) => {
+  const t = line.trim();
+  return t.startsWith("|") && t.endsWith("|") && t.length > 1;
+};
+
+const isSeparatorRow = (line: string) =>
+  /^\s*\|?[\s:|-]+\|?\s*$/.test(line) && line.includes("-");
+
+const countCols = (line: string) =>
+  line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").length;
+
+/**
+ * Normalizes loose pipe-delimited blocks (rows without the GFM header separator)
+ * into valid markdown tables so they render with premium formatting instead of
+ * showing raw "| a | b |" text.
+ */
+const normalizePipeTables = (raw: string): string => {
+  const lines = raw.replace(/\r\n/g, "\n").split("\n");
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (isPipeRow(lines[i])) {
+      const block: string[] = [];
+      while (i < lines.length && isPipeRow(lines[i])) {
+        block.push(lines[i]);
+        i++;
+      }
+      // Already a proper table (second row is a separator) → leave untouched.
+      if (block.length >= 2 && isSeparatorRow(block[1])) {
+        out.push(...block);
+      } else if (block.length >= 1) {
+        const cols = countCols(block[0]);
+        const sep = "| " + Array(cols).fill("---").join(" | ") + " |";
+        out.push(block[0], sep, ...block.slice(1));
+      }
+    } else {
+      out.push(lines[i]);
+      i++;
+    }
+  }
+  return out.join("\n");
+};
+
 /**
  * Premium markdown renderer with GitHub-flavored markdown:
  * tables, task lists, strikethrough, autolinks + images.
@@ -11,6 +54,7 @@ export const RichText = ({ content, className }: { content?: string | null; clas
   if (!content || !content.trim()) {
     return <p className="text-sm text-muted-foreground italic">—</p>;
   }
+  const normalized = normalizePipeTables(content);
   return (
     <div className={cn("rich-text prose prose-sm dark:prose-invert max-w-none", className)}>
       <ReactMarkdown
@@ -48,7 +92,7 @@ export const RichText = ({ content, className }: { content?: string | null; clas
           ),
         }}
       >
-        {content}
+        {normalized}
       </ReactMarkdown>
     </div>
   );
