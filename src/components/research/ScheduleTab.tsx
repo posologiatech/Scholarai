@@ -382,7 +382,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
               <DialogHeader>
                 <DialogTitle>{editingId ? (locale === "pt" ? "Editar item" : "Edit item") : (locale === "pt" ? "Novo item do cronograma" : "New schedule item")}</DialogTitle>
               </DialogHeader>
-              <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-[70vh] overflow-y-auto px-1 py-1 -mx-1">
                 <div><Label>{locale === "pt" ? "Título" : "Title"}</Label>
                   <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
                 <div><Label>{locale === "pt" ? "Fase" : "Phase"}</Label>
