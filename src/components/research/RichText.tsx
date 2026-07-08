@@ -92,7 +92,7 @@ export const RichText = ({ content, className }: { content?: string | null; clas
           ),
         }}
       >
-        {content}
+        {normalized}
       </ReactMarkdown>
     </div>
   );
