@@ -76,7 +76,7 @@ export const MeetingPresentation = ({ meeting, open, onClose }: Props) => {
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight border-l-4 border-primary pl-4">{slide.title}</h2>
               <div className="text-lg md:text-xl leading-relaxed [&_.prose]:prose-lg">
                 {slide.body?.trim()
-                  ? <RichText content={slide.body} className="prose-lg" />
+                  ? <RichText content={slide.body} className="text-lg md:text-xl" />
                   : <p className="text-muted-foreground italic">{locale === "pt" ? "Sem anotações." : "No notes."}</p>}
               </div>
             </div>
