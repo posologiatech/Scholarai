@@ -57,10 +57,34 @@ export const RichText = ({ content, className }: { content?: string | null; clas
   }
   const normalized = normalizePipeTables(content);
   return (
-    <div className={cn("rich-text prose prose-sm dark:prose-invert max-w-none", className)}>
+    <div className={cn("rich-text max-w-none text-sm leading-7 text-foreground", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
+          p: ({ node, ...props }) => (
+            <p className="my-4 whitespace-pre-wrap leading-7 first:mt-0 last:mb-0" {...props} />
+          ),
+          br: ({ node, ...props }) => (
+            <br className="block content-['']" {...props} />
+          ),
+          h1: ({ node, ...props }) => (
+            <h1 className="mb-5 mt-7 text-2xl font-semibold tracking-normal text-foreground first:mt-0" {...props} />
+          ),
+          h2: ({ node, ...props }) => (
+            <h2 className="mb-4 mt-6 text-xl font-semibold tracking-normal text-foreground first:mt-0" {...props} />
+          ),
+          h3: ({ node, ...props }) => (
+            <h3 className="mb-3 mt-5 text-lg font-semibold tracking-normal text-foreground first:mt-0" {...props} />
+          ),
+          ul: ({ node, ...props }) => (
+            <ul className="my-4 list-disc space-y-2 pl-6 first:mt-0 last:mb-0" {...props} />
+          ),
+          ol: ({ node, ...props }) => (
+            <ol className="my-4 list-decimal space-y-2 pl-6 first:mt-0 last:mb-0" {...props} />
+          ),
+          li: ({ node, ...props }) => (
+            <li className="pl-1 leading-7 [&>p]:my-1" {...props} />
+          ),
           table: ({ node, ...props }) => (
             <div className="my-4 overflow-x-auto rounded-xl border border-border/70 shadow-sm">
               <table className="w-full border-collapse text-sm" {...props} />
@@ -86,7 +110,10 @@ export const RichText = ({ content, className }: { content?: string | null; clas
             <a className="text-primary underline underline-offset-2 hover:text-primary/80" target="_blank" rel="noopener noreferrer" {...props} />
           ),
           blockquote: ({ node, ...props }) => (
-            <blockquote className="border-l-4 border-primary/40 pl-4 italic text-muted-foreground my-3" {...props} />
+            <blockquote className="my-4 border-l-4 border-primary/40 pl-4 italic text-muted-foreground [&>p]:my-2" {...props} />
+          ),
+          hr: ({ node, ...props }) => (
+            <hr className="my-6 border-border/70" {...props} />
           ),
           code: ({ node, className: c, ...props }: any) => (
             <code className={cn("rounded bg-muted px-1.5 py-0.5 text-[0.85em] font-mono", c)} {...props} />
