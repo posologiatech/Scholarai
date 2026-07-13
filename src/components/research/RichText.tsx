@@ -58,7 +58,7 @@ const preserveVisualBlankLines = (raw: string): string => {
   return lines
     .map((line) => {
       if (/^\s*```/.test(line)) inFence = !inFence;
-      if (!inFence && line.trim() === "") return "\u00A0";
+      if (!inFence && line.trim() === "") return "\n\u00A0\n";
       return line;
     })
     .join("\n");
@@ -79,9 +79,13 @@ export const RichText = ({ content, className }: { content?: string | null; clas
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
-          p: ({ node, ...props }) => (
-            <p className="my-4 whitespace-pre-wrap leading-relaxed first:mt-0 last:mb-0" {...props} />
-          ),
+          p: ({ node, children, ...props }) => {
+            const text = Array.isArray(children) ? children.join("") : typeof children === "string" ? children : "";
+            if (text.includes("\u00A0") && text.replace(/\u00A0/g, "").trim() === "") {
+              return <div className="h-4" aria-hidden="true" />;
+            }
+            return <p className="my-4 whitespace-pre-wrap leading-relaxed first:mt-0 last:mb-0" {...props}>{children}</p>;
+          },
           br: ({ node, ...props }) => (
             <br className="block content-['']" {...props} />
           ),
