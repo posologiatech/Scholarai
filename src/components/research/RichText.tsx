@@ -1,5 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { cn } from "@/lib/utils";
 
 const isPipeRow = (line: string) => {
@@ -58,7 +59,7 @@ export const RichText = ({ content, className }: { content?: string | null; clas
   return (
     <div className={cn("rich-text prose prose-sm dark:prose-invert max-w-none", className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
           table: ({ node, ...props }) => (
             <div className="my-4 overflow-x-auto rounded-xl border border-border/70 shadow-sm">
