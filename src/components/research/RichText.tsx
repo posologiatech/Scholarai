@@ -75,12 +75,12 @@ export const RichText = ({ content, className }: { content?: string | null; clas
   }
   const normalized = preserveVisualBlankLines(normalizePipeTables(content));
   return (
-    <div className={cn("rich-text max-w-none text-sm leading-7 text-foreground", className)}>
+    <div className={cn("rich-text max-w-none text-sm leading-relaxed text-foreground", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
           p: ({ node, ...props }) => (
-            <p className="my-4 whitespace-pre-wrap leading-7 first:mt-0 last:mb-0" {...props} />
+            <p className="my-4 whitespace-pre-wrap leading-relaxed first:mt-0 last:mb-0" {...props} />
           ),
           br: ({ node, ...props }) => (
             <br className="block content-['']" {...props} />
@@ -101,7 +101,7 @@ export const RichText = ({ content, className }: { content?: string | null; clas
             <ol className="my-4 list-decimal space-y-2 pl-6 first:mt-0 last:mb-0" {...props} />
           ),
           li: ({ node, ...props }) => (
-            <li className="pl-1 leading-7 [&>p]:my-1" {...props} />
+            <li className="pl-1 leading-relaxed [&>p]:my-1" {...props} />
           ),
           table: ({ node, ...props }) => (
             <div className="my-4 overflow-x-auto rounded-xl border border-border/70 shadow-sm">
