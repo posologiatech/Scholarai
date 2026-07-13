@@ -47,6 +47,24 @@ const normalizePipeTables = (raw: string): string => {
 };
 
 /**
+ * Markdown intentionally collapses empty lines. In research notes the editor is
+ * used like a notebook, so blank lines typed by the user must remain visible in
+ * preview and presentation modes.
+ */
+const preserveVisualBlankLines = (raw: string): string => {
+  const lines = raw.replace(/\r\n/g, "\n").split("\n");
+  let inFence = false;
+
+  return lines
+    .map((line) => {
+      if (/^\s*```/.test(line)) inFence = !inFence;
+      if (!inFence && line.trim() === "") return "\u00A0";
+      return line;
+    })
+    .join("\n");
+};
+
+/**
  * Premium markdown renderer with GitHub-flavored markdown:
  * tables, task lists, strikethrough, autolinks + images.
  * Used across the research module (overview, schedule, meeting notes).
@@ -55,7 +73,7 @@ export const RichText = ({ content, className }: { content?: string | null; clas
   if (!content || !content.trim()) {
     return <p className="text-sm text-muted-foreground italic">—</p>;
   }
-  const normalized = normalizePipeTables(content);
+  const normalized = preserveVisualBlankLines(normalizePipeTables(content));
   return (
     <div className={cn("rich-text max-w-none text-sm leading-7 text-foreground", className)}>
       <ReactMarkdown
