@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const FROM_EMAIL = "ScholarAI <no-reply@posologia.app>";
+const FROM_EMAIL = "ScholarAI <no-reply@tbl.posologia.app>";
 const APP_URL = "https://scholarai.posologia.app";
 
 async function sendEmail(to: string, subject: string, html: string) {
