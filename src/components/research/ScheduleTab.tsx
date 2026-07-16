@@ -190,7 +190,8 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
       progress: form.progress_mode === "manual" ? form.progress : autoProgress,
       progress_mode: form.progress_mode,
       is_milestone: form.is_milestone,
-      assignee_id: form.assignee_id || null,
+      assignee_id: (form.assignee_ids[0] ?? form.assignee_id) || null,
+      assignee_ids: form.assignee_ids,
     };
     let error; let savedId = editingId;
     if (editingId) ({ error } = await supabase.from("research_schedule_items").update(payload).eq("id", editingId));
