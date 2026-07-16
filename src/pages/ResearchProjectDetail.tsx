@@ -68,6 +68,42 @@ const TeamTab = ({ projectId }: { projectId: string }) => {
     },
   });
 
+  // Directory of previously-added members across all accessible projects (RLS-scoped)
+  const { data: directory = [] } = useQuery({
+    queryKey: ["research-members-directory"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("research_project_members")
+        .select("invited_email, full_name, role")
+        .not("invited_email", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      const seen = new Set<string>();
+      const out: { invited_email: string; full_name: string | null; role: string | null }[] = [];
+      for (const r of (data ?? []) as any[]) {
+        const key = (r.invited_email || "").toLowerCase().trim();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(r);
+      }
+      return out;
+    },
+  });
+
+  const emailQuery = form.invited_email.trim().toLowerCase();
+  const suggestions = emailQuery.length >= 1
+    ? directory.filter(d => d.invited_email!.toLowerCase().includes(emailQuery)).slice(0, 6)
+    : [];
+
+  const pickSuggestion = (s: { invited_email: string; full_name: string | null; role: string | null }) => {
+    setForm(f => ({
+      ...f,
+      invited_email: s.invited_email,
+      full_name: s.full_name || f.full_name,
+      role: (s.role as ResearchMemberRole) || f.role,
+    }));
+  };
+
   const addMember = async () => {
     if (!form.invited_email && !form.full_name) return toast.error(locale === "pt" ? "Informe email ou nome" : "Provide email or name");
     const { error } = await supabase.from("research_project_members").insert({
@@ -80,6 +116,7 @@ const TeamTab = ({ projectId }: { projectId: string }) => {
     if (error) return toast.error(error.message);
     toast.success(locale === "pt" ? "Membro adicionado" : "Member added");
     qc.invalidateQueries({ queryKey: ["research-members", projectId] });
+    qc.invalidateQueries({ queryKey: ["research-members-directory"] });
     setOpen(false); setForm({ invited_email: "", full_name: "", role: "colaborador" });
   };
 
@@ -99,8 +136,35 @@ const TeamTab = ({ projectId }: { projectId: string }) => {
             <div className="space-y-3">
               <div><Label>{locale === "pt" ? "Nome completo" : "Full name"}</Label>
                 <Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} /></div>
-              <div><Label>Email</Label>
-                <Input type="email" value={form.invited_email} onChange={e => setForm({ ...form, invited_email: e.target.value })} /></div>
+              <div className="relative"><Label>Email</Label>
+                <Input
+                  type="email"
+                  autoComplete="off"
+                  list="research-members-emails"
+                  value={form.invited_email}
+                  onChange={e => setForm({ ...form, invited_email: e.target.value })}
+                />
+                <datalist id="research-members-emails">
+                  {directory.map(d => (
+                    <option key={d.invited_email!} value={d.invited_email!}>{d.full_name || ""}</option>
+                  ))}
+                </datalist>
+                {suggestions.length > 0 && (
+                  <div className="mt-1 rounded-md border bg-popover shadow-sm max-h-48 overflow-y-auto">
+                    {suggestions.map(s => (
+                      <button
+                        key={s.invited_email!}
+                        type="button"
+                        onClick={() => pickSuggestion(s)}
+                        className="w-full text-left px-3 py-1.5 hover:bg-accent transition-colors"
+                      >
+                        <div className="text-sm font-medium">{s.invited_email}</div>
+                        {s.full_name && <div className="text-xs text-muted-foreground">{s.full_name}</div>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div><Label>{locale === "pt" ? "Papel" : "Role"}</Label>
                 <Select value={form.role} onValueChange={(v: ResearchMemberRole) => setForm({ ...form, role: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -112,6 +176,7 @@ const TeamTab = ({ projectId }: { projectId: string }) => {
           </DialogContent>
         </Dialog>
       </div>
+
       <div className="space-y-2">
         {members.map((m: any) => (
           <Card key={m.id}><CardContent className="py-3 flex items-center justify-between gap-3">
