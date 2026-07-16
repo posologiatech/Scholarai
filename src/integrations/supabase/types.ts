@@ -3141,6 +3141,7 @@ export type Database = {
       }
       research_projects: {
         Row: {
+          category: string | null
           cnpq_area: string | null
           created_at: string
           description: string | null
@@ -3165,6 +3166,7 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          category?: string | null
           cnpq_area?: string | null
           created_at?: string
           description?: string | null
@@ -3189,6 +3191,7 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          category?: string | null
           cnpq_area?: string | null
           created_at?: string
           description?: string | null
@@ -4888,48 +4891,94 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      create_research_project: {
-        Args: {
-          _cnpq_area?: string
-          _description?: string
-          _end_date?: string
-          _keywords?: string[]
-          _objectives?: string
-          _start_date?: string
-          _status?: Database["public"]["Enums"]["research_project_status"]
-          _title: string
-        }
-        Returns: {
-          cnpq_area: string | null
-          created_at: string
-          description: string | null
-          end_date: string | null
-          folha_rosto_url: string | null
-          full_content: string | null
-          funder_template: string | null
-          funding_call_id: string | null
-          id: string
-          is_public: boolean
-          keywords: string[]
-          objectives: string | null
-          owner_id: string | null
-          plataforma_brasil_caae: string | null
-          plataforma_brasil_url: string | null
-          public_slug: string | null
-          start_date: string | null
-          status: Database["public"]["Enums"]["research_project_status"]
-          termo_sigilo_url: string | null
-          title: string
-          updated_at: string
-          workspace_id: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "research_projects"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      create_research_project:
+        | {
+            Args: {
+              _cnpq_area?: string
+              _description?: string
+              _end_date?: string
+              _keywords?: string[]
+              _objectives?: string
+              _start_date?: string
+              _status?: Database["public"]["Enums"]["research_project_status"]
+              _title: string
+            }
+            Returns: {
+              category: string | null
+              cnpq_area: string | null
+              created_at: string
+              description: string | null
+              end_date: string | null
+              folha_rosto_url: string | null
+              full_content: string | null
+              funder_template: string | null
+              funding_call_id: string | null
+              id: string
+              is_public: boolean
+              keywords: string[]
+              objectives: string | null
+              owner_id: string | null
+              plataforma_brasil_caae: string | null
+              plataforma_brasil_url: string | null
+              public_slug: string | null
+              start_date: string | null
+              status: Database["public"]["Enums"]["research_project_status"]
+              termo_sigilo_url: string | null
+              title: string
+              updated_at: string
+              workspace_id: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "research_projects"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              _category?: string
+              _cnpq_area?: string
+              _description?: string
+              _end_date?: string
+              _keywords?: string[]
+              _objectives?: string
+              _start_date?: string
+              _status?: Database["public"]["Enums"]["research_project_status"]
+              _title: string
+            }
+            Returns: {
+              category: string | null
+              cnpq_area: string | null
+              created_at: string
+              description: string | null
+              end_date: string | null
+              folha_rosto_url: string | null
+              full_content: string | null
+              funder_template: string | null
+              funding_call_id: string | null
+              id: string
+              is_public: boolean
+              keywords: string[]
+              objectives: string | null
+              owner_id: string | null
+              plataforma_brasil_caae: string | null
+              plataforma_brasil_url: string | null
+              public_slug: string | null
+              start_date: string | null
+              status: Database["public"]["Enums"]["research_project_status"]
+              termo_sigilo_url: string | null
+              title: string
+              updated_at: string
+              workspace_id: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "research_projects"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
       create_workspace: {
         Args: { _description?: string; _name: string }
         Returns: {
