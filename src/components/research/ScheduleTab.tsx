@@ -404,16 +404,38 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                       <SelectContent>{(Object.keys(SCHEDULE_STATUS_LABEL) as ResearchScheduleStatus[]).map(s =>
                         <SelectItem key={s} value={s}>{SCHEDULE_STATUS_LABEL[s][locale]}</SelectItem>)}</SelectContent>
                     </Select></div>
-                  <div><Label>{locale === "pt" ? "Responsável" : "Assignee"}</Label>
-                    <Select value={form.assignee_id || "none"} onValueChange={(v) => setForm({ ...form, assignee_id: v === "none" ? "" : v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">—</SelectItem>
-                        {members.map((m: any) => (
-                          <SelectItem key={m.id} value={m.id}>{m.full_name || m.invited_email || "—"}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select></div>
+                  <div>
+                    <Label>{locale === "pt" ? "Responsáveis" : "Assignees"}</Label>
+                    <div className="rounded-md border max-h-40 overflow-y-auto p-2 space-y-1.5 bg-background">
+                      {members.length === 0 && (
+                        <p className="text-xs text-muted-foreground px-1 py-2">
+                          {locale === "pt" ? "Sem membros na equipe." : "No team members."}
+                        </p>
+                      )}
+                      {members.map((m: any) => {
+                        const checked = form.assignee_ids.includes(m.id);
+                        return (
+                          <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => {
+                                const next = v
+                                  ? [...form.assignee_ids, m.id]
+                                  : form.assignee_ids.filter((x) => x !== m.id);
+                                setForm({ ...form, assignee_ids: next, assignee_id: next[0] ?? "" });
+                              }}
+                            />
+                            <span className="truncate">{m.full_name || m.invited_email || "—"}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {form.assignee_ids.length > 0 && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {form.assignee_ids.length} {locale === "pt" ? "selecionado(s)" : "selected"}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="rounded-lg border p-3 space-y-3">
                   <div className="flex items-center justify-between">
