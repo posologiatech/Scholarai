@@ -919,13 +919,20 @@ const WorkloadView = ({ items, members, locale }: any) => {
     items.forEach((it: any) => {
       if (!it.start_date || !it.end_date) return;
       const days = Math.max(1, (new Date(it.end_date).getTime() - new Date(it.start_date).getTime()) / dayMs);
-      const key = it.assignee_id || "_unassigned";
-      const name = it.assignee_id
-        ? (members.find((m: any) => m.id === it.assignee_id)?.full_name || members.find((m: any) => m.id === it.assignee_id)?.invited_email || "—")
-        : (locale === "pt" ? "Sem responsável" : "Unassigned");
-      const cur = map.get(key) || { days: 0, count: 0, name };
-      cur.days += days; cur.count += 1;
-      map.set(key, cur);
+      const ids: string[] = (it.assignee_ids && it.assignee_ids.length) ? it.assignee_ids : (it.assignee_id ? [it.assignee_id] : []);
+      if (ids.length === 0) {
+        const cur = map.get("_unassigned") || { days: 0, count: 0, name: (locale === "pt" ? "Sem responsável" : "Unassigned") };
+        cur.days += days; cur.count += 1;
+        map.set("_unassigned", cur);
+        return;
+      }
+      const share = days / ids.length;
+      ids.forEach((aid) => {
+        const name = members.find((m: any) => m.id === aid)?.full_name || members.find((m: any) => m.id === aid)?.invited_email || "—";
+        const cur = map.get(aid) || { days: 0, count: 0, name };
+        cur.days += share; cur.count += 1;
+        map.set(aid, cur);
+      });
     });
     return Array.from(map.values()).sort((a, b) => b.days - a.days);
   }, [items, members, locale]);
