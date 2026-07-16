@@ -47,6 +47,7 @@ export const useCreateResearchProject = () => {
         _status: input.status ?? "planejamento",
         _start_date: input.start_date ?? null,
         _end_date: input.end_date ?? null,
+        _category: (input as any).category ?? "outro",
       });
       if (error) throw error;
       return data as ResearchProject;
