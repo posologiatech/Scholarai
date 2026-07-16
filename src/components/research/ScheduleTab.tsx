@@ -719,7 +719,12 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                           {it.phase && <Badge variant="outline" className="text-[10px]">{it.phase}</Badge>}
                           {effectiveProgress(it) > 0 && <Badge variant="secondary" className="text-[10px]">{effectiveProgress(it)}%{it.progress_mode !== "manual" && <Sparkles className="h-2.5 w-2.5 ml-0.5" />}</Badge>}
                           {node?.critical && <Badge className="text-[10px] bg-rose-500"><Flame className="h-2.5 w-2.5" />{locale === "pt" ? "Crítico" : "Critical"}</Badge>}
-                          {memberLabel(it.assignee_id) && <Badge variant="outline" className="text-[10px]"><Users className="h-2.5 w-2.5" />{memberLabel(it.assignee_id)}</Badge>}
+                          {(() => {
+                            const ids: string[] = (it.assignee_ids && it.assignee_ids.length) ? it.assignee_ids : (it.assignee_id ? [it.assignee_id] : []);
+                            return ids.map((aid) => memberLabel(aid) && (
+                              <Badge key={aid} variant="outline" className="text-[10px]"><Users className="h-2.5 w-2.5" />{memberLabel(aid)}</Badge>
+                            ));
+                          })()}
                           {pred && <Badge variant="outline" className="text-[10px] gap-1"><Link2 className="h-2.5 w-2.5" />{pred.title}</Badge>}
                         </div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
