@@ -59,12 +59,13 @@ interface FormState {
   linked_task_ids: string[];
   is_milestone: boolean;
   assignee_id: string;
+  assignee_ids: string[];
 }
 
 const EMPTY_FORM: FormState = {
   title: "", description: "", notes: "", phase: "", start_date: "", end_date: "",
   status: "planejado", predecessor_id: "", dependency_type: "FS",
-  progress: 0, progress_mode: "auto", linked_task_ids: [], is_milestone: false, assignee_id: "",
+  progress: 0, progress_mode: "auto", linked_task_ids: [], is_milestone: false, assignee_id: "", assignee_ids: [],
 };
 
 const dayMs = 86400000;
@@ -168,6 +169,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
       linked_task_ids: (tasksByItem.get(it.id) ?? []).map((t: any) => t.id),
       is_milestone: it.is_milestone ?? false,
       assignee_id: it.assignee_id ?? "",
+      assignee_ids: (it.assignee_ids && it.assignee_ids.length ? it.assignee_ids : (it.assignee_id ? [it.assignee_id] : [])),
     });
     setOpen(true);
   };
@@ -188,7 +190,8 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
       progress: form.progress_mode === "manual" ? form.progress : autoProgress,
       progress_mode: form.progress_mode,
       is_milestone: form.is_milestone,
-      assignee_id: form.assignee_id || null,
+      assignee_id: (form.assignee_ids[0] ?? form.assignee_id) || null,
+      assignee_ids: form.assignee_ids,
     };
     let error; let savedId = editingId;
     if (editingId) ({ error } = await supabase.from("research_schedule_items").update(payload).eq("id", editingId));
@@ -401,16 +404,38 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                       <SelectContent>{(Object.keys(SCHEDULE_STATUS_LABEL) as ResearchScheduleStatus[]).map(s =>
                         <SelectItem key={s} value={s}>{SCHEDULE_STATUS_LABEL[s][locale]}</SelectItem>)}</SelectContent>
                     </Select></div>
-                  <div><Label>{locale === "pt" ? "Responsável" : "Assignee"}</Label>
-                    <Select value={form.assignee_id || "none"} onValueChange={(v) => setForm({ ...form, assignee_id: v === "none" ? "" : v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">—</SelectItem>
-                        {members.map((m: any) => (
-                          <SelectItem key={m.id} value={m.id}>{m.full_name || m.invited_email || "—"}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select></div>
+                  <div>
+                    <Label>{locale === "pt" ? "Responsáveis" : "Assignees"}</Label>
+                    <div className="rounded-md border max-h-40 overflow-y-auto p-2 space-y-1.5 bg-background">
+                      {members.length === 0 && (
+                        <p className="text-xs text-muted-foreground px-1 py-2">
+                          {locale === "pt" ? "Sem membros na equipe." : "No team members."}
+                        </p>
+                      )}
+                      {members.map((m: any) => {
+                        const checked = form.assignee_ids.includes(m.id);
+                        return (
+                          <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => {
+                                const next = v
+                                  ? [...form.assignee_ids, m.id]
+                                  : form.assignee_ids.filter((x) => x !== m.id);
+                                setForm({ ...form, assignee_ids: next, assignee_id: next[0] ?? "" });
+                              }}
+                            />
+                            <span className="truncate">{m.full_name || m.invited_email || "—"}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {form.assignee_ids.length > 0 && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {form.assignee_ids.length} {locale === "pt" ? "selecionado(s)" : "selected"}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="rounded-lg border p-3 space-y-3">
                   <div className="flex items-center justify-between">
@@ -694,7 +719,12 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
                           {it.phase && <Badge variant="outline" className="text-[10px]">{it.phase}</Badge>}
                           {effectiveProgress(it) > 0 && <Badge variant="secondary" className="text-[10px]">{effectiveProgress(it)}%{it.progress_mode !== "manual" && <Sparkles className="h-2.5 w-2.5 ml-0.5" />}</Badge>}
                           {node?.critical && <Badge className="text-[10px] bg-rose-500"><Flame className="h-2.5 w-2.5" />{locale === "pt" ? "Crítico" : "Critical"}</Badge>}
-                          {memberLabel(it.assignee_id) && <Badge variant="outline" className="text-[10px]"><Users className="h-2.5 w-2.5" />{memberLabel(it.assignee_id)}</Badge>}
+                          {(() => {
+                            const ids: string[] = (it.assignee_ids && it.assignee_ids.length) ? it.assignee_ids : (it.assignee_id ? [it.assignee_id] : []);
+                            return ids.map((aid) => memberLabel(aid) && (
+                              <Badge key={aid} variant="outline" className="text-[10px]"><Users className="h-2.5 w-2.5" />{memberLabel(aid)}</Badge>
+                            ));
+                          })()}
                           {pred && <Badge variant="outline" className="text-[10px] gap-1"><Link2 className="h-2.5 w-2.5" />{pred.title}</Badge>}
                         </div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
@@ -889,13 +919,20 @@ const WorkloadView = ({ items, members, locale }: any) => {
     items.forEach((it: any) => {
       if (!it.start_date || !it.end_date) return;
       const days = Math.max(1, (new Date(it.end_date).getTime() - new Date(it.start_date).getTime()) / dayMs);
-      const key = it.assignee_id || "_unassigned";
-      const name = it.assignee_id
-        ? (members.find((m: any) => m.id === it.assignee_id)?.full_name || members.find((m: any) => m.id === it.assignee_id)?.invited_email || "—")
-        : (locale === "pt" ? "Sem responsável" : "Unassigned");
-      const cur = map.get(key) || { days: 0, count: 0, name };
-      cur.days += days; cur.count += 1;
-      map.set(key, cur);
+      const ids: string[] = (it.assignee_ids && it.assignee_ids.length) ? it.assignee_ids : (it.assignee_id ? [it.assignee_id] : []);
+      if (ids.length === 0) {
+        const cur = map.get("_unassigned") || { days: 0, count: 0, name: (locale === "pt" ? "Sem responsável" : "Unassigned") };
+        cur.days += days; cur.count += 1;
+        map.set("_unassigned", cur);
+        return;
+      }
+      const share = days / ids.length;
+      ids.forEach((aid) => {
+        const name = members.find((m: any) => m.id === aid)?.full_name || members.find((m: any) => m.id === aid)?.invited_email || "—";
+        const cur = map.get(aid) || { days: 0, count: 0, name };
+        cur.days += share; cur.count += 1;
+        map.set(aid, cur);
+      });
     });
     return Array.from(map.values()).sort((a, b) => b.days - a.days);
   }, [items, members, locale]);
