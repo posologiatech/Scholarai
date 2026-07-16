@@ -3415,6 +3415,7 @@ export type Database = {
           dependency_type: string
           description: string | null
           end_date: string | null
+          end_reminder_sent_at: string | null
           id: string
           is_milestone: boolean
           linked_meeting_id: string | null
@@ -3426,6 +3427,7 @@ export type Database = {
           progress_mode: string
           project_id: string
           start_date: string | null
+          start_reminder_sent_at: string | null
           status: Database["public"]["Enums"]["research_schedule_status"]
           title: string
           updated_at: string
@@ -3439,6 +3441,7 @@ export type Database = {
           dependency_type?: string
           description?: string | null
           end_date?: string | null
+          end_reminder_sent_at?: string | null
           id?: string
           is_milestone?: boolean
           linked_meeting_id?: string | null
@@ -3450,6 +3453,7 @@ export type Database = {
           progress_mode?: string
           project_id: string
           start_date?: string | null
+          start_reminder_sent_at?: string | null
           status?: Database["public"]["Enums"]["research_schedule_status"]
           title: string
           updated_at?: string
@@ -3463,6 +3467,7 @@ export type Database = {
           dependency_type?: string
           description?: string | null
           end_date?: string | null
+          end_reminder_sent_at?: string | null
           id?: string
           is_milestone?: boolean
           linked_meeting_id?: string | null
@@ -3474,6 +3479,7 @@ export type Database = {
           progress_mode?: string
           project_id?: string
           start_date?: string | null
+          start_reminder_sent_at?: string | null
           status?: Database["public"]["Enums"]["research_schedule_status"]
           title?: string
           updated_at?: string
