@@ -169,6 +169,7 @@ export const ScheduleTab = ({ projectId }: { projectId: string }) => {
       linked_task_ids: (tasksByItem.get(it.id) ?? []).map((t: any) => t.id),
       is_milestone: it.is_milestone ?? false,
       assignee_id: it.assignee_id ?? "",
+      assignee_ids: (it.assignee_ids && it.assignee_ids.length ? it.assignee_ids : (it.assignee_id ? [it.assignee_id] : [])),
     });
     setOpen(true);
   };
