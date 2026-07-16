@@ -45,6 +45,9 @@ export const LINK_TYPE_LABEL: Record<ResearchLinkType, { pt: string; en: string;
 };
 
 
+export type ResearchProjectCategory =
+  | "ic" | "tcc" | "pos_graduacao" | "extensao" | "monitoria" | "outro";
+
 export interface ResearchProject {
   id: string;
   owner_id: string;
@@ -55,11 +58,34 @@ export interface ResearchProject {
   keywords: string[];
   objectives: string | null;
   status: ResearchProjectStatus;
+  category: ResearchProjectCategory | null;
   start_date: string | null;
   end_date: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export const CATEGORY_LABEL: Record<ResearchProjectCategory, { pt: string; en: string }> = {
+  ic: { pt: "Iniciação Científica", en: "Undergrad Research" },
+  tcc: { pt: "TCC", en: "Capstone (TCC)" },
+  pos_graduacao: { pt: "Pós-Graduação", en: "Graduate" },
+  extensao: { pt: "Extensão", en: "Extension" },
+  monitoria: { pt: "Monitoria", en: "Teaching Assistantship" },
+  outro: { pt: "Outro", en: "Other" },
+};
+
+/** Tailwind class tokens per category (badge bg/text/border + left accent bar). */
+export const CATEGORY_STYLE: Record<ResearchProjectCategory, {
+  badge: string; bar: string; dot: string;
+}> = {
+  ic:            { badge: "bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-300",             bar: "bg-sky-500",     dot: "bg-sky-500" },
+  tcc:           { badge: "bg-violet-500/10 text-violet-700 border-violet-500/30 dark:text-violet-300", bar: "bg-violet-500",  dot: "bg-violet-500" },
+  pos_graduacao: { badge: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300", bar: "bg-emerald-500", dot: "bg-emerald-500" },
+  extensao:      { badge: "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300",     bar: "bg-amber-500",   dot: "bg-amber-500" },
+  monitoria:     { badge: "bg-rose-500/10 text-rose-700 border-rose-500/30 dark:text-rose-300",         bar: "bg-rose-500",    dot: "bg-rose-500" },
+  outro:         { badge: "bg-slate-500/10 text-slate-700 border-slate-500/30 dark:text-slate-300",     bar: "bg-slate-400",   dot: "bg-slate-400" },
+};
+
 
 export const STATUS_LABEL: Record<ResearchProjectStatus, { pt: string; en: string }> = {
   planejamento: { pt: "Planejamento", en: "Planning" },

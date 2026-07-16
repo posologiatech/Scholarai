@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Plus, FlaskConical, Calendar, Banknote, GraduationCap, MoreVertical,
   Trash2, CheckCircle2, PlayCircle, XCircle, User,
@@ -26,8 +27,12 @@ import {
   useResearchProjects, useCreateResearchProject,
   useUpdateResearchProject, useDeleteResearchProject,
 } from "@/hooks/useResearchProjects";
-import { STATUS_LABEL, type ResearchProject, type ResearchProjectStatus } from "@/lib/research/types";
+import {
+  STATUS_LABEL, CATEGORY_LABEL, CATEGORY_STYLE,
+  type ResearchProject, type ResearchProjectStatus, type ResearchProjectCategory,
+} from "@/lib/research/types";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type TabKey = "ativo" | "concluido" | "cancelado";
@@ -38,7 +43,10 @@ const TAB_STATUSES: Record<TabKey, ResearchProjectStatus[]> = {
   cancelado: ["cancelado"],
 };
 
-/** Segmented green progress bar like a project management board. */
+const CATEGORY_ORDER: ResearchProjectCategory[] = [
+  "ic", "tcc", "pos_graduacao", "extensao", "monitoria", "outro",
+];
+
 const SegmentedProgress = ({ value }: { value: number }) => {
   const total = 10;
   const filled = Math.round((Math.min(100, Math.max(0, value)) / 100) * total);
@@ -48,9 +56,7 @@ const SegmentedProgress = ({ value }: { value: number }) => {
         {Array.from({ length: total }).map((_, i) => (
           <span
             key={i}
-            className={`h-3.5 w-3.5 rounded-[3px] ${
-              i < filled ? "bg-emerald-500" : "bg-muted"
-            }`}
+            className={`h-3.5 w-3.5 rounded-[3px] ${i < filled ? "bg-emerald-500" : "bg-muted"}`}
           />
         ))}
       </div>
@@ -67,28 +73,26 @@ const Inner = () => {
   const deleteMut = useDeleteResearchProject();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<TabKey>("ativo");
+  const [categoryFilter, setCategoryFilter] = useState<ResearchProjectCategory | "all">("all");
   const [toDelete, setToDelete] = useState<ResearchProject | null>(null);
-  const [form, setForm] = useState({ title: "", description: "", cnpq_area: "", keywords: "", objectives: "" });
+  const [form, setForm] = useState<{
+    title: string; description: string; cnpq_area: string; keywords: string;
+    objectives: string; category: ResearchProjectCategory;
+  }>({ title: "", description: "", cnpq_area: "", keywords: "", objectives: "", category: "outro" });
 
-  // Advisee names per project
   const { data: advisees = [] } = useQuery({
     queryKey: ["research-advisees-all"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("research_advisees")
-        .select("project_id, full_name");
+      const { data, error } = await supabase.from("research_advisees").select("project_id, full_name");
       if (error) throw error;
       return data ?? [];
     },
   });
 
-  // Tasks for progress per project
   const { data: tasks = [] } = useQuery({
     queryKey: ["research-tasks-all"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("research_tasks")
-        .select("project_id, status");
+      const { data, error } = await supabase.from("research_tasks").select("project_id, status");
       if (error) throw error;
       return data ?? [];
     },
@@ -128,7 +132,33 @@ const Inner = () => {
     return c;
   }, [projects]);
 
-  const filtered = projects.filter((p) => TAB_STATUSES[tab].includes(p.status));
+  const inTab = projects.filter((p) => TAB_STATUSES[tab].includes(p.status));
+
+  const categoryCounts = useMemo(() => {
+    const c: Record<string, number> = { all: inTab.length };
+    CATEGORY_ORDER.forEach((k) => { c[k] = 0; });
+    inTab.forEach((p) => {
+      const cat = (p.category ?? "outro") as ResearchProjectCategory;
+      c[cat] = (c[cat] ?? 0) + 1;
+    });
+    return c;
+  }, [inTab]);
+
+  const filtered = categoryFilter === "all"
+    ? inTab
+    : inTab.filter((p) => (p.category ?? "outro") === categoryFilter);
+
+  // Group by category for display
+  const grouped = useMemo(() => {
+    const map = new Map<ResearchProjectCategory, ResearchProject[]>();
+    filtered.forEach((p) => {
+      const cat = (p.category ?? "outro") as ResearchProjectCategory;
+      map.set(cat, [...(map.get(cat) ?? []), p]);
+    });
+    return CATEGORY_ORDER
+      .map((c) => ({ category: c, items: map.get(c) ?? [] }))
+      .filter((g) => g.items.length > 0);
+  }, [filtered]);
 
   const handleCreate = async () => {
     if (!form.title.trim()) return toast.error(locale === "pt" ? "Título obrigatório" : "Title required");
@@ -139,10 +169,11 @@ const Inner = () => {
         cnpq_area: form.cnpq_area || null,
         keywords: form.keywords.split(",").map(k => k.trim()).filter(Boolean),
         objectives: form.objectives || null,
-      });
+        category: form.category,
+      } as any);
       toast.success(locale === "pt" ? "Projeto criado" : "Project created");
       setOpen(false);
-      setForm({ title: "", description: "", cnpq_area: "", keywords: "", objectives: "" });
+      setForm({ title: "", description: "", cnpq_area: "", keywords: "", objectives: "", category: "outro" });
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -152,9 +183,14 @@ const Inner = () => {
     try {
       await updateMut.mutateAsync({ id: p.id, patch: { status } });
       toast.success(locale === "pt" ? "Status atualizado" : "Status updated");
-    } catch (e: any) {
-      toast.error(e.message);
-    }
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const handleCategory = async (p: ResearchProject, category: ResearchProjectCategory) => {
+    try {
+      await updateMut.mutateAsync({ id: p.id, patch: { category } as any });
+      toast.success(locale === "pt" ? "Categoria atualizada" : "Category updated");
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const handleDelete = async () => {
@@ -163,9 +199,84 @@ const Inner = () => {
       await deleteMut.mutateAsync(toDelete.id);
       toast.success(locale === "pt" ? "Projeto excluído" : "Project deleted");
       setToDelete(null);
-    } catch (e: any) {
-      toast.error(e.message);
-    }
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const renderCard = (p: ResearchProject) => {
+    const names = adviseeByProject.get(p.id) ?? [];
+    const progress = progressByProject.get(p.id) ?? (p.status === "concluido" ? 100 : 0);
+    const cat = (p.category ?? "outro") as ResearchProjectCategory;
+    const style = CATEGORY_STYLE[cat];
+    return (
+      <Card key={p.id} className="h-full flex flex-col hover:border-primary/40 transition-colors relative overflow-hidden">
+        <span className={cn("absolute left-0 top-0 bottom-0 w-1", style.bar)} aria-hidden />
+        <CardHeader className="pl-5">
+          <div className="flex items-start justify-between gap-2">
+            <Link to={`/research/${p.id}`} className="min-w-0">
+              <CardTitle className="text-base line-clamp-2 hover:text-primary transition-colors">{p.title}</CardTitle>
+            </Link>
+            <div className="flex items-center gap-1 shrink-0">
+              <Badge variant="secondary">{STATUS_LABEL[p.status][locale]}</Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>{locale === "pt" ? "Alterar status" : "Change status"}</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => handleStatus(p, "em_andamento")}>
+                    <PlayCircle className="h-4 w-4 text-primary" />{locale === "pt" ? "Marcar como ativo" : "Mark active"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatus(p, "concluido")}>
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />{locale === "pt" ? "Marcar como concluído" : "Mark completed"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatus(p, "cancelado")}>
+                    <XCircle className="h-4 w-4 text-amber-500" />{locale === "pt" ? "Marcar como cancelado" : "Mark cancelled"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>{locale === "pt" ? "Alterar categoria" : "Change category"}</DropdownMenuLabel>
+                  {CATEGORY_ORDER.map((c) => (
+                    <DropdownMenuItem key={c} onClick={() => handleCategory(p, c)}>
+                      <span className={cn("h-2.5 w-2.5 rounded-full", CATEGORY_STYLE[c].dot)} />
+                      {CATEGORY_LABEL[c][locale]}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setToDelete(p)}>
+                    <Trash2 className="h-4 w-4" />{locale === "pt" ? "Excluir projeto" : "Delete project"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <Badge variant="outline" className={cn("text-[10px] font-medium", style.badge)}>
+              {CATEGORY_LABEL[cat][locale]}
+            </Badge>
+            {p.cnpq_area && <CardDescription className="m-0">{p.cnpq_area}</CardDescription>}
+          </div>
+        </CardHeader>
+        <CardContent className="pl-5 flex-1 flex flex-col">
+          <Link to={`/research/${p.id}`} className="flex-1">
+            {p.description && <p className="text-sm text-muted-foreground line-clamp-3 mb-3">{p.description}</p>}
+            <div className="flex flex-wrap gap-1 mb-3">
+              {p.keywords.slice(0, 4).map(k => <Badge key={k} variant="outline" className="text-[10px]">{k}</Badge>)}
+            </div>
+          </Link>
+          <div className="mb-3"><SegmentedProgress value={progress} /></div>
+          {names.length > 0 && (
+            <div className="flex items-center gap-1.5 text-sm font-medium mb-2">
+              <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="line-clamp-1">{names.join(", ")}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(p.updated_at).toLocaleDateString()}</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
@@ -198,6 +309,22 @@ const Inner = () => {
               <div className="space-y-4">
                 <div><Label>{locale === "pt" ? "Título *" : "Title *"}</Label>
                   <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></div>
+                <div>
+                  <Label>{locale === "pt" ? "Categoria *" : "Category *"}</Label>
+                  <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v as ResearchProjectCategory })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CATEGORY_ORDER.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          <span className="flex items-center gap-2">
+                            <span className={cn("h-2.5 w-2.5 rounded-full", CATEGORY_STYLE[c].dot)} />
+                            {CATEGORY_LABEL[c][locale]}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div><Label>{locale === "pt" ? "Descrição" : "Description"}</Label>
                   <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} /></div>
                 <div className="grid grid-cols-2 gap-3">
@@ -219,7 +346,7 @@ const Inner = () => {
         </div>
       </header>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mb-6">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mb-4">
         <TabsList>
           <TabsTrigger value="ativo">
             {locale === "pt" ? "Projetos ativos" : "Active"}
@@ -236,6 +363,39 @@ const Inner = () => {
         </TabsList>
       </Tabs>
 
+      {/* Category filter chips */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <button
+          onClick={() => setCategoryFilter("all")}
+          className={cn(
+            "px-3 py-1.5 rounded-full text-xs font-medium border transition-colors",
+            categoryFilter === "all"
+              ? "bg-foreground text-background border-foreground"
+              : "bg-background hover:bg-muted border-border"
+          )}
+        >
+          {locale === "pt" ? "Todas" : "All"} · {categoryCounts.all}
+        </button>
+        {CATEGORY_ORDER.map((c) => {
+          const active = categoryFilter === c;
+          const style = CATEGORY_STYLE[c];
+          return (
+            <button
+              key={c}
+              onClick={() => setCategoryFilter(c)}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-xs font-medium border transition-colors inline-flex items-center gap-1.5",
+                active ? style.badge : "bg-background hover:bg-muted border-border text-muted-foreground",
+              )}
+            >
+              <span className={cn("h-2 w-2 rounded-full", style.dot)} />
+              {CATEGORY_LABEL[c][locale]}
+              <span className="opacity-70">· {categoryCounts[c] ?? 0}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {isLoading ? (
         <p className="text-muted-foreground">{locale === "pt" ? "Carregando..." : "Loading..."}</p>
       ) : filtered.length === 0 ? (
@@ -249,68 +409,30 @@ const Inner = () => {
                 : (locale === "pt" ? "Nenhum projeto cancelado." : "No cancelled projects.")}
           </p>
         </CardContent></Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map(p => {
-            const names = adviseeByProject.get(p.id) ?? [];
-            const progress = progressByProject.get(p.id) ?? (p.status === "concluido" ? 100 : 0);
+      ) : categoryFilter === "all" ? (
+        <div className="space-y-8">
+          {grouped.map(({ category, items }) => {
+            const style = CATEGORY_STYLE[category];
             return (
-              <Card key={p.id} className="h-full flex flex-col hover:border-primary/40 transition-colors">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <Link to={`/research/${p.id}`} className="min-w-0">
-                      <CardTitle className="text-base line-clamp-2 hover:text-primary transition-colors">{p.title}</CardTitle>
-                    </Link>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Badge variant="secondary">{STATUS_LABEL[p.status][locale]}</Badge>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>{locale === "pt" ? "Alterar status" : "Change status"}</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleStatus(p, "em_andamento")}>
-                            <PlayCircle className="h-4 w-4 text-primary" />{locale === "pt" ? "Marcar como ativo" : "Mark active"}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleStatus(p, "concluido")}>
-                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />{locale === "pt" ? "Marcar como concluído" : "Mark completed"}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleStatus(p, "cancelado")}>
-                            <XCircle className="h-4 w-4 text-amber-500" />{locale === "pt" ? "Marcar como cancelado" : "Mark cancelled"}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setToDelete(p)}>
-                            <Trash2 className="h-4 w-4" />{locale === "pt" ? "Excluir projeto" : "Delete project"}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                  {p.cnpq_area && <CardDescription>{p.cnpq_area}</CardDescription>}
-                </CardHeader>
-                <CardContent className="flex-1 flex flex-col">
-                  <Link to={`/research/${p.id}`} className="flex-1">
-                    {p.description && <p className="text-sm text-muted-foreground line-clamp-3 mb-3">{p.description}</p>}
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {p.keywords.slice(0, 4).map(k => <Badge key={k} variant="outline" className="text-[10px]">{k}</Badge>)}
-                    </div>
-                  </Link>
-                  <div className="mb-3"><SegmentedProgress value={progress} /></div>
-                  {names.length > 0 && (
-                    <div className="flex items-center gap-1.5 text-sm font-medium mb-2">
-                      <User className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="line-clamp-1">{names.join(", ")}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(p.updated_at).toLocaleDateString()}</span>
-                  </div>
-                </CardContent>
-              </Card>
+              <section key={category}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className={cn("h-2.5 w-2.5 rounded-full", style.dot)} />
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    {CATEGORY_LABEL[category][locale]}
+                  </h2>
+                  <span className="text-xs text-muted-foreground">· {items.length}</span>
+                  <div className="flex-1 h-px bg-border ml-2" />
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {items.map(renderCard)}
+                </div>
+              </section>
             );
           })}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filtered.map(renderCard)}
         </div>
       )}
 
