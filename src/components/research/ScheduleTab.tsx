@@ -59,12 +59,13 @@ interface FormState {
   linked_task_ids: string[];
   is_milestone: boolean;
   assignee_id: string;
+  assignee_ids: string[];
 }
 
 const EMPTY_FORM: FormState = {
   title: "", description: "", notes: "", phase: "", start_date: "", end_date: "",
   status: "planejado", predecessor_id: "", dependency_type: "FS",
-  progress: 0, progress_mode: "auto", linked_task_ids: [], is_milestone: false, assignee_id: "",
+  progress: 0, progress_mode: "auto", linked_task_ids: [], is_milestone: false, assignee_id: "", assignee_ids: [],
 };
 
 const dayMs = 86400000;
