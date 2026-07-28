@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import {
   Shield, Users, Trash2, Loader2, Search, FileText,
   Database, Activity, BarChart3, Settings, CheckCircle2, XCircle, Clock, UserCheck, Key, Cookie, Eye, MousePointerClick, TrendingUp,
-  CreditCard, DollarSign, Zap, PieChart,
+  CreditCard, DollarSign, Zap, PieChart, ExternalLink, Percent,
 } from "lucide-react";
 import ApiKeysPanel from "@/components/app/ApiKeysPanel";
 import { toast } from "sonner";
@@ -40,6 +40,11 @@ interface UserApproval {
   approved_at: string | null;
 }
 
+// Monthly list prices in BRL, used only to estimate MRR — the subscriptions
+// table doesn't store billing interval (monthly vs annual), so annual subs
+// are approximated at their monthly-equivalent list price too.
+const PLAN_MONTHLY_PRICE: Record<string, number> = { free: 0, pro: 49, team: 89 };
+
 const Admin = () => {
   const { t, locale } = useLanguage();
   const { user } = useAuth();
@@ -50,12 +55,14 @@ const Admin = () => {
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [approvals, setApprovals] = useState<UserApproval[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "users" | "searches" | "apikeys" | "analytics" | "system">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "users" | "searches" | "apikeys" | "subscriptions" | "analytics" | "system">("overview");
   const [analyticsEvents, setAnalyticsEvents] = useState<any[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
   const [approvalFilter, setApprovalFilter] = useState<"pending" | "approved" | "all">("pending");
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [subSearch, setSubSearch] = useState("");
+  const [subPlanFilter, setSubPlanFilter] = useState<"all" | "free" | "pro" | "team">("all");
   const [usageTracking, setUsageTracking] = useState<any[]>([]);
   const [aiUsageLog, setAiUsageLog] = useState<any[]>([]);
 
@@ -211,6 +218,7 @@ const Admin = () => {
     { id: "users" as const, label: locale === "pt" ? "Usuários" : "Users", icon: Users },
     { id: "searches" as const, label: locale === "pt" ? "Pesquisas" : "Searches", icon: Search },
     { id: "apikeys" as const, label: locale === "pt" ? "API Keys" : "API Keys", icon: Key },
+    { id: "subscriptions" as const, label: locale === "pt" ? "Assinaturas" : "Subscriptions", icon: CreditCard },
     { id: "analytics" as const, label: "Analytics", icon: Cookie, badge: analyticsEvents.length > 0 ? analyticsEvents.length : undefined },
     { id: "system" as const, label: locale === "pt" ? "Sistema" : "System", icon: Settings },
   ];
@@ -532,6 +540,219 @@ const Admin = () => {
             <ApiKeysPanel />
           </div>
         )}
+
+        {/* Subscriptions Tab */}
+        {activeTab === "subscriptions" && (() => {
+          const subMap = new Map(subscriptions.map((s: any) => [s.user_id, s]));
+          const allRows = approvals.map((a) => {
+            const sub: any = subMap.get(a.user_id);
+            return {
+              user_id: a.user_id,
+              email: a.email,
+              full_name: a.full_name,
+              plan: (sub?.plan as string) || "free",
+              status: (sub?.status as string) || "active",
+              current_period_end: sub?.current_period_end || null,
+              stripe_customer_id: sub?.stripe_customer_id || null,
+              synced: !!sub,
+              since: sub?.created_at || a.created_at,
+            };
+          });
+          const payingRows = allRows.filter((r) => r.plan !== "free");
+          const mrr = payingRows.reduce((sum, r) => sum + (PLAN_MONTHLY_PRICE[r.plan] || 0), 0);
+          const conversionRate = allRows.length ? (payingRows.length / allRows.length) * 100 : 0;
+          const planRank: Record<string, number> = { team: 0, pro: 1, free: 2 };
+
+          const filteredRows = allRows
+            .filter((r) => (subPlanFilter === "all" || r.plan === subPlanFilter))
+            .filter((r) => {
+              if (!subSearch) return true;
+              const q = subSearch.toLowerCase();
+              return (r.email || "").toLowerCase().includes(q) || (r.full_name || "").toLowerCase().includes(q);
+            })
+            .sort((a, b) => (planRank[a.plan] ?? 3) - (planRank[b.plan] ?? 3) || new Date(b.since).getTime() - new Date(a.since).getTime());
+
+          const planBreakdown = (["team", "pro", "free"] as const).map((p) => {
+            const count = allRows.filter((r) => r.plan === p).length;
+            return { plan: p, count, revenue: count * (PLAN_MONTHLY_PRICE[p] || 0) };
+          });
+
+          return (
+            <div className="space-y-6">
+              {/* KPI Cards */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border border-border bg-card p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
+                      <DollarSign className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">
+                        R${mrr.toLocaleString(locale === "pt" ? "pt-BR" : "en-US")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{locale === "pt" ? "MRR estimado" : "Estimated MRR"}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      <CreditCard className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{payingRows.length}</p>
+                      <p className="text-xs text-muted-foreground">{locale === "pt" ? "Assinantes pagantes" : "Paying subscribers"}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+                      <Percent className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{conversionRate.toFixed(1)}%</p>
+                      <p className="text-xs text-muted-foreground">{locale === "pt" ? "Taxa de conversão" : "Conversion rate"}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                      <Users className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">{allRows.length}</p>
+                      <p className="text-xs text-muted-foreground">{locale === "pt" ? "Contas totais" : "Total accounts"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Plan breakdown */}
+              <div className="rounded-xl border border-border bg-card">
+                <div className="flex items-center gap-2 border-b border-border p-4">
+                  <PieChart className="h-5 w-5 text-primary" />
+                  <h2 className="font-display text-lg font-semibold text-foreground">
+                    {locale === "pt" ? "Receita por plano" : "Revenue by plan"}
+                  </h2>
+                </div>
+                <div className="divide-y divide-border">
+                  {planBreakdown.map(({ plan, count, revenue }) => (
+                    <div key={plan} className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+                          plan === "team" ? "bg-accent/10 text-accent-foreground" : plan === "pro" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                        }`}>
+                          {plan}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {count} {locale === "pt" ? "conta(s)" : "account(s)"}
+                        </span>
+                      </div>
+                      <span className="text-sm font-semibold text-foreground">
+                        {revenue > 0 ? `R$${revenue.toLocaleString(locale === "pt" ? "pt-BR" : "en-US")}/mês` : "—"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-border p-3">
+                  <p className="text-xs text-muted-foreground">
+                    {locale === "pt"
+                      ? "MRR estimado com base no preço mensal de tabela — não distingue cobrança mensal de anual, então assinaturas anuais são aproximadas pelo preço mensal equivalente."
+                      : "MRR estimated from list monthly price — billing interval isn't stored, so annual subscriptions are approximated at their monthly-equivalent price."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Subscribers table */}
+              <div className="rounded-xl border border-border bg-card">
+                <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={subSearch}
+                      onChange={(e) => setSubSearch(e.target.value)}
+                      placeholder={locale === "pt" ? "Buscar por nome ou e-mail..." : "Search by name or email..."}
+                      className="pl-9"
+                    />
+                  </div>
+                  <div className="flex gap-1 rounded-lg border border-border bg-muted/50 p-1">
+                    {(["all", "team", "pro", "free"] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setSubPlanFilter(f)}
+                        className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
+                          subPlanFilter === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {f === "all" ? (locale === "pt" ? "Todos" : "All") : f}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {filteredRows.length} {locale === "pt" ? "resultados" : "results"}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left">
+                        <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Usuário" : "User"}</th>
+                        <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Plano" : "Plan"}</th>
+                        <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Próxima renovação" : "Next renewal"}</th>
+                        <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Cliente desde" : "Customer since"}</th>
+                        <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Stripe</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {filteredRows.map((r) => (
+                        <tr key={r.user_id} className="hover:bg-muted/30">
+                          <td className="px-4 py-2">
+                            <p className="text-sm text-foreground">{r.full_name || (locale === "pt" ? "Sem nome" : "No name")}</p>
+                            <p className="text-xs text-muted-foreground">{r.email || `${r.user_id.slice(0, 12)}...`}</p>
+                          </td>
+                          <td className="px-4 py-2">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${
+                              r.plan === "team" ? "bg-accent/10 text-accent-foreground" : r.plan === "pro" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                            }`}>
+                              {r.plan}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-xs text-muted-foreground">
+                            {r.current_period_end ? new Date(r.current_period_end).toLocaleDateString(locale === "pt" ? "pt-BR" : "en-US") : "—"}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-muted-foreground">
+                            {new Date(r.since).toLocaleDateString(locale === "pt" ? "pt-BR" : "en-US")}
+                          </td>
+                          <td className="px-4 py-2">
+                            {r.stripe_customer_id ? (
+                              <a
+                                href={`https://dashboard.stripe.com/customers/${r.stripe_customer_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                              >
+                                {locale === "pt" ? "Ver" : "View"} <ExternalLink className="h-3 w-3" />
+                              </a>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredRows.length === 0 && (
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      {locale === "pt" ? "Nenhuma conta encontrada" : "No accounts found"}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Analytics Tab */}
         {activeTab === "analytics" && (
