@@ -1,0 +1,73 @@
+name: Log System Update
+
+# Runs independently of the Supabase deploy workflow — a failure here never
+# blocks migrations or function deploys. On every push to main that touches
+# real feature code, it sends the commits/diff to the log-system-update Edge
+# Function, which decides (via AI) whether it's worth announcing and, if so,
+# writes a dated entry to system_changelog. That table is read live by
+# /changelog, the "Novidades" block on /docs, and the Oráculo bot's system
+# prompt — so this is what keeps all three in sync automatically.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "supabase/functions/**"
+      - "supabase/migrations/**"
+  workflow_dispatch:
+
+env:
+  SUPABASE_PROJECT_REF: opogckyuwexdlczfvvtb
+
+jobs:
+  notify:
+    name: Summarize update and log to changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build payload and call log-system-update
+        env:
+          CI_UPDATE_SECRET: ${{ secrets.CI_UPDATE_SECRET }}
+        run: |
+          set -e
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          ZERO="0000000000000000000000000000000000000000"
+
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "$ZERO" ]; then
+            RANGE="HEAD~10..HEAD"
+          else
+            RANGE="$BEFORE..$AFTER"
+          fi
+
+          SEP="@@FIELDSEP@@"
+          COMMITS_JSON=$(git log "$RANGE" --pretty=format:"%H${SEP}%s" 2>/dev/null | jq -R -s --arg sep "$SEP" '
+            split("\n") | map(select(length > 0)) | map(split($sep)) | map({sha: .[0], message: (.[1:] | join($sep))})
+          ')
+
+          if [ "$COMMITS_JSON" = "[]" ] || [ -z "$COMMITS_JSON" ]; then
+            echo "No commits in range, skipping."
+            exit 0
+          fi
+
+          DIFF_STAT=$(git diff --stat "$RANGE" 2>/dev/null | head -c 4000 || echo "")
+          DIFF_CONTENT=$(git diff "$RANGE" 2>/dev/null | head -c 12000 || echo "")
+
+          PAYLOAD=$(jq -n \
+            --argjson commits "$COMMITS_JSON" \
+            --arg diffStat "$DIFF_STAT" \
+            --arg diff "$DIFF_CONTENT" \
+            '{commits: $commits, diffStat: $diffStat, diff: $diff}')
+
+          RESPONSE=$(curl -sf -X POST \
+            "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/log-system-update" \
+            -H "Content-Type: application/json" \
+            -H "x-ci-secret: ${CI_UPDATE_SECRET}" \
+            -d "$PAYLOAD")
+
+          echo "log-system-update response: $RESPONSE"

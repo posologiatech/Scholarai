@@ -122,3 +122,6 @@ verify_jwt = false
 
 [functions.capes-apc-advisor]
 verify_jwt = false
+
+[functions.log-system-update]
+verify_jwt = false

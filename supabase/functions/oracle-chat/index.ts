@@ -1,3 +1,4 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAI } from "../_shared/ai-caller.ts";
 import { requireAuth } from "../_shared/auth.ts";
 
@@ -148,6 +149,21 @@ const SYSTEM_PROMPT = `Você é o **Oráculo do ScholarAI** — o assistente esp
 - Plano gratuito, Pro e Enterprise
 - Controle de uso por feature
 
+### 🎓 Projetos de Pesquisa (/research)
+- Modo "orientador/PI": workspace completo por projeto (IC, TCC, Pós, Extensão, Monitoria)
+- Tarefas em Kanban, cronograma com marcos, reuniões (pauta, apresentação em tela cheia, ata) e diário de bordo assinável
+- Equipe com papéis, orientandos, banca/defesa, contribuição de autoria via CRediT
+- IA do projeto: Copiloto (painel lateral, pergunte sobre riscos/status), Brainstorm (sugere novas direções), geração automática de documentos (TCLE, DMP, relatórios parciais/finais)
+- Orçamento com leitura de notas fiscais por IA (OCR) e exportação CSV
+- Ética, compliance e registro de riscos do projeto
+- Integração ORCID, dashboard consolidado do orientador (/research/advisor), editais de fomento CNPq/FAPESP/CAPES/Finep (/research/funding), página pública de projeto (/p/:slug)
+
+### 🕸️ Rede de Coautoria (/coauthorship)
+- Grafo interativo de colaborações entre autores, construído a partir dos artigos das suas buscas salvas
+- Nós = autores (tamanho por nº de papers), arestas = colaborações compartilhadas
+- Clique em um autor para ver papers em comum com seus colaboradores
+- Diferente do Grafo de Conhecimento: relaciona pessoas (coautoria), não artigos (citação)
+
 ## RECOMENDAÇÕES POR CENÁRIO
 - "Quero encontrar artigos sobre um tema" → Busca Semântica
 - "Quero fazer uma revisão sistemática" → Módulo de Revisão Sistemática
@@ -162,7 +178,39 @@ const SYSTEM_PROMPT = `Você é o **Oráculo do ScholarAI** — o assistente esp
 - "Quero combinar resultados de vários estudos" → Meta-Análise
 - "Quero avaliar qualidade metodológica" → Risco de Viés ou Revisão Sistemática (etapa Qualidade)
 - "Quero colaborar com minha equipe" → Espaços de Trabalho
-- "Quero ser alertado sobre novos papers" → Alertas de Literatura`;
+- "Quero ser alertado sobre novos papers" → Alertas de Literatura
+- "Quero gerenciar um projeto de pesquisa (IC, TCC, orientandos, orçamento)" → Projetos de Pesquisa
+- "Quero ver minha rede de colaboradores/coautores" → Rede de Coautoria`;
+
+// Keeps the Oráculo aware of features shipped after this file was last deployed,
+// without needing a redeploy — pulls from the same changelog the /docs and
+// /changelog pages read from.
+async function buildRecentUpdatesBlock(): Promise<string> {
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data, error } = await supabase
+      .from("system_changelog")
+      .select("title, description, released_at")
+      .eq("status", "released")
+      .order("released_at", { ascending: false })
+      .limit(15);
+
+    if (error || !data || data.length === 0) return "";
+
+    const lines = data.map((u: any) => {
+      const date = u.released_at ? new Date(u.released_at).toISOString().slice(0, 10) : "";
+      return `- [${date}] ${u.title}: ${u.description}`;
+    });
+
+    return `\n\n## ATUALIZAÇÕES RECENTES DO SISTEMA\nEstas são as funcionalidades mais recentes lançadas na plataforma — considere-as ao responder, mesmo que não estejam detalhadas nas seções acima:\n${lines.join("\n")}`;
+  } catch (err) {
+    console.error("Oracle: failed to fetch recent updates:", err);
+    return "";
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -182,10 +230,12 @@ Deno.serve(async (req) => {
       });
     }
 
+    const recentUpdatesBlock = await buildRecentUpdatesBlock();
+
     const response = await callAI({
       model: 'google/gemini-3-flash-preview',
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: SYSTEM_PROMPT + recentUpdatesBlock },
         ...messages,
       ],
       stream: true,

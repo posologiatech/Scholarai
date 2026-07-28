@@ -1,7 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import Header from "@/components/landing/Header";
 import Footer from "@/components/landing/Footer";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   Search, BookOpen, Zap, Table, FileText, BarChart3, Image, ShieldCheck,
   ChevronRight, GraduationCap, Download, Globe, Sparkles, CheckCircle2,
@@ -10,9 +14,16 @@ import {
   MessageSquare, Share2, LayoutDashboard, Workflow, ClipboardCheck, FileSearch,
   ClipboardList, QrCode, GripVertical, Wand2, Shield, FileSignature, UserX,
   Stethoscope, Server, Code, Lock, Cpu, HardDrive, Key, Blocks, Rocket,
-  Activity, Microscope, Hash,
+  Activity, Microscope, Hash, Calendar,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+
+interface RecentUpdate {
+  id: string;
+  title: string;
+  description: string;
+  released_at: string | null;
+}
 
 interface DocSection {
   id: string;
@@ -26,8 +37,22 @@ const Docs = () => {
   const { locale } = useLanguage();
   const [activeSection, setActiveSection] = useState("getting-started");
   const [searchQuery, setSearchQuery] = useState("");
+  const [recentUpdates, setRecentUpdates] = useState<RecentUpdate[]>([]);
 
   const pt = locale === "pt";
+
+  useEffect(() => {
+    const fetchRecentUpdates = async () => {
+      const { data } = await supabase
+        .from("system_changelog" as any)
+        .select("id, title, description, released_at")
+        .eq("status", "released")
+        .order("released_at", { ascending: false, nullsFirst: false })
+        .limit(4);
+      setRecentUpdates((data as any[]) || []);
+    };
+    fetchRecentUpdates();
+  }, []);
 
   const sections: DocSection[] = [
     {
@@ -758,6 +783,82 @@ const Docs = () => {
       ],
     },
     {
+      id: "research-projects",
+      icon: Workflow,
+      title: pt ? "Projetos de Pesquisa" : "Research Projects",
+      category: pt ? "Colaboração" : "Collaboration",
+      content: [
+        {
+          heading: pt ? "O que é o módulo de Projetos" : "What the Projects module is",
+          body: pt
+            ? "Em /research você gerencia projetos de pesquisa completos — IC, TCC, Pós-graduação, Extensão ou Monitoria — com um workspace dedicado por projeto. É o modo 'orientador/PI' da plataforma: acompanhamento de equipe, tarefas, cronograma, orçamento, documentos e compliance em um só lugar, separado da Biblioteca de busca de artigos."
+            : "At /research you manage complete research projects — undergraduate research, thesis, graduate, extension, or supervised internship — with a dedicated workspace per project. This is the platform's 'advisor/PI mode': team, tasks, schedule, budget, documents, and compliance tracking in one place, separate from the paper-search Library.",
+        },
+        {
+          heading: pt ? "Execução: tarefas, cronograma e reuniões" : "Execution: tasks, schedule, and meetings",
+          body: pt
+            ? "Cada projeto tem um quadro Kanban de tarefas, um cronograma (linha do tempo com marcos), e um módulo de Reuniões com pauta, apresentação em modo tela cheia e geração de ata. Um Diário de Bordo permite registrar entradas assináveis digitalmente, útil para comprovação de horas em bolsas de IC."
+            : "Each project has a Kanban task board, a schedule (timeline with milestones), and a Meetings module with agenda, full-screen presentation mode, and minutes generation. A Logbook lets you record digitally signable entries, useful for proving hours in undergraduate research grants.",
+        },
+        {
+          heading: pt ? "Equipe, orientandos e CRediT" : "Team, advisees, and CRediT",
+          body: pt
+            ? "Convide membros por e-mail com papéis específicos (orientador, coautor, colaborador). Cadastre orientandos com foto, acompanhe a banca/defesa e registre a contribuição de cada autor usando a taxonomia CRediT (Conceptualization, Methodology, Writing, etc.) para relatórios e submissões."
+            : "Invite members by email with specific roles (advisor, co-author, collaborator). Register advisees with photos, track the thesis defense committee, and record each author's contribution using the CRediT taxonomy (Conceptualization, Methodology, Writing, etc.) for reports and submissions.",
+        },
+        {
+          heading: pt ? "IA do projeto: copiloto, brainstorm e documentos" : "Project AI: copilot, brainstorm, and documents",
+          body: pt
+            ? "Um Copiloto de IA fica disponível como painel lateral em todo o projeto — pergunte 'resuma para o comitê' ou 'quais tarefas estão em risco'. O Brainstorm de IA sugere novas direções de pesquisa com base no conteúdo do projeto. A aba Documentos gera automaticamente TCLE, DMP (Plano de Gestão de Dados) e relatórios parciais/finais formatados."
+            : "An AI Copilot is available as a side panel throughout the project — ask 'summarize for the committee' or 'which tasks are at risk'. AI Brainstorm suggests new research directions based on the project's content. The Documents tab automatically generates informed consent forms, Data Management Plans, and formatted partial/final reports.",
+          tip: pt
+            ? "O copiloto e o brainstorm usam a mesma chave de IA configurada pelo admin em Configurações — nenhuma configuração extra é necessária."
+            : "The copilot and brainstorm use the same AI key configured by the admin in Settings — no extra setup needed.",
+        },
+        {
+          heading: pt ? "Orçamento com leitura de notas fiscais (OCR)" : "Budget with receipt OCR",
+          body: pt
+            ? "Na aba Orçamento, envie a foto ou PDF de uma nota fiscal e a IA extrai automaticamente fornecedor, valor, data e sugere a rubrica orçamentária (custeio, capital, bolsa, diária, passagem). As despesas podem ser exportadas em CSV para prestação de contas."
+            : "In the Budget tab, upload a photo or PDF of a receipt and AI automatically extracts the supplier, amount, date, and suggests the budget category (operating, capital, stipend, per diem, travel). Expenses can be exported to CSV for financial reporting.",
+        },
+        {
+          heading: pt ? "Ética, compliance e riscos" : "Ethics, compliance, and risks",
+          body: pt
+            ? "Módulos dedicados para acompanhar aprovações éticas (CEP/CONEP), checklist de conformidade regulatória e um registro de riscos do projeto com severidade e planos de mitigação."
+            : "Dedicated modules to track ethics approvals (IRB), a regulatory compliance checklist, and a project risk register with severity and mitigation plans.",
+        },
+        {
+          heading: pt ? "ORCID, dashboard do orientador e compartilhamento público" : "ORCID, advisor dashboard, and public sharing",
+          body: pt
+            ? "Conecte sua conta ORCID em Integrações para sincronizar identidade de pesquisador. Em /research/advisor, orientadores veem uma visão consolidada de todos os projetos que orientam. Em /research/funding, acompanhe editais de fomento (CNPq, FAPESP, CAPES, Finep). Qualquer projeto pode gerar uma página pública somente-leitura (/p/:slug) para compartilhar o progresso com stakeholders externos."
+            : "Connect your ORCID account in Integrations to sync researcher identity. At /research/advisor, advisors see a consolidated view of every project they supervise. At /research/funding, track funding calls (CNPq, FAPESP, CAPES, Finep). Any project can generate a public read-only page (/p/:slug) to share progress with external stakeholders.",
+        },
+      ],
+    },
+    {
+      id: "coauthorship",
+      icon: Share2,
+      title: pt ? "Rede de Coautoria" : "Coauthorship Network",
+      category: pt ? "Colaboração" : "Collaboration",
+      content: [
+        {
+          heading: pt ? "O que é o grafo de coautoria" : "What the coauthorship graph is",
+          body: pt
+            ? "Em /coauthorship, o sistema constrói um grafo interativo de colaborações entre autores a partir dos artigos das suas buscas salvas. Cada nó é um autor (tamanho proporcional ao número de papers) e cada aresta representa artigos publicados em conjunto (espessura proporcional ao número de colaborações)."
+            : "At /coauthorship, the system builds an interactive collaboration graph between authors from the papers in your saved searches. Each node is an author (sized by number of papers) and each edge represents co-authored papers (thickness proportional to number of collaborations).",
+        },
+        {
+          heading: pt ? "Explorando o grafo" : "Exploring the graph",
+          body: pt
+            ? "Arraste e faça zoom no grafo livremente. Use a busca para localizar um autor específico e filtrar sua vizinhança de colaboração. Clique em um autor para ver a lista de papers compartilhados com seus colaboradores diretos."
+            : "Drag and zoom the graph freely. Use search to locate a specific author and filter their collaboration neighborhood. Click an author to see the list of papers shared with their direct collaborators.",
+          tip: pt
+            ? "É diferente do Grafo de Conhecimento (/knowledge-graph), que relaciona artigos entre si por citação — a Rede de Coautoria relaciona pessoas entre si por autoria conjunta."
+            : "This differs from the Knowledge Graph (/knowledge-graph), which relates papers to each other by citation — the Coauthorship Network relates people to each other by joint authorship.",
+        },
+      ],
+    },
+    {
       id: "changelog",
       icon: Rocket,
       title: pt ? "Pipeline de Atualizações" : "Update Pipeline",
@@ -1092,6 +1193,38 @@ const Docs = () => {
                 ? "Guia completo de todas as funcionalidades do ScholarAI — busca, revisão sistemática, DataMind, pesquisas, pesquisa clínica, conformidade CEP/LGPD e mais."
                 : "Complete guide to all ScholarAI features — search, systematic review, DataMind, surveys, clinical research, CEP/LGPD compliance and more."}
             </p>
+
+            {/* Novidades — auto-populated whenever the system is updated */}
+            {recentUpdates.length > 0 && (
+              <div className="mx-auto mt-6 max-w-2xl rounded-xl border border-primary/20 bg-primary/5 p-4 text-left">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {pt ? "Novidades" : "What's new"}
+                  </p>
+                  <Link
+                    to="/changelog"
+                    className="text-[11px] font-medium text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {pt ? "Ver histórico completo →" : "See full history →"}
+                  </Link>
+                </div>
+                <ul className="space-y-2">
+                  {recentUpdates.map((u) => (
+                    <li key={u.id} className="text-sm">
+                      <span className="font-medium text-foreground">{u.title}</span>
+                      {u.released_at && (
+                        <span className="ml-2 inline-flex items-center gap-0.5 text-[11px] text-muted-foreground">
+                          <Calendar className="h-2.5 w-2.5" />
+                          {format(new Date(u.released_at), "dd MMM yyyy", { locale: pt ? ptBR : undefined })}
+                        </span>
+                      )}
+                      <p className="text-xs text-muted-foreground">{u.description}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Search */}
             <div className="mx-auto mt-6 max-w-md">
