@@ -1,4 +1,5 @@
 import { requireAuth } from "../_shared/auth.ts";
+import { callAI } from "../_shared/ai-caller.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,14 +26,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: 'AI key not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -41,13 +34,8 @@ Deno.serve(async (req) => {
     let refsToCheck = references || [];
 
     if (text && !references) {
-      const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      try {
+        const extractResponse = await callAI({
           model: 'google/gemini-3-flash-preview',
           messages: [
             {
@@ -89,16 +77,18 @@ Deno.serve(async (req) => {
             },
           }],
           tool_choice: { type: 'function', function: { name: 'extract_references' } },
-        }),
-      });
+        } as any);
 
-      if (extractResponse.ok) {
-        const extractData = await extractResponse.json();
-        const toolCall = extractData.choices?.[0]?.message?.tool_calls?.[0];
-        if (toolCall) {
-          const result = JSON.parse(toolCall.function.arguments);
-          refsToCheck = result.references || [];
+        if (extractResponse.ok) {
+          const extractData = await extractResponse.json();
+          const toolCall = extractData.choices?.[0]?.message?.tool_calls?.[0];
+          if (toolCall) {
+            const result = JSON.parse(toolCall.function.arguments);
+            refsToCheck = result.references || [];
+          }
         }
+      } catch (aiErr) {
+        console.error('Reference extraction AI call failed:', aiErr);
       }
     }
 

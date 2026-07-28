@@ -1,5 +1,6 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { requireAuth } from "../_shared/auth.ts";
+import { callAI } from "../_shared/ai-caller.ts";
 
 type DocType = "tcle" | "tale" | "dmp" | "relatorio_parcial" | "relatorio_final" | "folha_rosto" | "termo_sigilo" | "custom";
 
@@ -43,15 +44,10 @@ Deno.serve(async (req) => {
 
     const user = `${instr}\n\n## Dados do projeto\n- Título: ${project.title}\n- Área CNPq: ${project.cnpq_area || "[A PREENCHER]"}\n- Status: ${project.status}\n- Início: ${project.start_date || "[A PREENCHER]"}\n- Término: ${project.end_date || "[A PREENCHER]"}\n- Objetivos: ${project.objectives || "[A PREENCHER]"}\n- Palavras-chave: ${(project.keywords || []).join(", ")}\n- Descrição: ${project.description || "[A PREENCHER]"}\n\n## Equipe\n${teamStr || "[A PREENCHER]"}\n\n${custom_instructions ? `## Instruções adicionais do usuário\n${custom_instructions}` : ""}`;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [{ role: "system", content: system }, { role: "user", content: user }],
-      }),
-    });
+    const aiRes = await callAI({
+      model: "google/gemini-2.5-flash",
+      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+    } as any);
     if (!aiRes.ok) {
       const text = await aiRes.text();
       return new Response(JSON.stringify({ error: "AI error", details: text }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });

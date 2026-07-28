@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { trackUsage } from "../_shared/usage-tracker.ts";
+import { getGoogleApiKey, generateGoogleImage } from "../_shared/google-image.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,8 +60,14 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const serviceClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+    const googleApiKey = await getGoogleApiKey(serviceClient);
+    if (!googleApiKey) {
+      return new Response(JSON.stringify({ error: "Configure uma chave de API do Google AI em Configurações → API Keys para gerar ilustrações." }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const selectedStyle = style && STYLE_PROMPTS[style] ? STYLE_PROMPTS[style] : STYLE_PROMPTS.biorender;
 
@@ -71,67 +78,44 @@ serve(async (req) => {
 - Include clear legends when appropriate
 - Use consistent line weights and proportions`;
 
-    // Build user content
-    let userContent: any;
+    // Build text prompt / reference image
+    let textPrompt: string;
+    let imageUrls: string[] | undefined;
     let savedPrompt: string;
 
     if (isEdit) {
       // AI Image Editing mode
       systemPrompt = `You are a professional scientific illustration editor. Apply the requested edit to the provided scientific illustration while maintaining its overall style, accuracy, and quality. ${selectedStyle}`;
-      userContent = [
-        { type: "text", text: editInstruction },
-        { type: "image_url", image_url: { url: existingImageUrl } },
-      ];
+      textPrompt = editInstruction;
+      imageUrls = [existingImageUrl];
       savedPrompt = `[Edit] ${editInstruction}`;
     } else if (isGraphicalAbstract) {
       // Graphical abstract from paper
       const { title, abstract: paperAbstract } = paperContext;
       systemPrompt += `\n\nYou are creating a Graphical Abstract for a scientific paper. Create a visual summary that captures the key methodology, findings, and conclusions of the study. Use a clear left-to-right or top-to-bottom flow. Include icons representing methods, arrows showing process flow, and key result highlights.`;
-      userContent = `Create a Graphical Abstract for this paper:\n\nTitle: ${title}\n\nAbstract: ${paperAbstract}${prompt ? `\n\nAdditional instructions: ${prompt}` : ""}`;
+      textPrompt = `Create a Graphical Abstract for this paper:\n\nTitle: ${title}\n\nAbstract: ${paperAbstract}${prompt ? `\n\nAdditional instructions: ${prompt}` : ""}`;
       savedPrompt = `[Graphical Abstract] ${title}`;
     } else {
-      userContent = prompt;
+      textPrompt = prompt;
       savedPrompt = prompt;
     }
 
     // Generate (possibly multiple variations)
     const generateOne = async () => {
-      const messages: any[] = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent },
-      ];
-
-      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-pro-image-preview",
-          messages,
-          modalities: ["image", "text"],
-        }),
-      });
-
-      if (!aiResponse.ok) {
-        if (aiResponse.status === 429) throw { status: 429, message: "Rate limit exceeded. Please try again." };
-        if (aiResponse.status === 402) throw { status: 402, message: "AI credits exhausted." };
-        const errorText = await aiResponse.text();
-        console.error("AI Gateway error:", aiResponse.status, errorText);
-        throw new Error(`AI Gateway error: ${aiResponse.status}`);
+      try {
+        return await generateGoogleImage({
+          apiKey: googleApiKey,
+          model: "gemini-3-pro-image-preview",
+          systemText: systemPrompt,
+          textPrompt,
+          imageUrls,
+        });
+      } catch (err: any) {
+        if (err.status === 429) throw { status: 429, message: "Rate limit exceeded. Please try again." };
+        if (err.status === 402 || err.status === 403) throw { status: 402, message: "Cota ou permissão da API do Google AI esgotada." };
+        throw err;
       }
-
-      const aiData = await aiResponse.json();
-      const base64Url = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-      if (!base64Url) {
-        console.error("No image in AI response:", JSON.stringify(aiData).slice(0, 500));
-        throw new Error("AI did not generate an image");
-      }
-      return base64Url;
     };
-
-    const serviceClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const uploadAndSave = async (base64Url: string, promptText: string) => {
       const base64Data = base64Url.replace(/^data:image\/\w+;base64,/, "");

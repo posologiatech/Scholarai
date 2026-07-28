@@ -283,59 +283,84 @@ export async function callAI(options: ChatCompletionOptions): Promise<Response> 
     }
   }
 
-  // Fallback to Lovable AI
-  console.log("[ai-caller] Falling back to Lovable AI gateway");
+  // No configured provider could handle the request — do not fall back to any
+  // platform-wide key. Admins must configure at least one API key.
+  console.error("[ai-caller] No configured AI provider succeeded and no provider was available");
+  throw new Error(
+    "Nenhuma chave de API de IA configurada ou todas as chaves configuradas falharam. Configure uma chave em Configurações → API Keys.",
+  );
+}
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    throw new Error("No AI provider available and LOVABLE_API_KEY not configured");
+interface EmbeddingProviderConfig {
+  id: "google" | "openai";
+  baseUrl: string;
+  model: string;
+}
+
+const EMBEDDING_PROVIDERS: EmbeddingProviderConfig[] = [
+  {
+    id: "google",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/embeddings",
+    model: "text-embedding-004",
+  },
+  {
+    id: "openai",
+    baseUrl: "https://api.openai.com/v1/embeddings",
+    model: "text-embedding-3-small",
+  },
+];
+
+async function tryEmbeddingProvider(
+  provider: EmbeddingProviderConfig,
+  apiKey: string,
+  input: string,
+): Promise<number[] | null> {
+  try {
+    const response = await fetch(provider.baseUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        input: input.slice(0, 8000),
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[ai-caller] Embeddings provider ${provider.id} failed (${response.status}): ${errText.slice(0, 300)}`);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.data?.[0]?.embedding ?? null;
+  } catch (err) {
+    console.error(`[ai-caller] Embeddings provider ${provider.id} error:`, err);
+    return null;
   }
-
-  const gatewayModelMap: Record<string, string> = {
-    "gemini-2.5-flash": "google/gemini-2.5-flash",
-    "gemini-2.5-pro": "google/gemini-2.5-pro",
-    "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
-    "gemini-3-flash-preview": "google/gemini-3-flash-preview",
-  };
-
-  const gatewayModel = cleanOptions.model ? (gatewayModelMap[cleanOptions.model] || cleanOptions.model) : "google/gemini-3-flash-preview";
-
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ ...cleanOptions, model: gatewayModel }),
-  });
-
-  // Log Lovable AI usage
-  if (response.ok && !options.stream) {
-    const cloned = response.clone();
-    cloned.json().then((data) => {
-      logAIUsage("lovable", cleanOptions.model || "unknown", promptType, data, userId);
-    }).catch(() => {});
-  }
-
-  return response;
 }
 
 export async function callEmbeddings(input: string): Promise<Response> {
-  // Embeddings always use Lovable AI for now
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    throw new Error("LOVABLE_API_KEY not configured for embeddings");
+  const activeKeys = await getActiveApiKeys();
+  const keyByProvider = new Map(activeKeys.map((k) => [k.provider, k.api_key]));
+
+  // Priority: Google first, then OpenAI — the only two configurable providers
+  // that expose an embeddings endpoint.
+  for (const provider of EMBEDDING_PROVIDERS) {
+    const apiKey = keyByProvider.get(provider.id);
+    if (!apiKey) continue;
+
+    const embedding = await tryEmbeddingProvider(provider, apiKey, input);
+    if (embedding) {
+      return new Response(JSON.stringify({ data: [{ embedding }] }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
   }
 
-  return fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/text-embedding-004",
-      input: input.slice(0, 8000),
-    }),
-  });
+  throw new Error(
+    "Nenhuma chave de API do Google AI ou OpenAI configurada (ou ambas falharam) para gerar embeddings. Configure uma chave em Configurações → API Keys.",
+  );
 }

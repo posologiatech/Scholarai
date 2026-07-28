@@ -91,22 +91,6 @@ serve(async (req) => {
       }
     }
 
-    // Always add Lovable AI as fallback
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (lovableKey) {
-      providers.push({
-        id: "lovable",
-        name: "Lovable AI",
-        models: [
-          { id: "google/gemini-3-flash-preview", name: "Gemini 3 Flash", description: "Rápido e eficiente" },
-          { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Balanceado" },
-          { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Mais capaz" },
-          { id: "openai/gpt-5-mini", name: "GPT-5 Mini", description: "Rápido e poderoso" },
-          { id: "openai/gpt-5", name: "GPT-5", description: "Máxima capacidade" },
-        ],
-      });
-    }
-
     return new Response(JSON.stringify({ providers }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

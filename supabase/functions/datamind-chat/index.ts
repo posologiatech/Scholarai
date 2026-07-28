@@ -344,23 +344,7 @@ Responda SEMPRE em português brasileiro.`;
 
     let response: Response;
 
-    if (provider === "lovable") {
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
-      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: messages_arr,
-          model: model || "google/gemini-3-flash-preview",
-          temperature: 0.3,
-        }),
-      });
-    } else if (provider && model) {
+    if (provider && model) {
       response = await callAI({
         messages: messages_arr,
         model: model,

@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { requireAuth } from "../_shared/auth.ts";
+import { callAI, callEmbeddings } from "../_shared/ai-caller.ts";
 
 type Msg = { role: "user" | "assistant" | "system"; content: string };
 
@@ -123,15 +124,10 @@ Deno.serve(async (req) => {
     }
 
     // ===== RAG sobre os papers da Biblioteca vinculados =====
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const lastUserMsg = [...messages].reverse().find((m: Msg) => m.role === "user")?.content ?? "";
-    if (LOVABLE_API_KEY && lastUserMsg && refs?.some((r: any) => r.external_paper_id)) {
+    if (lastUserMsg && refs?.some((r: any) => r.external_paper_id)) {
       try {
-        const emb = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "google/text-embedding-004", input: lastUserMsg.slice(0, 4000) }),
-        });
+        const emb = await callEmbeddings(lastUserMsg);
         if (emb.ok) {
           const ej = await emb.json();
           const qv = ej.data?.[0]?.embedding;
@@ -174,23 +170,10 @@ ${ctx}
 === FIM DO CONTEXTO ===`,
     };
 
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY missing" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [system, ...messages.slice(-12)],
-      }),
-    });
+    const res = await callAI({
+      model: "google/gemini-2.5-flash",
+      messages: [system, ...messages.slice(-12)],
+    } as any);
 
     if (res.status === 429) {
       return new Response(JSON.stringify({ error: "Limite de uso atingido. Tente novamente em instantes." }), {

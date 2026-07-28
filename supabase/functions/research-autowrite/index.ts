@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { requireAuth } from "../_shared/auth.ts";
+import { callAI, callEmbeddings } from "../_shared/ai-caller.ts";
 
 type Section =
   | "introducao" | "objetivos" | "metodologia" | "fases"
@@ -77,13 +78,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY missing" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const meta = SECTION_META[section];
 
     // Gather project context
@@ -105,14 +99,9 @@ Deno.serve(async (req) => {
     const linkedPapers = (refs ?? []).filter((r: any) => r.external_paper_id);
     if (linkedPapers.length > 0) {
       try {
-        const emb = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "google/text-embedding-004",
-            input: `${project.title}. ${project.description ?? ""}. ${project.objectives ?? ""}. ${meta.query}`.slice(0, 4000),
-          }),
-        });
+        const emb = await callEmbeddings(
+          `${project.title}. ${project.description ?? ""}. ${project.objectives ?? ""}. ${meta.query}`,
+        );
         if (emb.ok) {
           const ej = await emb.json();
           const qv = ej.data?.[0]?.embedding;
@@ -181,17 +170,13 @@ TAREFA: ${meta.instructions}
 ${ctxLines.join("\n")}
 === FIM DO CONTEXTO ===`;
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: `Gere a seção: ${meta.title}` },
-        ],
-      }),
-    });
+    const res = await callAI({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: `Gere a seção: ${meta.title}` },
+      ],
+    } as any);
 
     if (res.status === 429) {
       return new Response(JSON.stringify({ error: "Limite de uso atingido. Tente novamente em instantes." }), {

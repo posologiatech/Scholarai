@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { requireAuth } from "../_shared/auth.ts";
+import { callAI } from "../_shared/ai-caller.ts";
 
 const clip = (s: string | null | undefined, m = 600) => {
   if (!s) return "";
@@ -18,13 +19,6 @@ Deno.serve(async (req) => {
     if (!meeting_id) {
       return new Response(JSON.stringify({ error: "meeting_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY missing" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -75,18 +69,14 @@ Retorne JSON ESTRITO no formato:
   "decisions": ["..."]
 }`;
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: ctx.join("\n") },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
+    const res = await callAI({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: ctx.join("\n") },
+      ],
+      response_format: { type: "json_object" },
+    } as any);
 
     if (res.status === 429) {
       return new Response(JSON.stringify({ error: "Limite de uso atingido." }), {

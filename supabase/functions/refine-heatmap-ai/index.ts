@@ -1,9 +1,11 @@
-// Edge function: AI heatmap generation/refinement using Lovable AI (Gemini image)
+// Edge function: AI heatmap generation/refinement using Google Gemini image generation
 // Modes:
 //   - "refine"     : polish an already-generated heatmap PNG (typography, legend)
 //   - "full_fill"  : recolor the ENTIRE shape/region of a base image as a full-coverage
 //                    choropleth/heatmap from a table of (label, value) pairs.
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getGoogleApiKey, generateGoogleImage } from "../_shared/google-image.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,8 +28,12 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const mode: "refine" | "full_fill" = body.mode || "refine";
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY not configured" }, 500);
+
+    const serviceClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const googleApiKey = await getGoogleApiKey(serviceClient);
+    if (!googleApiKey) {
+      return json({ error: "Configure uma chave de API do Google AI em Configurações → API Keys para gerar heatmaps." }, 500);
+    }
 
     let prompt = "";
     let imageDataUrl = "";
@@ -97,37 +103,19 @@ Deno.serve(async (req) => {
       ].filter(Boolean).join(" ");
     }
 
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        modalities: ["image", "text"],
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: imageDataUrl } },
-            ],
-          },
-        ],
-      }),
-    });
-
-    if (resp.status === 429) return json({ error: "Limite de uso atingido. Tente novamente em instantes." }, 429);
-    if (resp.status === 402) return json({ error: "Créditos esgotados. Adicione créditos no workspace." }, 402);
-    if (!resp.ok) {
-      const txt = await resp.text();
-      return json({ error: `AI gateway error: ${txt}` }, 502);
+    let imgUrl: string;
+    try {
+      imgUrl = await generateGoogleImage({
+        apiKey: googleApiKey,
+        model: "gemini-2.5-flash-image",
+        textPrompt: prompt,
+        imageUrls: [imageDataUrl],
+      });
+    } catch (err: any) {
+      if (err.status === 429) return json({ error: "Limite de uso atingido. Tente novamente em instantes." }, 429);
+      if (err.status === 402 || err.status === 403) return json({ error: "Cota ou permissão da API do Google AI esgotada." }, 402);
+      return json({ error: `Erro na API do Google AI: ${err.message}` }, 502);
     }
-
-    const data = await resp.json();
-    const imgUrl = data?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!imgUrl) return json({ error: "AI não retornou imagem" }, 502);
 
     return json({ image_url: imgUrl });
   } catch (e) {

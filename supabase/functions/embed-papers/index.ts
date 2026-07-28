@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAuth } from "../_shared/auth.ts";
+import { callEmbeddings } from "../_shared/ai-caller.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,27 +27,15 @@ function chunkText(text: string, maxChars = 2000): string[] {
   return chunks;
 }
 
-// Generate embedding via Lovable AI Gateway
-async function generateEmbedding(text: string, apiKey: string): Promise<number[] | null> {
+// Generate embedding via the user's configured API keys (Google, then OpenAI)
+async function generateEmbedding(text: string): Promise<number[] | null> {
   try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/text-embedding-004',
-        input: text.slice(0, 8000),
-      }),
-    });
-
+    const response = await callEmbeddings(text);
     if (!response.ok) {
       const errText = await response.text();
       console.error('Embedding error:', response.status, errText);
       return null;
     }
-
     const data = await response.json();
     return data.data?.[0]?.embedding || null;
   } catch (err) {
@@ -69,14 +58,6 @@ Deno.serve(async (req) => {
     if (!papers || !Array.isArray(papers) || papers.length === 0) {
       return new Response(JSON.stringify({ error: 'papers array is required' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: 'AI key not configured' }), {
-        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -123,7 +104,7 @@ Deno.serve(async (req) => {
 
         // Generate embeddings for each chunk
         for (let ci = 0; ci < chunks.length; ci++) {
-          const embedding = await generateEmbedding(chunks[ci], LOVABLE_API_KEY);
+          const embedding = await generateEmbedding(chunks[ci]);
           if (!embedding) continue;
 
           const { error: insertError } = await supabase

@@ -145,7 +145,7 @@ For slider, specify appropriate min/max values.`;
       },
     ];
 
-    // Use callAI which tries external providers first, then falls back to Lovable AI
+    // Use callAI which tries the admin's configured external providers, in priority order
     const response = await callAI({
       messages: [
         { role: "system", content: systemPrompt },

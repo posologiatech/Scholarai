@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { requireAuth } from "../_shared/auth.ts";
-import { callAI } from "../_shared/ai-caller.ts";
+import { callAI, callEmbeddings } from "../_shared/ai-caller.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,24 +30,13 @@ async function generateAndSaveEmbeddings(
   paperId: string,
   paperTitle: string,
   text: string,
-  apiKey: string,
   supabase: any
 ) {
   const chunks = chunkText(text);
 
   for (let i = 0; i < chunks.length; i++) {
     try {
-      const embResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/text-embedding-004',
-          input: chunks[i].slice(0, 2048),
-        }),
-      });
+      const embResponse = await callEmbeddings(chunks[i].slice(0, 2048));
 
       if (!embResponse.ok) {
         const errBody = await embResponse.text().catch(() => '');
@@ -106,14 +95,6 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "paper_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "AI key not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -309,7 +290,7 @@ Deno.serve(async (req) => {
 
       // Generate embeddings in background
       try {
-        await generateAndSaveEmbeddings(paper_id, extractedTitle, textContent, LOVABLE_API_KEY, supabase);
+        await generateAndSaveEmbeddings(paper_id, extractedTitle, textContent, supabase);
         console.log(`Embeddings generated for paper ${paper_id}`);
       } catch (embErr) {
         console.error(`Embedding generation failed for paper ${paper_id}:`, embErr);
@@ -325,7 +306,7 @@ Deno.serve(async (req) => {
       if (!existingChunks || existingChunks.length === 0) {
         try {
           const title = paper.title || paper.file_name.replace(/\.pdf$/i, "");
-          await generateAndSaveEmbeddings(paper_id, title, textContent, LOVABLE_API_KEY, supabase);
+          await generateAndSaveEmbeddings(paper_id, title, textContent, supabase);
         } catch (embErr) {
           console.error(`Embedding generation failed for paper ${paper_id}:`, embErr);
         }
