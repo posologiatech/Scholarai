@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callAI } from "../_shared/ai-caller.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { checkPlanLimit, planLimitExceededResponse } from "../_shared/plan-limits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -111,6 +112,10 @@ serve(async (req) => {
 
   const auth = await requireAuth(req, corsHeaders);
   if ("error" in auth) return auth.error;
+
+  if (!(await checkPlanLimit(auth.supabase, auth.userId, "meta_analysis"))) {
+    return planLimitExceededResponse(corsHeaders, "meta_analysis");
+  }
 
   try {
     const { action, studies, effectType, language } = await req.json();

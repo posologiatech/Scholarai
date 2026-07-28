@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Check, X, Sparkles, Zap, Users, Building2, Loader2 } from "lucide-react";
+import { Check, X, Sparkles, Zap, Users, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -41,7 +41,7 @@ const Pricing = () => {
       toast.error(pt ? "Faça login primeiro" : "Please log in first");
       return;
     }
-    if (planId === "free" || planId === "enterprise") return;
+    if (planId === "free") return;
 
     const priceId = annual
       ? STRIPE_PRICES[planId as keyof typeof STRIPE_PRICES].annual
@@ -86,7 +86,6 @@ const Pricing = () => {
   const getCtaText = (planId: string) => {
     if (isCurrentPlan(planId)) return pt ? "Plano atual" : "Current plan";
     if (planId === "free") return user ? (pt ? "Plano atual" : "Current plan") : (pt ? "Comece grátis" : "Start free");
-    if (planId === "enterprise") return pt ? "Falar com vendas" : "Contact sales";
     return pt ? `Assinar ${planId.charAt(0).toUpperCase() + planId.slice(1)}` : `Subscribe ${planId.charAt(0).toUpperCase() + planId.slice(1)}`;
   };
 
@@ -155,23 +154,6 @@ const Pricing = () => {
         { label: pt ? "10 alertas de literatura" : "10 literature alerts", included: true },
       ],
     },
-    {
-      id: "enterprise",
-      name: "Enterprise",
-      icon: Building2,
-      price: { monthly: -1, annual: -1 },
-      description: pt ? "Para instituições e empresas" : "For institutions & companies",
-      highlight: false,
-      features: [
-        { label: pt ? "Tudo ilimitado" : "Everything unlimited", included: true },
-        { label: pt ? "Acesso à API" : "API access", included: true },
-        { label: pt ? "SSO / SAML" : "SSO / SAML", included: true },
-        { label: pt ? "Suporte dedicado" : "Dedicated support", included: true },
-        { label: pt ? "SLA personalizado" : "Custom SLA", included: true },
-        { label: pt ? "Treinamento da equipe" : "Team training", included: true },
-        { label: pt ? "Integração customizada" : "Custom integration", included: true },
-      ],
-    },
   ];
 
   return (
@@ -213,7 +195,7 @@ const Pricing = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {plans.map((plan) => (
             <Card
               key={plan.id}
@@ -255,11 +237,7 @@ const Pricing = () => {
 
               <CardContent className="flex-1">
                 <div className="mb-6">
-                  {plan.price.monthly === -1 ? (
-                    <span className="font-display text-3xl font-bold text-foreground">
-                      {pt ? "Sob consulta" : "Custom"}
-                    </span>
-                  ) : plan.price.monthly === 0 ? (
+                  {plan.price.monthly === 0 ? (
                     <div>
                       <span className="font-display text-4xl font-bold text-foreground">R$0</span>
                       <span className="text-muted-foreground text-sm ml-1">/{pt ? "mês" : "mo"}</span>
@@ -299,11 +277,7 @@ const Pricing = () => {
               </CardContent>
 
               <CardFooter className="flex-col gap-2">
-                {plan.id === "enterprise" ? (
-                  <Link to="/contact" className="w-full">
-                    <Button variant="outline" className="w-full">{getCtaText(plan.id)}</Button>
-                  </Link>
-                ) : plan.id === "free" ? (
+                {plan.id === "free" ? (
                   <Link to={user ? "/dashboard" : "/signup"} className="w-full">
                     <Button variant="outline" className="w-full" disabled={!!user}>
                       {getCtaText(plan.id)}

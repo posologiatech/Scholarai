@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callAI } from "../_shared/ai-caller.ts";
+import { requireAuth } from "../_shared/auth.ts";
+import { trackUsage } from "../_shared/usage-tracker.ts";
+import { checkPlanLimit, planLimitExceededResponse } from "../_shared/plan-limits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +13,13 @@ const corsHeaders = {
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  const auth = await requireAuth(req, corsHeaders);
+  if ("error" in auth) return auth.error;
+
+  if (!(await checkPlanLimit(auth.supabase, auth.userId, "ai_summary"))) {
+    return planLimitExceededResponse(corsHeaders, "ai_summary");
   }
 
   try {
@@ -80,6 +90,8 @@ Always respond in English.`;
 
     const data = await response.json();
     const summary = data.choices?.[0]?.message?.content || "";
+
+    trackUsage(auth.userId, "ai_summary").catch(e => console.error("usage tracking error:", e));
 
     return new Response(JSON.stringify({ summary }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
-export type PlanType = "free" | "pro" | "team" | "enterprise";
+export type PlanType = "free" | "pro" | "team";
 
 export interface PlanLimits {
   search: number;
@@ -58,19 +58,6 @@ const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     knowledge_graph: true,
     meta_analysis: true,
   },
-  enterprise: {
-    search: -1,
-    papers: -1,
-    extraction: -1,
-    systematic_review: -1,
-    datamind_chat: -1,
-    ai_summary: -1,
-    workspaces: -1,
-    illustrations: -1,
-    alerts: -1,
-    knowledge_graph: true,
-    meta_analysis: true,
-  },
 };
 
 export type FeatureKey = keyof PlanLimits;
@@ -106,7 +93,7 @@ export function useSubscription() {
       
       if (adminRole) {
         setIsAdmin(true);
-        setPlan("enterprise");
+        setPlan("team"); // admins bypass all limits via isAdmin; "team" is just the display tier
         setLoading(false);
         return;
       }
@@ -153,7 +140,7 @@ export function useSubscription() {
     fetchData();
   }, [user]);
 
-  const limits = PLAN_LIMITS[plan];
+  const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.team; // legacy "enterprise" rows fall back to the highest real tier
 
   const getUsage = (feature: FeatureKey): number => {
     const record = usage.find((u) => u.feature === feature);
@@ -189,7 +176,7 @@ export function useSubscription() {
     getLimit,
     getUsagePercent,
     isFreePlan: plan === "free" && !isAdmin,
-    isPro: plan === "pro" || plan === "team" || plan === "enterprise" || isAdmin,
+    isPro: plan === "pro" || plan === "team" || isAdmin,
     isAdmin,
     subscriptionEnd,
   };

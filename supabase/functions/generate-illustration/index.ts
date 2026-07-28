@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { trackUsage } from "../_shared/usage-tracker.ts";
+import { checkPlanLimit, planLimitExceededResponse } from "../_shared/plan-limits.ts";
 import { getGoogleApiKey, generateGoogleImage } from "../_shared/google-image.ts";
 
 const corsHeaders = {
@@ -45,6 +46,10 @@ serve(async (req) => {
       });
     }
     const userId = claimsData.claims.sub as string;
+
+    if (!(await checkPlanLimit(anonClient, userId, "illustrations"))) {
+      return planLimitExceededResponse(corsHeaders, "illustrations");
+    }
 
     const body = await req.json();
     const { prompt, style, existingImageUrl, editInstruction, paperContext, variations } = body;
@@ -147,14 +152,14 @@ serve(async (req) => {
           const result = await uploadAndSave(base64Results[i], `${savedPrompt} [Variation ${i + 1}]`);
           results.push(result);
         }
-        trackUsage(userId, "illustration", numVariations).catch(e => console.error("usage tracking error:", e));
+        trackUsage(userId, "illustrations", numVariations).catch(e => console.error("usage tracking error:", e));
         return new Response(JSON.stringify({ variations: results }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } else {
         const base64Url = await generateOne();
         const result = await uploadAndSave(base64Url, savedPrompt);
-        trackUsage(userId, "illustration").catch(e => console.error("usage tracking error:", e));
+        trackUsage(userId, "illustrations").catch(e => console.error("usage tracking error:", e));
         return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

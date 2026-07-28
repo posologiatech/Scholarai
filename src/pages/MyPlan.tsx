@@ -20,7 +20,6 @@ const PLAN_NAMES: Record<string, { label: string; color: string }> = {
   free: { label: "Free", color: "bg-muted text-muted-foreground" },
   pro: { label: "Pro", color: "bg-primary/10 text-primary border-primary/20" },
   team: { label: "Team", color: "bg-accent/10 text-accent-foreground border-accent/20" },
-  enterprise: { label: "Enterprise", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
 };
 
 interface FeatureDisplay {

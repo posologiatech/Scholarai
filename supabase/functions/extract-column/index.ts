@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { callAI, callEmbeddings } from "../_shared/ai-caller.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { trackUsage } from "../_shared/usage-tracker.ts";
+import { checkPlanLimit, planLimitExceededResponse } from "../_shared/plan-limits.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,6 +16,10 @@ Deno.serve(async (req) => {
 
   const auth = await requireAuth(req, corsHeaders);
   if ("error" in auth) return auth.error;
+
+  if (!(await checkPlanLimit(auth.supabase, auth.userId, "extraction"))) {
+    return planLimitExceededResponse(corsHeaders, "extraction");
+  }
 
   try {
     const { query, papers, column_name, custom_prompt, locale = 'en', stream = false, full_texts = {} } = await req.json();

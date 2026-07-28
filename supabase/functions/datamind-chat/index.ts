@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callAI } from "../_shared/ai-caller.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { trackUsage } from "../_shared/usage-tracker.ts";
+import { checkPlanLimit, planLimitExceededResponse } from "../_shared/plan-limits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,10 @@ serve(async (req) => {
 
   const auth = await requireAuth(req, corsHeaders);
   if ("error" in auth) return auth.error;
+
+  if (!(await checkPlanLimit(auth.supabase, auth.userId, "datamind_chat"))) {
+    return planLimitExceededResponse(corsHeaders, "datamind_chat");
+  }
 
   try {
     const { message, history, schema, file_name, provider, model, codeLanguage } = await req.json();
@@ -418,7 +423,7 @@ Responda SEMPRE em português brasileiro.`;
 
     if (!explanation) explanation = "Análise processada.";
 
-    trackUsage(auth.userId, "datamind_message").catch(e => console.error("usage tracking error:", e));
+    trackUsage(auth.userId, "datamind_chat").catch(e => console.error("usage tracking error:", e));
 
     return new Response(JSON.stringify({ explanation, code }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

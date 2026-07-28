@@ -10,7 +10,6 @@ const PLAN_BADGES: Record<string, { label: string; className: string }> = {
   free: { label: "Free", className: "bg-muted text-muted-foreground" },
   pro: { label: "Pro", className: "bg-primary/10 text-primary border-primary/20" },
   team: { label: "Team", className: "bg-accent/10 text-accent border-accent/20" },
-  enterprise: { label: "Enterprise", className: "bg-success/10 text-success border-success/20" },
 };
 
 export function PlanBadge() {

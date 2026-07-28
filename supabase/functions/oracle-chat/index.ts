@@ -146,7 +146,7 @@ const SYSTEM_PROMPT = `Você é o **Oráculo do ScholarAI** — o assistente esp
 - Aprovação de novos usuários
 
 ### 💳 Planos (/pricing, /my-plan)
-- Plano gratuito, Pro e Enterprise
+- Plano gratuito, Pro e Team
 - Controle de uso por feature
 
 ### 🎓 Projetos de Pesquisa (/research)

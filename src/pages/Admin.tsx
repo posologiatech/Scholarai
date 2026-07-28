@@ -587,7 +587,7 @@ const Admin = () => {
                     </div>
                     <div className="p-4 space-y-3">
                       {(() => {
-                        const planCounts: Record<string, number> = { free: 0, pro: 0, team: 0, enterprise: 0 };
+                        const planCounts: Record<string, number> = { free: 0, pro: 0, team: 0 };
                         subscriptions.forEach((s) => {
                           if (s.status === "active") planCounts[s.plan] = (planCounts[s.plan] || 0) + 1;
                         });
@@ -595,7 +595,7 @@ const Admin = () => {
                         const freeOnly = approvals.filter((a) => !usersWithSub.has(a.user_id)).length;
                         planCounts.free += freeOnly;
                         const total = Object.values(planCounts).reduce((a, b) => a + b, 0) || 1;
-                        const planColors: Record<string, string> = { free: "bg-muted-foreground", pro: "bg-primary", team: "bg-accent", enterprise: "bg-emerald-500" };
+                        const planColors: Record<string, string> = { free: "bg-muted-foreground", pro: "bg-primary", team: "bg-accent" };
                         return Object.entries(planCounts).map(([p, count]) => (
                           <div key={p} className="space-y-1">
                             <div className="flex justify-between text-sm">
