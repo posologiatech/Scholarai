@@ -1,5 +1,8 @@
 project_id = "opogckyuwexdlczfvvtb"
 
+[functions.notify-support-ticket]
+verify_jwt = false
+
 [functions.search-papers]
 verify_jwt = false
 

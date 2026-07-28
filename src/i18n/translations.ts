@@ -235,6 +235,7 @@ export const translations = {
   "nav.extraction": { pt: "Extração", en: "Extraction" },
   "nav.reports": { pt: "Relatórios", en: "Reports" },
   "nav.admin": { pt: "Admin", en: "Admin" },
+  "nav.support": { pt: "Suporte", en: "Support" },
   "nav.illustrations": { pt: "Ilustrações", en: "Illustrations" },
 
   // Illustrations

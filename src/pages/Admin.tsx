@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,9 +11,10 @@ import { Input } from "@/components/ui/input";
 import {
   Shield, Users, Trash2, Loader2, Search, FileText,
   Database, Activity, BarChart3, Settings, CheckCircle2, XCircle, Clock, UserCheck, Key, Cookie, Eye, MousePointerClick, TrendingUp,
-  CreditCard, DollarSign, Zap, PieChart, ExternalLink, Percent,
+  CreditCard, DollarSign, Zap, PieChart, ExternalLink, Percent, LifeBuoy,
 } from "lucide-react";
 import ApiKeysPanel from "@/components/app/ApiKeysPanel";
+import SupportTicketsPanel from "@/components/app/SupportTicketsPanel";
 import { toast } from "sonner";
 
 interface UserRole {
@@ -50,12 +52,27 @@ const Admin = () => {
   const { user } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [approvals, setApprovals] = useState<UserApproval[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "users" | "searches" | "apikeys" | "subscriptions" | "analytics" | "system">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "approvals" | "users" | "searches" | "apikeys" | "subscriptions" | "tickets" | "analytics" | "system">(
+    searchParams.get("tab") === "tickets" ? "tickets" : "overview"
+  );
+  const initialTicketId = searchParams.get("ticket");
+
+  const { data: openTicketsCount = 0 } = useQuery({
+    queryKey: ["admin-support-tickets"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("support_tickets").select("*").order("last_message_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    select: (data: { status: string }[]) => data.filter((t) => t.status === "open").length,
+  });
   const [analyticsEvents, setAnalyticsEvents] = useState<any[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
@@ -219,6 +236,7 @@ const Admin = () => {
     { id: "searches" as const, label: locale === "pt" ? "Pesquisas" : "Searches", icon: Search },
     { id: "apikeys" as const, label: locale === "pt" ? "API Keys" : "API Keys", icon: Key },
     { id: "subscriptions" as const, label: locale === "pt" ? "Assinaturas" : "Subscriptions", icon: CreditCard },
+    { id: "tickets" as const, label: locale === "pt" ? "Suporte" : "Support", icon: LifeBuoy, badge: openTicketsCount > 0 ? openTicketsCount : undefined },
     { id: "analytics" as const, label: "Analytics", icon: Cookie, badge: analyticsEvents.length > 0 ? analyticsEvents.length : undefined },
     { id: "system" as const, label: locale === "pt" ? "Sistema" : "System", icon: Settings },
   ];
@@ -767,6 +785,9 @@ const Admin = () => {
             </div>
           );
         })()}
+
+        {/* Support Tickets Tab */}
+        {activeTab === "tickets" && <SupportTicketsPanel initialTicketId={initialTicketId} />}
 
         {/* Analytics Tab */}
         {activeTab === "analytics" && (

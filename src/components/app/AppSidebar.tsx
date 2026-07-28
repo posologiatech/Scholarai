@@ -8,11 +8,12 @@ import {
   GraduationCap, Globe, LogOut, BookOpen, Table, FileText,
   LayoutDashboard, Shield, ShieldCheck, Palette, BrainCircuit,
   PanelLeftClose, PanelLeft, Network, Users, PenLine, BarChart3, Bell, ClipboardCheck, GitBranch,
-  ClipboardList, Activity, Rocket, FlaskConical, Award,
+  ClipboardList, Activity, Rocket, FlaskConical, Award, LifeBuoy,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { PlanBadge } from "@/components/app/UsageMeter";
+import { AdminNotificationsBell } from "@/components/app/AdminNotificationsBell";
 
 const AppSidebar = ({ children }: { children: React.ReactNode }) => {
   const { t, locale, setLocale } = useLanguage();
@@ -51,6 +52,7 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
     { label: "DataSUS / SINAN", href: "/datasus", icon: Activity },
     { label: locale === "pt" ? "Rede de Coautorias" : "Co-authorship", href: "/coauthorship", icon: Users },
     { label: locale === "pt" ? "Atualizações" : "Changelog", href: "/changelog", icon: Rocket },
+    { label: t("nav.support"), href: "/support", icon: LifeBuoy },
     ...(isAdmin ? [{ label: t("nav.admin"), href: "/admin", icon: Shield }] : []),
   ];
 
@@ -114,6 +116,7 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
             </Link>
           )}
           <div className={cn("flex gap-1", collapsed ? "flex-col items-center" : "")}>
+            <AdminNotificationsBell />
             <Button
               variant="ghost"
               size="icon"
