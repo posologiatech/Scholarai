@@ -47,6 +47,7 @@ serve(async (req) => {
       success_url: `${origin}/dashboard?checkout=success`,
       cancel_url: `${origin}/pricing?checkout=cancelled`,
       metadata: { user_id: user.id },
+      subscription_data: { metadata: { user_id: user.id } },
     });
 
     return new Response(JSON.stringify({ url: session.url }), {

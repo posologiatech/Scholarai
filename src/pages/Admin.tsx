@@ -700,6 +700,7 @@ const Admin = () => {
                       <tr className="border-b border-border text-left">
                         <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Usuário" : "User"}</th>
                         <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Plano" : "Plan"}</th>
+                        <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Status</th>
                         <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Próxima renovação" : "Next renewal"}</th>
                         <th className="px-4 py-2 text-xs font-medium text-muted-foreground">{locale === "pt" ? "Cliente desde" : "Customer since"}</th>
                         <th className="px-4 py-2 text-xs font-medium text-muted-foreground">Stripe</th>
@@ -717,6 +718,19 @@ const Admin = () => {
                               r.plan === "team" ? "bg-accent/10 text-accent-foreground" : r.plan === "pro" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
                             }`}>
                               {r.plan}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${
+                              r.status === "active"
+                                ? "bg-emerald-500/10 text-emerald-600"
+                                : r.status === "past_due" || r.status === "unpaid"
+                                ? "bg-amber-500/10 text-amber-600"
+                                : r.status === "canceled" || r.status === "incomplete_expired"
+                                ? "bg-destructive/10 text-destructive"
+                                : "bg-muted text-muted-foreground"
+                            }`}>
+                              {r.status}
                             </span>
                           </td>
                           <td className="px-4 py-2 text-xs text-muted-foreground">

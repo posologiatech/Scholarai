@@ -1,18 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { planFromProductId } from "../_shared/stripe-plans.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-// Map Stripe product IDs to plan names
-const PRODUCT_TO_PLAN: Record<string, string> = {
-  "prod_U6tEyDaPN1jKj3": "pro",
-  "prod_U6tFGYtgF4owef": "pro",
-  "prod_U6tGI9ClLU529W": "team",
-  "prod_U6tHTLdjcNy4g1": "team",
 };
 
 const logStep = (step: string, details?: any) => {
@@ -81,7 +74,7 @@ serve(async (req) => {
       stripeSubId = sub.id;
       subscriptionEnd = new Date(sub.current_period_end * 1000).toISOString();
       const productId = sub.items.data[0].price.product as string;
-      plan = PRODUCT_TO_PLAN[productId] || "pro";
+      plan = planFromProductId(productId);
       logStep("Active subscription", { plan, productId, end: subscriptionEnd });
     }
 
@@ -89,7 +82,11 @@ serve(async (req) => {
     await supabaseAdmin.from("subscriptions").upsert({
       user_id: user.id,
       plan,
-      status: plan === "free" ? "active" : "active",
+      // This function only ever queries Stripe for status:"active" subscriptions
+      // (see stripe.subscriptions.list above), so "active" is the only value it
+      // can observe here. past_due/canceled/unpaid are only ever written by the
+      // stripe-webhook function, which sees the real, unfiltered event stream.
+      status: "active",
       stripe_customer_id: customerId,
       stripe_subscription_id: stripeSubId,
       current_period_end: subscriptionEnd,
