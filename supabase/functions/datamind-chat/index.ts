@@ -9,6 +9,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Safety net for when no real dataframe exists: catches the model narrating a data table
+// or a case-count series in prose even after being instructed not to.
+function looksLikeFabricatedData(text: string): boolean {
+  const lines = text.split("\n");
+  const pipeTableRows = lines.filter((l) => /^\s*\|.*\|.*\|\s*$/.test(l)).length;
+  if (pipeTableRows >= 2) return true;
+  const yearCountRows = lines.filter((l) => /\b(19|20)\d{2}\b\D{0,15}\d{2,}/.test(l)).length;
+  if (yearCountRows >= 3) return true;
+  return false;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -24,8 +35,24 @@ serve(async (req) => {
   try {
     const { message, history, schema, file_name, provider, model, codeLanguage } = await req.json();
     const isR = codeLanguage === "r";
+    const hasData = !!(schema && String(schema).trim().length > 0);
 
-    const systemPrompt = isR ? `Você é o DataMind, assistente avançado de análise de dados. Responda SEMPRE em JSON válido: {"explanation": "...", "code": "..."}
+    const noDataSystemPrompt = `Você é o DataMind, assistente de análise de dados. Responda SEMPRE em JSON válido: {"explanation": "...", "code": null}
+
+ESTADO ATUAL: Nenhum arquivo de dados foi carregado nesta conversa. Não existe nenhum dataframe "df" disponível — nenhuma fonte de dados real (SINAN, DataSUS, IBGE ou qualquer outra) está conectada aqui.
+
+REGRA ABSOLUTA — PROIBIDO INVENTAR DADOS:
+- É TERMINANTEMENTE PROIBIDO apresentar números, tabelas, estatísticas, contagens de casos, séries temporais ou qualquer "resultado" como se fosse real ou representativo. Isso inclui dados rotulados como "simulados", "exemplo" ou "ilustrativos" — NUNCA gere esse tipo de conteúdo, mesmo com esse rótulo.
+- O campo "code" DEVE ser sempre null nesta situação.
+
+O QUE VOCÊ PODE FAZER:
+- Explicar conceitos, métodos e testes estatísticos em termos gerais, sem números específicos.
+- Pedir ao pesquisador que envie um arquivo CSV/XLSX (botão de anexo) ou que importe dados reais pela página DataSUS / "Vincular a projeto".
+- Se o pedido exigir dados reais que não estão disponíveis na conversa (ex: "analise os casos de X no Nordeste"), diga explicitamente que nenhum dado foi carregado e peça o upload do arquivo correspondente — não tente responder a pergunta com valores inventados.
+
+Responda SEMPRE em português brasileiro, de forma direta e curta (3-5 linhas).`;
+
+    const systemPrompt = !hasData ? noDataSystemPrompt : isR ? `Você é o DataMind, assistente avançado de análise de dados. Responda SEMPRE em JSON válido: {"explanation": "...", "code": "..."}
 
 REGRAS CRÍTICAS DO CÓDIGO R:
 - O dataframe JÁ está carregado na variável "df" — NUNCA use read.csv/read.xlsx
@@ -422,6 +449,15 @@ Responda SEMPRE em português brasileiro.`;
     }
 
     if (!explanation) explanation = "Análise processada.";
+
+    // Hard gate: without a real uploaded dataframe, never let code run or fabricated
+    // numbers/tables through, regardless of what the prompt was told or what the model did.
+    if (!hasData) {
+      code = null;
+      if (looksLikeFabricatedData(explanation)) {
+        explanation = "Nenhum arquivo de dados foi carregado nesta conversa, então não posso apresentar números ou resultados — eles não seriam reais. Envie um arquivo CSV/XLSX (ícone de anexo) ou importe dados reais pela página DataSUS para que eu possa analisar de verdade.";
+      }
+    }
 
     trackUsage(auth.userId, "datamind_chat").catch(e => console.error("usage tracking error:", e));
 

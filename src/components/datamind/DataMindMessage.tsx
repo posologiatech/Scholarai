@@ -1,5 +1,5 @@
 import { Message } from "@/pages/DataMind";
-import { BrainCircuit, User, Copy, Check, ChevronDown, ChevronUp, Code2 } from "lucide-react";
+import { BrainCircuit, User, Copy, Check, ChevronDown, ChevronUp, Code2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import DataMindCodeOutput from "./DataMindCodeOutput";
 import DataMindComments from "./DataMindComments";
@@ -31,10 +31,30 @@ const SimpleMarkdown = ({ content }: { content: string }) => {
   );
 };
 
+// Distinguishes results backed by real code execution from unvalidated AI prose, so
+// researchers don't mistake a narrated answer for a computed one.
+type Verification = "verified" | "failed" | "pending" | "unverified";
+
+function getVerification(message: Message): Verification {
+  if (!message.code_block) return "unverified";
+  if (!message.output_content) return "pending";
+  if (message.output_content.trim().toLowerCase().startsWith("erro")) return "failed";
+  return "verified";
+}
+
+const VERIFICATION_BADGE: Record<Verification, { icon: typeof CheckCircle2; label: string; className: string }> = {
+  verified: { icon: CheckCircle2, label: "Calculado (código executado)", className: "text-emerald-600 dark:text-emerald-400" },
+  failed: { icon: AlertTriangle, label: "Execução falhou", className: "text-destructive" },
+  pending: { icon: AlertTriangle, label: "Código gerado, não executado", className: "text-amber-600 dark:text-amber-400" },
+  unverified: { icon: AlertTriangle, label: "Resposta da IA, sem execução de código", className: "text-amber-600 dark:text-amber-400" },
+};
+
 const DataMindMessage = ({ message, conversationId, onSuggestionClick }: Props) => {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [codeExpanded, setCodeExpanded] = useState(false);
+  const verification = isUser ? null : getVerification(message);
+  const badge = verification ? VERIFICATION_BADGE[verification] : null;
 
   const copyCode = () => {
     if (message.code_block) {
@@ -86,6 +106,13 @@ const DataMindMessage = ({ message, conversationId, onSuggestionClick }: Props) 
             <SimpleMarkdown content={message.content} />
           </div>
         </div>
+
+        {badge && (
+          <div className={`mt-1.5 flex items-center gap-1.5 text-[11px] font-medium ${badge.className}`}>
+            <badge.icon className="h-3 w-3" />
+            <span>{badge.label}</span>
+          </div>
+        )}
 
         {/* Collapsible code block - Julius style */}
         {message.code_block && (

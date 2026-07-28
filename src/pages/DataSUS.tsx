@@ -159,6 +159,44 @@ export default function DataSUS() {
       .insert({ user_id: user.id, title: `DataSUS: ${msg.disease || msg.dataSource || "Análise"}` })
       .select("id").single();
     if (!conv) return;
+
+    // Bring the real underlying dataset along as an actual attached file (not just a text
+    // snippet), so DataMind loads it as a genuine `df` and runs real code against it instead
+    // of the LLM improvising numbers from a truncated stdout excerpt.
+    let fileNote = "";
+    if (msg.code && msg.isRealData) {
+      const csvMatch = msg.code.match(/REAL_DATA_CSV\s*=\s*("(?:[^"\\]|\\.)*")/);
+      const csv = csvMatch ? (() => { try { return JSON.parse(csvMatch[1]) as string; } catch { return null; } })() : null;
+      if (csv) {
+        const lines = csv.split("\n").filter((l) => l.length > 0);
+        const columns = (lines[0] || "").split(",").map((h) => h.trim().replace(/"/g, ""));
+        const dataLines = lines.slice(1);
+        const previewData = dataLines.slice(0, 5).map((line) => {
+          const vals = line.split(",").map((v) => v.trim().replace(/"/g, ""));
+          const row: Record<string, string> = {};
+          columns.forEach((h, i) => (row[h] = vals[i] || ""));
+          return row;
+        });
+        const fileName = `datasus_${(msg.disease || msg.dataSource || "dados").replace(/[^a-zA-Z0-9]+/g, "_")}.csv`;
+        const filePath = `${user.id}/${Date.now()}_${fileName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("datamind-files")
+          .upload(filePath, new Blob([csv], { type: "text/csv" }));
+        if (!uploadError) {
+          await supabase.from("datamind_files").insert([{
+            conversation_id: conv.id,
+            user_id: user.id,
+            file_name: fileName,
+            file_path: filePath,
+            file_size: csv.length,
+            schema_info: { columns, rows: dataLines.length } as any,
+            preview_data: previewData as any,
+          }]);
+          fileNote = `\n\n📎 Dataset real anexado como **${fileName}** (${dataLines.length} linhas, fonte: ${msg.dataSourceDetail || msg.dataSource || "DataSUS"}) — já carregado como \`df\` para análise real.`;
+        }
+      }
+    }
+
     const contextContent = [
       `## Contexto importado do DataSUS/SINAN`,
       msg.explanation ? `\n**Análise:** ${msg.explanation}` : "",
@@ -166,17 +204,20 @@ export default function DataSUS() {
       msg.disease ? `**Agravo:** ${msg.disease}` : "",
       msg.location ? `**Local:** ${msg.location}` : "",
       msg.period ? `**Período:** ${msg.period}` : "",
-      msg.stdout ? `\n**Dados:**\n\`\`\`\n${msg.stdout.slice(0, 2000)}\n\`\`\`` : "",
+      !fileNote && msg.stdout ? `\n**Saída da consulta original:**\n\`\`\`\n${msg.stdout.slice(0, 2000)}\n\`\`\`` : "",
+      fileNote,
     ].filter(Boolean).join("\n");
     await supabase.from("datamind_messages").insert({
       conversation_id: conv.id, role: "assistant",
-      content: contextContent, code_block: msg.code || null,
+      content: contextContent, code_block: null,
     });
     toast({
       title: isPt ? "Enviado para DataMind" : "Sent to DataMind",
-      description: isPt ? "Nova análise criada no DataMind com os dados desta consulta." : "New analysis created in DataMind with this query data.",
+      description: fileNote
+        ? (isPt ? "Dados reais anexados ao DataMind — pronto para análise real." : "Real data attached to DataMind — ready for real analysis.")
+        : (isPt ? "Nova análise criada no DataMind com os dados desta consulta." : "New analysis created in DataMind with this query data."),
     });
-    navigate(`/datamind?conversation=${conv.id}`);
+    navigate(`/datamind/${conv.id}`);
   };
 
   const handleSend = useCallback(async () => {
