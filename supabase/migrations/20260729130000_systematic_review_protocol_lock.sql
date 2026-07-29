@@ -1,11 +1,11 @@
 -- Protocol registration + a-priori lock for systematic reviews (PROSPERO-style)
 ALTER TABLE public.systematic_reviews
-  ADD COLUMN pico jsonb NOT NULL DEFAULT '{}'::jsonb,
-  ADD COLUMN search_strategy text,
-  ADD COLUMN protocol_locked_at timestamp with time zone,
-  ADD COLUMN protocol_locked_by uuid,
-  ADD COLUMN prospero_id text,
-  ADD COLUMN protocol_document text;
+  ADD COLUMN IF NOT EXISTS pico jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS search_strategy text,
+  ADD COLUMN IF NOT EXISTS protocol_locked_at timestamp with time zone,
+  ADD COLUMN IF NOT EXISTS protocol_locked_by uuid,
+  ADD COLUMN IF NOT EXISTS prospero_id text,
+  ADD COLUMN IF NOT EXISTS protocol_document text;
 
 -- Enforce the lock server-side: once a protocol is registered, the fields that
 -- define its scope can no longer change, regardless of what the client sends.
@@ -37,7 +37,7 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER enforce_protocol_lock_trigger
+CREATE OR REPLACE TRIGGER enforce_protocol_lock_trigger
 BEFORE UPDATE ON public.systematic_reviews
 FOR EACH ROW
 EXECUTE FUNCTION public.enforce_protocol_lock();

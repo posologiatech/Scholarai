@@ -1,5 +1,5 @@
 -- Reviewer/adjudicator assignment for dual blind screening on systematic reviews.
-CREATE TABLE public.systematic_review_reviewers (
+CREATE TABLE IF NOT EXISTS public.systematic_review_reviewers (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   review_id uuid NOT NULL REFERENCES public.systematic_reviews(id) ON DELETE CASCADE,
   user_id uuid NOT NULL,
@@ -12,6 +12,7 @@ CREATE TABLE public.systematic_review_reviewers (
 ALTER TABLE public.systematic_review_reviewers ENABLE ROW LEVEL SECURITY;
 
 -- Only the review owner manages the reviewer roster.
+DROP POLICY IF EXISTS "Review owners manage reviewers" ON public.systematic_review_reviewers;
 CREATE POLICY "Review owners manage reviewers"
 ON public.systematic_review_reviewers
 FOR ALL
@@ -30,6 +31,7 @@ WITH CHECK (
 
 -- An assigned reviewer can see their own assignment (role/review), but not the full roster —
 -- keeps who-is-assigned-what from leaking beyond what each reviewer needs to operate.
+DROP POLICY IF EXISTS "Reviewers can see their own assignment" ON public.systematic_review_reviewers;
 CREATE POLICY "Reviewers can see their own assignment"
 ON public.systematic_review_reviewers
 FOR SELECT
@@ -37,6 +39,7 @@ USING (auth.uid() = user_id);
 
 -- Assigned reviewers/adjudicators need read access to the review itself (question, papers,
 -- criteria) to be able to screen — previously only the owner could SELECT this row at all.
+DROP POLICY IF EXISTS "Assigned reviewers can view the review" ON public.systematic_reviews;
 CREATE POLICY "Assigned reviewers can view the review"
 ON public.systematic_reviews
 FOR SELECT

@@ -6,8 +6,9 @@
 -- helper only reads research_projects/research_project_members, never writing_documents).
 
 ALTER TABLE public.writing_documents
-  ADD COLUMN yjs_state bytea;
+  ADD COLUMN IF NOT EXISTS yjs_state bytea;
 
+DROP POLICY IF EXISTS "Project members can view shared writing documents" ON public.writing_documents;
 CREATE POLICY "Project members can view shared writing documents"
 ON public.writing_documents
 FOR SELECT
@@ -16,6 +17,7 @@ USING (
   AND public.is_research_project_member(auth.uid(), research_project_id)
 );
 
+DROP POLICY IF EXISTS "Project members can update shared writing documents" ON public.writing_documents;
 CREATE POLICY "Project members can update shared writing documents"
 ON public.writing_documents
 FOR UPDATE
@@ -29,6 +31,7 @@ WITH CHECK (
 );
 
 -- Version history follows the same sharing: members can read/snapshot, only the owner deletes.
+DROP POLICY IF EXISTS "Project members can view shared document versions" ON public.writing_document_versions;
 CREATE POLICY "Project members can view shared document versions"
 ON public.writing_document_versions
 FOR SELECT
@@ -41,6 +44,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Project members can insert shared document versions" ON public.writing_document_versions;
 CREATE POLICY "Project members can insert shared document versions"
 ON public.writing_document_versions
 FOR INSERT
