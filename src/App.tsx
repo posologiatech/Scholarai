@@ -53,6 +53,7 @@ import SurveyBuilder from "./pages/SurveyBuilder";
 import SurveyRespond from "./pages/SurveyRespond";
 import Pricing from "./pages/Pricing";
 import MyPlan from "./pages/MyPlan";
+import AccountPrivacy from "./pages/AccountPrivacy";
 import Support from "./pages/Support";
 import SupportTicketDetail from "./pages/SupportTicketDetail";
 import ParticipantPrivacy from "./pages/ParticipantPrivacy";
@@ -103,6 +104,7 @@ const App = () => (
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/participant-privacy" element={<ParticipantPrivacy />} />
               <Route path="/my-plan" element={<ProtectedRoute><MyPlan /></ProtectedRoute>} />
+              <Route path="/account/privacy" element={<ProtectedRoute><AccountPrivacy /></ProtectedRoute>} />
               <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
               <Route path="/support/:id" element={<ProtectedRoute><SupportTicketDetail /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

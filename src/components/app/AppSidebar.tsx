@@ -40,18 +40,18 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
     { label: "DataMind", href: "/datamind", icon: BrainCircuit },
     { label: "Dashboards", href: "/datamind/dashboards", icon: LayoutDashboard },
     { label: "Pipelines", href: "/datamind/pipelines", icon: GitBranch },
-    { label: locale === "pt" ? "Mapa de Conhecimento" : "Knowledge Map", href: "/knowledge-graph", icon: Network },
+    { label: t("nav.knowledgeGraph"), href: "/knowledge-graph", icon: Network },
     { label: "Workspaces", href: "/workspaces", icon: Users },
-    { label: locale === "pt" ? "Escrita Científica" : "Writing Assistant", href: "/writing", icon: PenLine },
-    { label: locale === "pt" ? "Meta-análise" : "Meta-Analysis", href: "/meta-analysis", icon: BarChart3 },
-    { label: locale === "pt" ? "Alertas" : "Alerts", href: "/alerts", icon: Bell },
-    { label: locale === "pt" ? "Qualidade (RoB)" : "Risk of Bias", href: "/risk-of-bias", icon: ClipboardCheck },
-    { label: locale === "pt" ? "Pesquisas" : "Surveys", href: "/surveys", icon: ClipboardList },
-    { label: locale === "pt" ? "Projetos de Pesquisa" : "Research Projects", href: "/research", icon: FlaskConical },
-    { label: locale === "pt" ? "Editais de Fomento" : "Funding Calls", href: "/research/funding", icon: Award },
+    { label: t("nav.writing"), href: "/writing", icon: PenLine },
+    { label: t("nav.metaAnalysis"), href: "/meta-analysis", icon: BarChart3 },
+    { label: t("nav.alerts"), href: "/alerts", icon: Bell },
+    { label: t("nav.riskOfBias"), href: "/risk-of-bias", icon: ClipboardCheck },
+    { label: t("nav.surveys"), href: "/surveys", icon: ClipboardList },
+    { label: t("nav.researchProjects"), href: "/research", icon: FlaskConical },
+    { label: t("nav.fundingCalls"), href: "/research/funding", icon: Award },
     { label: "DataSUS / SINAN", href: "/datasus", icon: Activity },
-    { label: locale === "pt" ? "Rede de Coautorias" : "Co-authorship", href: "/coauthorship", icon: Users },
-    { label: locale === "pt" ? "Atualizações" : "Changelog", href: "/changelog", icon: Rocket },
+    { label: t("nav.coauthorship"), href: "/coauthorship", icon: Users },
+    { label: t("nav.changelog"), href: "/changelog", icon: Rocket },
     { label: t("nav.support"), href: "/support", icon: LifeBuoy },
     ...(isAdmin ? [{ label: t("nav.admin"), href: "/admin", icon: Shield }] : []),
   ];
@@ -115,13 +115,22 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
               <PlanBadge />
             </Link>
           )}
+          {!collapsed && (
+            <Link
+              to="/account/privacy"
+              className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded-lg transition-colors"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              {t("nav.accountPrivacy")}
+            </Link>
+          )}
           <div className={cn("flex gap-1", collapsed ? "flex-col items-center" : "")}>
             <AdminNotificationsBell />
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleLocale}
-              aria-label="Toggle language"
+              aria-label={t("nav.toggleLanguage")}
               className="h-8 w-8"
             >
               <Globe className="h-4 w-4" />

@@ -237,6 +237,18 @@ export const translations = {
   "nav.admin": { pt: "Admin", en: "Admin" },
   "nav.support": { pt: "Suporte", en: "Support" },
   "nav.illustrations": { pt: "Ilustrações", en: "Illustrations" },
+  "nav.knowledgeGraph": { pt: "Mapa de Conhecimento", en: "Knowledge Map" },
+  "nav.writing": { pt: "Escrita Científica", en: "Writing Assistant" },
+  "nav.metaAnalysis": { pt: "Meta-análise", en: "Meta-Analysis" },
+  "nav.alerts": { pt: "Alertas", en: "Alerts" },
+  "nav.riskOfBias": { pt: "Qualidade (RoB)", en: "Risk of Bias" },
+  "nav.surveys": { pt: "Pesquisas", en: "Surveys" },
+  "nav.researchProjects": { pt: "Projetos de Pesquisa", en: "Research Projects" },
+  "nav.fundingCalls": { pt: "Editais de Fomento", en: "Funding Calls" },
+  "nav.coauthorship": { pt: "Rede de Coautorias", en: "Co-authorship" },
+  "nav.changelog": { pt: "Atualizações", en: "Changelog" },
+  "nav.accountPrivacy": { pt: "Privacidade e meus dados", en: "Privacy and my data" },
+  "nav.toggleLanguage": { pt: "Alternar idioma", en: "Toggle language" },
 
   // Illustrations
   "illustrations.title": { pt: "Gerador de Ilustrações Científicas", en: "Scientific Illustration Generator" },

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Link2, Unlink, ArrowDownToLine, ArrowUpFromLine, Loader2 } from "lucide-react";
+import { RefreshCw, Link2, Unlink, ArrowDownToLine, ArrowUpFromLine, Loader2, FileDown, FileUp } from "lucide-react";
+import { papersToRIS, parseRIS, type RisPaper } from "@/lib/ris";
 
 interface Connection {
   id: string;
@@ -36,6 +37,9 @@ export default function ReferenceManagerSync() {
   const [newApiKey, setNewApiKey] = useState("");
   const [newLibraryId, setNewLibraryId] = useState("");
   const [adding, setAdding] = useState(false);
+  const [exportingEndNote, setExportingEndNote] = useState(false);
+  const [importingEndNote, setImportingEndNote] = useState(false);
+  const endNoteFileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) fetchConnections();
@@ -102,6 +106,85 @@ export default function ReferenceManagerSync() {
       toast.error(err.message || "Sync failed");
     } finally {
       setSyncing(null);
+    }
+  };
+
+  // EndNote has no free public sync API — Zotero/Mendeley's model doesn't
+  // apply, so we exchange the RIS files EndNote itself reads/writes.
+  const exportEndNote = async () => {
+    if (!user) return;
+    setExportingEndNote(true);
+    try {
+      const { data: searches, error } = await supabase
+        .from("saved_searches")
+        .select("papers")
+        .eq("user_id", user.id)
+        .not("query", "like", "zotero-sync-%")
+        .not("query", "like", "mendeley-sync-%")
+        .not("query", "like", "endnote-import-%");
+      if (error) throw error;
+
+      const allPapers: RisPaper[] = [];
+      for (const s of searches || []) {
+        if (Array.isArray(s.papers)) allPapers.push(...(s.papers as RisPaper[]));
+      }
+      const seen = new Set<string>();
+      const unique = allPapers.filter((p) => {
+        const key = p.doi || p.title?.toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      if (unique.length === 0) {
+        toast.error(pt ? "Nenhuma referência para exportar" : "No references to export");
+        return;
+      }
+
+      const ris = papersToRIS(unique);
+      const blob = new Blob([ris], { type: "application/x-research-info-systems" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "scholar-ai-library.ris";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(pt ? `${unique.length} referências exportadas` : `${unique.length} references exported`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : (pt ? "Erro ao exportar" : "Export error"));
+    } finally {
+      setExportingEndNote(false);
+    }
+  };
+
+  const importEndNoteFile = async (file: File) => {
+    if (!user) return;
+    setImportingEndNote(true);
+    try {
+      const text = await file.text();
+      const papers = parseRIS(text);
+      if (papers.length === 0) {
+        toast.error(pt ? "Nenhuma referência encontrada no arquivo" : "No references found in file");
+        return;
+      }
+      const { error } = await supabase.from("saved_searches").insert({
+        user_id: user.id,
+        query: `endnote-import-${Date.now()}`,
+        papers,
+        columns: [],
+        column_data: {},
+      } as any);
+      if (error) throw error;
+      toast.success(
+        pt
+          ? `${papers.length} referências importadas do EndNote`
+          : `${papers.length} references imported from EndNote`
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : (pt ? "Erro ao importar" : "Import error"));
+    } finally {
+      setImportingEndNote(false);
+      if (endNoteFileInput.current) endNoteFileInput.current.value = "";
     }
   };
 
@@ -243,6 +326,39 @@ export default function ReferenceManagerSync() {
           ))}
         </div>
       )}
+
+      <div className="pt-2 border-t border-border/60">
+        <h3 className="text-sm font-semibold text-foreground mb-1">EndNote</h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          {pt
+            ? "EndNote não tem uma API pública gratuita para sincronização em tempo real; troque referências pelo formato RIS, que o EndNote lê e grava nativamente (Arquivo → Importar / Exportar)."
+            : "EndNote has no free public API for live sync; exchange references via RIS, the format EndNote natively reads and writes (File → Import / Export)."}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={exportEndNote} disabled={exportingEndNote}>
+            {exportingEndNote ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileDown className="h-4 w-4 mr-1" />}
+            {pt ? "Exportar .ris" : "Export .ris"}
+          </Button>
+          <Button
+            variant="outline" size="sm"
+            onClick={() => endNoteFileInput.current?.click()}
+            disabled={importingEndNote}
+          >
+            {importingEndNote ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileUp className="h-4 w-4 mr-1" />}
+            {pt ? "Importar .ris" : "Import .ris"}
+          </Button>
+          <input
+            ref={endNoteFileInput}
+            type="file"
+            accept=".ris,.txt"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) importEndNoteFile(file);
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
