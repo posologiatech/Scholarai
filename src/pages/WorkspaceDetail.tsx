@@ -20,10 +20,11 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft, Users, Plus, Loader2, Crown, MessageSquare, History,
-  Send, Trash2, UserPlus, Settings, Sparkles, X, Check,
+  Send, Trash2, UserPlus, Settings, Sparkles, X, Check, ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TasksBoard } from "@/components/research/TasksBoard";
 
 interface Workspace {
   id: string;
@@ -438,6 +439,10 @@ const WorkspaceDetail = () => {
               {annotations.length}
             </Badge>
           </TabsTrigger>
+          <TabsTrigger value="tasks" className="gap-1.5">
+            <ListChecks className="h-3.5 w-3.5" />
+            {pt ? "Tarefas" : "Tasks"}
+          </TabsTrigger>
           <TabsTrigger value="activity" className="gap-1.5">
             <History className="h-3.5 w-3.5" />
             {pt ? "Atividade" : "Activity"}
@@ -780,6 +785,11 @@ const WorkspaceDetail = () => {
               </div>
             )}
           </div>
+        </TabsContent>
+
+        {/* Tasks Tab */}
+        <TabsContent value="tasks">
+          {id && <TasksBoard workspaceId={id} />}
         </TabsContent>
 
         {/* Activity Tab */}

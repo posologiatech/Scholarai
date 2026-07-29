@@ -12,11 +12,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TASK_STATUS_LABEL, type ResearchTaskStatus } from "@/lib/research/types";
-import { Plus, Trash2, Mic, Calendar, Flag, CheckSquare, GripVertical, ListChecks, User, X } from "lucide-react";
+import { Plus, Trash2, Mic, Calendar, Flag, CheckSquare, GripVertical, ListChecks, User, X, GanttChartSquare } from "lucide-react";
 import { RichEditor } from "./RichEditor";
 import { RichText } from "./RichText";
 import { CommentThread } from "./CommentThread";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 
 const STATUSES: ResearchTaskStatus[] = ["backlog", "doing", "review", "done"];
 
@@ -36,7 +37,14 @@ const COLUMN_ACCENT: Record<ResearchTaskStatus, string> = {
 
 type ChecklistItem = { id: string; text: string; done: boolean };
 
-export const TasksBoard = ({ projectId }: { projectId: string }) => {
+type BoardProps = { projectId: string; workspaceId?: never } | { workspaceId: string; projectId?: never };
+
+export const TasksBoard = (props: BoardProps) => {
+  const parent = props.projectId
+    ? { col: "project_id" as const, id: props.projectId, kind: "project" as const }
+    : { col: "workspace_id" as const, id: props.workspaceId as string, kind: "workspace" as const };
+  const projectId = parent.kind === "project" ? parent.id : null;
+
   const { locale } = useLanguage();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -46,21 +54,26 @@ export const TasksBoard = ({ projectId }: { projectId: string }) => {
   const [dragId, setDragId] = useState<string | null>(null);
 
   const { data: tasks = [] } = useQuery({
-    queryKey: ["research-tasks", projectId],
+    queryKey: ["research-tasks", parent.kind, parent.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("research_tasks")
+      const { data, error } = await (supabase.from("research_tasks") as any)
         .select("*, source_meeting:research_meetings!source_meeting_id(id,title,scheduled_at)")
-        .eq("project_id", projectId).order("position");
+        .eq(parent.col, parent.id).order("position");
       if (error) throw error;
       return data ?? [];
     },
   });
 
   const { data: members = [] } = useQuery({
-    queryKey: ["research-members-min", projectId],
+    queryKey: ["research-members-min", parent.kind, parent.id],
     queryFn: async () => {
-      const { data } = await supabase.from("research_project_members")
-        .select("id, full_name, invited_email").eq("project_id", projectId);
+      if (parent.kind === "project") {
+        const { data } = await supabase.from("research_project_members")
+          .select("id, full_name, invited_email").eq("project_id", parent.id);
+        return data ?? [];
+      }
+      const { data } = await supabase.from("workspace_members")
+        .select("id, email").eq("workspace_id", parent.id);
       return data ?? [];
     },
   });
@@ -68,7 +81,7 @@ export const TasksBoard = ({ projectId }: { projectId: string }) => {
   const memberLabel = (mid: string | null) => {
     if (!mid) return null;
     const m: any = members.find((x: any) => x.id === mid);
-    return m ? (m.full_name || m.invited_email || "—") : null;
+    return m ? (m.full_name || m.invited_email || m.email || "—") : null;
   };
 
   const grouped = useMemo(() => {
@@ -77,12 +90,12 @@ export const TasksBoard = ({ projectId }: { projectId: string }) => {
     return cols;
   }, [tasks]);
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["research-tasks", projectId] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["research-tasks", parent.kind, parent.id] });
 
   const add = async () => {
     if (!form.title) return;
-    await supabase.from("research_tasks").insert({
-      project_id: projectId, created_by: user!.id,
+    await (supabase.from("research_tasks") as any).insert({
+      [parent.col]: parent.id, created_by: user!.id,
       title: form.title, description: form.description || null,
       priority: form.priority as any, due_date: form.due_date || null, status: "backlog",
     });
@@ -195,14 +208,14 @@ export const TasksBoard = ({ projectId }: { projectId: string }) => {
       </div>
 
       <TaskDetailDialog
-        task={selected} projectId={projectId} members={members} memberLabel={memberLabel}
+        task={selected} projectId={projectId} parentKind={parent.kind} members={members} memberLabel={memberLabel}
         onClose={() => setSelected(null)} onUpdate={updateTask} onMove={moveTask} onRemove={remove} locale={locale}
       />
     </div>
   );
 };
 
-const TaskDetailDialog = ({ task, projectId, members, memberLabel, onClose, onUpdate, onMove, onRemove, locale }: any) => {
+const TaskDetailDialog = ({ task, projectId, parentKind, members, memberLabel, onClose, onUpdate, onMove, onRemove, locale }: any) => {
   const [newCheck, setNewCheck] = useState("");
   if (!task) return null;
   const checklist: ChecklistItem[] = Array.isArray(task.checklist) ? task.checklist : [];
@@ -224,6 +237,13 @@ const TaskDetailDialog = ({ task, projectId, members, memberLabel, onClose, onUp
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Badge className={`text-[10px] border-0 ${pm.color}`}><Flag className="h-2.5 w-2.5" />{locale === "pt" ? pm.label_pt : pm.label_en}</Badge>
             {task.source_meeting && <Badge variant="outline" className="text-[10px] gap-1"><Mic className="h-2.5 w-2.5" />{task.source_meeting.title}</Badge>}
+            {task.schedule_item_id && projectId && (
+              <Link to={`/research/${projectId}?tab=schedule`}>
+                <Badge variant="outline" className="text-[10px] gap-1 hover:bg-accent cursor-pointer">
+                  <GanttChartSquare className="h-2.5 w-2.5" />{locale === "pt" ? "Ver no Gantt" : "View in Gantt"}
+                </Badge>
+              </Link>
+            )}
           </div>
           <Input
             defaultValue={task.title}
@@ -297,10 +317,12 @@ const TaskDetailDialog = ({ task, projectId, members, memberLabel, onClose, onUp
             </div>
           </div>
 
-          <div>
-            <Label className="text-sm font-semibold mb-2 block">{locale === "pt" ? "Comentários" : "Comments"}</Label>
-            <CommentThread projectId={projectId} entityType="task" entityId={task.id} />
-          </div>
+          {parentKind === "project" && (
+            <div>
+              <Label className="text-sm font-semibold mb-2 block">{locale === "pt" ? "Comentários" : "Comments"}</Label>
+              <CommentThread projectId={projectId} entityType="task" entityId={task.id} />
+            </div>
+          )}
         </div>
 
         <DialogFooter className="px-6 py-4 border-t">
