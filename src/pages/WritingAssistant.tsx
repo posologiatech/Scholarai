@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import CAPESAdvisorPanel from "@/components/app/CAPESAdvisorPanel";
 import { supabase } from "@/integrations/supabase/client";
 
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,12 +20,20 @@ import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
   FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
   Upload, File, X, GraduationCap, Eye, MessageSquareWarning, Sigma, Star,
-  AlertTriangle, Save, FolderOpen, Clock, Search, FilePlus2, Shield,
+  AlertTriangle, Save, FolderOpen, Clock, Search, FilePlus2, Shield, Users,
 } from "lucide-react";
 import AIDeclarationDialog, { type AIUsageEntry } from "@/components/app/AIDeclarationDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { WritingDocumentVersionsDialog } from "@/components/app/WritingDocumentVersionsDialog";
+import { RichTextEditor, type RichTextEditorHandle } from "@/components/app/writing/RichTextEditor";
+import { stripHtml, isContentEmpty } from "@/lib/writing/richText";
+import { acceptSuggestion, rejectSuggestion, type SuggestionInfo } from "@/lib/writing/suggestionMarks";
+import * as Y from "yjs";
+import type { SupabaseYjsProvider } from "@/lib/collab/supabaseYjsProvider";
+import { bytesToPgHex, pgHexToBytes } from "@/lib/collab/yjsPersistence";
+import { colorFromId } from "@/lib/collab/presenceColor";
 import { promoteWritingToPublication } from "@/lib/research/integrations";
 interface Paper {
   id: string;
@@ -66,6 +74,8 @@ interface WritingDocument {
   citation_style: string | null;
   updated_at: string;
   created_at: string;
+  research_project_id?: string | null;
+  yjs_state?: string | null;
 }
 
 const SECTIONS = [
@@ -81,6 +91,7 @@ const WritingAssistant = () => {
   const { locale } = useLanguage();
   const { user } = useAuth();
   const pt = locale === "pt";
+  const [searchParams] = useSearchParams();
 
   const [editorContent, setEditorContent] = useState("");
   const [aiOutput, setAiOutput] = useState("");
@@ -110,7 +121,7 @@ const WritingAssistant = () => {
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const [copied, setCopied] = useState(false);
-  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<RichTextEditorHandle>(null);
   const [activeRightPanel, setActiveRightPanel] = useState<"ai" | "capes">("ai");
 
   // Documents state
@@ -122,6 +133,30 @@ const WritingAssistant = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSnapshotAtRef = useRef<number>(0);
+  const lastSnapshotContentRef = useRef<string>("");
+
+  // Real-time co-editing: only active once a document is saved and linked to a project.
+  const [researchProjectId, setResearchProjectId] = useState<string | null>(null);
+  const [yjsStateHex, setYjsStateHex] = useState<string | null>(null);
+  const [collabPeers, setCollabPeers] = useState<{ clientId: number; name: string; color: string }[]>([]);
+  const ydocRef = useRef<Y.Doc | null>(null);
+  const yProviderRef = useRef<SupabaseYjsProvider | null>(null);
+
+  // Track-changes: AI-inserted text starts as a pending suggestion until accepted/rejected.
+  const [suggestions, setSuggestions] = useState<SuggestionInfo[]>([]);
+  const acceptOneSuggestion = (id: string) => {
+    const editor = editorRef.current?.getEditor();
+    if (!editor) return;
+    acceptSuggestion(editor, id);
+    setSuggestions((prev) => prev.filter((s) => s.suggestionId !== id));
+  };
+  const rejectOneSuggestion = (id: string) => {
+    const editor = editorRef.current?.getEditor();
+    if (!editor) return;
+    rejectSuggestion(editor, id);
+    setSuggestions((prev) => prev.filter((s) => s.suggestionId !== id));
+  };
 
   // AI usage tracking
   const [aiUsageLog, setAiUsageLog] = useState<AIUsageEntry[]>([]);
@@ -393,7 +428,7 @@ const WritingAssistant = () => {
     setLoadingDocs(true);
     const { data } = await supabase
       .from("writing_documents")
-      .select("id, title, content, section, citation_style, updated_at, created_at")
+      .select("id, title, content, section, citation_style, updated_at, created_at, research_project_id, yjs_state")
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false });
     setSavedDocuments((data || []) as WritingDocument[]);
@@ -402,21 +437,46 @@ const WritingAssistant = () => {
 
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
 
+  // Auto-snapshot on save, throttled to avoid flooding the history with every 30s autosave —
+  // only writes a new version if the content actually changed and 5+ minutes have passed
+  // since the last automatic snapshot. Manual "named version" snapshots (in the History
+  // dialog) bypass this throttle entirely.
+  const maybeSnapshotVersion = useCallback(async (documentId: string, content: string) => {
+    if (!content.trim()) return;
+    const now = Date.now();
+    if (content === lastSnapshotContentRef.current) return;
+    if (now - lastSnapshotAtRef.current < 5 * 60 * 1000) return;
+    const { error } = await supabase.from("writing_document_versions").insert({
+      document_id: documentId,
+      author_id: user?.id,
+      content,
+    });
+    if (!error) {
+      lastSnapshotAtRef.current = now;
+      lastSnapshotContentRef.current = content;
+    }
+  }, [user?.id]);
+
   const saveDocument = useCallback(async () => {
-    if (!user || !editorContent.trim()) return;
+    if (!user || isContentEmpty(editorContent)) return;
     setIsSaving(true);
     const title = docTitle.trim() || (pt ? "Sem título" : "Untitled");
     try {
       if (currentDocId) {
+        const payload: Record<string, unknown> = {
+          title,
+          content: editorContent,
+          section: selectedSection,
+          citation_style: citationStyle,
+        };
+        if (ydocRef.current) {
+          payload.yjs_state = bytesToPgHex(Y.encodeStateAsUpdate(ydocRef.current));
+        }
         await supabase
           .from("writing_documents")
-          .update({
-            title,
-            content: editorContent,
-            section: selectedSection,
-            citation_style: citationStyle,
-          })
+          .update(payload)
           .eq("id", currentDocId);
+        maybeSnapshotVersion(currentDocId, editorContent);
       } else {
         const { data } = await supabase
           .from("writing_documents")
@@ -438,7 +498,7 @@ const WritingAssistant = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [user, editorContent, docTitle, currentDocId, selectedSection, citationStyle, pt, loadDocuments]);
+  }, [user, editorContent, docTitle, currentDocId, selectedSection, citationStyle, pt, loadDocuments, maybeSnapshotVersion]);
 
   const loadDocument = useCallback((doc: WritingDocument) => {
     setCurrentDocId(doc.id);
@@ -446,10 +506,38 @@ const WritingAssistant = () => {
     setEditorContent(doc.content);
     if (doc.section) setSelectedSection(doc.section);
     if (doc.citation_style) setCitationStyle(doc.citation_style);
+    setResearchProjectId(doc.research_project_id || null);
+    setYjsStateHex(doc.yjs_state || null);
+    setCollabPeers([]);
+    setSuggestions([]);
+    ydocRef.current = null;
+    yProviderRef.current = null;
     setShowDocManager(false);
     setAiOutput("");
+    lastSnapshotAtRef.current = 0;
+    lastSnapshotContentRef.current = doc.content;
     toast.success(pt ? `"${doc.title}" aberto` : `"${doc.title}" opened`);
   }, [pt]);
+
+  const loadDocumentById = useCallback(async (id: string) => {
+    const { data, error } = await supabase
+      .from("writing_documents")
+      .select("id, title, content, section, citation_style, updated_at, created_at, research_project_id, yjs_state")
+      .eq("id", id)
+      .maybeSingle();
+    if (error || !data) {
+      toast.error(pt ? "Documento não encontrado ou sem acesso" : "Document not found or no access");
+      return;
+    }
+    loadDocument(data as WritingDocument);
+  }, [pt, loadDocument]);
+
+  useEffect(() => {
+    const docId = searchParams.get("docId");
+    if (docId) loadDocumentById(docId);
+    // Only react to the URL param actually changing, not to loadDocumentById's identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const newDocument = useCallback(() => {
     setCurrentDocId(null);
@@ -458,6 +546,14 @@ const WritingAssistant = () => {
     setAiOutput("");
     setSelectedSection("introduction");
     setAiUsageLog([]);
+    setResearchProjectId(null);
+    setYjsStateHex(null);
+    setCollabPeers([]);
+    setSuggestions([]);
+    ydocRef.current = null;
+    yProviderRef.current = null;
+    lastSnapshotAtRef.current = 0;
+    lastSnapshotContentRef.current = "";
     toast.info(pt ? "Novo documento criado" : "New document created");
   }, [pt]);
 
@@ -470,7 +566,7 @@ const WritingAssistant = () => {
 
   // Auto-save every 30s when content changes and a document is active
   useEffect(() => {
-    if (!currentDocId || !editorContent.trim()) return;
+    if (!currentDocId || isContentEmpty(editorContent)) return;
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
       saveDocument();
@@ -504,7 +600,7 @@ const WritingAssistant = () => {
     try {
       const body = {
         action,
-        content: extraContent || editorContent,
+        content: extraContent || stripHtml(editorContent),
         papers: selectedPapers.map(p => ({
           title: p.title,
           authors: Array.isArray(p.authors) ? p.authors : [],
@@ -609,26 +705,28 @@ const WritingAssistant = () => {
           : `⚠️ ${validation.invalidIds.length} suspicious citation(s) detected and marked with [?]. Please verify before submitting.`,
         { duration: 6000 }
       );
-      setEditorContent(prev => prev + (prev ? "\n\n" : "") + cleaned);
+      editorRef.current?.insertSuggestion(cleaned);
+      toast.info(pt ? "Inserido como sugestão pendente — revise e aceite/rejeite" : "Inserted as a pending suggestion — review and accept/reject");
     } else {
-      setEditorContent(prev => prev + (prev ? "\n\n" : "") + aiOutput);
-      toast.success(pt ? "Texto inserido no editor" : "Text inserted in editor");
+      editorRef.current?.insertSuggestion(aiOutput);
+      toast.success(pt ? "Texto inserido como sugestão pendente" : "Text inserted as a pending suggestion");
     }
   };
 
-  // Quality metrics calculation
+  // Quality metrics calculation (operates on plain text — editorContent is HTML)
   const qualityMetrics = useCallback(() => {
-    if (!editorContent.trim()) return null;
-    const words = editorContent.split(/\s+/).filter(Boolean);
+    const text = stripHtml(editorContent);
+    if (!text) return null;
+    const words = text.split(/\s+/).filter(Boolean);
     const wordCount = words.length;
-    const citations = (editorContent.match(/\[\d+\]/g) || []).length;
-    const sentences = editorContent.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
+    const citations = (text.match(/\[\d+\]/g) || []).length;
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
     const citationRatio = sentences > 0 ? (citations / sentences * 100).toFixed(0) : "0";
 
     const hedgingWords = ["suggests", "indicates", "appears", "may", "might", "could", "possibly", "likely",
       "sugere", "indica", "parece", "pode", "possivelmente", "provavelmente"];
     const hedgingCount = hedgingWords.reduce((acc, w) =>
-      acc + (editorContent.toLowerCase().match(new RegExp(`\\b${w}\\b`, "g")) || []).length, 0
+      acc + (text.toLowerCase().match(new RegExp(`\\b${w}\\b`, "g")) || []).length, 0
     );
     const hedgingPer1000 = wordCount > 0 ? (hedgingCount / wordCount * 1000).toFixed(1) : "0";
 
@@ -989,7 +1087,7 @@ const WritingAssistant = () => {
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || !editorContent.trim()}
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
                     onClick={() => streamAI("continue_writing")}>
                     <ArrowRight className="h-3 w-3" />
                     {pt ? "Continuar" : "Continue"}
@@ -1009,7 +1107,7 @@ const WritingAssistant = () => {
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || !editorContent.trim()}
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
                     onClick={() => streamAI("generate_abstract")}>
                     <Sigma className="h-3 w-3" />
                     Abstract
@@ -1019,7 +1117,7 @@ const WritingAssistant = () => {
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || !editorContent.trim()}
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
                     onClick={() => streamAI("generate_highlights")}>
                     <Star className="h-3 w-3" />
                     Highlights
@@ -1038,7 +1136,7 @@ const WritingAssistant = () => {
               </span>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || !editorContent.trim()}
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
                     onClick={() => streamAI("rephrase")}>
                     <RefreshCw className="h-3 w-3" />
                     {pt ? "Reformular" : "Rephrase"}
@@ -1048,7 +1146,7 @@ const WritingAssistant = () => {
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || !editorContent.trim()}
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
                     onClick={() => streamAI("check_consistency")}>
                     <ShieldCheck className="h-3 w-3" />
                     {pt ? "Verificar" : "Check"}
@@ -1058,7 +1156,7 @@ const WritingAssistant = () => {
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || !editorContent.trim()}
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
                     onClick={() => streamAI("peer_review")}>
                     <MessageSquareWarning className="h-3 w-3" />
                     Peer Review
@@ -1068,7 +1166,7 @@ const WritingAssistant = () => {
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || !editorContent.trim()}
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
                     onClick={() => streamAI("improve_hedging")}>
                     <Eye className="h-3 w-3" />
                     Hedging
@@ -1136,7 +1234,7 @@ const WritingAssistant = () => {
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isSaving || !editorContent.trim()} onClick={saveDocument}>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isSaving || isContentEmpty(editorContent)} onClick={saveDocument}>
                     {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                     {pt ? "Salvar" : "Save"}
                   </Button>
@@ -1148,15 +1246,49 @@ const WritingAssistant = () => {
                   resourceType="writing"
                   resourceId={currentDocId}
                   label={docTitle || (pt ? "Documento sem título" : "Untitled document")}
+                  url={`/writing?docId=${currentDocId}`}
                   attachTable="writing_documents"
                   variant="ghost"
                   metadata={{ section: selectedSection }}
                   onLinked={async (projectId) => {
+                    setResearchProjectId(projectId);
                     try {
                       await promoteWritingToPublication(projectId, docTitle || (pt ? "Manuscrito" : "Manuscript"));
-                      toast.success(pt ? "Documento vinculado e registrado em Publicações" : "Document linked and registered in Publications");
+                      toast.success(pt ? "Documento vinculado e registrado em Publicações — colaboradores do projeto já podem co-editar em tempo real" : "Document linked and registered in Publications — project collaborators can now co-edit in real time");
                     } catch { /* non-blocking */ }
                   }}
+                />
+              )}
+              {collabPeers.length > 0 && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 h-7 px-2 rounded-md bg-primary/5 text-xs text-primary">
+                        <Users className="h-3 w-3" />
+                        <div className="flex -space-x-1.5">
+                          {collabPeers.slice(0, 4).map((p) => (
+                            <span
+                              key={p.clientId}
+                              className="h-4 w-4 rounded-full border border-background flex items-center justify-center text-[8px] font-semibold text-white"
+                              style={{ backgroundColor: p.color }}
+                            >
+                              {p.name.charAt(0).toUpperCase()}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">{collabPeers.map((p) => p.name).join(", ")}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {currentDocId && (
+                <WritingDocumentVersionsDialog
+                  documentId={currentDocId}
+                  currentContent={editorContent}
+                  onRestore={(text) => setEditorContent(text)}
                 />
               )}
               <Dialog open={showDocManager} onOpenChange={setShowDocManager}>
@@ -1339,26 +1471,115 @@ const WritingAssistant = () => {
                 </span>
               )}
             </div>
-            <Textarea
-              ref={editorRef}
-              value={editorContent}
-              onChange={e => setEditorContent(e.target.value)}
-              placeholder={pt
-                ? "Comece a escrever seu artigo aqui ou use os botões acima para gerar conteúdo com IA..."
-                : "Start writing your paper here or use the buttons above to generate content with AI..."}
-              className="flex-1 resize-none border-0 rounded-none focus-visible:ring-0 text-sm leading-[1.9] p-6 font-serif shadow-inner shadow-muted/20"
+            <div
+              className="flex-1 overflow-y-auto shadow-inner shadow-muted/20"
               style={{
                 backgroundImage: 'repeating-linear-gradient(transparent, transparent 31px, hsl(var(--border) / 0.15) 31px, hsl(var(--border) / 0.15) 32px)',
                 backgroundSize: '100% 32px',
                 backgroundPositionY: '23px',
               }}
-            />
+            >
+              <RichTextEditor
+                key={currentDocId || "new"}
+                ref={editorRef}
+                value={editorContent}
+                onChange={setEditorContent}
+                placeholder={pt
+                  ? "Comece a escrever seu artigo aqui ou use os botões acima para gerar conteúdo com IA..."
+                  : "Start writing your paper here or use the buttons above to generate content with AI..."}
+                className="writing-editor-prose"
+                collaboration={
+                  currentDocId && researchProjectId && user
+                    ? {
+                        supabase,
+                        documentId: currentDocId,
+                        user: {
+                          name: (user.user_metadata?.full_name as string) || user.email?.split("@")[0] || (pt ? "Anônimo" : "Anonymous"),
+                          color: colorFromId(user.id),
+                        },
+                        initialYjsState: pgHexToBytes(yjsStateHex),
+                        onReady: ({ ydoc, provider }) => {
+                          ydocRef.current = ydoc;
+                          yProviderRef.current = provider;
+                          const updatePeers = () => {
+                            const states = Array.from(provider.awareness.getStates().entries()) as [number, Record<string, Record<string, string>>][];
+                            setCollabPeers(
+                              states
+                                .filter(([clientId]) => clientId !== ydoc.clientID)
+                                .map(([clientId, state]) => ({
+                                  clientId,
+                                  name: state?.user?.name || "?",
+                                  color: state?.user?.color || "#888",
+                                })),
+                            );
+                          };
+                          provider.awareness.on("change", updatePeers);
+                          updatePeers();
+                        },
+                      }
+                    : undefined
+                }
+                onSuggestionsChange={setSuggestions}
+              />
+            </div>
+            {/* Pending AI suggestions (track changes) */}
+            {suggestions.length > 0 && (
+              <div className="border-t border-border/20 bg-primary/5">
+                <div className="flex items-center justify-between px-4 py-1.5">
+                  <span className="text-[11px] font-medium text-primary flex items-center gap-1.5">
+                    <MessageSquareWarning className="h-3 w-3" />
+                    {suggestions.length} {pt ? "sugestão(ões) pendente(s)" : "pending suggestion(s)"}
+                  </span>
+                  <div className="flex gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[11px] px-2 gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                      onClick={() => suggestions.forEach((s) => acceptOneSuggestion(s.suggestionId))}
+                    >
+                      <Check className="h-3 w-3" />{pt ? "Aceitar todas" : "Accept all"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[11px] px-2 gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => suggestions.forEach((s) => rejectOneSuggestion(s.suggestionId))}
+                    >
+                      <X className="h-3 w-3" />{pt ? "Rejeitar todas" : "Reject all"}
+                    </Button>
+                  </div>
+                </div>
+                <ScrollArea className="max-h-24">
+                  <div className="px-4 pb-2 space-y-1">
+                    {suggestions.map((s) => (
+                      <div key={s.suggestionId} className="flex items-center gap-2 rounded-md bg-background/60 border border-border/40 px-2 py-1">
+                        <span className="flex-1 truncate text-xs text-foreground/80">{s.text || "…"}</span>
+                        <button
+                          className="text-emerald-600 hover:text-emerald-700"
+                          title={pt ? "Aceitar" : "Accept"}
+                          onClick={() => acceptOneSuggestion(s.suggestionId)}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          className="text-destructive hover:text-destructive/80"
+                          title={pt ? "Rejeitar" : "Reject"}
+                          onClick={() => rejectOneSuggestion(s.suggestionId)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
             {/* Quality metrics footer */}
             {(() => {
               const metrics = qualityMetrics();
               return (
                 <div className="px-4 py-2 border-t border-border/20 bg-gradient-to-r from-muted/15 via-muted/25 to-muted/15 flex items-center gap-3 text-[11px]">
-                  <span className="text-muted-foreground font-medium">{editorContent.split(/\s+/).filter(Boolean).length} {pt ? "palavras" : "words"}</span>
+                  <span className="text-muted-foreground font-medium">{stripHtml(editorContent).split(/\s+/).filter(Boolean).length} {pt ? "palavras" : "words"}</span>
                   {metrics && (
                     <>
                       <div className="h-3 w-px bg-border/40" />
@@ -1400,7 +1621,7 @@ const WritingAssistant = () => {
                       </TooltipProvider>
                     </>
                   )}
-                  <span className="ml-auto text-muted-foreground/50">{editorContent.length} {pt ? "caracteres" : "characters"}</span>
+                  <span className="ml-auto text-muted-foreground/50">{stripHtml(editorContent).length} {pt ? "caracteres" : "characters"}</span>
                 </div>
               );
             })()}
@@ -1466,15 +1687,15 @@ const WritingAssistant = () => {
               </>
             ) : (
               <CAPESAdvisorPanel
-                editorContent={editorContent}
+                editorContent={stripHtml(editorContent)}
                 onFormatArticle={(publisher) => {
                   setActiveRightPanel("ai");
-                  streamAI("format_for_journal", `${editorContent}\n\n---\nFormat this article according to ${publisher} submission guidelines. Publisher: ${publisher}`);
+                  streamAI("format_for_journal", `${stripHtml(editorContent)}\n\n---\nFormat this article according to ${publisher} submission guidelines. Publisher: ${publisher}`);
                 }}
                 onClose={() => setActiveRightPanel("ai")}
                 onInsertFormatted={(text) => {
-                  setEditorContent(prev => prev + (prev ? "\n\n" : "") + text);
-                  toast.success(pt ? "Texto formatado inserido" : "Formatted text inserted");
+                  editorRef.current?.insertSuggestion(text);
+                  toast.success(pt ? "Texto formatado inserido como sugestão pendente" : "Formatted text inserted as a pending suggestion");
                 }}
               />
             )}

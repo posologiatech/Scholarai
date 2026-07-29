@@ -194,6 +194,45 @@
   overflow: hidden;
 }
 
+/* Scientific Writing editor (Tiptap) */
+.writing-editor-prose {
+  outline: none;
+  min-height: 100%;
+  padding: 1.5rem;
+  font-family: ui-serif, Georgia, "Times New Roman", serif;
+  font-size: 0.875rem;
+  line-height: 1.9;
+}
+
+.writing-editor-prose p {
+  margin: 0 0 0.75em 0;
+}
+
+.writing-editor-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: hsl(var(--muted-foreground));
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.writing-editor-prose ins.suggestion-insertion {
+  background-color: hsl(var(--primary) / 0.15);
+  color: hsl(var(--primary));
+  text-decoration: none;
+  border-bottom: 2px solid hsl(var(--primary) / 0.4);
+}
+
+.writing-editor-prose del.suggestion-deletion {
+  background-color: hsl(var(--destructive) / 0.15);
+  color: hsl(var(--destructive));
+}
+
+.collaboration-caret-label {
+  user-select: none;
+}
+
 .fill-grid {
   block-size: 100%;
   inline-size: 100%;
