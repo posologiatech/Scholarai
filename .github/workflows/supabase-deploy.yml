@@ -20,7 +20,10 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned instead of "latest" — resolving "latest" calls the GitHub API
+          # unauthenticated and was hitting its rate limit, failing the job before
+          # it ever reached the migration step. Bump manually when needed.
+          version: 2.110.0
 
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
@@ -42,7 +45,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.110.0
 
       - name: Deploy all functions
         run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
