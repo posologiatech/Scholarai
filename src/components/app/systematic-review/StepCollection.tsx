@@ -28,9 +28,12 @@ interface StepCollectionProps {
   onPrev: () => void;
   duplicatesRemoved?: number;
   onDuplicatesRemovedChange?: (n: number) => void;
+  searchStrategy?: string;
+  onSearchStrategyChange?: (s: string) => void;
+  locked?: boolean;
 }
 
-const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev, duplicatesRemoved = 0, onDuplicatesRemovedChange }: StepCollectionProps) => {
+const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev, duplicatesRemoved = 0, onDuplicatesRemovedChange, searchStrategy: persistedStrategy, onSearchStrategyChange, locked }: StepCollectionProps) => {
   const { locale } = useLanguage();
   const [searching, setSearching] = useState(false);
   const [searchCount, setSearchCount] = useState(200);
@@ -38,7 +41,7 @@ const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev, dupl
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [showBooleanBuilder, setShowBooleanBuilder] = useState(false);
-  const [searchStrategy, setSearchStrategy] = useState("");
+  const [searchStrategy, setSearchStrategy] = useState(persistedStrategy || "");
   const [customQuery, setCustomQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -170,7 +173,10 @@ const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev, dupl
                 setCustomQuery(q);
                 handleSearch(q);
               }}
-              onStrategyExport={(s) => setSearchStrategy(s)}
+              onStrategyExport={(s) => {
+                setSearchStrategy(s);
+                if (!locked) onSearchStrategyChange?.(s);
+              }}
             />
           </div>
         )}
@@ -181,7 +187,9 @@ const StepCollection = ({ question, papers, onPapersChange, onNext, onPrev, dupl
         <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
           <FileText className="h-4 w-4 text-primary" />
           <span className="text-sm text-foreground flex-1">
-            {pt ? "Estratégia de busca documentada disponível" : "Documented search strategy available"}
+            {locked
+              ? (pt ? "Estratégia de busca registrada no protocolo (bloqueada)" : "Search strategy registered in the protocol (locked)")
+              : (pt ? "Estratégia de busca documentada disponível" : "Documented search strategy available")}
           </span>
           <Button size="sm" variant="outline" onClick={downloadStrategy} className="gap-1.5 text-xs">
             {pt ? "Baixar .md" : "Download .md"}

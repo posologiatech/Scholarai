@@ -4634,11 +4634,17 @@ export type Database = {
           id: string
           included_paper_ids: string[]
           papers: Json
+          pico: Json
+          prospero_id: string | null
+          protocol_document: string | null
+          protocol_locked_at: string | null
+          protocol_locked_by: string | null
           report_content: string | null
           research_project_id: string | null
           research_question: string
           screening_criteria: Json
           screening_results: Json
+          search_strategy: string | null
           status: string
           updated_at: string
           user_id: string
@@ -4651,11 +4657,17 @@ export type Database = {
           id?: string
           included_paper_ids?: string[]
           papers?: Json
+          pico?: Json
+          prospero_id?: string | null
+          protocol_document?: string | null
+          protocol_locked_at?: string | null
+          protocol_locked_by?: string | null
           report_content?: string | null
           research_project_id?: string | null
           research_question: string
           screening_criteria?: Json
           screening_results?: Json
+          search_strategy?: string | null
           status?: string
           updated_at?: string
           user_id: string
@@ -4668,11 +4680,17 @@ export type Database = {
           id?: string
           included_paper_ids?: string[]
           papers?: Json
+          pico?: Json
+          prospero_id?: string | null
+          protocol_document?: string | null
+          protocol_locked_at?: string | null
+          protocol_locked_by?: string | null
           report_content?: string | null
           research_project_id?: string | null
           research_question?: string
           screening_criteria?: Json
           screening_results?: Json
+          search_strategy?: string | null
           status?: string
           updated_at?: string
           user_id?: string
@@ -4683,6 +4701,48 @@ export type Database = {
             columns: ["research_project_id"]
             isOneToOne: false
             referencedRelation: "research_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      systematic_review_reviewers: {
+        Row: {
+          created_at: string
+          id: string
+          project_member_id: string | null
+          review_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_member_id?: string | null
+          review_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_member_id?: string | null
+          review_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "systematic_review_reviewers_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "systematic_reviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "systematic_review_reviewers_project_member_id_fkey"
+            columns: ["project_member_id"]
+            isOneToOne: false
+            referencedRelation: "research_project_members"
             referencedColumns: ["id"]
           },
         ]
@@ -4963,6 +5023,41 @@ export type Database = {
         }
         Relationships: []
       }
+      writing_document_versions: {
+        Row: {
+          author_id: string | null
+          content: string
+          created_at: string
+          document_id: string
+          id: string
+          summary: string | null
+        }
+        Insert: {
+          author_id?: string | null
+          content?: string
+          created_at?: string
+          document_id: string
+          id?: string
+          summary?: string | null
+        }
+        Update: {
+          author_id?: string | null
+          content?: string
+          created_at?: string
+          document_id?: string
+          id?: string
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "writing_document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "writing_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       writing_documents: {
         Row: {
           citation_style: string | null
@@ -4976,6 +5071,7 @@ export type Database = {
           title: string
           updated_at: string
           user_id: string
+          yjs_state: string | null
         }
         Insert: {
           citation_style?: string | null
@@ -4989,6 +5085,7 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id: string
+          yjs_state?: string | null
         }
         Update: {
           citation_style?: string | null
@@ -5002,6 +5099,7 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+          yjs_state?: string | null
         }
         Relationships: [
           {

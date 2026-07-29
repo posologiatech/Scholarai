@@ -19,8 +19,16 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import ProtocolPanel from "./ProtocolPanel";
+import ReviewersPanel from "./ReviewersPanel";
+import DualScreeningPanel from "./DualScreeningPanel";
+import ConflictsPanel from "./ConflictsPanel";
+import type { Pico } from "@/lib/systematicReview/protocol";
+import type { ReviewerAssignment } from "@/lib/systematicReview/dualScreening";
 
 interface ScreeningCriterion {
   id: string;
@@ -61,6 +69,17 @@ interface StepScreeningProps {
   autoSuggestions: boolean;
   onNext: () => void;
   onPrev: () => void;
+  pico: Pico;
+  searchStrategy?: string;
+  prosperoId: string;
+  onProsperoIdChange: (id: string) => void;
+  protocolLockedAt: string | null;
+  protocolDocument: string | null;
+  onRegisterProtocol: () => Promise<void>;
+  reviewId: string | null;
+  researchProjectId: string | null;
+  isOwner: boolean;
+  reviewOwnerId: string | null;
 }
 
 const StepScreening = ({
@@ -75,7 +94,34 @@ const StepScreening = ({
   autoSuggestions,
   onNext,
   onPrev,
+  pico,
+  searchStrategy,
+  prosperoId,
+  onProsperoIdChange,
+  protocolLockedAt,
+  protocolDocument,
+  onRegisterProtocol,
+  reviewId,
+  researchProjectId,
+  isOwner,
+  reviewOwnerId,
 }: StepScreeningProps) => {
+  const locked = !!protocolLockedAt;
+  const { user } = useAuth();
+  const currentUserId = user?.id;
+
+  const { data: reviewers = [] } = useQuery({
+    queryKey: ["review-reviewers", reviewId],
+    enabled: !!reviewId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("systematic_review_reviewers").select("*").eq("review_id", reviewId!);
+      if (error) throw error;
+      return (data ?? []) as ReviewerAssignment[];
+    },
+  });
+  const dualMode = reviewers.filter((r) => r.role === "reviewer").length >= 2;
+  const isAdjudicator = reviewers.some((r) => r.role === "adjudicator" && r.user_id === currentUserId);
+  const canSeeConflicts = isOwner || isAdjudicator;
   const { locale } = useLanguage();
   const pt = locale === "pt";
   const [generatingCriteria, setGeneratingCriteria] = useState(false);
@@ -300,7 +346,7 @@ const StepScreening = ({
   };
 
   const addCriterion = () => {
-    if (!newCriterionName.trim()) return;
+    if (locked || !newCriterionName.trim()) return;
     const newC: ScreeningCriterion = {
       id: `custom-${Date.now()}`,
       name: newCriterionName,
@@ -379,38 +425,69 @@ const StepScreening = ({
         </p>
       </div>
 
+      {!isOwner && (
+        <div className="rounded-xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+          {pt
+            ? "Você foi atribuído como revisor(a) desta revisão. Registre suas decisões de triagem abaixo — elas ficam ocultas dos demais revisores até a reconciliação."
+            : "You've been assigned as a reviewer on this review. Record your screening decisions below — they stay hidden from other reviewers until reconciliation."}
+        </div>
+      )}
+
+      {isOwner && (
+        <>
+      {/* Protocol registration */}
+      <ProtocolPanel
+        question={question}
+        pico={pico}
+        criteria={criteria}
+        searchStrategy={searchStrategy}
+        prosperoId={prosperoId}
+        onProsperoIdChange={onProsperoIdChange}
+        locked={locked}
+        lockedAt={protocolLockedAt}
+        protocolDocument={protocolDocument}
+        onRegisterProtocol={onRegisterProtocol}
+      />
+
+      {reviewId && <ReviewersPanel reviewId={reviewId} researchProjectId={researchProjectId} />}
+
       {/* Criteria section */}
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">
             {pt ? "Critérios de Triagem" : "Screening Criteria"}
           </h3>
-          <Button variant="outline" size="sm" onClick={generateCriteria} disabled={generatingCriteria} className="gap-2">
+          <Button variant="outline" size="sm" onClick={generateCriteria} disabled={generatingCriteria || locked} className="gap-2">
             {generatingCriteria ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
             {pt ? "Gerar com IA" : "Generate with AI"}
           </Button>
         </div>
         {criteria.map((c) => (
           <div key={c.id} className="flex items-start gap-3 rounded-lg border border-border p-3">
-            <Switch checked={c.enabled} onCheckedChange={(checked) => {
+            <Switch checked={c.enabled} disabled={locked} onCheckedChange={(checked) => {
+              if (locked) return;
               onCriteriaChange(criteria.map((cr) => (cr.id === c.id ? { ...cr, enabled: checked } : cr)));
             }} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground">{c.name}</p>
               <p className="text-xs text-muted-foreground">{c.description}</p>
             </div>
-            <button onClick={() => onCriteriaChange(criteria.filter((cr) => cr.id !== c.id))} className="text-muted-foreground hover:text-destructive">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            {!locked && (
+              <button onClick={() => onCriteriaChange(criteria.filter((cr) => cr.id !== c.id))} className="text-muted-foreground hover:text-destructive">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         ))}
-        <div className="flex gap-2">
-          <input value={newCriterionName} onChange={(e) => setNewCriterionName(e.target.value)} placeholder={pt ? "Nome do critério" : "Criterion name"} className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm" />
-          <input value={newCriterionDesc} onChange={(e) => setNewCriterionDesc(e.target.value)} placeholder={pt ? "Descrição" : "Description"} className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm" />
-          <Button size="sm" variant="outline" onClick={addCriterion} disabled={!newCriterionName.trim()}>
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        {!locked && (
+          <div className="flex gap-2">
+            <input value={newCriterionName} onChange={(e) => setNewCriterionName(e.target.value)} placeholder={pt ? "Nome do critério" : "Criterion name"} className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm" />
+            <input value={newCriterionDesc} onChange={(e) => setNewCriterionDesc(e.target.value)} placeholder={pt ? "Descrição" : "Description"} className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm" />
+            <Button size="sm" variant="outline" onClick={addCriterion} disabled={!newCriterionName.trim()}>
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Screening actions */}
@@ -564,18 +641,38 @@ const StepScreening = ({
           })}
         </div>
       )}
+        </>
+      )}
+
+      {/* Dual blind screening: visible to any assigned reviewer, including the owner if self-assigned */}
+      {dualMode && reviewId && currentUserId && reviewers.some((r) => r.user_id === currentUserId) && (
+        <DualScreeningPanel reviewId={reviewId} papers={papers} currentUserId={currentUserId} />
+      )}
+
+      {dualMode && reviewId && canSeeConflicts && currentUserId && (
+        <ConflictsPanel
+          reviewId={reviewId}
+          papers={papers}
+          reviewers={reviewers}
+          currentUserId={currentUserId}
+          ownerUserId={reviewOwnerId || currentUserId}
+          onIncludedIdsComputed={onIncludedPaperIdsChange}
+        />
+      )}
 
       {/* Navigation */}
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onPrev} className="gap-2">
-          <ArrowLeft className="h-4 w-4" />
-          {pt ? "Anterior" : "Previous"}
-        </Button>
-        <Button onClick={onNext} disabled={includedCount === 0} className="gap-2">
-          {pt ? "Próximo: Extração" : "Next: Extraction"}
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-      </div>
+      {isOwner && (
+        <div className="flex justify-between">
+          <Button variant="outline" onClick={onPrev} className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            {pt ? "Anterior" : "Previous"}
+          </Button>
+          <Button onClick={onNext} disabled={includedCount === 0} className="gap-2">
+            {pt ? "Próximo: Extração" : "Next: Extraction"}
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
