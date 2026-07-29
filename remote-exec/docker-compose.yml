@@ -1,0 +1,13 @@
+services:
+  datamind-exec:
+    build: .
+    container_name: datamind-exec
+    restart: unless-stopped
+    environment:
+      - DATAMIND_EXEC_TOKEN=${DATAMIND_EXEC_TOKEN}
+      - DATAMIND_EXEC_TIMEOUT=90
+      - DATAMIND_EXEC_MEMORY_LIMIT_GB=3
+    ports:
+      - "8500:8500"
+    mem_limit: 4g
+    cpus: 4

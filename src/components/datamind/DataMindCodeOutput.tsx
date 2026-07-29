@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
-import { Download, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, TableIcon, ImageIcon, FileText, Maximize2, FileSpreadsheet, Loader2, ExternalLink } from "lucide-react";
+import { Download, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, TableIcon, ImageIcon, BarChart3, FileText, Maximize2, FileSpreadsheet, Loader2, ExternalLink } from "lucide-react";
 import DataMindDashboardPinButton from "./DataMindDashboardPinButton";
 import { motion, AnimatePresence } from "framer-motion";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import ChartRenderer, { ChartPayload } from "./ChartRenderer";
 
 interface Props {
   type: string;
@@ -13,12 +14,13 @@ interface Props {
 }
 
 interface OutputBlock {
-  kind: "table" | "image" | "text";
+  kind: "table" | "image" | "text" | "chart";
   content: string;
   headers?: string[];
   rows?: string[][];
   label?: string;
   title?: string;
+  chart?: ChartPayload;
 }
 
 /* ── Helpers ── */
@@ -183,10 +185,33 @@ function parseBlocks(type: string, content: string): OutputBlock[] {
     const text = part.trim();
     if (!text) continue;
 
-    // Split by JSON datatable markers
-    const dtParts = text.split(/(__DATATABLE_START__[\s\S]*?__DATATABLE_END__)/);
+    // Split by JSON datatable/datachart markers
+    const dtParts = text.split(/(__DATATABLE_START__[\s\S]*?__DATATABLE_END__|__DATACHART_START__[\s\S]*?__DATACHART_END__)/);
 
     for (const dtPart of dtParts) {
+      // Check if this is a JSON datachart block
+      const chartMatch = dtPart.match(/^__DATACHART_START__([\s\S]*?)__DATACHART_END__$/);
+      if (chartMatch) {
+        try {
+          const payload = JSON.parse(chartMatch[1]) as ChartPayload;
+          if (payload.data?.length && payload.xKey && payload.series?.length) {
+            chartIdx++;
+            blocks.push({
+              kind: "chart",
+              content: dtPart,
+              label: `Gráfico ${chartIdx}`,
+              title: payload.title || undefined,
+              chart: payload,
+            });
+          }
+        } catch {
+          if (dtPart.trim() && !isNoise(dtPart.trim())) {
+            blocks.push({ kind: "text", content: dtPart.trim() });
+          }
+        }
+        continue;
+      }
+
       // Check if this is a JSON datatable block
       const dtMatch = dtPart.match(/^__DATATABLE_START__([\s\S]*?)__DATATABLE_END__$/);
       if (dtMatch) {
@@ -644,6 +669,49 @@ const InlineChart = ({ block, index }: { block: OutputBlock; index: number }) =>
   );
 };
 
+/* ── Interactive Chart Component (Recharts, backs show_chart()) ── */
+const InteractiveChart = ({ block, index }: { block: OutputBlock; index: number }) => {
+  const chart = block.chart;
+  if (!chart) return null;
+
+  const handleDownloadCSV = () => {
+    const headers = [chart.xKey, ...chart.series.map(s => s.label)];
+    const rows = chart.data.map(row => [
+      String(row[chart.xKey] ?? ""),
+      ...chart.series.map(s => String(row[s.key] ?? "")),
+    ]);
+    downloadCSV(headers, rows, `grafico_${index + 1}.csv`);
+  };
+
+  return (
+    <div className="my-2 rounded-xl border border-border/40 bg-card shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-muted/20">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-3.5 w-3.5 text-primary" />
+          <span className="text-sm font-medium text-foreground">{chart.title || block.label || "Gráfico"}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <DataMindDashboardPinButton
+            itemType="chart"
+            title={chart.title || block.label || `Gráfico ${index + 1}`}
+            content={{ chart }}
+          />
+          <button
+            onClick={handleDownloadCSV}
+            className="p-1.5 rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+            title="Baixar dados (CSV)"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      <div className="p-3">
+        <ChartRenderer chart={chart} />
+      </div>
+    </div>
+  );
+};
+
 /* ── Inline Text Component ── */
 const InlineText = ({ block }: { block: OutputBlock }) => {
   const content = block.content.trim();
@@ -685,6 +753,7 @@ const DataMindCodeOutput = ({ type, content }: Props) => {
         >
           {block.kind === "table" && <InlineTable block={block} index={i} />}
           {block.kind === "image" && <InlineChart block={block} index={i} />}
+          {block.kind === "chart" && <InteractiveChart block={block} index={i} />}
           {block.kind === "text" && <InlineText block={block} />}
         </motion.div>
       ))}

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { GraduationCap, ImageIcon, TableIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import ChartRenderer from "@/components/datamind/ChartRenderer";
 
 interface DashboardItem {
   id: string;
@@ -92,9 +93,15 @@ const SharedDashboard = () => {
                         <ImageIcon className="h-3.5 w-3.5 text-primary" />
                         <span className="text-xs font-medium text-muted-foreground truncate">{item.title}</span>
                       </div>
-                      <div className="flex-1 flex items-center justify-center p-3 bg-white dark:bg-muted/10">
-                        <img src={typeof item.content === "string" ? item.content : item.content?.base64 || ""} alt={item.title} className="max-w-full max-h-full object-contain rounded" />
-                      </div>
+                      {item.content?.chart ? (
+                        <div className="flex-1 p-3 min-h-0">
+                          <ChartRenderer chart={item.content.chart} height="100%" />
+                        </div>
+                      ) : (
+                        <div className="flex-1 flex items-center justify-center p-3 bg-white dark:bg-muted/10">
+                          <img src={typeof item.content === "string" ? item.content : item.content?.base64 || ""} alt={item.title} className="max-w-full max-h-full object-contain rounded" />
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="rounded-xl border border-border/40 bg-card shadow-sm overflow-hidden h-full flex flex-col">

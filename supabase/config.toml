@@ -48,7 +48,13 @@ verify_jwt = false
 [functions.datamind-chat]
 verify_jwt = false
 
+[functions.datamind-run-remote]
+verify_jwt = false
+
 [functions.export-to-sheets]
+verify_jwt = false
+
+[functions.import-google-sheet]
 verify_jwt = false
 
 [functions.generate-knowledge-graph]

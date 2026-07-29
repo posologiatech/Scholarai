@@ -19,9 +19,10 @@ interface Props {
   spreadsheetData?: SpreadsheetData | null;
   selectedContext?: SelectedContext | null;
   onSelectionChange?: (ctx: SelectedContext | null) => void;
+  onOpenGoogleSheetsImport?: () => void;
 }
 
-const DataMindChat = ({ messages, files, loading, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange }: Props) => {
+const DataMindChat = ({ messages, files, loading, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange, onOpenGoogleSheetsImport }: Props) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -131,6 +132,7 @@ const DataMindChat = ({ messages, files, loading, conversationId, onSend, hasCon
         existingFiles={existingFiles}
         selectedContext={selectedContext}
         onClearSelection={() => onSelectionChange?.(null)}
+        onOpenGoogleSheetsImport={onOpenGoogleSheetsImport}
       />
     </div>
   );

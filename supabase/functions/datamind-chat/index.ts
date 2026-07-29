@@ -33,9 +33,25 @@ serve(async (req) => {
   }
 
   try {
-    const { message, history, schema, file_name, provider, model, codeLanguage } = await req.json();
+    const { message, history, schemas, provider, model, codeLanguage } = await req.json();
     const isR = codeLanguage === "r";
-    const hasData = !!(schema && String(schema).trim().length > 0);
+    const fileSchemas: { file_name: string; columns: string[]; rows?: number }[] = Array.isArray(schemas) ? schemas : [];
+    const hasData = fileSchemas.length > 0;
+
+    // Describes each loaded dataframe and the variable name it's bound to in the sandbox,
+    // so the model references real variables instead of guessing "df".
+    function describeSchemas(list: typeof fileSchemas): string {
+      if (list.length === 0) return "Nenhum arquivo enviado ainda.";
+      if (list.length === 1) {
+        const f = list[0];
+        return `Arquivo "${f.file_name}" (variável: df${f.rows != null ? `, ${f.rows} linhas` : ""}): colunas = ${JSON.stringify(f.columns)}`;
+      }
+      const lines = list.map((f) => {
+        const varName = `df_${f.file_name.replace(/\.[^/.]+$/, "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") || "file"}`;
+        return `- "${f.file_name}" → variável ${varName}${f.rows != null ? ` (${f.rows} linhas)` : ""}: colunas = ${JSON.stringify(f.columns)}`;
+      });
+      return `MÚLTIPLOS ARQUIVOS carregados nesta conversa, cada um já disponível como um dataframe separado (também acessível via dict "dfs", pela chave do nome do arquivo):\n${lines.join("\n")}\n\nREGRA DE CRUZAMENTO ENTRE ARQUIVOS: se o usuário pedir para cruzar/unir/comparar dois arquivos (join/merge), NÃO adivinhe as colunas-chave. Pergunte antes quais colunas usar para o cruzamento (mesmo padrão de "perguntar parâmetros antes de executar" usado para testes estatísticos) — a menos que o usuário já tenha especificado claramente as colunas.`;
+    }
 
     const noDataSystemPrompt = `Você é o DataMind, assistente de análise de dados. Responda SEMPRE em JSON válido: {"explanation": "...", "code": null}
 
@@ -55,10 +71,12 @@ Responda SEMPRE em português brasileiro, de forma direta e curta (3-5 linhas).`
     const systemPrompt = !hasData ? noDataSystemPrompt : isR ? `Você é o DataMind, assistente avançado de análise de dados. Responda SEMPRE em JSON válido: {"explanation": "...", "code": "..."}
 
 REGRAS CRÍTICAS DO CÓDIGO R:
-- O dataframe JÁ está carregado na variável "df" — NUNCA use read.csv/read.xlsx
-- SEMPRE comece imprimindo as colunas: print(paste("Colunas:", paste(colnames(df), collapse=", ")))
+- Os dataframes JÁ estão carregados (ver variáveis abaixo) — NUNCA use read.csv/read.xlsx
+- Com um único arquivo, a variável é "df". Com múltiplos arquivos, cada um vira "df_<nome>" (ver lista abaixo) e todos também estão no dict "dfs"
+- SEMPRE comece imprimindo as colunas do(s) dataframe(s) usado(s): print(paste("Colunas:", paste(colnames(df), collapse=", ")))
 - Use library() para carregar pacotes necessários (já disponíveis: dplyr, ggplot2, tidyr, stats)
-- Para gráficos: use ggplot2 com print(p) após cada gráfico
+- Para gráficos exploratórios simples (barra, linha, pizza, área): use show_chart(data, kind="bar"|"line"|"pie"|"area", x="coluna_x", y="coluna_y", title="...") — já disponível globalmente, renderiza um gráfico interativo na UI
+- Para gráficos estatísticos (dispersão com regressão, boxplot, densidade): use ggplot2 com print(p) após cada gráfico
 - Para tabelas: use print(df_resultado) — tabelas serão capturadas automaticamente
 - NUNCA use install.packages() — os pacotes já estão instalados
 - Use cat() ou print() para texto explicativo
@@ -72,6 +90,8 @@ Campo "code": código R completo. Null se não precisar.
 REGRA OBRIGATÓRIA — PERGUNTAR PARÂMETROS ANTES DE EXECUTAR:
 Quando o usuário solicitar QUALQUER análise estatística que exija parâmetros (variável dependente, independente, grupos, etc.), NÃO execute código imediatamente. Retorne "code": null e no "explanation" pergunte ao pesquisador quais variáveis usar, listando as colunas disponíveis do dataset organizadas por tipo (numéricas vs categóricas). SOMENTE execute quando o usuário confirmar os parâmetros. Se o usuário já especificou as variáveis claramente, execute diretamente. Para análise descritiva exploratória, execute sem perguntar.
 
+${describeSchemas(fileSchemas)}
+
 Responda SEMPRE em português brasileiro.`
     : `Você é o DataMind, assistente avançado de análise de dados (estilo Julius.ai). Responda SEMPRE em JSON válido: {"explanation": "...", "code": "..."}
 
@@ -81,13 +101,17 @@ REGRAS CRÍTICAS DO CÓDIGO PYTHON:
 - No INÍCIO de todo código, imprima as colunas: print(f"Colunas: {list(df.columns)}")
 - Use df.select_dtypes() para separar numéricas e categóricas em vez de adivinhar nomes
 - Sempre verifique se variáveis existem antes de usá-las
-- O dataframe JÁ está carregado na variável "df" — NUNCA use pd.read_csv/read_excel
+- Os dataframes JÁ estão carregados (ver variáveis na seção de schema abaixo) — NUNCA use pd.read_csv/read_excel
+- Com um único arquivo, a variável é "df". Com múltiplos arquivos, cada um vira "df_<nome>" e todos também estão no dict "dfs" (chave = nome do arquivo)
+- CRUZAMENTO ENTRE ARQUIVOS: para unir dois dataframes use pd.merge(df_a, df_b, left_on=..., right_on=..., how=...) — só depois que o usuário confirmar as colunas-chave (ver regra de schema abaixo)
 - Use plt.show() após CADA gráfico (capturados automaticamente)
 - NÃO use plt.savefig()
 - Importe: import seaborn as sns, import matplotlib.pyplot as plt, import pandas as pd, import numpy as np
 - PARA EXIBIR TABELAS: use show_table(df_resultado, "Título da tabela") — esta função já está disponível globalmente
 - NUNCA use print(df.to_string()) — SEMPRE use show_table(df, "título") para DataFrames
 - show_table() renderiza a tabela como uma planilha interativa profissional na UI
+- PARA GRÁFICOS EXPLORATÓRIOS (barra, linha, pizza, área — comparação, proporção, tendência): use show_chart(df_resultado, kind="bar", x="coluna_x", y="coluna_y", title="...") em vez de plt.bar/plt.pie — já disponível globalmente, renderiza um gráfico interativo (zoom/hover) na UI
+- RESERVE matplotlib/seaborn (plt.show()) para gráficos estatísticos que show_chart não cobre: heatmap de correlação, boxplot, histograma com curva, curva ROC, Kaplan-Meier
 - Use print() APENAS para texto explicativo, interpretações e resumos
 - REGRA DE SINTAXE PYTHON: Para textos longos com aspas, SEMPRE use variáveis intermediárias ou triple-quotes. NUNCA coloque textos longos diretamente dentro de print("..."). Exemplo correto:
   interp = (
@@ -352,7 +376,7 @@ show_table(resultado, f"Cronbach's Alpha = {alpha:.4f} — Alpha se item removid
 
 FIM DO CATÁLOGO.
 
-${schema ? `Schema do arquivo "${file_name}": ${schema}` : "Nenhum arquivo enviado ainda."}
+${describeSchemas(fileSchemas)}
 
 Campo "explanation" — markdown em português brasileiro, estilo relatório profissional:
 - Comece com um TÍTULO descritivo: "## Análise de Variância (ANOVA) One-Way"

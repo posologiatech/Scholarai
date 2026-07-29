@@ -61,7 +61,46 @@ async function writeFile(fileName, data) {
   py.FS.writeFile("/tmp/" + fileName, uint8);
 }
 
-async function runCode(code, fileName) {
+// Turns "Vendas Mensais.csv" into a safe, unique Python identifier like "vendas_mensais"
+function slugifyVarName(fileName, used) {
+  let base = fileName.replace(/\.[^/.]+$/, "");
+  base = base.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!base) base = "file";
+  if (/^[0-9]/.test(base)) base = "f_" + base;
+  let final = base;
+  let i = 2;
+  while (used.has(final)) {
+    final = `${base}_${i}`;
+    i++;
+  }
+  used.add(final);
+  return final;
+}
+
+function buildDataBootstrap(fileNames) {
+  const names = (fileNames || []).filter(Boolean);
+  if (names.length === 0) return "";
+
+  const used = new Set();
+  const entries = names.map((fileName) => ({
+    fileName,
+    varName: `df_${slugifyVarName(fileName, used)}`,
+  }));
+
+  let code = "import pandas as pd\ndfs = {}\n";
+  for (const { fileName, varName } of entries) {
+    const isExcel = /\.xlsx?$/i.test(fileName);
+    const reader = isExcel ? "read_excel" : "read_csv";
+    code += `try:\n    ${varName} = pd.${reader}(${JSON.stringify("/tmp/" + fileName)})\n    dfs[${JSON.stringify(fileName)}] = ${varName}\nexcept Exception as e:\n    print(f"Aviso: falha ao carregar arquivo ${fileName.replace(/"/g, '\\"')}: {e}")\n`;
+  }
+  // With a single file, keep the familiar "df" name so existing prompt templates keep working.
+  if (entries.length === 1) {
+    code += `df = ${entries[0].varName}\n`;
+  }
+  return code;
+}
+
+async function runCode(code, fileNames) {
   const py = await initPyodide();
   await installPackages();
 
@@ -126,20 +165,33 @@ def show_table(dataframe, title=""):
     cols = list(dataframe.columns)
     payload = _json.dumps({"title": title, "columns": cols, "data": data}, ensure_ascii=False)
     print(f"__DATATABLE_START__{payload}__DATATABLE_END__")
+
+def show_chart(data, kind="bar", x=None, y=None, series=None, title=""):
+    """Render data as an interactive chart (bar/line/pie/area/scatter) in the UI."""
+    import pandas as _pd
+    df_ = data if isinstance(data, _pd.DataFrame) else _pd.DataFrame(data)
+    if df_.empty:
+        print("Aviso: show_chart recebeu dados vazios.")
+        return
+    x_key = x or df_.columns[0]
+    if series:
+        series_keys = series if isinstance(series, list) else [series]
+    elif y:
+        series_keys = y if isinstance(y, list) else [y]
+    else:
+        series_keys = [c for c in df_.columns if c != x_key]
+    records = _json.loads(df_.to_json(orient='records', force_ascii=False))
+    payload = _json.dumps({
+        "kind": kind,
+        "title": title,
+        "xKey": x_key,
+        "series": [{"key": k, "label": str(k)} for k in series_keys],
+        "data": records,
+    }, ensure_ascii=False)
+    print(f"__DATACHART_START__{payload}__DATACHART_END__")
 `;
 
-  let dataBootstrap = "";
-  if (fileName) {
-    const lowerName = fileName.toLowerCase();
-    const isExcel = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
-    dataBootstrap = `
-import pandas as pd
-try:
-    df = pd.read_${ isExcel ? "excel" : "csv" }(${JSON.stringify("/tmp/" + fileName)})
-except Exception as e:
-    print(f"Aviso: falha ao carregar arquivo: {e}")
-`;
-  }
+  const dataBootstrap = buildDataBootstrap(fileNames);
 
   const collectCode = `
 sys.stdout = sys.__stdout__
@@ -207,7 +259,7 @@ self.onmessage = async (e) => {
         self.postMessage({ type: "fileWritten", data: payload.fileName });
         break;
       case "run":
-        await runCode(payload.code, payload.fileName);
+        await runCode(payload.code, payload.fileNames);
         break;
       case "reset":
         await resetRuntime();

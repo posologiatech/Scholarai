@@ -86,6 +86,71 @@ async function executePostgresQuery(conn: DbConnection, sql: string): Promise<{ 
   }
 }
 
+// Execute SQL on remote MySQL using the deno_mysql driver
+async function executeMySQLQuery(conn: DbConnection, sql: string): Promise<{ columns: string[]; rows: any[][]; rowCount: number }> {
+  const { Client } = await import("https://deno.land/x/mysql@v2.12.1/mod.ts");
+
+  const client = await new Client().connect({
+    hostname: conn.host,
+    port: conn.port,
+    username: conn.username,
+    password: conn.password_encrypted,
+    db: conn.database_name,
+  });
+
+  try {
+    const result = await client.query(sql);
+    const dataRows: Record<string, unknown>[] = Array.isArray(result) ? result : [];
+    const columns = dataRows.length > 0 ? Object.keys(dataRows[0]) : [];
+    const rows = dataRows.map((row) => columns.map((col) => (row[col] === null || row[col] === undefined ? null : String(row[col]))));
+
+    return { columns, rows, rowCount: rows.length };
+  } finally {
+    await client.close();
+  }
+}
+
+// Fetch schema from MySQL
+async function fetchMySQLSchema(conn: DbConnection): Promise<any> {
+  const { Client } = await import("https://deno.land/x/mysql@v2.12.1/mod.ts");
+
+  const client = await new Client().connect({
+    hostname: conn.host,
+    port: conn.port,
+    username: conn.username,
+    password: conn.password_encrypted,
+    db: conn.database_name,
+  });
+
+  try {
+    const result = await client.query(
+      `SELECT table_schema, table_name, column_name, data_type, is_nullable, column_default
+       FROM information_schema.columns
+       WHERE table_schema = ?
+       ORDER BY table_name, ordinal_position
+       LIMIT 500`,
+      [conn.database_name]
+    );
+
+    const schema: Record<string, any> = {};
+    for (const row of result as any[]) {
+      const key = `${row.table_schema}.${row.table_name}`;
+      if (!schema[key]) {
+        schema[key] = { schema: row.table_schema, table: row.table_name, columns: [] };
+      }
+      schema[key].columns.push({
+        name: row.column_name,
+        type: row.data_type,
+        nullable: row.is_nullable === "YES",
+      });
+    }
+
+    return Object.values(schema);
+  } finally {
+    await client.close();
+  }
+}
+
 // Fetch schema from PostgreSQL
 async function fetchPostgresSchema(conn: DbConnection): Promise<any> {
   const { Client } = await import("https://deno.land/x/postgres@v0.19.3/mod.ts");
@@ -154,8 +219,8 @@ REGRAS:
 - Use apenas SELECT (NUNCA INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE)
 - Limite resultados com LIMIT 1000 se não especificado
 - Use nomes de tabelas e colunas EXATAMENTE como no schema
-- Para PostgreSQL, use aspas duplas para nomes com maiúsculas/especiais
-- Sempre qualifique tabelas com schema quando aplicável`;
+- Para PostgreSQL, use aspas duplas para nomes com maiúsculas/especiais; para MySQL, use crases (\`nome\`)
+- Sempre qualifique tabelas com schema quando aplicável (não aplicável ao MySQL, que já usa o próprio banco como schema)`;
 
   const response = await callAI({
     messages: [
@@ -272,11 +337,14 @@ serve(async (req) => {
 
       // Decrypt password before use
       const decryptedConn = await withDecryptedPassword(conn as DbConnection);
+      const isMySQL = decryptedConn.db_type === "mysql";
+      const fetchSchema = isMySQL ? fetchMySQLSchema : fetchPostgresSchema;
+      const executeQuery = isMySQL ? executeMySQLQuery : executePostgresQuery;
 
       if (action === "test") {
         try {
-          const schema = await fetchPostgresSchema(decryptedConn);
-          
+          const schema = await fetchSchema(decryptedConn);
+
           await supabase
             .from("datamind_db_connections")
             .update({ schema_cache: schema, last_connected_at: new Date().toISOString() })
@@ -301,7 +369,7 @@ serve(async (req) => {
       }
 
       if (action === "schema") {
-        const schema = conn.schema_cache || await fetchPostgresSchema(decryptedConn);
+        const schema = conn.schema_cache || await fetchSchema(decryptedConn);
         return new Response(JSON.stringify({ schema }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -316,17 +384,17 @@ serve(async (req) => {
           });
         }
 
-        const result = await executePostgresQuery(decryptedConn, query);
+        const result = await executeQuery(decryptedConn, query);
         return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       if (action === "nl2sql") {
-        const schema = conn.schema_cache || await fetchPostgresSchema(decryptedConn);
+        const schema = conn.schema_cache || await fetchSchema(decryptedConn);
         const sql = await naturalLanguageToSQL(question, schema, conn.db_type);
-        const result = await executePostgresQuery(decryptedConn, sql);
-        
+        const result = await executeQuery(decryptedConn, sql);
+
         return new Response(JSON.stringify({ sql, ...result }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

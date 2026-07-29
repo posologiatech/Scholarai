@@ -43,17 +43,68 @@ async function writeFile(fileName, data) {
   self.postMessage({ type: "fileWritten", data: fileName });
 }
 
-async function runCode(code, fileName) {
+// Turns "Vendas Mensais.csv" into a safe, unique R identifier like "vendas_mensais"
+function slugifyVarName(fileName, used) {
+  let base = fileName.replace(/\.[^/.]+$/, "");
+  base = base.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!base) base = "file";
+  if (/^[0-9]/.test(base)) base = "f_" + base;
+  let final = base;
+  let i = 2;
+  while (used.has(final)) {
+    final = `${base}_${i}`;
+    i++;
+  }
+  used.add(final);
+  return final;
+}
+
+function buildDataBootstrap(fileNames) {
+  const names = (fileNames || []).filter((fn) => fn && fn.toLowerCase().endsWith(".csv"));
+  if (names.length === 0) return "";
+
+  const used = new Set();
+  const entries = names.map((fileName) => ({
+    fileName,
+    varName: `df_${slugifyVarName(fileName, used)}`,
+  }));
+
+  let code = "dfs <- list()\n";
+  for (const { fileName, varName } of entries) {
+    const path = "/tmp/" + fileName;
+    code += `${varName} <- tryCatch(read.csv("${path}", stringsAsFactors=FALSE), error=function(e) { cat("Aviso:", e$message, "\\n"); NULL })\n`;
+    code += `dfs[["${fileName}"]] <- ${varName}\n`;
+  }
+  if (entries.length === 1) {
+    code += `df <- ${entries[0].varName}\n`;
+  }
+  return code;
+}
+
+async function runCode(code, fileNames) {
   const r = await initWebR();
 
-  let fullCode = "";
-
-  if (fileName) {
-    const lowerName = fileName.toLowerCase();
-    if (lowerName.endsWith(".csv")) {
-      fullCode += 'df <- tryCatch(read.csv("/tmp/' + fileName + '", stringsAsFactors=FALSE), error=function(e) { cat("Aviso:", e$message, "\\n"); NULL })\n';
-    }
+  const showChartHelper = `
+show_chart <- function(data, kind="bar", x=NULL, y=NULL, series=NULL, title="") {
+  df_ <- as.data.frame(data)
+  if (nrow(df_) == 0) {
+    cat("Aviso: show_chart recebeu dados vazios.\\n")
+    return(invisible(NULL))
   }
+  x_key <- if (!is.null(x)) x else names(df_)[1]
+  series_keys <- if (!is.null(series)) series else if (!is.null(y)) y else setdiff(names(df_), x_key)
+  payload <- jsonlite::toJSON(list(
+    kind = kind,
+    title = title,
+    xKey = x_key,
+    series = lapply(series_keys, function(k) list(key = k, label = as.character(k))),
+    data = jsonlite::fromJSON(jsonlite::toJSON(df_, dataframe = "rows", auto_unbox = TRUE), simplifyVector = FALSE)
+  ), auto_unbox = TRUE)
+  cat(paste0("__DATACHART_START__", payload, "__DATACHART_END__\\n"))
+}
+`;
+
+  let fullCode = showChartHelper + buildDataBootstrap(fileNames);
 
   fullCode += code;
 
@@ -109,7 +160,7 @@ self.onmessage = async (e) => {
         await writeFile(payload.fileName, payload.data);
         break;
       case "run":
-        await runCode(payload.code, payload.fileName);
+        await runCode(payload.code, payload.fileNames);
         break;
       case "reset":
         await resetRuntime();

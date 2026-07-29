@@ -21,8 +21,9 @@ import DataMindVersioning from "@/components/datamind/DataMindVersioning";
 import { useWebR } from "@/hooks/useWebR";
 import DataMindStatsMenu from "@/components/datamind/DataMindStatsMenu";
 import HeatmapOverlayDialog from "@/components/datamind/HeatmapOverlayDialog";
+import GoogleSheetsImportDialog from "@/components/datamind/GoogleSheetsImportDialog";
 import { Button } from "@/components/ui/button";
-import { PanelLeftClose, PanelLeft, GitBranch, Sparkles, Activity, Trash2, Share2, Flame } from "lucide-react";
+import { PanelLeftClose, PanelLeft, GitBranch, Sparkles, Activity, Trash2, Share2, Flame, Server } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -78,12 +79,19 @@ export interface SelectedContext {
 }
 
 const MAX_ROWS = 50000;
+// Above this combined row count, execution routes to the owner's home-server sandbox
+// instead of the in-browser Pyodide (see supabase/functions/datamind-run-remote).
+const REMOTE_EXEC_THRESHOLD_ROWS = 50000;
 
 const DataMind = () => {
   const { id: conversationId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  // Personal feature: only this account can route large-dataset execution to the
+  // owner's home server. Real enforcement lives server-side in the edge function —
+  // this is just for deciding what to show/attempt in the UI.
+  const isOwner = !!user && user.id === import.meta.env.VITE_DATAMIND_REMOTE_EXEC_OWNER_ID;
   const { canUse } = useSubscription();
   const [showDmLimitDialog, setShowDmLimitDialog] = useState(false);
   const { toast } = useToast();
@@ -103,6 +111,8 @@ const DataMind = () => {
   const [showProfiler, setShowProfiler] = useState(false);
   const [profilingDone, setProfilingDone] = useState(false);
   const [heatmapOpen, setHeatmapOpen] = useState(false);
+  const [googleSheetsOpen, setGoogleSheetsOpen] = useState(false);
+  const [usedRemoteExec, setUsedRemoteExec] = useState(false);
 
   // Full spreadsheet data (client-side only, not persisted)
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
@@ -278,6 +288,108 @@ const DataMind = () => {
     await supabase.from("datamind_conversations").delete().eq("id", id);
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (conversationId === id) navigate("/datamind");
+  };
+
+  // Builds a CSV blob from parsed rows so the import has the same durable storage
+  // snapshot (and reload/reparse path) as a regular CSV upload — not a live sync.
+  const buildCSVBlob = (columns: string[], rows: Record<string, string>[]): Blob => {
+    const escapeCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const lines = [
+      columns.map(escapeCell).join(","),
+      ...rows.map((row) => columns.map((c) => escapeCell(row[c] ?? "")).join(",")),
+    ];
+    return new Blob([lines.join("\n")], { type: "text/csv" });
+  };
+
+  const importGoogleSheet = async (spreadsheetUrl: string, sheetName: string) => {
+    if (!user) return;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const providerToken = session?.provider_token;
+
+    if (!providerToken) {
+      toast({
+        title: "Permissão do Google Sheets necessária",
+        description: "Você será redirecionado para autorizar o acesso. Após autorizar, tente importar novamente.",
+      });
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.href,
+          scopes: "https://www.googleapis.com/auth/spreadsheets.readonly",
+          queryParams: { access_type: "offline", prompt: "consent" },
+        },
+      });
+      return;
+    }
+
+    const { data, error } = await supabase.functions.invoke("import-google-sheet", {
+      body: { spreadsheet_url: spreadsheetUrl, sheet_name: sheetName || undefined, provider_token: providerToken },
+    });
+
+    if (error || data?.error) {
+      const errMsg = data?.error || error?.message || "Falha ao importar a planilha.";
+      if (errMsg.includes("insufficient") || errMsg.includes("scope") || errMsg.includes("PERMISSION_DENIED")) {
+        toast({ title: "Permissão insuficiente", description: "Redirecionando para autorizar acesso ao Google Sheets..." });
+        await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: window.location.href,
+            scopes: "https://www.googleapis.com/auth/spreadsheets.readonly",
+            queryParams: { access_type: "offline", prompt: "consent" },
+          },
+        });
+        return;
+      }
+      toast({ title: "Erro ao importar", description: errMsg, variant: "destructive" });
+      return;
+    }
+
+    const { title, sheet_name, columns, rows } = data as { title: string; sheet_name: string; columns: string[]; rows: Record<string, string>[] };
+
+    let activeConvId = conversationId;
+    if (!activeConvId) {
+      activeConvId = await createConversation(title);
+      if (!activeConvId) return;
+    }
+
+    const safeName = `${title} - ${sheet_name}`.replace(/[^a-zA-Z0-9-_ ]/g, "").trim() || "planilha";
+    const filePath = `${user.id}/${Date.now()}_${safeName}.csv`;
+    const blob = buildCSVBlob(columns, rows);
+
+    const { error: uploadError } = await supabase.storage.from("datamind-files").upload(filePath, blob);
+    if (uploadError) {
+      toast({ title: "Erro ao salvar planilha importada", description: uploadError.message, variant: "destructive" });
+      return;
+    }
+
+    const { data: fileData } = await supabase
+      .from("datamind_files")
+      .insert([{
+        conversation_id: activeConvId,
+        user_id: user.id,
+        file_name: `${safeName}.csv`,
+        file_path: filePath,
+        file_size: blob.size,
+        schema_info: { columns, rows: rows.length } as any,
+        preview_data: rows.slice(0, 5) as any,
+      }])
+      .select()
+      .single();
+
+    if (fileData) {
+      setFiles((prev) => [...prev, fileData as unknown as DataMindFile]);
+      setSpreadsheetData({ columns, rows });
+    }
+
+    const { data: msg } = await supabase.from("datamind_messages").insert({
+      conversation_id: activeConvId,
+      role: "assistant",
+      content: `📊 Planilha importada do Google Sheets: **${title}** (aba "${sheet_name}", ${rows.length} linhas). Pode perguntar sobre os dados.`,
+    }).select().single();
+    if (msg) setMessages((prev) => [...prev, msg as Message]);
+
+    toast({ title: "Planilha importada!", description: `${rows.length} linhas de "${sheet_name}"` });
   };
 
   const renameConversation = async (id: string, newTitle: string) => {
@@ -459,11 +571,14 @@ const DataMind = () => {
 
     // Call AI
     try {
-      const schemaContext = files.length > 0
-        ? JSON.stringify(files[0].schema_info)
-        : uploadedFile
-          ? JSON.stringify(uploadedFile.schema_info)
-          : "";
+      // All files in the conversation (including one just uploaded) are available as context —
+      // `files` state won't include `uploadedFile` yet since setFiles hasn't flushed.
+      const allFiles = uploadedFile ? [...files, uploadedFile] : files;
+
+      const schemas = allFiles.map((f) => {
+        const info = f.schema_info as { columns?: string[]; rows?: number };
+        return { file_name: f.file_name, columns: info?.columns || [], rows: info?.rows };
+      });
 
       const history = [...messages, userMsg].filter(Boolean).slice(-10).map((m) => ({
         role: m!.role,
@@ -476,8 +591,7 @@ const DataMind = () => {
           body: {
             message: fullContent,
             history,
-            schema: schemaContext,
-            file_name: uploadedFile?.file_name || files[0]?.file_name || "",
+            schemas,
             provider: selectedModel?.provider || undefined,
             model: selectedModel?.model || undefined,
             codeLanguage,
@@ -494,30 +608,47 @@ const DataMind = () => {
       let outputType: string | null = null;
       let outputContent: string | null = null;
 
-      if (codeBlock && (uploadedFile || files.length > 0)) {
-        const targetFile = uploadedFile || files[0];
+      if (codeBlock && allFiles.length > 0) {
         try {
           const isRCode = codeLanguage === "r";
-          const runtime = isRCode ? webR : pyodide;
-          
-          if (!loadedFilesRef.current.has(targetFile.file_path + (isRCode ? "_r" : "_py"))) {
-            const { data: fileBlob } = await supabase.storage
-              .from("datamind-files")
-              .download(targetFile.file_path);
-            if (fileBlob) {
+          const totalRows = allFiles.reduce((sum, f) => {
+            const info = f.schema_info as { rows?: number };
+            return sum + (Number(info?.rows) || 0);
+          }, 0);
+          const canUseRemoteExec = !isRCode && isOwner && totalRows > REMOTE_EXEC_THRESHOLD_ROWS;
+          setUsedRemoteExec(canUseRemoteExec);
+
+          let result: { stdout: string; images: string[]; error: string | null };
+
+          if (canUseRemoteExec) {
+            const { data: remoteData, error: remoteError } = await supabase.functions.invoke(
+              "datamind-run-remote",
+              { body: { code: codeBlock, codeLanguage, filePaths: allFiles.map((f) => f.file_path) } }
+            );
+            if (remoteError) throw remoteError;
+            result = remoteData;
+          } else {
+            for (const f of allFiles) {
+              const cacheKey = f.file_path + (isRCode ? "_r" : "_py");
+              if (loadedFilesRef.current.has(cacheKey)) continue;
+              const { data: fileBlob } = await supabase.storage
+                .from("datamind-files")
+                .download(f.file_path);
+              if (!fileBlob) continue;
               const arrayBuf = await fileBlob.arrayBuffer();
               if (isRCode) {
-                await webR.writeFile(targetFile.file_name, arrayBuf);
+                await webR.writeFile(f.file_name, arrayBuf);
               } else {
-                await pyodide.writeFile(targetFile.file_name, arrayBuf);
+                await pyodide.writeFile(f.file_name, arrayBuf);
               }
-              loadedFilesRef.current.add(targetFile.file_path + (isRCode ? "_r" : "_py"));
+              loadedFilesRef.current.add(cacheKey);
             }
-          }
 
-          const result = isRCode
-            ? await webR.runR(codeBlock, targetFile.file_name)
-            : await pyodide.runPython(codeBlock, targetFile.file_name);
+            const fileNames = allFiles.map((f) => f.file_name);
+            result = isRCode
+              ? await webR.runR(codeBlock, fileNames)
+              : await pyodide.runPython(codeBlock, fileNames);
+          }
 
           if (result.error) {
             outputType = "text";
@@ -768,6 +899,15 @@ const DataMind = () => {
                 disabled={loading}
               />
               <DataMindModelSelector value={selectedModel} onChange={setSelectedModel} />
+              {usedRemoteExec && (
+                <span
+                  className="inline-flex items-center gap-1.5 text-xs h-7 px-2.5 rounded-md bg-primary/10 text-primary"
+                  title="Última análise executada no servidor remoto (dataset grande)"
+                >
+                  <Server className="h-3.5 w-3.5" />
+                  Servidor remoto
+                </span>
+              )}
               <DataMindSandboxPanel codeLanguage={codeLanguage} onLanguageChange={setCodeLanguage} pyodideStatus={pyodide.status} onReset={pyodide.reset} onInit={pyodide.init} webRStatus={webR.status} onWebRInit={webR.init} onWebRReset={webR.reset} />
             </div>
           </div>
@@ -826,6 +966,7 @@ const DataMind = () => {
             spreadsheetData={spreadsheetData}
             selectedContext={selectedContext}
             onSelectionChange={setSelectedContext}
+            onOpenGoogleSheetsImport={() => setGoogleSheetsOpen(true)}
           />
         </div>
       </div>
@@ -834,6 +975,12 @@ const DataMind = () => {
         open={applyPipelineOpen}
         onOpenChange={setApplyPipelineOpen}
         onApply={applyPipelineSteps}
+      />
+
+      <GoogleSheetsImportDialog
+        open={googleSheetsOpen}
+        onOpenChange={setGoogleSheetsOpen}
+        onImport={importGoogleSheet}
       />
 
       <HeatmapOverlayDialog

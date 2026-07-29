@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import ChartRenderer from "@/components/datamind/ChartRenderer";
 
 interface DashboardItem {
   id: string;
@@ -27,6 +28,7 @@ interface DashboardData {
 
 const DashboardItemCard = ({ item, onDelete }: { item: DashboardItem; onDelete: (id: string) => void }) => {
   if (item.item_type === "chart") {
+    const interactiveChart = item.content?.chart;
     const imgSrc = item.content?.base64 || item.content;
     return (
       <div className="rounded-xl border border-border/40 bg-card shadow-sm overflow-hidden h-full flex flex-col">
@@ -40,9 +42,15 @@ const DashboardItemCard = ({ item, onDelete }: { item: DashboardItem; onDelete: 
             <Trash2 className="h-3 w-3 text-destructive" />
           </button>
         </div>
-        <div className="flex-1 flex items-center justify-center p-3 bg-white dark:bg-muted/10">
-          <img src={typeof imgSrc === "string" ? imgSrc : ""} alt={item.title} className="max-w-full max-h-full object-contain rounded" />
-        </div>
+        {interactiveChart ? (
+          <div className="flex-1 p-3 min-h-0">
+            <ChartRenderer chart={interactiveChart} height="100%" />
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center p-3 bg-white dark:bg-muted/10">
+            <img src={typeof imgSrc === "string" ? imgSrc : ""} alt={item.title} className="max-w-full max-h-full object-contain rounded" />
+          </div>
+        )}
       </div>
     );
   }

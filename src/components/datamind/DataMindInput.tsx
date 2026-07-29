@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Paperclip, Send, X, FileSpreadsheet, Upload, FolderOpen, Search, Grid3X3 } from "lucide-react";
+import { Paperclip, Send, X, FileSpreadsheet, Upload, FolderOpen, Search, Grid3X3, Sheet } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -16,9 +16,10 @@ interface Props {
   existingFiles?: DataMindFile[];
   selectedContext?: SelectedContext | null;
   onClearSelection?: () => void;
+  onOpenGoogleSheetsImport?: () => void;
 }
 
-const DataMindInput = ({ onSend, loading, existingFiles = [], selectedContext, onClearSelection }: Props) => {
+const DataMindInput = ({ onSend, loading, existingFiles = [], selectedContext, onClearSelection, onOpenGoogleSheetsImport }: Props) => {
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -123,6 +124,20 @@ const DataMindInput = ({ onSend, loading, existingFiles = [], selectedContext, o
                 <Upload className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-foreground">Upload File</span>
               </button>
+
+              {/* Google Sheets import */}
+              {onOpenGoogleSheetsImport && (
+                <button
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                  onClick={() => {
+                    setAttachOpen(false);
+                    onOpenGoogleSheetsImport();
+                  }}
+                >
+                  <Sheet className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-foreground">Importar do Google Sheets</span>
+                </button>
+              )}
 
               {/* Existing files */}
               {existingFiles.length > 0 && (

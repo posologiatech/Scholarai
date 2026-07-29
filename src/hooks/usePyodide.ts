@@ -76,12 +76,12 @@ export function usePyodide() {
   );
 
   const runPython = useCallback(
-    (code: string, fileName?: string): Promise<RunResult> => {
+    (code: string, fileNames?: string[]): Promise<RunResult> => {
       const worker = getWorker();
       setStatus("running");
       return new Promise((resolve) => {
         resolveRef.current = resolve;
-        worker.postMessage({ action: "run", payload: { code, fileName } });
+        worker.postMessage({ action: "run", payload: { code, fileNames } });
       });
     },
     [getWorker]
