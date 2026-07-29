@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ForestPlot, FunnelPlot } from "@/components/meta-analysis/MetaAnalysisCharts";
+import { ForestPlot, FunnelPlot, SubgroupForestPlot, MetaRegressionScatter } from "@/components/meta-analysis/MetaAnalysisCharts";
+import { Switch } from "@/components/ui/switch";
 import {
   Calculator, Plus, Trash2, Loader2, BarChart3, TrendingUp, FileText, Sparkles,
   Download, AlertTriangle, CheckCircle2, Info,
@@ -31,6 +32,9 @@ interface Study {
   mean2: number; sd2: number; n2: number;
   // For OR/RR
   events1: number; events2: number;
+  // Advanced analysis (optional)
+  subgroup?: string;
+  moderator?: number;
   // Computed
   effect?: number; se?: number; ci_lower?: number; ci_upper?: number;
   or?: number; rr?: number;
@@ -42,6 +46,8 @@ const emptyStudy = (): Study => ({
   mean1: 0, sd1: 0, n1: 0,
   mean2: 0, sd2: 0, n2: 0,
   events1: 0, events2: 0,
+  subgroup: "",
+  moderator: undefined,
 });
 
 const MetaAnalysis = () => {
@@ -56,14 +62,19 @@ const MetaAnalysis = () => {
   const [interpretation, setInterpretation] = useState("");
   const [interpreting, setInterpreting] = useState(false);
   const [activeTab, setActiveTab] = useState("input");
+  const [advancedMode, setAdvancedMode] = useState(false);
 
   const addStudy = () => setStudies(prev => [...prev, emptyStudy()]);
   const removeStudy = (id: string) => setStudies(prev => prev.filter(s => s.id !== id));
 
+  const textFields = new Set(["name", "subgroup"]);
   const updateStudy = (id: string, field: string, value: number | string) => {
-    setStudies(prev => prev.map(s =>
-      s.id === id ? { ...s, [field]: typeof value === "string" && field !== "name" ? parseFloat(value) || 0 : value } : s
-    ));
+    setStudies(prev => prev.map(s => {
+      if (s.id !== id) return s;
+      if (typeof value !== "string" || textFields.has(field)) return { ...s, [field]: value };
+      if (field === "moderator") return { ...s, moderator: value === "" ? undefined : (parseFloat(value) || 0) };
+      return { ...s, [field]: parseFloat(value) || 0 };
+    }));
   };
 
   const calculate = useCallback(async () => {
@@ -310,6 +321,21 @@ const MetaAnalysis = () => {
                 </CardContent>
               </Card>
 
+              {/* Advanced analysis toggle */}
+              <Card>
+                <CardContent className="pt-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{pt ? "Análise avançada" : "Advanced analysis"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {pt
+                        ? "Adiciona colunas de subgrupo e moderador para análise de subgrupo e meta-regressão."
+                        : "Adds subgroup and moderator columns for subgroup analysis and meta-regression."}
+                    </p>
+                  </div>
+                  <Switch checked={advancedMode} onCheckedChange={setAdvancedMode} />
+                </CardContent>
+              </Card>
+
               {/* Studies table */}
               <Card>
                 <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -344,6 +370,11 @@ const MetaAnalysis = () => {
                               </TableHead>
                             </>
                           )}
+                          {advancedMode && (
+                            <TableHead className="text-center text-xs" colSpan={2}>
+                              {pt ? "Análise avançada" : "Advanced analysis"}
+                            </TableHead>
+                          )}
                           <TableHead className="w-10"></TableHead>
                         </TableRow>
                         <TableRow>
@@ -363,6 +394,12 @@ const MetaAnalysis = () => {
                               <TableHead className="text-xs">N</TableHead>
                               <TableHead className="text-xs">{pt ? "Eventos" : "Events"}</TableHead>
                               <TableHead className="text-xs">N</TableHead>
+                            </>
+                          )}
+                          {advancedMode && (
+                            <>
+                              <TableHead className="text-xs">{pt ? "Subgrupo" : "Subgroup"}</TableHead>
+                              <TableHead className="text-xs">{pt ? "Moderador" : "Moderator"}</TableHead>
                             </>
                           )}
                           <TableHead></TableHead>
@@ -394,6 +431,12 @@ const MetaAnalysis = () => {
                                 <TableCell><Input type="number" value={study.n1 || ""} onChange={e => updateStudy(study.id, "n1", e.target.value)} className="h-8 text-xs w-20" placeholder="0" /></TableCell>
                                 <TableCell><Input type="number" value={study.events2 || ""} onChange={e => updateStudy(study.id, "events2", e.target.value)} className="h-8 text-xs w-20" placeholder="0" /></TableCell>
                                 <TableCell><Input type="number" value={study.n2 || ""} onChange={e => updateStudy(study.id, "n2", e.target.value)} className="h-8 text-xs w-20" placeholder="0" /></TableCell>
+                              </>
+                            )}
+                            {advancedMode && (
+                              <>
+                                <TableCell><Input value={study.subgroup || ""} onChange={e => updateStudy(study.id, "subgroup", e.target.value)} className="h-8 text-xs w-24" placeholder={pt ? "ex: adultos" : "e.g. adults"} /></TableCell>
+                                <TableCell><Input type="number" value={study.moderator ?? ""} onChange={e => updateStudy(study.id, "moderator", e.target.value)} className="h-8 text-xs w-20" placeholder={pt ? "ex: ano" : "e.g. year"} /></TableCell>
                               </>
                             )}
                             <TableCell>
@@ -506,6 +549,113 @@ const MetaAnalysis = () => {
                     </Table>
                   </CardContent>
                 </Card>
+
+                {/* Publication bias */}
+                {results.publicationBias && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">{pt ? "Viés de Publicação" : "Publication Bias"}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="rounded-lg border border-border p-3">
+                          <p className="text-xs font-medium text-foreground">{pt ? "Teste de Egger" : "Egger's Test"}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {pt ? "Intercepto" : "Intercept"} = {results.publicationBias.egger.intercept.toFixed(3)} (SE = {results.publicationBias.egger.se.toFixed(3)})
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            t = {results.publicationBias.egger.t.toFixed(2)}, p = {results.publicationBias.egger.p.toFixed(4)}
+                          </p>
+                          <Badge variant={results.publicationBias.egger.p < 0.05 ? "destructive" : "default"} className="text-xs mt-1">
+                            {results.publicationBias.egger.p < 0.05
+                              ? (pt ? "Assimetria detectada" : "Asymmetry detected")
+                              : (pt ? "Sem assimetria significativa" : "No significant asymmetry")}
+                          </Badge>
+                        </div>
+                        <div className="rounded-lg border border-border p-3">
+                          <p className="text-xs font-medium text-foreground">{pt ? "Trim-and-Fill" : "Trim-and-Fill"}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {pt ? "Estudos faltantes estimados" : "Estimated missing studies"}: {results.publicationBias.trimAndFill.k0}
+                          </p>
+                          {results.publicationBias.trimAndFill.k0 > 0 && results.publicationBias.trimAndFill.adjustedPooled && (
+                            <p className="text-xs text-muted-foreground">
+                              {pt ? "Efeito ajustado" : "Adjusted effect"}: {results.publicationBias.trimAndFill.adjustedPooled.pooled.toFixed(3)}
+                              {" "}[{results.publicationBias.trimAndFill.adjustedPooled.ci_lower.toFixed(3)}, {results.publicationBias.trimAndFill.adjustedPooled.ci_upper.toFixed(3)}]
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {pt
+                          ? "Estimativas por aproximação normal e estimador L0 simplificado — confirme casos limítrofes em software dedicado (ex.: R/metafor) antes de publicar."
+                          : "Estimates use a normal approximation and a simplified L0 estimator — confirm borderline cases in dedicated software (e.g. R/metafor) before publishing."}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Subgroup analysis */}
+                {results.subgroupResult && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">{pt ? "Análise de Subgrupo" : "Subgroup Analysis"}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{pt ? "Subgrupo" : "Subgroup"}</TableHead>
+                            <TableHead className="text-right">N</TableHead>
+                            <TableHead className="text-right">{pt ? "Efeito" : "Effect"}</TableHead>
+                            <TableHead className="text-right">95% CI</TableHead>
+                            <TableHead className="text-right">I²</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {results.subgroupResult.groups.map((g: any) => (
+                            <TableRow key={g.subgroup}>
+                              <TableCell className="font-medium text-sm">{g.subgroup}</TableCell>
+                              <TableCell className="text-right text-sm">{g.n}</TableCell>
+                              <TableCell className="text-right text-sm">{g.random.pooled.toFixed(3)}</TableCell>
+                              <TableCell className="text-right text-sm">[{g.random.ci_lower.toFixed(3)}, {g.random.ci_upper.toFixed(3)}]</TableCell>
+                              <TableCell className="text-right text-sm">{g.heterogeneity.I2.toFixed(1)}%</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      <p className="text-xs text-muted-foreground">
+                        Q{pt ? " entre subgrupos" : " between subgroups"} = {results.subgroupResult.QBetween.toFixed(2)}
+                        {" "}(df = {results.subgroupResult.dfBetween}, p = {results.subgroupResult.pBetween.toFixed(4)})
+                        {results.subgroupResult.pBetween < 0.05 && (
+                          <span className="text-primary font-medium"> — {pt ? "diferença significativa entre subgrupos" : "significant difference between subgroups"}</span>
+                        )}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Meta-regression */}
+                {results.metaRegressionResult && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">{pt ? "Meta-regressão" : "Meta-regression"}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-1">
+                      <p className="text-sm text-foreground">
+                        {pt ? "Inclinação (moderador)" : "Slope (moderator)"} = {results.metaRegressionResult.slope.toFixed(4)}
+                        {" "}(SE = {results.metaRegressionResult.seSlope.toFixed(4)})
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        z = {results.metaRegressionResult.z.toFixed(2)}, p = {results.metaRegressionResult.p.toFixed(4)}
+                      </p>
+                      <Badge variant={results.metaRegressionResult.p < 0.05 ? "default" : "secondary"} className="text-xs mt-1">
+                        {results.metaRegressionResult.p < 0.05
+                          ? (pt ? "Moderador significativo" : "Significant moderator")
+                          : (pt ? "Sem efeito significativo do moderador" : "No significant moderator effect")}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
           </TabsContent>
@@ -532,9 +682,31 @@ const MetaAnalysis = () => {
                     <FunnelPlot
                       studies={results.studies}
                       pooledEffect={results.meta.random.pooled}
+                      eggerP={results.publicationBias?.egger?.p}
+                      imputedPoints={results.publicationBias?.trimAndFill?.imputed}
                     />
                   </CardContent>
                 </Card>
+
+                {results.subgroupResult && (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <SubgroupForestPlot groups={results.subgroupResult.groups} effectType={results.effectType} />
+                    </CardContent>
+                  </Card>
+                )}
+
+                {results.metaRegressionResult && (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <MetaRegressionScatter
+                        studies={results.studies}
+                        slope={results.metaRegressionResult.slope}
+                        intercept={results.metaRegressionResult.intercept}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
           </TabsContent>
