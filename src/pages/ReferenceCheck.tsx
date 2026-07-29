@@ -5,7 +5,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Loader2, FileText, AlertTriangle, CheckCircle2, XCircle, Shield } from "lucide-react";
+import { Upload, Loader2, FileText, AlertTriangle, CheckCircle2, XCircle, Shield, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface ReferenceResult {
@@ -14,7 +14,8 @@ interface ReferenceResult {
   year?: string;
   title?: string;
   doi?: string;
-  status: "ok" | "warning" | "retracted";
+  matched_doi?: string;
+  status: "ok" | "warning" | "retracted" | "unverified";
   issues: { type: string; message: string; contexts?: string[] }[];
   citation_stats?: { supporting: number; contrasting: number; mentioning: number };
 }
@@ -23,6 +24,7 @@ interface CheckSummary {
   total: number;
   ok: number;
   warning: number;
+  unverified: number;
   retracted: number;
 }
 
@@ -126,6 +128,12 @@ const ReferenceCheck = () => {
             ? `${data.summary.retracted} referência(s) retratada(s) encontrada(s)!`
             : `${data.summary.retracted} retracted reference(s) found!`
         );
+      } else if (data.summary?.unverified > 0) {
+        toast.warning(
+          locale === "pt"
+            ? `${data.summary.unverified} referência(s) não puderam ser confirmadas — podem não existir`
+            : `${data.summary.unverified} reference(s) could not be confirmed — may not exist`
+        );
       } else if (data.summary?.warning > 0) {
         toast.warning(
           locale === "pt"
@@ -135,8 +143,8 @@ const ReferenceCheck = () => {
       } else {
         toast.success(
           locale === "pt"
-            ? "Todas as referências parecem válidas!"
-            : "All references appear valid!"
+            ? "Todas as referências foram confirmadas em bases bibliográficas reais!"
+            : "All references were confirmed against real bibliographic databases!"
         );
       }
     } catch (err) {
@@ -150,6 +158,7 @@ const ReferenceCheck = () => {
   const statusIcon = (status: string) => {
     switch (status) {
       case "retracted": return <XCircle className="h-5 w-5 text-destructive" />;
+      case "unverified": return <HelpCircle className="h-5 w-5 text-orange-500" />;
       case "warning": return <AlertTriangle className="h-5 w-5 text-amber-500" />;
       default: return <CheckCircle2 className="h-5 w-5 text-success" />;
     }
@@ -159,10 +168,12 @@ const ReferenceCheck = () => {
     switch (status) {
       case "retracted":
         return <Badge variant="destructive">{locale === "pt" ? "Retratado" : "Retracted"}</Badge>;
+      case "unverified":
+        return <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/30">{locale === "pt" ? "Não verificada" : "Unverified"}</Badge>;
       case "warning":
         return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/30">{locale === "pt" ? "Contestado" : "Contested"}</Badge>;
       default:
-        return <Badge variant="secondary" className="bg-success/10 text-success">{locale === "pt" ? "OK" : "OK"}</Badge>;
+        return <Badge variant="secondary" className="bg-success/10 text-success">{locale === "pt" ? "Confirmada" : "Confirmed"}</Badge>;
     }
   };
 
@@ -181,8 +192,8 @@ const ReferenceCheck = () => {
             </div>
             <p className="text-muted-foreground max-w-2xl">
               {locale === "pt"
-                ? "Faça upload do seu manuscrito e verifique se alguma das referências citadas foi retratada ou amplamente contestada pela comunidade científica."
-                : "Upload your manuscript and check if any cited references have been retracted or widely contested by the scientific community."}
+                ? "Faça upload do seu manuscrito. Cada referência é conferida contra o CrossRef para confirmar que existe de verdade — e não só uma citação com aparência plausível — além de checar retratação e contestação pela comunidade científica."
+                : "Upload your manuscript. Every reference is checked against CrossRef to confirm it actually exists — not just that it looks plausible — plus retraction and community contestation checks."}
             </p>
           </div>
 
@@ -240,7 +251,7 @@ const ReferenceCheck = () => {
 
           {/* Summary */}
           {summary && (
-            <div className="grid gap-4 sm:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-5">
               <Card>
                 <CardContent className="pt-4 text-center">
                   <p className="text-2xl font-bold text-foreground">{summary.total}</p>
@@ -250,7 +261,13 @@ const ReferenceCheck = () => {
               <Card>
                 <CardContent className="pt-4 text-center">
                   <p className="text-2xl font-bold text-success">{summary.ok}</p>
-                  <p className="text-xs text-muted-foreground">{locale === "pt" ? "Válidas" : "Valid"}</p>
+                  <p className="text-xs text-muted-foreground">{locale === "pt" ? "Confirmadas" : "Confirmed"}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 text-center">
+                  <p className="text-2xl font-bold text-orange-500">{summary.unverified}</p>
+                  <p className="text-xs text-muted-foreground">{locale === "pt" ? "Não verificadas" : "Unverified"}</p>
                 </CardContent>
               </Card>
               <Card>
@@ -284,6 +301,8 @@ const ReferenceCheck = () => {
                       className={`rounded-lg border p-4 ${
                         ref.status === "retracted"
                           ? "border-destructive/40 bg-destructive/5"
+                          : ref.status === "unverified"
+                          ? "border-orange-500/40 bg-orange-500/5"
                           : ref.status === "warning"
                           ? "border-amber-500/40 bg-amber-500/5"
                           : "border-border bg-card"
@@ -308,6 +327,14 @@ const ReferenceCheck = () => {
                           <p className="text-sm text-foreground">{ref.title || ref.raw_text}</p>
                           {ref.authors && (
                             <p className="text-xs text-muted-foreground">{ref.authors}{ref.year ? `, ${ref.year}` : ""}</p>
+                          )}
+                          {ref.matched_doi && (
+                            <p className="text-xs text-muted-foreground">
+                              {locale === "pt" ? "Possível DOI correto encontrado: " : "Possible correct DOI found: "}
+                              <a href={`https://doi.org/${ref.matched_doi}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                                {ref.matched_doi}
+                              </a>
+                            </p>
                           )}
                           {ref.issues.map((issue, iIdx) => (
                             <div key={iIdx} className="rounded bg-muted/50 p-2 text-xs text-foreground/80">

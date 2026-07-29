@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   XCircle,
   HelpCircle,
+  Bot,
 } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +33,10 @@ interface QualityResult {
   overallScore: number | string;
   overallJudgment: "high_quality" | "moderate_quality" | "low_quality";
   summary: string;
+  // Every assessment starts AI-generated from title/abstract alone. It only becomes
+  // human-reviewed once a reviewer has actually looked at and touched at least one
+  // domain rating — until then it must not be presented as a finished judgment.
+  humanReviewed?: boolean;
 }
 
 interface StepQualityProps {
@@ -164,7 +169,8 @@ const StepQuality = ({
     }
   };
 
-  // Override a domain rating manually
+  // Override a domain rating manually — the only signal we have that a human actually
+  // looked at this assessment, so this is also what flips it out of "pending review".
   const overrideDomain = (paperId: string, domainId: string, newRating: string) => {
     const result = qualityResults[paperId];
     if (!result) return;
@@ -174,6 +180,7 @@ const StepQuality = ({
         ...result.domains,
         [domainId]: { ...result.domains[domainId], rating: newRating },
       },
+      humanReviewed: true,
     };
     onQualityResultsChange({ ...qualityResults, [paperId]: updated });
   };
@@ -182,6 +189,7 @@ const StepQuality = ({
   const highCount = Object.values(qualityResults).filter((r) => r.overallJudgment === "high_quality").length;
   const modCount = Object.values(qualityResults).filter((r) => r.overallJudgment === "moderate_quality").length;
   const lowCount = Object.values(qualityResults).filter((r) => r.overallJudgment === "low_quality").length;
+  const pendingReviewCount = Object.values(qualityResults).filter((r) => !r.humanReviewed).length;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -237,6 +245,17 @@ const StepQuality = ({
           <Badge variant="destructive" className="gap-1.5">
             <XCircle className="h-3 w-3" /> {pt ? "Baixa" : "Low"}: {lowCount}
           </Badge>
+          {pendingReviewCount > 0 && (
+            <Badge
+              variant="outline"
+              className="gap-1.5 border-amber-500/40 text-amber-600 dark:text-amber-400"
+              title={pt
+                ? "Avaliadas pela IA a partir de título/resumo, ainda sem confirmação de um revisor humano"
+                : "Assessed by AI from title/abstract, not yet confirmed by a human reviewer"}
+            >
+              <Bot className="h-3 w-3" /> {pt ? "Pendentes de revisão" : "Pending review"}: {pendingReviewCount}
+            </Badge>
+          )}
           <span className="text-sm text-muted-foreground ml-auto">
             {assessedCount}/{includedPapers.length} {pt ? "avaliados" : "assessed"}
           </span>
@@ -264,6 +283,17 @@ const StepQuality = ({
                       {paper.year && `(${paper.year})`} · {pt ? "Score" : "Score"}: {result.overallScore}
                     </p>
                   </div>
+                  {!result.humanReviewed && (
+                    <Badge
+                      variant="outline"
+                      className="gap-1 text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400"
+                      title={pt
+                        ? "Gerado por IA a partir de título/resumo — ainda não confirmado por um revisor humano"
+                        : "AI-generated from title/abstract — not yet confirmed by a human reviewer"}
+                    >
+                      <Bot className="h-3 w-3" /> {pt ? "Pendente" : "Pending"}
+                    </Badge>
+                  )}
                   <Badge variant={getJudgmentVariant(result.overallJudgment)} className="text-xs">
                     {getJudgmentLabel(result.overallJudgment)}
                   </Badge>
@@ -272,6 +302,20 @@ const StepQuality = ({
                 {isExpanded && (
                   <div className="border-t border-border bg-muted/20 p-3 space-y-2">
                     <p className="text-xs text-muted-foreground">{result.summary}</p>
+                    {!result.humanReviewed && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onQualityResultsChange({ ...qualityResults, [paper.id]: { ...result, humanReviewed: true } });
+                        }}
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                        {pt ? "Confirmar como revisado" : "Confirm as reviewed"}
+                      </Button>
+                    )}
                     <div className="space-y-1.5">
                       {Object.entries(result.domains || {}).map(([domainId, domain]) => (
                         <div key={domainId} className="flex items-start gap-2 text-xs">

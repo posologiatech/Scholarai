@@ -1,18 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { hashAnswerLink, hashResponseRollup } from "../_shared/survey-integrity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-async function hashData(data: object): Promise<string> {
-  const encoded = new TextEncoder().encode(JSON.stringify(data));
-  const buffer = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(buffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -98,17 +91,18 @@ Deno.serve(async (req: Request) => {
       matrix_answers: answer.matrix_answers,
     };
 
-    const previousHash = answer.integrity_hash || "";
+    const previousHash = answer.integrity_hash || null;
 
-    // Calculate new hash
-    const newHashPayload = {
-      question_id: answer.question_id,
+    // Chain the new hash onto the previous one — this is the actual tamper-evidence
+    // mechanism. An edit made any other way (direct DB write, replayed/edited audit row)
+    // won't reproduce this link, so survey-verify-integrity's chain walk will catch it.
+    const newAnswerContent = {
       answer_text: new_value.answer_text ?? null,
       answer_numeric: new_value.answer_numeric ?? null,
       answer_choices: new_value.answer_choices ?? [],
       matrix_answers: new_value.matrix_answers ?? [],
     };
-    const newHash = await hashData(newHashPayload);
+    const newHash = await hashAnswerLink(answer.question_id, newAnswerContent, previousHash);
 
     // Insert audit record
     await supabase.from("survey_answer_audit").insert({
@@ -146,11 +140,8 @@ Deno.serve(async (req: Request) => {
       .order("question_id");
 
     if (allAnswers) {
-      const sortedHashes = allAnswers
-        .map((a: any) => a.integrity_hash || "")
-        .filter(Boolean)
-        .sort();
-      const responseHash = await hashData({ hashes: sortedHashes });
+      const hashes = allAnswers.map((a: any) => a.integrity_hash || "").filter(Boolean);
+      const responseHash = await hashResponseRollup(hashes);
       await supabase
         .from("survey_responses")
         .update({ response_hash: responseHash })

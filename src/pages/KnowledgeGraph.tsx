@@ -34,8 +34,9 @@ interface AINode {
   year?: number;
   citationCount?: number;
   paperIndex?: number;
-  similarity?: number;
+  similarity?: number | null;
   tldr?: string;
+  hasRealCitationData?: boolean;
 }
 
 const KnowledgeGraph = () => {
@@ -151,6 +152,7 @@ const KnowledgeGraph = () => {
           paperIndex: n.paperIndex,
           similarity: n.similarity,
           isOrigin: n.paperIndex === 0,
+          hasRealCitationData: n.hasRealCitationData,
         };
       });
 
@@ -226,6 +228,7 @@ const KnowledgeGraph = () => {
 
   const selectedPaper = selectedPaperIndex !== null ? papers[selectedPaperIndex] : null;
   const selectedTldr = selectedPaperIndex !== null ? tldrs[selectedPaperIndex] : undefined;
+  const selectedNode = selectedPaperIndex !== null ? graphNodes.find((n) => n.paperIndex === selectedPaperIndex) : null;
   const isLoading = loading || graphLoading;
   const hasGraph = graphNodes.length > 0 && !isLoading;
 
@@ -292,7 +295,7 @@ const KnowledgeGraph = () => {
               <p className="text-xs text-muted-foreground">
                 {loading
                   ? locale === "pt" ? "Buscando papers..." : "Searching papers..."
-                  : locale === "pt" ? "Gerando grafo com IA..." : "Generating graph with AI..."}
+                  : locale === "pt" ? "Buscando dados reais de citação..." : "Fetching real citation data..."}
               </p>
             </div>
           )}
@@ -344,6 +347,7 @@ const KnowledgeGraph = () => {
               paper={selectedPaper}
               tldr={selectedTldr}
               isOrigin={selectedPaperIndex === 0}
+              hasRealCitationData={selectedNode?.hasRealCitationData}
               locale={locale}
             />
           </div>

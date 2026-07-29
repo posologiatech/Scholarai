@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { hashAnswerLink, hashResponseRollup, AnswerContent } from "../_shared/survey-integrity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,13 +7,12 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function hashData(data: object): Promise<string> {
-  const encoded = new TextEncoder().encode(JSON.stringify(data));
-  const buffer = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(buffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
+const asContent = (v: any): AnswerContent => ({
+  answer_text: v?.answer_text ?? null,
+  answer_numeric: v?.answer_numeric ?? null,
+  answer_choices: v?.answer_choices ?? [],
+  matrix_answers: v?.matrix_answers ?? [],
+});
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -94,37 +94,57 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Verify each answer hash
+    // Verify each answer by replaying its full edit chain from genesis (previous_hash:
+    // null at creation) through every survey_answer_audit row, in order. A stored hash
+    // that matches its own current content is not proof of anything — anyone who can
+    // write the row can make those match. What's actually checked here is that every
+    // edit in the chain correctly links to the one before it, and that the current
+    // integrity_hash is the head of that chain — so any edit that bypassed
+    // survey-edit-answer, or any tampering with historical audit rows, breaks the chain
+    // instead of silently verifying.
     const results = await Promise.all(
       answers.map(async (a: any) => {
-        const hashPayload = {
-          question_id: a.question_id,
-          answer_text: a.answer_text,
-          answer_numeric: a.answer_numeric,
-          answer_choices: a.answer_choices,
-          matrix_answers: a.matrix_answers,
-        };
-        const recalculated = await hashData(hashPayload);
-        const storedHash = a.integrity_hash || "";
-        const valid = storedHash === "" || recalculated === storedHash;
+        const { data: auditRows } = await supabase
+          .from("survey_answer_audit")
+          .select("*")
+          .eq("answer_id", a.id)
+          .order("created_at", { ascending: true });
 
+        const edits = auditRows || [];
+        const storedHash = a.integrity_hash || "";
+
+        if (edits.length === 0) {
+          const recalculated = await hashAnswerLink(a.question_id, asContent(a), null);
+          const valid = storedHash !== "" && recalculated === storedHash;
+          return {
+            answer_id: a.id, question_id: a.question_id, version: a.version || 1,
+            edited: false, chain_length: 0,
+            stored_hash: storedHash, recalculated_hash: recalculated,
+            valid, has_hash: storedHash !== "",
+          };
+        }
+
+        let chainValid = true;
+        let linkHash = await hashAnswerLink(a.question_id, asContent(edits[0].previous_value), null);
+        if (linkHash !== (edits[0].previous_hash || "")) chainValid = false;
+
+        for (const edit of edits) {
+          linkHash = await hashAnswerLink(a.question_id, asContent(edit.new_value), linkHash);
+          if (linkHash !== edit.new_hash) chainValid = false;
+        }
+
+        const valid = chainValid && storedHash !== "" && linkHash === storedHash;
         return {
-          answer_id: a.id,
-          question_id: a.question_id,
-          version: a.version || 1,
-          stored_hash: storedHash,
-          recalculated_hash: recalculated,
-          valid,
-          has_hash: storedHash !== "",
+          answer_id: a.id, question_id: a.question_id, version: a.version || 1,
+          edited: true, chain_length: edits.length,
+          stored_hash: storedHash, recalculated_hash: linkHash,
+          valid, has_hash: storedHash !== "",
         };
       })
     );
 
-    // Verify response-level hash
-    const recalcHashes = results
-      .map((r) => r.recalculated_hash)
-      .sort();
-    const recalcResponseHash = await hashData({ hashes: recalcHashes });
+    // Verify response-level rollup
+    const recalcResponseHash = await hashResponseRollup(results.map((r) => r.recalculated_hash));
     const storedResponseHash = resp.response_hash || "";
     const responseValid =
       storedResponseHash === "" || recalcResponseHash === storedResponseHash;

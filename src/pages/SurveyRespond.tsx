@@ -16,6 +16,36 @@ import ConsentRespond from "@/components/survey/consent/ConsentRespond";
 
 type AnswerMap = Record<string, any>;
 
+// Deterministic per-respondent randomization: a stable seed (picked once per response,
+// not per render) drives a seeded shuffle, so block/choice order is randomized but doesn't
+// re-shuffle under the respondent's feet on every re-render.
+function hashSeed(str: string, base: number): number {
+  let h = base;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+
+function mulberry32(seed: number) {
+  let a = seed;
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const rand = mulberry32(seed);
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 const SurveyRespond = () => {
   const { token } = useParams<{ token: string }>();
   const [currentBlockIdx, setCurrentBlockIdx] = useState(0);
@@ -26,6 +56,7 @@ const SurveyRespond = () => {
   const [consentCompleted, setConsentCompleted] = useState(false);
   const [consentSignatureId, setConsentSignatureId] = useState<string | null>(null);
   const startTime = useRef(Date.now());
+  const [seed] = useState(() => Math.floor(Math.random() * 2 ** 31));
 
   // Load survey via distribution token
   const { data: surveyData, isLoading, isError } = useQuery({
@@ -73,10 +104,20 @@ const SurveyRespond = () => {
     startTime.current = Date.now(); // Reset timer for actual survey
   }, []);
 
-  // Evaluate logic rules to determine visible questions
-  const visibleQuestions = useMemo(() => {
+  // Evaluate logic rules to determine which questions and blocks are visible.
+  // Every action the builder (ConditionBuilder.tsx) offers has to actually do something
+  // here — an action that's configurable but a no-op at runtime is worse than not
+  // offering it, because the researcher believes their branching logic is live.
+  const { visibleQuestions, visibleBlocks } = useMemo(() => {
+    const sortedQuestions = [...allQuestions].sort((a: any, b: any) => a.question_order - b.question_order);
     const hiddenQuestionIds = new Set<string>();
-    const hiddenBlockIds = new Set<string>();
+
+    // A block is only ever a "show_block" target because someone wants it hidden until
+    // its condition fires — so any block referenced that way starts hidden by default.
+    // Blocks nobody conditions on are always visible, same as before.
+    const hiddenBlockIds = new Set<string>(
+      rules.filter((r: any) => r.action === "show_block" && r.target_id).map((r: any) => r.target_id)
+    );
 
     rules.forEach((rule: any) => {
       const condition = rule.condition as any;
@@ -95,35 +136,71 @@ const SurveyRespond = () => {
         case "greater_than":
           conditionMet = Number(answer) > Number(condition.value);
           break;
+        case "less_than":
+          conditionMet = Number(answer) < Number(condition.value);
+          break;
         case "contains":
           conditionMet = String(answer || "").toLowerCase().includes(String(condition.value).toLowerCase());
           break;
       }
 
-      if (conditionMet) {
-        if (rule.action === "hide_question" && rule.target_id) hiddenQuestionIds.add(rule.target_id);
-        if (rule.action === "end_survey") {
-          const sourceQ = allQuestions.find((q: any) => q.id === rule.source_question_id);
-          if (sourceQ) {
-            allQuestions.forEach((q: any) => {
-              if (q.question_order > sourceQ.question_order) hiddenQuestionIds.add(q.id);
-            });
-          }
+      if (!conditionMet) return;
+
+      if (rule.action === "hide_question" && rule.target_id) {
+        hiddenQuestionIds.add(rule.target_id);
+      }
+
+      if (rule.action === "show_block" && rule.target_id) {
+        hiddenBlockIds.delete(rule.target_id);
+      }
+
+      if (rule.action === "skip_to" && rule.target_id) {
+        const sourceQ = sortedQuestions.find((q: any) => q.id === rule.source_question_id);
+        const targetQ = sortedQuestions.find((q: any) => q.id === rule.target_id);
+        if (sourceQ && targetQ && targetQ.question_order > sourceQ.question_order) {
+          sortedQuestions.forEach((q: any) => {
+            if (q.question_order > sourceQ.question_order && q.question_order < targetQ.question_order) {
+              hiddenQuestionIds.add(q.id);
+            }
+          });
+        }
+      }
+
+      if (rule.action === "end_survey") {
+        const sourceQ = sortedQuestions.find((q: any) => q.id === rule.source_question_id);
+        if (sourceQ) {
+          sortedQuestions.forEach((q: any) => {
+            if (q.question_order > sourceQ.question_order) hiddenQuestionIds.add(q.id);
+          });
         }
       }
     });
 
-    return allQuestions.filter((q: any) => !hiddenQuestionIds.has(q.id) && !hiddenBlockIds.has(q.block_id));
-  }, [allQuestions, rules, answers]);
+    return {
+      visibleQuestions: allQuestions.filter((q: any) => !hiddenQuestionIds.has(q.id) && !hiddenBlockIds.has(q.block_id)),
+      visibleBlocks: blocks.filter((b: any) => !hiddenBlockIds.has(b.id)),
+    };
+  }, [allQuestions, blocks, rules, answers]);
 
   const blockQuestions = useMemo(() => {
-    if (!blocks.length) return [];
-    const block = blocks[currentBlockIdx];
+    if (!visibleBlocks.length) return [];
+    const block = visibleBlocks[currentBlockIdx];
     if (!block) return [];
-    return visibleQuestions.filter((q: any) => q.block_id === block.id);
-  }, [blocks, currentBlockIdx, visibleQuestions]);
+    let qs = visibleQuestions.filter((q: any) => q.block_id === block.id);
+    // Block-level question order randomization (randomize_questions) and per-question
+    // choice randomization (settings.randomize) were both stored but never applied —
+    // wire them up here, seeded so order is stable within this response.
+    if (block.randomize_questions) {
+      qs = seededShuffle(qs, hashSeed(block.id, seed));
+    }
+    return qs.map((q: any) =>
+      q.settings?.randomize && Array.isArray(q.choices) && q.choices.length > 1
+        ? { ...q, choices: seededShuffle(q.choices, hashSeed(q.id, seed)) }
+        : q
+    );
+  }, [visibleBlocks, currentBlockIdx, visibleQuestions, seed]);
 
-  const progress = blocks.length ? ((currentBlockIdx + 1) / blocks.length) * 100 : 0;
+  const progress = visibleBlocks.length ? ((currentBlockIdx + 1) / visibleBlocks.length) * 100 : 0;
 
   const setAnswer = useCallback((questionId: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -215,7 +292,7 @@ const SurveyRespond = () => {
     );
   }
 
-  const isLastBlock = currentBlockIdx >= blocks.length - 1;
+  const isLastBlock = currentBlockIdx >= visibleBlocks.length - 1;
 
   return (
     <div className="min-h-screen bg-background">
@@ -226,18 +303,18 @@ const SurveyRespond = () => {
           {survey.description && <p className="text-sm text-muted-foreground mt-1">{survey.description}</p>}
           <Progress value={progress} className="mt-3 h-2" />
           <p className="text-xs text-muted-foreground mt-1">
-            {currentBlockIdx + 1} / {blocks.length}
+            {currentBlockIdx + 1} / {visibleBlocks.length}
           </p>
         </div>
       </div>
 
       {/* Questions */}
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {blocks[currentBlockIdx] && (
+        {visibleBlocks[currentBlockIdx] && (
           <div className="mb-2">
-            <h2 className="text-base font-medium">{blocks[currentBlockIdx].title}</h2>
-            {blocks[currentBlockIdx].description && (
-              <p className="text-sm text-muted-foreground">{blocks[currentBlockIdx].description}</p>
+            <h2 className="text-base font-medium">{visibleBlocks[currentBlockIdx].title}</h2>
+            {visibleBlocks[currentBlockIdx].description && (
+              <p className="text-sm text-muted-foreground">{visibleBlocks[currentBlockIdx].description}</p>
             )}
           </div>
         )}

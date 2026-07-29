@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
-  ExternalLink, BookOpen, Calendar, Users, Quote, FileText,
+  ExternalLink, BookOpen, Calendar, Users, Quote, FileText, AlertTriangle,
 } from "lucide-react";
 
 interface Paper {
@@ -21,10 +21,11 @@ interface PaperDetailPanelProps {
   paper: Paper | null;
   tldr?: string;
   isOrigin?: boolean;
+  hasRealCitationData?: boolean;
   locale: string;
 }
 
-const PaperDetailPanel = ({ paper, tldr, isOrigin, locale }: PaperDetailPanelProps) => {
+const PaperDetailPanel = ({ paper, tldr, isOrigin, hasRealCitationData, locale }: PaperDetailPanelProps) => {
   const isPt = locale === "pt";
 
   if (!paper) {
@@ -91,6 +92,17 @@ const PaperDetailPanel = ({ paper, tldr, isOrigin, locale }: PaperDetailPanelPro
               <span className="text-xs text-muted-foreground">
                 {paper.citationCount} {isPt ? "citações" : "citations"}
               </span>
+            </div>
+          )}
+
+          {hasRealCitationData === false && !isOrigin && (
+            <div className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                {isPt
+                  ? "Sem dados de citação do Semantic Scholar para este paper (sem DOI ou não encontrado) — suas conexões no grafo podem estar incompletas."
+                  : "No Semantic Scholar citation data for this paper (missing DOI or not found) — its connections in the graph may be incomplete."}
+              </p>
             </div>
           )}
 

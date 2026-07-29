@@ -29,6 +29,13 @@ const PrismaFlowDiagram = ({
 
   const pt = locale === "pt";
 
+  // A "full-text assessed" stage is only real if this review actually ran a distinct
+  // eligibility pass after screening — otherwise it's just the same count as "included"
+  // wearing a different label, which misrepresents the pipeline as having a stage it
+  // doesn't. When there's no distinct stage, screening flows straight into inclusion,
+  // matching what PRISMA 2020 calls for when title/abstract screening is the only pass.
+  const hasDistinctFullTextStage = excludedFullText > 0 || includedFullText !== finalIncluded;
+
   const exportAsPNG = () => {
     if (!svgRef.current) return;
     const svg = svgRef.current;
@@ -36,7 +43,7 @@ const PrismaFlowDiagram = ({
     const canvas = document.createElement("canvas");
     const scale = 2;
     canvas.width = 700 * scale;
-    canvas.height = 580 * scale;
+    canvas.height = H * scale;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.scale(scale, scale);
@@ -64,14 +71,23 @@ const PrismaFlowDiagram = ({
     URL.revokeObjectURL(a.href);
   };
 
-  // Layout constants
+  // Layout constants — rows are laid out dynamically so a skipped stage collapses the
+  // gap instead of leaving a redundant box or a blank space where it used to be.
   const W = 700;
-  const H = 580;
   const boxW = 180;
   const boxH = 50;
   const sideBoxW = 160;
   const sideBoxH = 44;
   const centerX = W / 2;
+  const rowGap = 90;
+
+  const rowCount = hasDistinctFullTextStage ? 5 : 4; // identified, dedup, screened, [fulltext], included
+  const row1Y = 30;
+  const row2Y = row1Y + rowGap;
+  const row3Y = row2Y + rowGap;
+  const row4Y = row3Y + rowGap; // full-text stage, when present
+  const row5Y = (hasDistinctFullTextStage ? row4Y : row3Y) + rowGap; // final included
+  const H = row1Y + rowCount * rowGap + 60;
 
   const Box = ({
     x,
@@ -172,14 +188,6 @@ const PrismaFlowDiagram = ({
       markerEnd="url(#arrowhead)"
     />
   );
-
-  // Rows
-  const row1Y = 30;
-  const row2Y = 120;
-  const row3Y = 210;
-  const row4Y = 300;
-  const row5Y = 390;
-  const row6Y = 480;
 
   // Phase labels
   const phaseX = 55;
@@ -317,43 +325,53 @@ const PrismaFlowDiagram = ({
             </>
           )}
 
-          <Arrow x1={centerX} y1={row3Y + boxH} x2={centerX} y2={row4Y} />
-
-          {/* Row 4: Full text assessed */}
-          <Box
-            x={centerX}
-            y={row4Y}
-            w={boxW}
-            h={boxH}
-            label={pt ? "Texto completo avaliado" : "Full-text assessed"}
-            value={`n = ${includedFullText}`}
-            color="#f0fdf4"
-            borderColor="#86efac"
-          />
-
-          {/* Side: excluded at full-text */}
-          {excludedFullText > 0 && (
+          {hasDistinctFullTextStage ? (
             <>
-              <SideArrow
-                fromX={centerX + boxW / 2}
-                fromY={row4Y + boxH / 2}
-                toX={centerX + boxW / 2 + 40 + sideBoxW / 2}
-                toY={row4Y + boxH / 2}
-              />
-              <Box
-                x={centerX + boxW / 2 + 40 + sideBoxW / 2}
-                y={row4Y + (boxH - sideBoxH) / 2}
-                w={sideBoxW}
-                h={sideBoxH}
-                label={pt ? "Excluídos texto completo" : "Excluded at full-text"}
-                value={`n = ${excludedFullText}`}
-                color="#fef2f2"
-                borderColor="#fca5a5"
-              />
-            </>
-          )}
+              <Arrow x1={centerX} y1={row3Y + boxH} x2={centerX} y2={row4Y} />
 
-          <Arrow x1={centerX} y1={row4Y + boxH} x2={centerX} y2={row5Y} />
+              {/* Row 4: Full text assessed — only rendered when this review actually ran
+                  a distinct eligibility pass; otherwise it would just repeat the next
+                  box's number under a different label. */}
+              <Box
+                x={centerX}
+                y={row4Y}
+                w={boxW}
+                h={boxH}
+                label={pt ? "Texto completo avaliado" : "Full-text assessed"}
+                value={`n = ${includedFullText}`}
+                color="#f0fdf4"
+                borderColor="#86efac"
+              />
+
+              {/* Side: excluded at full-text */}
+              {excludedFullText > 0 && (
+                <>
+                  <SideArrow
+                    fromX={centerX + boxW / 2}
+                    fromY={row4Y + boxH / 2}
+                    toX={centerX + boxW / 2 + 40 + sideBoxW / 2}
+                    toY={row4Y + boxH / 2}
+                  />
+                  <Box
+                    x={centerX + boxW / 2 + 40 + sideBoxW / 2}
+                    y={row4Y + (boxH - sideBoxH) / 2}
+                    w={sideBoxW}
+                    h={sideBoxH}
+                    label={pt ? "Excluídos texto completo" : "Excluded at full-text"}
+                    value={`n = ${excludedFullText}`}
+                    color="#fef2f2"
+                    borderColor="#fca5a5"
+                  />
+                </>
+              )}
+
+              <Arrow x1={centerX} y1={row4Y + boxH} x2={centerX} y2={row5Y} />
+            </>
+          ) : (
+            // No distinct full-text stage in this pipeline — screening flows straight
+            // into inclusion rather than through a phantom duplicate-count box.
+            <Arrow x1={centerX} y1={row3Y + boxH} x2={centerX} y2={row5Y} />
+          )}
 
           {/* Row 5: Final included */}
           <Box
@@ -377,7 +395,7 @@ const PrismaFlowDiagram = ({
                   <text
                     key={reason}
                     x={centerX + boxW / 2 + 40 + sideBoxW / 2}
-                    y={row4Y + sideBoxH + 16 + i * 14}
+                    y={row3Y + (boxH - sideBoxH) / 2 + sideBoxH + 16 + i * 14}
                     textAnchor="middle"
                     fontSize={9}
                     fill="#64748b"

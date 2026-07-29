@@ -1,18 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { hashAnswerLink, hashResponseRollup } from "../_shared/survey-integrity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-async function hashData(data: object): Promise<string> {
-  const encoded = new TextEncoder().encode(JSON.stringify(data));
-  const buffer = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(buffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -107,9 +100,9 @@ Deno.serve(async (req: Request) => {
             : [],
         };
 
-        // Generate SHA-256 hash of the answer content
-        const hashPayload = { question_id, ...answerData };
-        const integrity_hash = await hashData(hashPayload);
+        // Genesis link of this answer's integrity chain — previous_hash is null because
+        // there is no prior state yet. Every future edit chains onto this.
+        const integrity_hash = await hashAnswerLink(question_id, answerData, null);
         answerHashes.push(integrity_hash);
 
         return {
@@ -130,9 +123,8 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Calculate chained response hash from all answer hashes
-    const sortedHashes = answerHashes.sort();
-    const responseHash = await hashData({ hashes: sortedHashes });
+    // Roll up all per-answer chain heads into one response-level hash
+    const responseHash = await hashResponseRollup(answerHashes);
 
     // Update the response with the chained hash
     await supabase

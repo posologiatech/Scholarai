@@ -9,9 +9,10 @@ export interface GraphNode {
   year?: number;
   citationCount?: number;
   paperIndex?: number;
-  similarity?: number;
+  similarity?: number | null;
   tldr?: string;
   isOrigin?: boolean;
+  hasRealCitationData?: boolean;
   // Force-graph internal
   x?: number;
   y?: number;

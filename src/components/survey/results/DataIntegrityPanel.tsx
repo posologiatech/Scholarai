@@ -122,8 +122,8 @@ const DataIntegrityPanel = ({ surveyId }: { surveyId: string }) => {
         </Button>
         <p className="text-sm text-muted-foreground">
           {locale === "pt"
-            ? "Recalcula hashes SHA-256 e compara com os armazenados"
-            : "Recalculates SHA-256 hashes and compares with stored values"}
+            ? "Reconstrói a cadeia de hashes SHA-256 desde a criação de cada resposta — cada edição encadeia no hash anterior, então uma edição feita fora do fluxo de auditoria quebra a cadeia em vez de passar despercebida"
+            : "Rebuilds the SHA-256 hash chain from each answer's creation — every edit links to the prior hash, so a change made outside the audit flow breaks the chain instead of going unnoticed"}
         </p>
       </div>
 

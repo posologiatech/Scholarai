@@ -14,7 +14,7 @@ import {
   Edit2,
   Trash2,
   Plus,
-  Users,
+  Bot,
   Brain,
   AlertTriangle,
 } from "lucide-react";
@@ -338,7 +338,12 @@ const StepScreening = ({
     return <HelpCircle className="h-4 w-4 text-yellow-500" />;
   };
 
-  // Cohen's Kappa calculation (AI vs manual overrides)
+  // Cohen's Kappa between the AI recommendation and this reviewer's manual overrides.
+  // This is NOT inter-rater reliability between two independent human reviewers — the
+  // standard use of kappa in systematic reviews (Rayyan/Covidence-style dual blind
+  // screening) — because there is only one human decision-maker in this pipeline. Label
+  // and icon below must keep saying "AI vs. reviewer", never just "agreement", so nobody
+  // mistakes this for inter-rater reliability it isn't measuring.
   const calculateKappa = () => {
     const both = Object.entries(screeningResults).filter(([_, r]) => r.overridden && r.recommendation);
     if (both.length < 5) return null;
@@ -441,9 +446,15 @@ const StepScreening = ({
           </Badge>
         )}
         {kappa !== null && (
-          <Badge variant="outline" className="gap-1 text-xs ml-auto">
-            <Users className="h-3 w-3" />
-            κ = {kappa.toFixed(2)}
+          <Badge
+            variant="outline"
+            className="gap-1 text-xs ml-auto"
+            title={pt
+              ? "Concordância entre a recomendação da IA e suas decisões manuais — não é confiabilidade entre dois revisores humanos independentes."
+              : "Agreement between the AI's recommendation and your manual decisions — not inter-rater reliability between two independent human reviewers."}
+          >
+            <Bot className="h-3 w-3" />
+            {pt ? "κ IA×revisor" : "κ AI×reviewer"} = {kappa.toFixed(2)}
             {kappa >= 0.8 ? " ✅" : kappa >= 0.6 ? " ⚠️" : " ❌"}
           </Badge>
         )}
