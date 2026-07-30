@@ -31,7 +31,11 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Push pending migrations
-        run: supabase db push
+        # Direct connection (db.<ref>.supabase.co:5432) requires IPv6, which GitHub-hosted
+        # runners don't reliably have — connects intermittently, failing with
+        # "PgClient: Failed to connect" on the runs that land on IPv4-only routing.
+        # The session pooler is IPv4-compatible, so use that instead via --db-url.
+        run: supabase db push --db-url "postgresql://postgres.${SUPABASE_PROJECT_REF}:${SUPABASE_DB_PASSWORD}@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
