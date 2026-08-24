@@ -231,6 +231,7 @@ export const translations = {
 
   // App nav
   "nav.dashboard": { pt: "Dashboard", en: "Dashboard" },
+  "nav.discover": { pt: "Descobrir", en: "Discover" },
   "nav.library": { pt: "Biblioteca", en: "Library" },
   "nav.extraction": { pt: "Extração", en: "Extraction" },
   "nav.reports": { pt: "Relatórios", en: "Reports" },

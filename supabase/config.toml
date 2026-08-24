@@ -9,6 +9,9 @@ verify_jwt = false
 [functions.search-paper-images]
 verify_jwt = false
 
+[functions.refresh-discover-feed]
+verify_jwt = false
+
 [functions.synthesize-papers]
 verify_jwt = false
 

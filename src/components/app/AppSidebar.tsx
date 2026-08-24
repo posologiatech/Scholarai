@@ -8,7 +8,7 @@ import {
   GraduationCap, Globe, LogOut, BookOpen, Table, FileText,
   LayoutDashboard, Shield, ShieldCheck, Palette, BrainCircuit,
   PanelLeftClose, PanelLeft, Network, Users, PenLine, BarChart3, Bell, ClipboardCheck, GitBranch,
-  ClipboardList, Activity, Rocket, FlaskConical, Award, LifeBuoy,
+  ClipboardList, Activity, Rocket, FlaskConical, Award, LifeBuoy, Compass,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,7 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
 
   const navLinks = [
     { label: t("nav.dashboard"), href: "/dashboard", icon: LayoutDashboard },
+    { label: t("nav.discover"), href: "/discover", icon: Compass },
     { label: t("nav.library"), href: "/library", icon: BookOpen },
     { label: t("nav.extraction"), href: "/extraction", icon: Table },
     { label: t("nav.reports"), href: "/reports", icon: FileText },
