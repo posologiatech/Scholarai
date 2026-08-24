@@ -91,6 +91,11 @@ function extractFigures(xml: string, candidate: Candidate): Figure[] {
     if (!hrefMatch) continue;
 
     const filename = hrefMatch[1];
+    // europepmc.org's own image CDN (ptpmcrender.fcgi) blocks hotlinked/proxied
+    // requests outright (confirmed from multiple networks, including real
+    // end-user browsers). NCBI's PMC mirror serves the same binary via a
+    // 301 redirect to cdn.ncbi.nlm.nih.gov without that restriction.
+    const numericId = candidate.pmcid.replace(/^PMC/i, '');
     figures.push({
       paper_id: null,
       doi: candidate.doi || null,
@@ -99,7 +104,7 @@ function extractFigures(xml: string, candidate: Candidate): Figure[] {
       journal: candidate.journal || null,
       year: candidate.year,
       paper_url: candidate.url,
-      image_url: `https://europepmc.org/articles/${candidate.pmcid}/bin/${filename}`,
+      image_url: `https://pmc.ncbi.nlm.nih.gov/articles/instance/${numericId}/bin/${filename}`,
       caption: captionMatch ? stripInnerTags(captionMatch[1]).slice(0, 1000) : null,
       figure_label: labelMatch ? stripInnerTags(labelMatch[1]) : null,
       source: 'europe_pmc',
