@@ -8,7 +8,11 @@ import { toast } from "sonner";
 
 const ORCID_CLIENT_ID = "APP-R7IDKI2P0QYBK6MA";
 const ORCID_AUTHORIZE = "https://orcid.org/oauth/authorize";
-const SCOPE = "/authenticate /activities/update /read-limited";
+// This client is registered with ORCID's free Public API, which only grants
+// /authenticate. /activities/update and /read-limited are Member API-only
+// scopes (paid ORCID membership) — requesting them makes ORCID reject the
+// whole authorization with "invalid_request: scope not allowed for this member".
+const SCOPE = "/authenticate";
 
 export function OrcidConnectCard() {
   const { user } = useAuth();
@@ -51,7 +55,7 @@ export function OrcidConnectCard() {
             ORCID
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Conecte seu ORCID iD para autenticar publicações e enviar works automaticamente para seu perfil.
+            Conecte e verifique seu ORCID iD para vincular sua identidade de pesquisador ao seu perfil.
           </p>
         </div>
         {connection && <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />}
