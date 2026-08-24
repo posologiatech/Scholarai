@@ -297,6 +297,8 @@ export const translations = {
   "dashboard.action.extraction": { pt: "Extração", en: "Extraction" },
   "dashboard.action.reports": { pt: "Relatórios", en: "Reports" },
   "dashboard.action.illustrations": { pt: "Ilustrações", en: "Illustrations" },
+  "dashboard.source.papers": { pt: "Artigos", en: "Research papers" },
+  "dashboard.source.images": { pt: "Imagens", en: "Images" },
 
   // Empty state CTAs
   "library.goSearch": { pt: "Fazer sua primeira pesquisa", en: "Make your first search" },

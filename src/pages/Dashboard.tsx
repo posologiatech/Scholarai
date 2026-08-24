@@ -14,6 +14,7 @@ const Dashboard = () => {
   const [query, setQuery] = useState("");
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [systematicReview, setSystematicReview] = useState(false);
+  const [source, setSource] = useState<"papers" | "images">("papers");
 
   const recentSearches: string[] = JSON.parse(localStorage.getItem("scholarai_recent") || "[]");
 
@@ -22,7 +23,9 @@ const Dashboard = () => {
     if (!q.trim()) return;
     const updated = [q, ...recentSearches.filter((s) => s !== q)].slice(0, 8);
     localStorage.setItem("scholarai_recent", JSON.stringify(updated));
-    if (systematicReview) {
+    if (source === "images") {
+      navigate(`/search/images?q=${encodeURIComponent(q)}`);
+    } else if (systematicReview) {
       navigate(`/systematic-review/new?q=${encodeURIComponent(q)}&auto=true`);
     } else {
       const suggestedColumns = evaluation?.suggested_columns || [];
@@ -97,8 +100,13 @@ const Dashboard = () => {
               <div className="mt-3 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>Source</span>
-                  <select className="rounded border border-border bg-background px-2 py-1 text-xs">
-                    <option>Research papers</option>
+                  <select
+                    value={source}
+                    onChange={(e) => setSource(e.target.value as "papers" | "images")}
+                    className="rounded border border-border bg-background px-2 py-1 text-xs"
+                  >
+                    <option value="papers">{t("dashboard.source.papers")}</option>
+                    <option value="images">{t("dashboard.source.images")}</option>
                   </select>
                 </div>
                 <Button
