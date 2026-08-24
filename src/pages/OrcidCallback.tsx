@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,11 @@ export default function OrcidCallback() {
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [message, setMessage] = useState<string>("");
   const [orcidId, setOrcidId] = useState<string | null>(null);
+  // ORCID's authorization code is single-use. React 18 StrictMode intentionally
+  // double-invokes effects on mount, which would otherwise fire this exchange
+  // twice — the second call always fails with "invalid_grant" and can clobber
+  // the first (successful) call's result. Guard so the exchange only ever runs once.
+  const exchanged = useRef(false);
 
   useEffect(() => {
     const code = params.get("code");
@@ -25,6 +30,8 @@ export default function OrcidCallback() {
       setMessage("Código de autorização ausente.");
       return;
     }
+    if (exchanged.current) return;
+    exchanged.current = true;
 
     const redirect_uri = `${window.location.origin}/orcid/callback`;
     supabase.functions
