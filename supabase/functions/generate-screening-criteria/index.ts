@@ -46,6 +46,8 @@ IMPORTANT: Generate only 3 to 5 criteria. Focus on broad thematic relevance (e.g
 Return JSON array of objects with keys: id, name, description.`;
 
     const response = await callAI({
+      _userId: auth.userId,
+      _promptType: "systematic_review",
       model: "google/gemini-3-flash-preview",
       messages: [
         { role: "system", content: systemPrompt },

@@ -55,6 +55,8 @@ Return ONLY a valid JSON array (no markdown):
 [{"name": "Short Name (max 5 words)", "description": "What to extract from each paper (1 sentence)"}]`;
 
       const colResp = await callAI({
+        _userId: auth.userId,
+        _promptType: "research_gaps",
         model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: colPrompt },
@@ -127,6 +129,8 @@ Return EXACTLY valid JSON with this structure (no markdown, no \`\`\`):
 Identify 3 to 5 gaps. Prioritize gaps with high clinical or scientific relevance.`;
 
     const response = await callAI({
+      _userId: auth.userId,
+      _promptType: "research_gaps",
       model: 'google/gemini-3-flash-preview',
       messages: [
         { role: 'system', content: systemPrompt },

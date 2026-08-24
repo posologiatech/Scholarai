@@ -171,6 +171,8 @@ ${ctx}
     };
 
     const res = await callAI({
+      _userId: auth.userId,
+      _promptType: "research_copilot",
       model: "google/gemini-2.5-flash",
       messages: [system, ...messages.slice(-12)],
     } as any);

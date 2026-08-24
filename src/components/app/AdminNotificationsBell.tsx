@@ -14,13 +14,19 @@ import { ptBR, enUS } from "date-fns/locale";
 interface AdminNotification {
   id: string;
   type: string;
-  ticket_id: string;
+  ticket_id: string | null;
   title: string;
   body: string | null;
   link: string | null;
   read_at: string | null;
   created_at: string;
 }
+
+const TYPE_PREFIX: Record<string, { pt: string; en: string }> = {
+  new_ticket: { pt: "Novo chamado: ", en: "New ticket: " },
+  ticket_reply: { pt: "Nova resposta: ", en: "New reply: " },
+  cost_ceiling_breach: { pt: "Teto de custo: ", en: "Cost ceiling: " },
+};
 
 export const AdminNotificationsBell = () => {
   const { isAdmin } = useAdmin();
@@ -104,10 +110,10 @@ export const AdminNotificationsBell = () => {
                   onClick={() => {
                     markRead(n.id);
                     setOpen(false);
-                    navigate(n.link || `/admin?tab=tickets&ticket=${n.ticket_id}`);
+                    navigate(n.link || (n.ticket_id ? `/admin?tab=tickets&ticket=${n.ticket_id}` : "/admin"));
                   }}
                 >
-                  {n.type === "new_ticket" ? (pt ? "Novo chamado: " : "New ticket: ") : (pt ? "Nova resposta: " : "New reply: ")}
+                  {pt ? TYPE_PREFIX[n.type]?.pt : TYPE_PREFIX[n.type]?.en}
                   {n.title}
                 </button>
                 {n.body && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.body}</p>}

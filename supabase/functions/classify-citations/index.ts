@@ -248,6 +248,8 @@ Deno.serve(async (req) => {
 
         console.log(`[classify] Using text-based classification for ${paper.id}`);
         const response = await callAI({
+          _userId: auth.userId,
+          _promptType: "classify_citations",
           model: 'google/gemini-3-flash-preview',
           messages: [
             { role: 'system', content: `You are a citation classifier. Analyze the text and identify any references to other works. Classify each as supporting, contrasting, or mentioning. Return a JSON object with a "citations" array.` },
@@ -308,6 +310,8 @@ Return a JSON object with a "citations" array containing objects with: cited_pap
         let response: Response;
         try {
           response = await callAI({
+            _userId: auth.userId,
+            _promptType: "classify_citations",
             model: 'google/gemini-3-flash-preview',
             messages: [
               { role: 'system', content: systemPrompt },

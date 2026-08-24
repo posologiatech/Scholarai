@@ -39,8 +39,8 @@ const FEATURES: FeatureDisplay[] = [
   { key: "workspaces", label: { pt: "Workspaces", en: "Workspaces" }, icon: Users },
   { key: "illustrations", label: { pt: "Ilustrações IA", en: "AI illustrations" }, icon: Palette },
   { key: "alerts", label: { pt: "Alertas de literatura", en: "Literature alerts" }, icon: Bell },
-  { key: "knowledge_graph", label: { pt: "Mapa de Conhecimento", en: "Knowledge Graph" }, icon: Network, isBoolean: true },
-  { key: "meta_analysis", label: { pt: "Meta-análise", en: "Meta-Analysis" }, icon: BarChart3, isBoolean: true },
+  { key: "knowledge_graph", label: { pt: "Mapa de Conhecimento", en: "Knowledge Graph" }, icon: Network },
+  { key: "meta_analysis", label: { pt: "Meta-análise", en: "Meta-Analysis" }, icon: BarChart3 },
 ];
 
 const MyPlan = () => {

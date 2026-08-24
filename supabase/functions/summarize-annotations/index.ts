@@ -51,6 +51,7 @@ Use formal academic language. Format the summary with subheadings when appropria
 Always respond in English.`;
 
     const response = await callAI({
+      _userId: auth.userId,
       model: "google/gemini-3-flash-preview",
       messages: [
         { role: "system", content: systemPrompt },

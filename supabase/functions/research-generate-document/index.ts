@@ -45,6 +45,8 @@ Deno.serve(async (req) => {
     const user = `${instr}\n\n## Dados do projeto\n- Título: ${project.title}\n- Área CNPq: ${project.cnpq_area || "[A PREENCHER]"}\n- Status: ${project.status}\n- Início: ${project.start_date || "[A PREENCHER]"}\n- Término: ${project.end_date || "[A PREENCHER]"}\n- Objetivos: ${project.objectives || "[A PREENCHER]"}\n- Palavras-chave: ${(project.keywords || []).join(", ")}\n- Descrição: ${project.description || "[A PREENCHER]"}\n\n## Equipe\n${teamStr || "[A PREENCHER]"}\n\n${custom_instructions ? `## Instruções adicionais do usuário\n${custom_instructions}` : ""}`;
 
     const aiRes = await callAI({
+      _userId: userId,
+      _promptType: "research_generate_document",
       model: "google/gemini-2.5-flash",
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
     } as any);

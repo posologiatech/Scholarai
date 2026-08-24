@@ -108,6 +108,8 @@ Be conservative — if information is insufficient, mark as "Some concerns" or "
 
       if (stream) {
         const aiRes = await callAI({
+          _userId: auth.userId,
+          _promptType: "risk_of_bias",
           model: "google/gemini-3-flash-preview",
           stream: true,
           messages: [
@@ -122,6 +124,8 @@ Be conservative — if information is insufficient, mark as "Some concerns" or "
       }
 
       const aiRes = await callAI({
+        _userId: auth.userId,
+        _promptType: "risk_of_bias",
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },

@@ -74,6 +74,8 @@ Return a JSON array with:
 }`;
 
       const response = await callAI({
+        _userId: auth.userId,
+        _promptType: "systematic_review",
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },

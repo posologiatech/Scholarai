@@ -29,6 +29,8 @@ Deno.serve(async (req) => {
       : `You are a research methodology expert. Evaluate the quality of an academic research question and suggest missing PICO/FINER elements. Respond ONLY using the provided function.`;
 
     const response = await callAI({
+      _userId: auth.userId,
+      _promptType: "evaluate_question",
       model: 'google/gemini-3-flash-preview',
       messages: [
         { role: 'system', content: systemPrompt },

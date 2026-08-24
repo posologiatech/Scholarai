@@ -144,6 +144,8 @@ ${papersSummary}
 Com base nos dados acima, redija o relatório completo de revisão sistemática seguindo rigorosamente a estrutura solicitada. Seja detalhado, analítico e acadêmico.`;
 
     const response = await callAI({
+      _userId: auth.userId,
+      _promptType: "systematic_review",
       model: "google/gemini-3-flash-preview",
       messages: [
         { role: "system", content: systemPrompt },

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callAI } from "../_shared/ai-caller.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { checkPlanLimit, planLimitExceededResponse } from "../_shared/plan-limits.ts";
+import { trackUsage } from "../_shared/usage-tracker.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -201,6 +202,8 @@ serve(async (req) => {
     let tldrs: Record<number, string> = {};
     try {
       const tldrResponse = await callAI({
+        _userId: auth.userId,
+        _promptType: "knowledge_graph",
         messages: [
           {
             role: "system",
@@ -221,6 +224,8 @@ serve(async (req) => {
     }
 
     const nodesWithTldr = nodes.map((n) => ({ ...n, tldr: tldrs[n.paperIndex] || "" }));
+
+    trackUsage(auth.userId, "knowledge_graph").catch((e) => console.error("usage tracking error:", e));
 
     return new Response(
       JSON.stringify({ nodes: nodesWithTldr, edges, priorWorks, derivativeWorks }),

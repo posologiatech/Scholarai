@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callAI } from "../_shared/ai-caller.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { checkPlanLimit, planLimitExceededResponse } from "../_shared/plan-limits.ts";
+import { trackUsage } from "../_shared/usage-tracker.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -371,12 +372,18 @@ Provide:
 5. Limitations and recommendations`;
 
       const aiResp = await callAI({
+        _userId: auth.userId,
+        _promptType: "meta_analysis",
         messages: [
           { role: "system", content: "You are an expert biostatistician writing meta-analysis interpretations for academic papers." },
           { role: "user", content: prompt },
         ],
         stream: true,
       });
+
+      // Only "interpret" calls an LLM ("calculate" is pure statistics, no AI cost),
+      // so only this action consumes the meta_analysis quota.
+      trackUsage(auth.userId, "meta_analysis").catch((e) => console.error("usage tracking error:", e));
 
       return new Response(aiResp.body, {
         headers: { ...corsHeaders, "Content-Type": "text/event-stream" },

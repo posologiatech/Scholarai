@@ -55,6 +55,8 @@ Your synthesis must be EXTENSIVE and DETAILED (minimum 6-8 paragraphs):
 Cite papers by number [1], [2] etc. throughout. Use academic but accessible language. Answer in English.`;
 
     const response = await callAI({
+      _userId: auth.userId,
+      _promptType: "synthesize_papers",
       model: 'google/gemini-3-flash-preview',
       messages: [
         { role: 'system', content: systemPrompt },

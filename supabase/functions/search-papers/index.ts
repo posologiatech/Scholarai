@@ -514,12 +514,14 @@ async function searchCORE(query: string, limit = 10, filters?: SearchFilters): P
 }
 
 // ─── Translate query to English ─────────────────────────────────────
-async function translateToEnglish(query: string): Promise<string> {
+async function translateToEnglish(query: string, userId?: string): Promise<string> {
   const nonEnglishPattern = /[àáâãéêíóôõúüç]|(\b(qual|quais|como|para|pode|causa|entre|sobre|efeito|tratamento|comparado|mulheres|homens|idosos|crianças|estudo|risco|aumenta|reduz|previne|segurança|eficácia|blocadores|diuréticos|grávidas)\b)/i;
   if (!nonEnglishPattern.test(query)) return query;
 
   try {
     const resp = await callAI({
+      _userId: userId,
+      _promptType: "search_translate",
       model: 'google/gemini-2.5-flash',
       messages: [
         { role: 'system', content: 'Translate the following research question to English for academic database search. Output ONLY the translated question, nothing else.' },
@@ -740,7 +742,7 @@ Deno.serve(async (req) => {
       minCitations: filters.minCitations,
     } : undefined;
 
-    const query = await translateToEnglish(originalQuery);
+    const query = await translateToEnglish(originalQuery, auth.userId);
 
     const validSources = sources.filter((s: string) => sourceMap[s]);
     const sourceCount = Math.max(validSources.length, 1);

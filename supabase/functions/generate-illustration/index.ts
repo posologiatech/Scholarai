@@ -3,6 +3,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { trackUsage } from "../_shared/usage-tracker.ts";
 import { checkPlanLimit, planLimitExceededResponse } from "../_shared/plan-limits.ts";
 import { getGoogleApiKey, generateGoogleImage } from "../_shared/google-image.ts";
+import { checkCostCeiling, notifyCostCeilingBreach, logFlatCost } from "../_shared/ai-caller.ts";
+
+// Gemini 3 Pro Image (1K/2K output) -- https://ai.google.dev/gemini-api/docs/pricing
+const COST_PER_IMAGE_USD = 0.134;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,6 +53,14 @@ serve(async (req) => {
 
     if (!(await checkPlanLimit(anonClient, userId, "illustrations"))) {
       return planLimitExceededResponse(corsHeaders, "illustrations");
+    }
+
+    if (!(await checkCostCeiling(userId))) {
+      notifyCostCeilingBreach(userId).catch(() => {});
+      return new Response(JSON.stringify({
+        error: "cost_ceiling_exceeded",
+        message: "Você atingiu o teto de custo de IA do seu plano para este mês. Ele será renovado no próximo período, ou entre em contato com o suporte.",
+      }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const body = await req.json();
@@ -153,6 +165,8 @@ serve(async (req) => {
           results.push(result);
         }
         trackUsage(userId, "illustrations", numVariations).catch(e => console.error("usage tracking error:", e));
+        logFlatCost(userId, "google", "gemini-3-pro-image-preview", "illustration", COST_PER_IMAGE_USD * numVariations)
+          .catch(e => console.error("cost logging error:", e));
         return new Response(JSON.stringify({ variations: results }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -160,6 +174,8 @@ serve(async (req) => {
         const base64Url = await generateOne();
         const result = await uploadAndSave(base64Url, savedPrompt);
         trackUsage(userId, "illustrations").catch(e => console.error("usage tracking error:", e));
+        logFlatCost(userId, "google", "gemini-3-pro-image-preview", "illustration", COST_PER_IMAGE_USD)
+          .catch(e => console.error("cost logging error:", e));
         return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

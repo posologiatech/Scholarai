@@ -377,6 +377,8 @@ Article text:
     }
 
     const aiResponse = await callAI({
+      _userId: auth.userId,
+      _promptType: "writing_assist",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

@@ -45,6 +45,8 @@ Extraia da imagem da NF/recibo os seguintes campos em JSON estrito:
 Use "outros" se não tiver certeza. Responda APENAS o JSON.`;
 
     const aiRes = await callAI({
+      _userId: user.id,
+      _promptType: "research_expense_ocr",
       model: "google/gemini-2.5-flash",
       messages: [{ role: "user", content: [{ type: "text", text: prompt }, imagePart] }],
     } as any);

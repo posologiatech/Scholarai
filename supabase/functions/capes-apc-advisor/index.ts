@@ -71,6 +71,8 @@ For each matching publisher, provide:
 Rank from best to least match. Only include publishers with at least medium relevance.`;
 
       const aiResponse = await callAI({
+        _userId: auth.userId,
+        _promptType: "capes_apc_advisor",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -158,6 +160,8 @@ ${articleContent ? `\nThe researcher is writing about:\n${(articleContent || "")
 Be specific and practical. Include actionable steps.`;
 
       const aiResponse = await callAI({
+        _userId: auth.userId,
+        _promptType: "capes_apc_advisor",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

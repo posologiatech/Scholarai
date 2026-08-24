@@ -164,6 +164,8 @@ Deno.serve(async (req) => {
 
     const callLLM = async (papersSummary: string) => {
       const response = await callAI({
+        _userId: auth.userId,
+        _promptType: "extraction",
         model: 'google/gemini-3-flash-preview',
         messages: [
           { role: 'system', content: buildSystemPrompt(locale, custom_prompt) },

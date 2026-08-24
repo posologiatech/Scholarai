@@ -156,6 +156,8 @@ ${papersSummary}${ragContext}${sciteContext}`;
     ];
 
     const response = await callAI({
+      _userId: auth.userId,
+      _promptType: "chat_papers",
       model: 'google/gemini-3-flash-preview',
       messages: aiMessages,
       stream: true,

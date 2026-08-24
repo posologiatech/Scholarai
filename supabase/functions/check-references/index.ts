@@ -81,6 +81,8 @@ Deno.serve(async (req) => {
     if (text && !references) {
       try {
         const extractResponse = await callAI({
+          _userId: auth.userId,
+          _promptType: "check_references",
           model: 'google/gemini-3-flash-preview',
           messages: [
             {

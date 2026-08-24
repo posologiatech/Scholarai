@@ -402,6 +402,8 @@ Responda SEMPRE em português brasileiro.`;
 
     if (provider && model) {
       response = await callAI({
+        _userId: auth.userId,
+        _promptType: "datamind_chat",
         messages: messages_arr,
         model: model,
         temperature: 0.3,
@@ -409,6 +411,8 @@ Responda SEMPRE em português brasileiro.`;
       } as any);
     } else {
       response = await callAI({
+        _userId: auth.userId,
+        _promptType: "datamind_chat",
         messages: messages_arr,
         model: "gpt-4o-mini",
         temperature: 0.3,

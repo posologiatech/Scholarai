@@ -193,6 +193,8 @@ Deno.serve(async (req) => {
       // Skip non-multimodal providers (groq, openai text models can't handle PDF base64)
       console.log("Starting text extraction via AI...");
       const extractResponse = await callAI({
+        _userId: auth.userId,
+        _promptType: "extraction",
         model: "google/gemini-2.5-flash",
         _skipProviders: ["groq", "openai"],
         messages: [
@@ -354,6 +356,8 @@ Deno.serve(async (req) => {
       const paperWindow = textContent.slice(0, 80000);
 
       const dataResponse = await callAI({
+        _userId: auth.userId,
+        _promptType: "extraction",
         model: "google/gemini-2.5-pro",
         messages: [
           { role: "system", content: systemPrompt },

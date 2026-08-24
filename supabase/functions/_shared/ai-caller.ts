@@ -141,6 +141,81 @@ function transformAnthropicResponse(data: any): any {
   };
 }
 
+const PLACEHOLDER_USER_ID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Circuit breaker, not a quota: returns false only when a user's total AI cost this
+ * month has blown past the generous per-plan ceiling (see get_plan_cost_ceiling in
+ * the DB) -- something no per-feature quota caught. Fails open on error so a transient
+ * DB issue doesn't take down every AI feature at once.
+ */
+export async function checkCostCeiling(userId: string): Promise<boolean> {
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data, error } = await supabase.rpc("check_cost_ceiling", { p_user_id: userId });
+    if (error) {
+      console.error("[ai-caller] check_cost_ceiling error:", error);
+      return true;
+    }
+    return data === true;
+  } catch (err) {
+    console.error("[ai-caller] check_cost_ceiling threw:", err);
+    return true;
+  }
+}
+
+/**
+ * For AI costs that don't flow through callAI() (currently: Gemini image generation
+ * in generate-illustration, which hits Google's API directly -- see google-image.ts).
+ * Records a flat, non-token-based cost so it still counts toward the cost ceiling.
+ */
+export async function logFlatCost(
+  userId: string,
+  provider: string,
+  model: string,
+  promptType: string,
+  costUsd: number,
+) {
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    await supabase.from("ai_usage_log").insert({
+      user_id: userId,
+      provider,
+      model,
+      prompt_type: promptType,
+      tokens_input: 0,
+      tokens_output: 0,
+      estimated_cost_usd: costUsd,
+    });
+  } catch (err) {
+    console.error("[ai-caller] logFlatCost failed:", err);
+  }
+}
+
+export async function notifyCostCeilingBreach(userId: string) {
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: spent } = await supabase.rpc("get_user_monthly_ai_cost", { p_user_id: userId });
+    await supabase.from("admin_notifications").insert({
+      type: "cost_ceiling_breach",
+      title: `Teto de custo de IA atingido`,
+      body: `Usuário ${userId} passou de $${Number(spent ?? 0).toFixed(2)} em custo estimado de IA este mês e foi bloqueado até o próximo período.`,
+      link: `/admin?tab=users`,
+    });
+  } catch (err) {
+    console.error("[ai-caller] Failed to notify cost ceiling breach:", err);
+  }
+}
+
 async function logAIUsage(
   provider: string,
   model: string,
@@ -157,20 +232,28 @@ async function logAIUsage(
     const tokensInput = usage?.prompt_tokens ?? 0;
     const tokensOutput = usage?.completion_tokens ?? 0;
 
-    // Estimated cost per 1M tokens (approximate)
+    // Estimated cost per 1M tokens (approximate, kept in sync with each provider's
+    // published pricing -- this feeds get_user_monthly_ai_cost, so a stale entry here
+    // means the cost ceiling under/over-fires for that model).
     const costMap: Record<string, { input: number; output: number }> = {
       "gpt-4o-mini": { input: 0.15, output: 0.6 },
       "gpt-4o": { input: 2.5, output: 10 },
       "llama-3.3-70b-versatile": { input: 0.59, output: 0.79 },
       "gemini-2.5-flash": { input: 0.15, output: 0.6 },
+      "gemini-2.5-pro": { input: 1.25, output: 5 },
+      "gemini-3-flash-preview": { input: 0.5, output: 3 },
+      "gemini-3-flash": { input: 0.5, output: 3 },
+      "gemini-2.5-flash-lite": { input: 0.1, output: 0.4 },
       "claude-sonnet-4-20250514": { input: 3, output: 15 },
     };
-    const rates = costMap[model] || { input: 0.15, output: 0.6 };
+    // Unknown model: assume the pricier end of the "flash-tier" models seen above
+    // rather than the cheapest, so an un-mapped model can't silently under-report.
+    const rates = costMap[model] || { input: 0.5, output: 3 };
     const estimatedCost =
       (tokensInput * rates.input + tokensOutput * rates.output) / 1_000_000;
 
     await supabase.from("ai_usage_log").insert({
-      user_id: userId || "00000000-0000-0000-0000-000000000000",
+      user_id: userId || PLACEHOLDER_USER_ID,
       provider,
       model,
       prompt_type: promptType,
@@ -184,11 +267,26 @@ async function logAIUsage(
 }
 
 export async function callAI(options: ChatCompletionOptions): Promise<Response> {
-  const activeKeys = await getActiveApiKeys();
   const forceProvider = (options as any)._forceProvider;
   const userId = (options as any)._userId;
   const promptType = (options as any)._promptType || "chat";
-  
+
+  if (userId && userId !== PLACEHOLDER_USER_ID) {
+    const withinCeiling = await checkCostCeiling(userId);
+    if (!withinCeiling) {
+      notifyCostCeilingBreach(userId).catch(() => {});
+      return new Response(
+        JSON.stringify({
+          error: "cost_ceiling_exceeded",
+          message: "Você atingiu o teto de custo de IA do seu plano para este mês. Ele será renovado no próximo período, ou entre em contato com o suporte.",
+        }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
+  }
+
+  const activeKeys = await getActiveApiKeys();
+
   // Clean internal fields
   const cleanOptions = { ...options };
   const skipProviders: string[] = (cleanOptions as any)._skipProviders || [];

@@ -14,10 +14,15 @@ export interface PlanLimits {
   workspaces: number;
   illustrations: number;
   alerts: number;
-  knowledge_graph: boolean;
-  meta_analysis: boolean;
+  knowledge_graph: number;
+  meta_analysis: number;
 }
 
+// -1 = unlimited, 0 = not available on this plan, N = monthly quota.
+// ai_summary/knowledge_graph/meta_analysis on Pro/Team are capped (not -1) even though
+// they're marketed as "ilimitado" — LLM cost per call is real and these three had no
+// ceiling at all before, the only genuinely open-ended cost exposure per seat. The caps
+// are set well above realistic per-user usage so no normal customer ever notices them.
 const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
   free: {
     search: 20,
@@ -29,8 +34,8 @@ const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     workspaces: 1,
     illustrations: 0,
     alerts: 0,
-    knowledge_graph: false,
-    meta_analysis: false,
+    knowledge_graph: 0,
+    meta_analysis: 0,
   },
   pro: {
     search: -1,
@@ -38,12 +43,12 @@ const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     extraction: 100,
     systematic_review: 5,
     datamind_chat: 200,
-    ai_summary: -1,
+    ai_summary: 300,
     workspaces: 5,
     illustrations: 10,
     alerts: 3,
-    knowledge_graph: true,
-    meta_analysis: true,
+    knowledge_graph: 20,
+    meta_analysis: 10,
   },
   team: {
     search: -1,
@@ -51,12 +56,12 @@ const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     extraction: 300,
     systematic_review: -1,
     datamind_chat: 500,
-    ai_summary: -1,
+    ai_summary: 1000,
     workspaces: -1,
     illustrations: 30,
     alerts: 10,
-    knowledge_graph: true,
-    meta_analysis: true,
+    knowledge_graph: 100,
+    meta_analysis: 50,
   },
 };
 
@@ -147,17 +152,13 @@ export function useSubscription() {
     return record?.count ?? 0;
   };
 
-  const getLimit = (feature: FeatureKey): number => {
-    const val = limits[feature];
-    return typeof val === "boolean" ? (val ? -1 : 0) : val;
-  };
+  const getLimit = (feature: FeatureKey): number => limits[feature];
 
   const canUse = (feature: FeatureKey): boolean => {
     if (isAdmin) return true; // Admins bypass all limits
     const limit = getLimit(feature);
     if (limit === -1) return true; // unlimited
     if (limit === 0) return false; // not available
-    if (typeof limits[feature] === "boolean") return limits[feature] as boolean;
     return getUsage(feature) < limit;
   };
 

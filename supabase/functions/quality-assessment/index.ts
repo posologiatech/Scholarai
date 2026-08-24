@@ -128,6 +128,8 @@ Return JSON array:
 }]`;
 
       const response = await callAI({
+        _userId: auth.userId,
+        _promptType: "quality_assessment",
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },

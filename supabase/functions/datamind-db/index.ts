@@ -204,7 +204,7 @@ async function fetchPostgresSchema(conn: DbConnection): Promise<any> {
 }
 
 // Convert natural language to SQL using AI
-async function naturalLanguageToSQL(question: string, schema: any, dbType: string): Promise<string> {
+async function naturalLanguageToSQL(question: string, schema: any, dbType: string, userId?: string): Promise<string> {
   const schemaStr = JSON.stringify(schema, null, 2);
   
   const systemPrompt = `Você é um especialista em SQL. Converta perguntas em linguagem natural para consultas SQL válidas.
@@ -223,6 +223,8 @@ REGRAS:
 - Sempre qualifique tabelas com schema quando aplicável (não aplicável ao MySQL, que já usa o próprio banco como schema)`;
 
   const response = await callAI({
+    _userId: userId,
+    _promptType: "datamind_db",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: question },
@@ -392,7 +394,7 @@ serve(async (req) => {
 
       if (action === "nl2sql") {
         const schema = conn.schema_cache || await fetchSchema(decryptedConn);
-        const sql = await naturalLanguageToSQL(question, schema, conn.db_type);
+        const sql = await naturalLanguageToSQL(question, schema, conn.db_type, user.id);
         const result = await executeQuery(decryptedConn, sql);
 
         return new Response(JSON.stringify({ sql, ...result }), {
