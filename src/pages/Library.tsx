@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import {
-  BookOpen, Trash2, ExternalLink, Loader2, Search, Download, Upload,
-  FileText, FileDown, FileUp, Pencil, Check, X,
+  BookOpen, Trash2, ExternalLink, Loader2, Search, Download,
+  FileText, FileDown, FileUp, Pencil, Check, X, UploadCloud,
 } from "lucide-react";
 import ReferenceManagerSync from "@/components/app/ReferenceManagerSync";
+import AddToLibraryDialog from "@/components/library/AddToLibraryDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,11 +18,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  papersToRIS, papersToBibTeX, papersToCSV, parseRIS, parseBibTeX, parseCSV,
-  downloadFile, type PaperRef,
+  papersToRIS, papersToBibTeX, papersToCSV, downloadFile, type PaperRef,
 } from "@/lib/referenceFormats";
 
 interface SavedSearch {
@@ -38,9 +35,7 @@ const Library = () => {
   const navigate = useNavigate();
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [loading, setLoading] = useState(true);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [importPreview, setImportPreview] = useState<PaperRef[] | null>(null);
-  const [importing, setImporting] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
 
@@ -122,59 +117,6 @@ const Library = () => {
     toast.success(pt ? "Exportado em CSV" : "Exported as CSV");
   };
 
-  // ── Import handler ──
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const content = ev.target?.result as string;
-      let papers: PaperRef[] = [];
-      const ext = file.name.toLowerCase();
-      if (ext.endsWith(".ris")) papers = parseRIS(content);
-      else if (ext.endsWith(".bib") || ext.endsWith(".bibtex")) papers = parseBibTeX(content);
-      else if (ext.endsWith(".csv")) papers = parseCSV(content);
-      else { toast.error(pt ? "Formato não suportado. Use .ris, .bib ou .csv" : "Unsupported format. Use .ris, .bib or .csv"); return; }
-
-      if (!papers.length) { toast.error(pt ? "Nenhum paper encontrado no arquivo" : "No papers found in file"); return; }
-      setImportPreview(papers);
-    };
-    reader.readAsText(file);
-    if (fileRef.current) fileRef.current.value = "";
-  };
-
-  const confirmImport = async () => {
-    if (!importPreview || !user) return;
-    setImporting(true);
-    try {
-      // Save as a new search entry
-      const { error } = await supabase.from("saved_searches").insert({
-        user_id: user.id,
-        query: `Imported (${importPreview.length} papers)`,
-        papers: importPreview.map((p) => ({
-          title: p.title,
-          authors: p.authors || [],
-          year: p.year,
-          doi: p.doi,
-          journal: p.journal,
-          abstract: p.abstract,
-          url: p.url,
-          source: "import",
-        })),
-        columns: [],
-        column_data: {},
-      });
-      if (error) throw error;
-      toast.success(pt ? `${importPreview.length} papers importados!` : `${importPreview.length} papers imported!`);
-      setImportPreview(null);
-      fetchSaved();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setImporting(false);
-    }
-  };
-
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <main className="container max-w-4xl flex-1 py-12">
@@ -184,18 +126,11 @@ const Library = () => {
             <p className="mt-2 text-muted-foreground">{t("library.subtitle")}</p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Import */}
-            <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-              <Upload className="h-4 w-4 mr-2" />
-              {pt ? "Importar" : "Import"}
+            {/* Add to library */}
+            <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+              <UploadCloud className="h-4 w-4 mr-2" />
+              {pt ? "Enviar para Biblioteca" : "Send to Library"}
             </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".ris,.bib,.bibtex,.csv"
-              className="hidden"
-              onChange={handleFileSelect}
-            />
 
             {/* Export */}
             <DropdownMenu>
@@ -331,40 +266,11 @@ const Library = () => {
         )}
       </main>
 
-      {/* Import Preview Dialog */}
-      <Dialog open={!!importPreview} onOpenChange={(o) => !o && setImportPreview(null)}>
-        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>{pt ? "Importar Referências" : "Import References"}</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            {importPreview?.length} {pt ? "papers encontrados no arquivo" : "papers found in file"}
-          </p>
-          <div className="flex-1 overflow-auto border rounded-lg divide-y divide-border max-h-[50vh]">
-            {importPreview?.slice(0, 50).map((p, i) => (
-              <div key={i} className="px-3 py-2">
-                <p className="text-sm font-medium leading-tight">{p.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {Array.isArray(p.authors) ? p.authors.slice(0, 3).join(", ") : ""}{" "}
-                  {p.year && `(${p.year})`}
-                </p>
-              </div>
-            ))}
-            {(importPreview?.length || 0) > 50 && (
-              <div className="px-3 py-2 text-xs text-muted-foreground text-center">
-                +{(importPreview?.length || 0) - 50} {pt ? "mais" : "more"}...
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setImportPreview(null)}>{pt ? "Cancelar" : "Cancel"}</Button>
-            <Button onClick={confirmImport} disabled={importing}>
-              {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-              {pt ? "Importar" : "Import"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <AddToLibraryDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        onImported={fetchSaved}
+      />
     </div>
   );
 };
