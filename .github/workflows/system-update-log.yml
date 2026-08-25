@@ -64,10 +64,20 @@ jobs:
             --arg diff "$DIFF_CONTENT" \
             '{commits: $commits, diffStat: $diffStat, diff: $diff}')
 
-          RESPONSE=$(curl -sf -X POST \
+          RESPONSE=$(curl -s -w '\n%{http_code}' -X POST \
             "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/log-system-update" \
             -H "Content-Type: application/json" \
             -H "x-ci-secret: ${CI_UPDATE_SECRET}" \
             -d "$PAYLOAD")
 
-          echo "log-system-update response: $RESPONSE"
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          echo "log-system-update status: $HTTP_STATUS"
+          echo "log-system-update response: $BODY"
+
+          # This step is an optional side effect (auto-writes a changelog entry) —
+          # per the header comment above, it must never fail the job or page anyone.
+          # Surface a warning annotation instead so it's visible without alarming.
+          if [ "$HTTP_STATUS" -ge 400 ]; then
+            echo "::warning::log-system-update returned $HTTP_STATUS: $BODY"
+          fi
