@@ -9,11 +9,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { SupabaseYjsProvider } from "@/lib/collab/supabaseYjsProvider";
 import { seedYDocFromHtml } from "@/lib/collab/yjsPersistence";
 import { SuggestionInsertion, generateSuggestionId, suggestionContentFromText, listSuggestions, type SuggestionInfo } from "@/lib/writing/suggestionMarks";
+import { SectionHeading } from "@/lib/writing/sectionHeading";
+import { listHeadings, resolveSectionInsertPos, ensureSectionHeading, type SectionHeadingInfo } from "@/lib/writing/sectionPosition";
+import type { SectionId } from "@/lib/writing/sections";
 
 export interface RichTextEditorHandle {
   insertHtml: (html: string) => void;
   /** Inserts AI-generated text wrapped as a pending suggestion (accept/reject in the editor). */
   insertSuggestion: (text: string, author?: string) => void;
+  /** Ensures the section's heading exists, then inserts as a pending suggestion at the end of that section's block. */
+  insertSuggestionInSection: (sectionId: SectionId, sectionLabel: string, text: string, author?: string) => void;
+  /** Idempotent — inserts only the canonical section headings that don't already exist. */
+  insertSectionSkeleton: (sections: { id: SectionId; label: string }[]) => void;
+  /** Moves the cursor/viewport to a document position (used by outline click-to-navigate). */
+  focusAt: (pos: number) => void;
   getEditor: () => Editor | null;
 }
 
@@ -39,6 +48,7 @@ interface RichTextEditorProps {
   editable?: boolean;
   collaboration?: CollaborationConfig;
   onSuggestionsChange?: (suggestions: SuggestionInfo[]) => void;
+  onHeadingsChange?: (headings: SectionHeadingInfo[]) => void;
 }
 
 function renderCaret(user: Record<string, unknown>): HTMLElement {
@@ -61,7 +71,7 @@ function renderSelection(user: Record<string, unknown>) {
 }
 
 export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
-  ({ value, onChange, placeholder, className, editable = true, collaboration, onSuggestionsChange }, ref) => {
+  ({ value, onChange, placeholder, className, editable = true, collaboration, onSuggestionsChange, onHeadingsChange }, ref) => {
     const [ydoc] = useState(() => {
       const doc = new Y.Doc();
       if (collaboration) {
@@ -94,7 +104,8 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     const editor = useEditor({
       extensions: collaboration
         ? [
-            StarterKit.configure({ history: false }),
+            StarterKit.configure({ heading: false, history: false }),
+            SectionHeading,
             Placeholder.configure({ placeholder: placeholder || "" }),
             SuggestionInsertion,
             Collaboration.configure({ document: ydoc }),
@@ -105,14 +116,23 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
               selectionRender: renderSelection,
             }),
           ]
-        : [StarterKit, Placeholder.configure({ placeholder: placeholder || "" }), SuggestionInsertion],
+        : [
+            StarterKit.configure({ heading: false }),
+            SectionHeading,
+            Placeholder.configure({ placeholder: placeholder || "" }),
+            SuggestionInsertion,
+          ],
       content: collaboration ? undefined : value,
       editable,
       onUpdate: ({ editor }) => {
         onChange(editor.getHTML());
         onSuggestionsChange?.(listSuggestions(editor));
+        onHeadingsChange?.(listHeadings(editor));
       },
-      onCreate: ({ editor }) => onSuggestionsChange?.(listSuggestions(editor)),
+      onCreate: ({ editor }) => {
+        onSuggestionsChange?.(listSuggestions(editor));
+        onHeadingsChange?.(listHeadings(editor));
+      },
       editorProps: {
         attributes: {
           class: className || "",
@@ -147,9 +167,26 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
           editor.chain().focus("end").insertContent(content).run();
           onSuggestionsChange?.(listSuggestions(editor));
         },
+        insertSuggestionInSection: (sectionId, sectionLabel, text, author = "ai") => {
+          if (!editor) return;
+          const pos = resolveSectionInsertPos(editor, sectionId, sectionLabel);
+          const content = suggestionContentFromText(text, generateSuggestionId(), author);
+          editor.chain().insertContentAt(pos, content).run();
+          onSuggestionsChange?.(listSuggestions(editor));
+          onHeadingsChange?.(listHeadings(editor));
+        },
+        insertSectionSkeleton: (sections) => {
+          if (!editor) return;
+          sections.forEach(({ id, label }) => ensureSectionHeading(editor, id, label));
+          onHeadingsChange?.(listHeadings(editor));
+        },
+        focusAt: (pos: number) => {
+          if (!editor) return;
+          editor.chain().focus(pos).scrollIntoView().run();
+        },
         getEditor: () => editor,
       }),
-      [editor, onSuggestionsChange],
+      [editor, onSuggestionsChange, onHeadingsChange],
     );
 
     useEffect(() => () => editor?.destroy(), [editor]);

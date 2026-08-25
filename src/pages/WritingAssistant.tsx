@@ -24,7 +24,7 @@ import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
   FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
   Upload, File, X, GraduationCap, Eye, MessageSquareWarning, Sigma, Star,
-  AlertTriangle, Save, FolderOpen, Clock, Search, FilePlus2, Shield, Users,
+  AlertTriangle, Save, FolderOpen, Clock, Search, FilePlus2, Shield, Users, ListTree,
 } from "lucide-react";
 import AIDeclarationDialog, { type AIUsageEntry } from "@/components/app/AIDeclarationDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -32,8 +32,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 import { WritingDocumentVersionsDialog } from "@/components/app/WritingDocumentVersionsDialog";
 import { RichTextEditor, type RichTextEditorHandle } from "@/components/app/writing/RichTextEditor";
+import { DocumentOutline } from "@/components/app/writing/DocumentOutline";
 import { stripHtml, isContentEmpty } from "@/lib/writing/richText";
 import { acceptSuggestion, rejectSuggestion, type SuggestionInfo } from "@/lib/writing/suggestionMarks";
+import { SECTIONS, type SectionId } from "@/lib/writing/sections";
+import type { SectionHeadingInfo } from "@/lib/writing/sectionPosition";
 import * as Y from "yjs";
 import type { SupabaseYjsProvider } from "@/lib/collab/supabaseYjsProvider";
 import { bytesToPgHex, pgHexToBytes } from "@/lib/collab/yjsPersistence";
@@ -82,15 +85,6 @@ interface WritingDocument {
   yjs_state?: string | null;
 }
 
-const SECTIONS = [
-  { id: "introduction", label: { pt: "Introdução", en: "Introduction" } },
-  { id: "methods", label: { pt: "Métodos", en: "Methods" } },
-  { id: "results", label: { pt: "Resultados", en: "Results" } },
-  { id: "discussion", label: { pt: "Discussão", en: "Discussion" } },
-  { id: "conclusion", label: { pt: "Conclusão", en: "Conclusion" } },
-  { id: "abstract", label: { pt: "Resumo", en: "Abstract" } },
-];
-
 const WritingAssistant = () => {
   const { locale } = useLanguage();
   const { user } = useAuth();
@@ -103,6 +97,8 @@ const WritingAssistant = () => {
   const [citationStyle, setCitationStyle] = useState("APA");
   const [selectedSection, setSelectedSection] = useState("introduction");
   const [instructions, setInstructions] = useState("");
+  const [headings, setHeadings] = useState<SectionHeadingInfo[]>([]);
+  const [aiOutputMeta, setAiOutputMeta] = useState<{ action: string; sectionId: string } | null>(null);
 
   // Papers grouped by saved search
   const [searchGroups, setSearchGroups] = useState<SearchGroup[]>([]);
@@ -592,6 +588,7 @@ const WritingAssistant = () => {
 
     setIsGenerating(true);
     setAiOutput("");
+    setAiOutputMeta({ action, sectionId: selectedSection });
 
     // Log AI usage
     const sectionLabel = SECTIONS.find(s => s.id === selectedSection)?.label[pt ? "pt" : "en"] || selectedSection;
@@ -700,6 +697,16 @@ const WritingAssistant = () => {
     return { valid: invalidIds.length === 0, invalidIds: [...new Set(invalidIds)], totalCitations };
   }, [selectedPapers.length]);
 
+  const insertGeneratedText = (text: string) => {
+    if (aiOutputMeta?.action === "draft_section") {
+      const section = SECTIONS.find((s) => s.id === aiOutputMeta.sectionId);
+      const label = section?.label[pt ? "pt" : "en"] || aiOutputMeta.sectionId;
+      editorRef.current?.insertSuggestionInSection(aiOutputMeta.sectionId as SectionId, label, text);
+    } else {
+      editorRef.current?.insertSuggestion(text);
+    }
+  };
+
   const handleInsertInEditor = () => {
     const validation = validateCitationsInOutput(aiOutput);
     if (!validation.valid) {
@@ -713,12 +720,17 @@ const WritingAssistant = () => {
           : `⚠️ ${validation.invalidIds.length} suspicious citation(s) detected and marked with [?]. Please verify before submitting.`,
         { duration: 6000 }
       );
-      editorRef.current?.insertSuggestion(cleaned);
+      insertGeneratedText(cleaned);
       toast.info(pt ? "Inserido como sugestão pendente — revise e aceite/rejeite" : "Inserted as a pending suggestion — review and accept/reject");
     } else {
-      editorRef.current?.insertSuggestion(aiOutput);
+      insertGeneratedText(aiOutput);
       toast.success(pt ? "Texto inserido como sugestão pendente" : "Text inserted as a pending suggestion");
     }
+  };
+
+  const handleInsertSkeleton = () => {
+    editorRef.current?.insertSectionSkeleton(SECTIONS.map((s) => ({ id: s.id, label: s.label[pt ? "pt" : "en"] })));
+    toast.success(pt ? "Estrutura de seções inserida" : "Section structure inserted");
   };
 
   // Quality metrics calculation (operates on plain text — editorContent is HTML)
@@ -1264,6 +1276,17 @@ const WritingAssistant = () => {
             </SelectContent>
           </Select>
 
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground" onClick={handleInsertSkeleton}>
+                  <ListTree className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p className="text-xs">{pt ? "Inserir estrutura de seções" : "Insert section structure"}</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           <Select value={citationStyle} onValueChange={setCitationStyle}>
             <SelectTrigger className="w-28 h-8 text-xs rounded-lg border-border/40 bg-background/60">
               <SelectValue />
@@ -1384,6 +1407,15 @@ const WritingAssistant = () => {
 
         {/* Editor + AI output split */}
         <div className="flex-1 flex overflow-hidden">
+          {/* Section outline */}
+          <DocumentOutline
+            headings={headings}
+            selectedSection={selectedSection}
+            onSelectSection={setSelectedSection}
+            onNavigate={(pos) => editorRef.current?.focusAt(pos)}
+            onInsertSkeleton={handleInsertSkeleton}
+            pt={pt}
+          />
           {/* Editor */}
           <div className="flex-1 flex flex-col border-r border-border/30">
             <div
@@ -1435,6 +1467,7 @@ const WritingAssistant = () => {
                     : undefined
                 }
                 onSuggestionsChange={setSuggestions}
+                onHeadingsChange={setHeadings}
               />
             </div>
             {/* Pending AI suggestions (track changes) */}
