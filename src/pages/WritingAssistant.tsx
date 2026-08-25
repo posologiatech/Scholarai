@@ -15,6 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenuLabel, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
   PenLine, BookOpen, Quote, RefreshCw, ShieldCheck, Sparkles, Loader2,
@@ -1016,227 +1020,45 @@ const WritingAssistant = () => {
 
       {/* ─── Main editor area ─── */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Toolbar — glassmorphism ribbon */}
-        <div className="border-b border-border/30 bg-background/80 backdrop-blur-md px-4 py-2.5 flex items-center gap-2.5 flex-wrap shadow-sm">
-          <Select value={selectedSection} onValueChange={setSelectedSection}>
-            <SelectTrigger className="w-40 h-8 text-xs rounded-lg border-border/40 bg-background/60">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SECTIONS.map(s => (
-                <SelectItem key={s.id} value={s.id} className="text-xs">
-                  {s.label[pt ? "pt" : "en"]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={citationStyle} onValueChange={setCitationStyle}>
-            <SelectTrigger className="w-28 h-8 text-xs rounded-lg border-border/40 bg-background/60">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="APA" className="text-xs">APA 7th</SelectItem>
-              <SelectItem value="Vancouver" className="text-xs">Vancouver</SelectItem>
-              <SelectItem value="ABNT" className="text-xs">ABNT</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Separator orientation="vertical" className="h-6 bg-border/30" />
-
-          {/* Selected sources badges */}
-          {(selectedPapers.length > 0 || selectedPDFs.length > 0 || selectedAnalyses.length > 0) && (
-            <div className="flex items-center gap-1.5">
-              {selectedPapers.length > 0 && (
-                <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20 hover:bg-primary/10 gap-1">
-                  <FileText className="h-2.5 w-2.5" />
-                  {selectedPapers.length}
-                </Badge>
-              )}
-              {selectedPDFs.length > 0 && (
-                <Badge className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/10 dark:text-amber-400 gap-1">
-                  <File className="h-2.5 w-2.5" />
-                  {selectedPDFs.length}
-                </Badge>
-              )}
-              {selectedAnalyses.length > 0 && (
-                <Badge className="text-[10px] bg-accent/10 text-accent border-accent/20 hover:bg-accent/10 gap-1">
-                  <Database className="h-2.5 w-2.5" />
-                  {selectedAnalyses.length}
-                </Badge>
-              )}
-              <Separator orientation="vertical" className="h-4 bg-border/30" />
-            </div>
+        {/* Document title bar — document management only */}
+        <div className="h-[52px] shrink-0 border-b border-border/30 bg-background flex items-center gap-2.5 px-4">
+          <div className="h-6 w-6 rounded-md bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0">
+            <PenLine className="h-3 w-3 text-primary-foreground" />
+          </div>
+          <input
+            type="text"
+            value={docTitle}
+            onChange={e => setDocTitle(e.target.value)}
+            placeholder={pt ? "Título do documento..." : "Document title..."}
+            className="text-xs font-semibold text-foreground/80 bg-transparent border-none outline-none focus:text-foreground placeholder:text-muted-foreground/40 w-56 tracking-wide"
+          />
+          {currentDocId && (
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-full px-2 py-0.5 flex items-center gap-1 shrink-0">
+              <Check className="h-2.5 w-2.5" />
+              {pt ? "Salvo automaticamente" : "Auto-saved"}
+            </span>
+          )}
+          {isGenerating && (
+            <span className="flex items-center gap-1 text-primary/60 shrink-0">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+              <span className="text-[10px]">{pt ? "Gerando..." : "Generating..."}</span>
+            </span>
           )}
 
-          {/* Group 1: Writing */}
-          <TooltipProvider delayDuration={300}>
-            <div className="flex items-center gap-0.5 bg-primary/5 border border-primary/10 rounded-lg px-2 py-0.5">
-              <span className="text-[9px] font-bold text-primary/60 uppercase tracking-widest mr-1">
-                {pt ? "Escrita" : "Write"}
-              </span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating}
-                    onClick={() => streamAI("draft_section", instructions)}>
-                    <Sparkles className="h-3 w-3" />
-                    {pt ? "Gerar" : "Draft"}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p className="text-xs">{pt ? "Gerar rascunho da seção com citações" : "Generate section draft with citations"}</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
-                    onClick={() => streamAI("continue_writing")}>
-                    <ArrowRight className="h-3 w-3" />
-                    {pt ? "Continuar" : "Continue"}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p className="text-xs">{pt ? "Continuar escrevendo de onde parou" : "Continue writing from where you left off"}</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating}
-                    onClick={() => streamAI("insert_citation")}>
-                    <Quote className="h-3 w-3" />
-                    {pt ? "Citar" : "Cite"}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p className="text-xs">{pt ? "Formatar citações dos papers selecionados" : "Format citations from selected papers"}</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
-                    onClick={() => streamAI("generate_abstract")}>
-                    <Sigma className="h-3 w-3" />
-                    Abstract
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p className="text-xs">{pt ? "Gerar abstract estruturado do artigo" : "Generate structured abstract from article"}</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
-                    onClick={() => streamAI("generate_highlights")}>
-                    <Star className="h-3 w-3" />
-                    Highlights
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p className="text-xs">{pt ? "Gerar Key Findings / Highlights" : "Generate Key Findings / Highlights"}</p></TooltipContent>
-              </Tooltip>
-            </div>
-          </TooltipProvider>
-
-          {/* Group 2: Review */}
-          <TooltipProvider delayDuration={300}>
-            <div className="flex items-center gap-0.5 bg-accent/5 border border-accent/10 rounded-lg px-2 py-0.5">
-              <span className="text-[9px] font-bold text-accent/60 uppercase tracking-widest mr-1">
-                {pt ? "Revisão" : "Review"}
-              </span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
-                    onClick={() => streamAI("rephrase")}>
-                    <RefreshCw className="h-3 w-3" />
-                    {pt ? "Reformular" : "Rephrase"}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p className="text-xs">{pt ? "Reformular com qualidade de pesquisador sênior" : "Rephrase with senior researcher quality"}</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
-                    onClick={() => streamAI("check_consistency")}>
-                    <ShieldCheck className="h-3 w-3" />
-                    {pt ? "Verificar" : "Check"}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p className="text-xs">{pt ? "Verificar consistência entre claims e evidências" : "Check consistency between claims and evidence"}</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
-                    onClick={() => streamAI("peer_review")}>
-                    <MessageSquareWarning className="h-3 w-3" />
-                    Peer Review
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p className="text-xs">{pt ? "Simular revisão por pares rigorosa" : "Simulate rigorous peer review"}</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all" disabled={isGenerating || isContentEmpty(editorContent)}
-                    onClick={() => streamAI("improve_hedging")}>
-                    <Eye className="h-3 w-3" />
-                    Hedging
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p className="text-xs">{pt ? "Corrigir linguagem absolutista para hedging científico" : "Fix absolutist language to scientific hedging"}</p></TooltipContent>
-              </Tooltip>
-            </div>
-          </TooltipProvider>
-
-          {/* AI Declaration button */}
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs gap-1 px-2 relative hover:bg-emerald-500/10 hover:text-emerald-600 transition-all"
-                  onClick={() => setShowAIDeclaration(true)}
-                >
-                  <Shield className="h-3 w-3" />
-                  {pt ? "Declaração IA" : "AI Declaration"}
-                  {aiUsageLog.length > 0 && (
-                    <Badge className="text-[8px] h-4 px-1 ml-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15">
-                      {aiUsageLog.length}
-                    </Badge>
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-xs">{pt ? "Gerar declaração de uso de IA (Elsevier, Nature, SciELO...)" : "Generate AI usage declaration (Elsevier, Nature, SciELO...)"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          <Separator orientation="vertical" className="h-6 bg-border/30" />
-
-          <Button
-            size="sm"
-            variant={activeRightPanel === "capes" ? "default" : "outline"}
-            className={`h-7 text-xs gap-1 rounded-lg transition-all ${
-              activeRightPanel === "capes"
-                ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-md shadow-primary/20 border-0"
-                : "border-primary/20 text-primary hover:bg-primary/5"
-            }`}
-            onClick={() => setActiveRightPanel(activeRightPanel === "capes" ? "ai" : "capes")}
-          >
-            <GraduationCap className="h-3 w-3" />
-            CAPES APC
-          </Button>
-
-          <Separator orientation="vertical" className="h-6 bg-border/30" />
-
-          {/* Document controls */}
-          <div className="flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-0.5">
             <TooltipProvider delayDuration={300}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-emerald-500/10 hover:text-emerald-600 transition-all" onClick={newDocument}>
-                    <FilePlus2 className="h-3 w-3" />
-                    {pt ? "Novo" : "New"}
+                  <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-emerald-500/10 hover:text-emerald-600" onClick={newDocument}>
+                    <FilePlus2 className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent><p className="text-xs">{pt ? "Criar novo documento" : "Create new document"}</p></TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-primary/10 hover:text-primary transition-all" disabled={isSaving || isContentEmpty(editorContent)} onClick={saveDocument}>
-                    {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                    {pt ? "Salvar" : "Save"}
+                  <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" disabled={isSaving || isContentEmpty(editorContent)} onClick={saveDocument}>
+                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent><p className="text-xs">{pt ? "Salvar documento atual" : "Save current document"}</p></TooltipContent>
@@ -1259,31 +1081,6 @@ const WritingAssistant = () => {
                   }}
                 />
               )}
-              {collabPeers.length > 0 && (
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center gap-1 h-7 px-2 rounded-md bg-primary/5 text-xs text-primary">
-                        <Users className="h-3 w-3" />
-                        <div className="flex -space-x-1.5">
-                          {collabPeers.slice(0, 4).map((p) => (
-                            <span
-                              key={p.clientId}
-                              className="h-4 w-4 rounded-full border border-background flex items-center justify-center text-[8px] font-semibold text-white"
-                              style={{ backgroundColor: p.color }}
-                            >
-                              {p.name.charAt(0).toUpperCase()}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">{collabPeers.map((p) => p.name).join(", ")}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
               {currentDocId && (
                 <WritingDocumentVersionsDialog
                   documentId={currentDocId}
@@ -1295,11 +1092,10 @@ const WritingAssistant = () => {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <DialogTrigger asChild>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2 hover:bg-accent/10 hover:text-accent transition-all">
-                        <FolderOpen className="h-3 w-3" />
-                        {pt ? "Abrir" : "Open"}
+                      <Button size="icon" variant="ghost" className="h-8 w-8 relative hover:bg-accent/10 hover:text-accent">
+                        <FolderOpen className="h-3.5 w-3.5" />
                         {savedDocuments.length > 0 && (
-                          <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-0.5 bg-muted/60">{savedDocuments.length}</Badge>
+                          <Badge variant="secondary" className="absolute -top-1 -right-1 text-[8px] h-3.5 min-w-3.5 px-0.5 bg-muted/80">{savedDocuments.length}</Badge>
                         )}
                       </Button>
                     </DialogTrigger>
@@ -1422,6 +1218,147 @@ const WritingAssistant = () => {
                   </ScrollArea>
                 </DialogContent>
               </Dialog>
+              {collabPeers.length > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 h-8 px-1.5 rounded-md bg-primary/5 text-xs text-primary ml-0.5">
+                      <Users className="h-3 w-3" />
+                      <div className="flex -space-x-1.5">
+                        {collabPeers.slice(0, 4).map((p) => (
+                          <span
+                            key={p.clientId}
+                            className="h-4 w-4 rounded-full border border-background flex items-center justify-center text-[8px] font-semibold text-white"
+                            style={{ backgroundColor: p.color }}
+                          >
+                            {p.name.charAt(0).toUpperCase()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">{collabPeers.map((p) => p.name).join(", ")}</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </TooltipProvider>
+          </div>
+        </div>
+
+        {/* Content toolbar — configuration + AI actions only */}
+        <div className="border-b border-border/30 bg-background/80 backdrop-blur-md px-4 py-2.5 flex items-center gap-2.5 flex-wrap shadow-sm">
+          <Select value={selectedSection} onValueChange={setSelectedSection}>
+            <SelectTrigger className="w-40 h-8 text-xs rounded-lg border-border/40 bg-background/60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SECTIONS.map(s => (
+                <SelectItem key={s.id} value={s.id} className="text-xs">
+                  {s.label[pt ? "pt" : "en"]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={citationStyle} onValueChange={setCitationStyle}>
+            <SelectTrigger className="w-28 h-8 text-xs rounded-lg border-border/40 bg-background/60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="APA" className="text-xs">APA 7th</SelectItem>
+              <SelectItem value="Vancouver" className="text-xs">Vancouver</SelectItem>
+              <SelectItem value="ABNT" className="text-xs">ABNT</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Selected sources badges */}
+          {(selectedPapers.length > 0 || selectedPDFs.length > 0 || selectedAnalyses.length > 0) && (
+            <>
+              <Separator orientation="vertical" className="h-6 bg-border/30" />
+              <div className="flex items-center gap-1.5">
+                {selectedPapers.length > 0 && (
+                  <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20 hover:bg-primary/10 gap-1">
+                    <FileText className="h-2.5 w-2.5" />
+                    {selectedPapers.length}
+                  </Badge>
+                )}
+                {selectedPDFs.length > 0 && (
+                  <Badge className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/10 dark:text-amber-400 gap-1">
+                    <File className="h-2.5 w-2.5" />
+                    {selectedPDFs.length}
+                  </Badge>
+                )}
+                {selectedAnalyses.length > 0 && (
+                  <Badge className="text-[10px] bg-accent/10 text-accent border-accent/20 hover:bg-accent/10 gap-1">
+                    <Database className="h-2.5 w-2.5" />
+                    {selectedAnalyses.length}
+                  </Badge>
+                )}
+              </div>
+            </>
+          )}
+
+          <div className="ml-auto flex items-center gap-2">
+            <TooltipProvider delayDuration={300}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-8 text-xs gap-1 rounded-lg border-border/40 text-muted-foreground" disabled={isGenerating}>
+                    {pt ? "Mais ações" : "More actions"}
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuLabel className="text-[9px] font-bold text-primary/60 uppercase tracking-widest">
+                    {pt ? "Escrita" : "Write"}
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem disabled={isGenerating} onClick={() => streamAI("insert_citation")}>
+                    <Quote className="h-3.5 w-3.5 mr-2" />{pt ? "Citar" : "Cite"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={isGenerating || isContentEmpty(editorContent)} onClick={() => streamAI("generate_abstract")}>
+                    <Sigma className="h-3.5 w-3.5 mr-2" />Abstract
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={isGenerating || isContentEmpty(editorContent)} onClick={() => streamAI("generate_highlights")}>
+                    <Star className="h-3.5 w-3.5 mr-2" />Highlights
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[9px] font-bold text-accent/60 uppercase tracking-widest">
+                    {pt ? "Revisão" : "Review"}
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem disabled={isGenerating || isContentEmpty(editorContent)} onClick={() => streamAI("rephrase")}>
+                    <RefreshCw className="h-3.5 w-3.5 mr-2" />{pt ? "Reformular" : "Rephrase"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={isGenerating || isContentEmpty(editorContent)} onClick={() => streamAI("check_consistency")}>
+                    <ShieldCheck className="h-3.5 w-3.5 mr-2" />{pt ? "Verificar" : "Check"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={isGenerating || isContentEmpty(editorContent)} onClick={() => streamAI("peer_review")}>
+                    <MessageSquareWarning className="h-3.5 w-3.5 mr-2" />Peer Review
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={isGenerating || isContentEmpty(editorContent)} onClick={() => streamAI("improve_hedging")}>
+                    <Eye className="h-3.5 w-3.5 mr-2" />Hedging
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 rounded-lg border-primary/25 text-primary hover:bg-primary/5" disabled={isGenerating || isContentEmpty(editorContent)}
+                    onClick={() => streamAI("continue_writing")}>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                    {pt ? "Continuar" : "Continue"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Continuar escrevendo de onde parou" : "Continue writing from where you left off"}</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" className="h-8 text-xs gap-1.5 rounded-lg bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-md shadow-primary/20 border-0 hover:opacity-90 transition-all" disabled={isGenerating}
+                    onClick={() => streamAI("draft_section", instructions)}>
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {pt ? "Gerar" : "Draft"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">{pt ? "Gerar rascunho da seção com citações" : "Generate section draft with citations"}</p></TooltipContent>
+              </Tooltip>
             </TooltipProvider>
           </div>
         </div>
@@ -1445,32 +1382,6 @@ const WritingAssistant = () => {
         <div className="flex-1 flex overflow-hidden">
           {/* Editor */}
           <div className="flex-1 flex flex-col border-r border-border/30">
-            <div className="px-4 py-2 border-b border-border/20 bg-gradient-to-r from-muted/10 to-transparent flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center">
-                  <PenLine className="h-3 w-3 text-primary" />
-                </div>
-                <input
-                  type="text"
-                  value={docTitle}
-                  onChange={e => setDocTitle(e.target.value)}
-                  placeholder={pt ? "Título do documento..." : "Document title..."}
-                  className="text-xs font-semibold text-foreground/70 bg-transparent border-none outline-none focus:text-foreground placeholder:text-muted-foreground/40 w-48 tracking-wide"
-                />
-                {isGenerating && (
-                  <span className="ml-1 flex items-center gap-1 text-primary/60">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                    <span className="text-[10px]">{pt ? "Gerando..." : "Generating..."}</span>
-                  </span>
-                )}
-              </div>
-              {currentDocId && (
-                <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
-                  <Check className="h-2.5 w-2.5" />
-                  {pt ? "Salvo automaticamente" : "Auto-saved"}
-                </span>
-              )}
-            </div>
             <div
               className="flex-1 overflow-y-auto shadow-inner shadow-muted/20"
               style={{
@@ -1629,43 +1540,86 @@ const WritingAssistant = () => {
 
           {/* Right panel: AI Output or CAPES Advisor */}
           <div className="w-[45%] flex flex-col bg-gradient-to-b from-primary/[0.02] to-accent/[0.02]">
+            {/* Explicit tab strip — two views of the same panel */}
+            <div className="h-10 shrink-0 border-b border-border/20 flex items-center px-2 gap-1 bg-muted/30">
+              <button
+                onClick={() => setActiveRightPanel("ai")}
+                className={`flex items-center gap-1.5 h-7 px-3 rounded-md text-xs font-semibold transition-all ${
+                  activeRightPanel === "ai"
+                    ? "bg-background text-primary shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Sparkles className="h-3 w-3" />
+                {pt ? "Saída da IA" : "AI Output"}
+                {isGenerating && <Loader2 className="h-3 w-3 animate-spin ml-0.5" />}
+              </button>
+              <button
+                onClick={() => setActiveRightPanel("capes")}
+                className={`flex items-center gap-1.5 h-7 px-3 rounded-md text-xs font-medium transition-all ${
+                  activeRightPanel === "capes"
+                    ? "bg-background text-primary shadow-sm font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <GraduationCap className="h-3 w-3" />
+                CAPES APC
+              </button>
+
+              <div className="ml-auto">
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 relative hover:bg-emerald-500/10 hover:text-emerald-600"
+                        onClick={() => setShowAIDeclaration(true)}
+                      >
+                        <Shield className="h-3.5 w-3.5" />
+                        {aiUsageLog.length > 0 && (
+                          <Badge className="absolute -top-1 -right-1 text-[8px] h-3.5 min-w-3.5 px-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15">
+                            {aiUsageLog.length}
+                          </Badge>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">{pt ? "Gerar declaração de uso de IA (Elsevier, Nature, SciELO...)" : "Generate AI usage declaration (Elsevier, Nature, SciELO...)"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+
             {activeRightPanel === "ai" ? (
               <>
-                <div className="px-4 py-2 border-b border-border/20 bg-gradient-to-r from-primary/5 to-accent/5 flex items-center justify-between">
-                  <p className="text-xs font-semibold text-foreground/70 flex items-center gap-1.5 tracking-wide">
-                    <div className="h-5 w-5 rounded-md bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-                      <Sparkles className="h-3 w-3 text-primary" />
-                    </div>
-                    {pt ? "Saída da IA" : "AI Output"}
-                    {isGenerating && <Loader2 className="h-3 w-3 animate-spin ml-1 text-primary" />}
-                  </p>
-                  {aiOutput && !isGenerating && (
-                    <div className="flex gap-1.5 items-center">
-                      {(() => {
-                        const v = validateCitationsInOutput(aiOutput);
-                        return !v.valid ? (
-                          <Badge className="text-[9px] h-5 gap-0.5 bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/10">
-                            <AlertTriangle className="h-2.5 w-2.5" />
-                            {v.invalidIds.length} {pt ? "citação suspeita" : "suspicious"}
-                          </Badge>
-                        ) : v.totalCitations > 0 ? (
-                          <Badge className="text-[9px] h-5 gap-0.5 bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/10 dark:text-emerald-400">
-                            <Check className="h-2.5 w-2.5" />
-                            {v.totalCitations} {pt ? "citações válidas" : "valid citations"}
-                          </Badge>
-                        ) : null;
-                      })()}
-                      <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2.5 rounded-lg hover:bg-primary/10 hover:text-primary transition-all" onClick={handleCopy}>
-                        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                        {copied ? (pt ? "Copiado" : "Copied") : (pt ? "Copiar" : "Copy")}
-                      </Button>
-                      <Button size="sm" className="h-7 text-xs gap-1 px-3 rounded-lg bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 shadow-sm shadow-primary/20 transition-all border-0" onClick={handleInsertInEditor}>
-                        <Plus className="h-3 w-3" />
-                        {pt ? "Inserir" : "Insert"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                {aiOutput && !isGenerating && (
+                  <div className="px-4 py-2 border-b border-border/20 flex items-center justify-end gap-1.5">
+                    {(() => {
+                      const v = validateCitationsInOutput(aiOutput);
+                      return !v.valid ? (
+                        <Badge className="text-[9px] h-5 gap-0.5 bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/10">
+                          <AlertTriangle className="h-2.5 w-2.5" />
+                          {v.invalidIds.length} {pt ? "citação suspeita" : "suspicious"}
+                        </Badge>
+                      ) : v.totalCitations > 0 ? (
+                        <Badge className="text-[9px] h-5 gap-0.5 bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/10 dark:text-emerald-400">
+                          <Check className="h-2.5 w-2.5" />
+                          {v.totalCitations} {pt ? "citações válidas" : "valid citations"}
+                        </Badge>
+                      ) : null;
+                    })()}
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2.5 rounded-lg hover:bg-primary/10 hover:text-primary transition-all" onClick={handleCopy}>
+                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      {copied ? (pt ? "Copiado" : "Copied") : (pt ? "Copiar" : "Copy")}
+                    </Button>
+                    <Button size="sm" className="h-7 text-xs gap-1 px-3 rounded-lg bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 shadow-sm shadow-primary/20 transition-all border-0" onClick={handleInsertInEditor}>
+                      <Plus className="h-3 w-3" />
+                      {pt ? "Inserir" : "Insert"}
+                    </Button>
+                  </div>
+                )}
                 <ScrollArea className="flex-1">
                   <div className="p-6 text-sm leading-[1.9] whitespace-pre-wrap font-serif text-foreground">
                     {aiOutput ? (
