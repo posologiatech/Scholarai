@@ -24,6 +24,7 @@ import Careers from "./pages/Careers";
 import Contact from "./pages/Contact";
 import Dashboard from "./pages/Dashboard";
 import Discover from "./pages/Discover";
+import DiscoverHistory from "./pages/DiscoverHistory";
 import SearchResults from "./pages/SearchResults";
 import ImageSearchResults from "./pages/ImageSearchResults";
 import Library from "./pages/Library";
@@ -111,6 +112,7 @@ const App = () => (
               <Route path="/support/:id" element={<ProtectedRoute><SupportTicketDetail /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/discover" element={<ProtectedRoute><Discover /></ProtectedRoute>} />
+              <Route path="/discover/history" element={<ProtectedRoute><DiscoverHistory /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
               <Route path="/search/images" element={<ProtectedRoute><ImageSearchResults /></ProtectedRoute>} />
               <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />

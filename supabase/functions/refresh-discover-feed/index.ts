@@ -109,18 +109,32 @@ async function uploadCover(serviceClient: ReturnType<typeof createClient>, base6
   return data.publicUrl;
 }
 
-async function pruneOldRows(serviceClient: ReturnType<typeof createClient>) {
+// Rotated-out items are archived (archived_at set), not deleted, so they remain
+// visible in the /discover/history timeline. Only currently non-archived rows
+// count toward the "current" feed and its MAX_KEPT cap.
+async function archiveOldRows(serviceClient: ReturnType<typeof createClient>) {
   const cutoff = new Date(Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  await serviceClient.from('discover_items').delete().lt('published_at', cutoff);
+  const now = new Date().toISOString();
+
+  await serviceClient
+    .from('discover_items')
+    .update({ archived_at: now })
+    .is('archived_at', null)
+    .lt('published_at', cutoff);
 
   const { data: keep } = await serviceClient
     .from('discover_items')
     .select('id')
+    .is('archived_at', null)
     .order('published_at', { ascending: false })
     .limit(MAX_KEPT);
   const keepIds = (keep || []).map((r: any) => r.id);
   if (keepIds.length > 0) {
-    await serviceClient.from('discover_items').delete().not('id', 'in', `(${keepIds.join(',')})`);
+    await serviceClient
+      .from('discover_items')
+      .update({ archived_at: now })
+      .is('archived_at', null)
+      .not('id', 'in', `(${keepIds.join(',')})`);
   }
 }
 
@@ -135,7 +149,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    await pruneOldRows(serviceClient);
+    await archiveOldRows(serviceClient);
 
     const { data: existing } = await serviceClient.from('discover_items').select('doi');
     const existingDois = new Set((existing || []).map((r: any) => r.doi));
