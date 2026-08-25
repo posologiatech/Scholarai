@@ -605,6 +605,10 @@ const WritingAssistant = () => {
       const body = {
         action,
         content: extraContent || stripHtml(editorContent),
+        // Sent alongside `content` (not instead of it) so every action can honor
+        // the instructions field, not just draft_section (which folds it into
+        // `content` itself below since there's no existing text to send there).
+        instructions: action === "draft_section" ? undefined : instructions,
         papers: selectedPapers.map(p => ({
           title: p.title,
           authors: Array.isArray(p.authors) ? p.authors : [],
@@ -674,7 +678,7 @@ const WritingAssistant = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [selectedPapers, selectedPDFs, selectedAnalyses, editorContent, selectedSection, citationStyle, locale, pt]);
+  }, [selectedPapers, selectedPDFs, selectedAnalyses, editorContent, selectedSection, citationStyle, instructions, locale, pt]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(aiOutput);

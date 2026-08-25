@@ -100,7 +100,7 @@ serve(async (req) => {
   if ("error" in auth) return auth.error;
 
   try {
-    const { action, content, papers, section, citationStyle, datamindAnalyses, uploadedPDFs, language } = await req.json();
+    const { action, content, instructions, papers, section, citationStyle, datamindAnalyses, uploadedPDFs, language } = await req.json();
     const lang = language || "pt";
 
     const paperContext = (papers || []).map((p: any, i: number) => {
@@ -374,6 +374,13 @@ Article text:
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+    }
+
+    // draft_section already folds the author's instructions into `content` above
+    // (it has no existing text of its own to send); every other action gets them
+    // appended here so instructions aren't silently ignored outside that one case.
+    if (instructions && action !== "draft_section") {
+      userPrompt += `\n\nAuthor's additional instructions — apply these too:\n${instructions}`;
     }
 
     const aiResponse = await callAI({
