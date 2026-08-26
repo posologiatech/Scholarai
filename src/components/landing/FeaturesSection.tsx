@@ -142,7 +142,7 @@ const FeaturesSection = () => {
     },
     {
       icon: ClipboardList,
-      title: pt ? "Pesquisas Acadêmicas (Surveys)" : "Academic Surveys",
+      title: pt ? "Coleta de Dados" : "Data Collection",
       desc: pt
         ? "Construtor de questionários com 6 tipos de questão, lógica condicional, distribuição via QR Code e análise integrada ao DataMind."
         : "Survey builder with 6 question types, conditional logic, QR Code distribution, and DataMind-integrated analysis.",

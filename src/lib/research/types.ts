@@ -38,7 +38,7 @@ export const LINK_TYPE_LABEL: Record<ResearchLinkType, { pt: string; en: string;
   library: { pt: "Biblioteca", en: "Library", route: "/library" },
   datamind: { pt: "Análise DataMind", en: "DataMind analysis", route: "/datamind" },
   writing: { pt: "Escrita científica", en: "Scientific writing", route: "/writing" },
-  survey: { pt: "Pesquisa (coleta)", en: "Survey", route: "/surveys" },
+  survey: { pt: "Coleta de Dados", en: "Data Collection", route: "/surveys" },
   systematic_review: { pt: "Revisão sistemática", en: "Systematic review", route: "/systematic-review" },
   meta_analysis: { pt: "Meta-análise", en: "Meta-analysis", route: "/meta-analysis" },
   funding: { pt: "Edital de fomento", en: "Funding call", route: "/research/funding" },

@@ -243,7 +243,7 @@ export const translations = {
   "nav.metaAnalysis": { pt: "Meta-análise", en: "Meta-Analysis" },
   "nav.alerts": { pt: "Alertas", en: "Alerts" },
   "nav.riskOfBias": { pt: "Qualidade (RoB)", en: "Risk of Bias" },
-  "nav.surveys": { pt: "Pesquisas", en: "Surveys" },
+  "nav.surveys": { pt: "Coleta de Dados", en: "Data Collection" },
   "nav.researchProjects": { pt: "Projetos de Pesquisa", en: "Research Projects" },
   "nav.fundingCalls": { pt: "Editais de Fomento", en: "Funding Calls" },
   "nav.coauthorship": { pt: "Rede de Coautorias", en: "Co-authorship" },

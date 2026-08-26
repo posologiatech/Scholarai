@@ -44,6 +44,8 @@ const getViewFromPath = (pathname: string): BuilderView => {
   return "build";
 };
 
+const CLINICAL_ONLY_VIEWS: BuilderView[] = ["consent", "visits", "participants", "compliance", "team"];
+
 const SurveyBuilder = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -53,6 +55,9 @@ const SurveyBuilder = () => {
   const store = useSurveyStore();
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
   const currentView = getViewFromPath(location.pathname);
+  // Legacy surveys created before this field existed keep every tab (their prior behavior).
+  const studyType: "quick" | "clinical" = store.survey?.settings?.study_type === "quick" ? "quick" : "clinical";
+  const isQuick = studyType === "quick";
 
   // Load survey data
   const { isLoading } = useQuery({
@@ -117,6 +122,13 @@ const SurveyBuilder = () => {
   }, [store.isDirty, save]);
 
   useEffect(() => () => store.resetStore(), []);
+
+  // A Quick Collection has no TCLE/Visits/Participants/Compliance/Team screens — bounce back to Build.
+  useEffect(() => {
+    if (isQuick && CLINICAL_ONLY_VIEWS.includes(currentView)) {
+      navigate(`/surveys/${id}/build`, { replace: true });
+    }
+  }, [isQuick, currentView, id, navigate]);
 
   if (isLoading || !store.survey) {
     return (
@@ -183,30 +195,36 @@ const SurveyBuilder = () => {
               <Hammer className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Construir" : "Build"}
             </TabsTrigger>
-            <TabsTrigger value="consent" className="text-xs" onClick={() => navigate(`/surveys/${id}/consent`)}>
-              <ShieldCheck className="h-3 w-3 mr-1" />
-              TCLE
-            </TabsTrigger>
-            <TabsTrigger value="visits" className="text-xs" onClick={() => navigate(`/surveys/${id}/visits`)}>
-              <Calendar className="h-3 w-3 mr-1" />
-              {locale === "pt" ? "Visitas" : "Visits"}
-            </TabsTrigger>
-            <TabsTrigger value="participants" className="text-xs" onClick={() => navigate(`/surveys/${id}/participants`)}>
-              <Users className="h-3 w-3 mr-1" />
-              {locale === "pt" ? "Participantes" : "Participants"}
-            </TabsTrigger>
-            <TabsTrigger value="compliance" className="text-xs" onClick={() => navigate(`/surveys/${id}/compliance`)}>
-              <FileText className="h-3 w-3 mr-1" />
-              {locale === "pt" ? "Conformidade" : "Compliance"}
-            </TabsTrigger>
+            {!isQuick && (
+              <>
+                <TabsTrigger value="consent" className="text-xs" onClick={() => navigate(`/surveys/${id}/consent`)}>
+                  <ShieldCheck className="h-3 w-3 mr-1" />
+                  TCLE
+                </TabsTrigger>
+                <TabsTrigger value="visits" className="text-xs" onClick={() => navigate(`/surveys/${id}/visits`)}>
+                  <Calendar className="h-3 w-3 mr-1" />
+                  {locale === "pt" ? "Visitas" : "Visits"}
+                </TabsTrigger>
+                <TabsTrigger value="participants" className="text-xs" onClick={() => navigate(`/surveys/${id}/participants`)}>
+                  <Users className="h-3 w-3 mr-1" />
+                  {locale === "pt" ? "Participantes" : "Participants"}
+                </TabsTrigger>
+                <TabsTrigger value="compliance" className="text-xs" onClick={() => navigate(`/surveys/${id}/compliance`)}>
+                  <FileText className="h-3 w-3 mr-1" />
+                  {locale === "pt" ? "Conformidade" : "Compliance"}
+                </TabsTrigger>
+              </>
+            )}
             <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
               <GitBranch className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Fluxo" : "Flow"}
             </TabsTrigger>
-            <TabsTrigger value="team" className="text-xs" onClick={() => navigate(`/surveys/${id}/team`)}>
-              <UsersRound className="h-3 w-3 mr-1" />
-              {locale === "pt" ? "Equipe" : "Team"}
-            </TabsTrigger>
+            {!isQuick && (
+              <TabsTrigger value="team" className="text-xs" onClick={() => navigate(`/surveys/${id}/team`)}>
+                <UsersRound className="h-3 w-3 mr-1" />
+                {locale === "pt" ? "Equipe" : "Team"}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="distribute" className="text-xs" onClick={() => navigate(`/surveys/${id}/distribute`)}>
               <Send className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Distribuir" : "Distribute"}

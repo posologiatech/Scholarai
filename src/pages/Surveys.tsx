@@ -10,8 +10,16 @@ import { createSurveyAnalysisTask } from "@/lib/research/integrations";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,8 +36,13 @@ import {
   Copy,
   BarChart3,
   Send,
+  Zap,
+  Stethoscope,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
+
+export type StudyType = "quick" | "clinical";
 
 const statusColor: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -44,6 +57,9 @@ const Surveys = () => {
   const queryClient = useQueryClient();
   const linkedSurveyIds = useProjectLinkedIds("survey");
   const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newMode, setNewMode] = useState<StudyType>("quick");
 
   const { data: surveys = [], isLoading } = useQuery({
     queryKey: ["surveys", user?.id],
@@ -59,10 +75,10 @@ const Surveys = () => {
   });
 
   const createSurvey = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({ title, studyType }: { title: string; studyType: StudyType }) => {
       const { data, error } = await supabase
         .from("surveys")
-        .insert({ user_id: user!.id, title: locale === "pt" ? "Nova Pesquisa" : "New Survey" })
+        .insert({ user_id: user!.id, title, settings: { study_type: studyType } })
         .select()
         .single();
       if (error) throw error;
@@ -75,10 +91,17 @@ const Surveys = () => {
       return data;
     },
     onSuccess: (data) => {
+      setCreateOpen(false);
       navigate(`/surveys/${data.id}/build`);
     },
-    onError: () => toast.error("Failed to create survey"),
+    onError: () => toast.error(locale === "pt" ? "Falha ao criar coleta" : "Failed to create data collection"),
   });
+
+  const openCreateDialog = () => {
+    setNewTitle(locale === "pt" ? "Nova Coleta" : "New Data Collection");
+    setNewMode("quick");
+    setCreateOpen(true);
+  };
 
   const deleteSurvey = useMutation({
     mutationFn: async (id: string) => {
@@ -87,7 +110,7 @@ const Surveys = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["surveys"] });
-      toast.success(locale === "pt" ? "Pesquisa excluída" : "Survey deleted");
+      toast.success(locale === "pt" ? "Coleta excluída" : "Data collection deleted");
     },
   });
 
@@ -110,7 +133,7 @@ const Surveys = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["surveys"] });
-      toast.success(locale === "pt" ? "Pesquisa duplicada" : "Survey duplicated");
+      toast.success(locale === "pt" ? "Coleta duplicada" : "Data collection duplicated");
     },
   });
 
@@ -125,12 +148,12 @@ const Surveys = () => {
           <div className="flex items-center gap-3">
             <ClipboardList className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold text-foreground">
-              {locale === "pt" ? "Pesquisas" : "Surveys"}
+              {locale === "pt" ? "Coleta de Dados" : "Data Collection"}
             </h1>
           </div>
-          <Button onClick={() => createSurvey.mutate()} disabled={createSurvey.isPending}>
+          <Button onClick={openCreateDialog}>
             <Plus className="h-4 w-4 mr-2" />
-            {locale === "pt" ? "Criar Pesquisa" : "Create Survey"}
+            {locale === "pt" ? "Nova Coleta" : "New Data Collection"}
           </Button>
         </div>
 
@@ -138,7 +161,7 @@ const Surveys = () => {
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder={locale === "pt" ? "Buscar pesquisas..." : "Search surveys..."}
+            placeholder={locale === "pt" ? "Buscar coletas..." : "Search data collections..."}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -156,16 +179,16 @@ const Surveys = () => {
           <Card className="flex flex-col items-center justify-center py-16 text-center">
             <ClipboardList className="h-12 w-12 text-muted-foreground/40 mb-4" />
             <p className="text-lg font-medium text-muted-foreground">
-              {locale === "pt" ? "Nenhuma pesquisa ainda" : "No surveys yet"}
+              {locale === "pt" ? "Nenhuma coleta ainda" : "No data collections yet"}
             </p>
             <p className="text-sm text-muted-foreground/70 mt-1 mb-4">
               {locale === "pt"
-                ? "Crie sua primeira pesquisa para começar a coletar dados"
-                : "Create your first survey to start collecting data"}
+                ? "Crie sua primeira coleta para começar a reunir dados"
+                : "Create your first data collection to start gathering data"}
             </p>
-            <Button onClick={() => createSurvey.mutate()} disabled={createSurvey.isPending}>
+            <Button onClick={openCreateDialog}>
               <Plus className="h-4 w-4 mr-2" />
-              {locale === "pt" ? "Criar Pesquisa" : "Create Survey"}
+              {locale === "pt" ? "Nova Coleta" : "New Data Collection"}
             </Button>
           </Card>
         ) : (
@@ -255,6 +278,82 @@ const Surveys = () => {
             </table>
           </div>
         )}
+
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{locale === "pt" ? "Nova Coleta" : "New Data Collection"}</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="new-survey-title">{locale === "pt" ? "Título" : "Title"}</Label>
+                <Input
+                  id="new-survey-title"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>{locale === "pt" ? "Tipo de coleta" : "Collection type"}</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNewMode("quick")}
+                    className={`relative text-left rounded-lg border p-3 transition-colors ${
+                      newMode === "quick" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    {newMode === "quick" && <Check className="absolute top-3 right-3 h-4 w-4 text-primary" />}
+                    <Zap className="h-5 w-5 text-primary mb-2" />
+                    <p className="font-medium text-sm">{locale === "pt" ? "Coleta Rápida" : "Quick Collection"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {locale === "pt"
+                        ? "Enquetes e questionários simples: montar, distribuir, ver resultados."
+                        : "Simple polls and questionnaires: build, distribute, see results."}
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewMode("clinical")}
+                    className={`relative text-left rounded-lg border p-3 transition-colors ${
+                      newMode === "clinical" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    {newMode === "clinical" && <Check className="absolute top-3 right-3 h-4 w-4 text-primary" />}
+                    <Stethoscope className="h-5 w-5 text-primary mb-2" />
+                    <p className="font-medium text-sm">{locale === "pt" ? "Estudo Clínico" : "Clinical Study"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {locale === "pt"
+                        ? "Com TCLE, visitas, participantes, conformidade e equipe."
+                        : "With consent (TCLE), visits, participants, compliance, and team."}
+                    </p>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>
+                {locale === "pt" ? "Cancelar" : "Cancel"}
+              </Button>
+              <Button
+                onClick={() =>
+                  createSurvey.mutate({
+                    title: newTitle.trim() || (locale === "pt" ? "Nova Coleta" : "New Data Collection"),
+                    studyType: newMode,
+                  })
+                }
+                disabled={createSurvey.isPending}
+              >
+                {locale === "pt" ? "Criar" : "Create"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
     </div>
   );
 };

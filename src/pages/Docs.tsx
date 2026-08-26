@@ -552,7 +552,7 @@ const Docs = () => {
     {
       id: "surveys",
       icon: ClipboardList,
-      title: pt ? "Pesquisas / Surveys" : "Surveys",
+      title: pt ? "Coleta de Dados" : "Data Collection",
       category: pt ? "Pesquisa" : "Research",
       content: [
         {

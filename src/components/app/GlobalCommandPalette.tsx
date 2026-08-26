@@ -108,11 +108,11 @@ export default function GlobalCommandPalette() {
       const out: Hit[] = [];
       const group = pt ? {
         projects: "Projetos", docs: "Documentos", illustrations: "Ilustrações", datamind: "DataMind",
-        datasets: "Datasets", searches: "Buscas salvas", surveys: "Pesquisas (coleta)",
+        datasets: "Datasets", searches: "Buscas salvas", surveys: "Coleta de Dados",
         reviews: "Revisões sistemáticas", workspaces: "Workspaces",
       } : {
         projects: "Projects", docs: "Documents", illustrations: "Illustrations", datamind: "DataMind",
-        datasets: "Datasets", searches: "Saved searches", surveys: "Surveys",
+        datasets: "Datasets", searches: "Saved searches", surveys: "Data Collection",
         reviews: "Systematic reviews", workspaces: "Workspaces",
       };
 
