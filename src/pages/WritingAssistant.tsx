@@ -253,21 +253,31 @@ const WritingAssistant = () => {
     loadPDFs();
   }, [user]);
 
-  // Load illustrations gallery
+  // Load illustrations already linked to this document's project — not the whole
+  // gallery, which would be unusable once the researcher has dozens of images
+  // spread across unrelated projects.
   useEffect(() => {
-    if (!user) return;
+    if (!researchProjectId) {
+      setIllustrations([]);
+      return;
+    }
     const loadIllustrations = async () => {
       setLoadingIllustrations(true);
-      const { data } = await supabase
-        .from("illustrations")
-        .select("id, prompt, image_url")
-        .eq("user_id", user.id)
+      const { data } = await (supabase as any)
+        .from("research_project_links")
+        .select("resource_id, label, url")
+        .eq("project_id", researchProjectId)
+        .eq("resource_type", "illustration")
         .order("created_at", { ascending: false });
-      setIllustrations((data || []) as IllustrationSource[]);
+      setIllustrations(
+        ((data || []) as { resource_id: string | null; label: string | null; url: string | null }[])
+          .filter((l) => l.resource_id && l.url)
+          .map((l) => ({ id: l.resource_id as string, prompt: l.label || "", image_url: l.url as string })),
+      );
       setLoadingIllustrations(false);
     };
     loadIllustrations();
-  }, [user]);
+  }, [researchProjectId]);
 
   const insertIllustration = (item: IllustrationSource) => {
     editorRef.current?.insertImage(item.image_url, item.prompt);
@@ -1089,12 +1099,16 @@ const WritingAssistant = () => {
               </AccordionTrigger>
               <AccordionContent className="pb-3">
                 <p className="text-[11px] text-muted-foreground mb-2">
-                  {pt
-                    ? "Clique em uma imagem para inseri-la no documento na posição atual do cursor."
-                    : "Click an image to insert it into the document at the current cursor position."}
+                  {researchProjectId
+                    ? (pt
+                        ? "Ilustrações vinculadas ao projeto deste documento. Clique para inserir no cursor."
+                        : "Illustrations linked to this document's project. Click to insert at the cursor.")
+                    : (pt
+                        ? "Vincule este documento a um projeto de pesquisa para ver e inserir as ilustrações vinculadas a ele."
+                        : "Link this document to a research project to see and insert the illustrations linked to it.")}
                 </p>
                 <div className="max-h-72 overflow-y-auto">
-                  {loadingIllustrations ? (
+                  {!researchProjectId ? null : loadingIllustrations ? (
                     <div className="flex justify-center py-8">
                       <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
                     </div>
@@ -1102,7 +1116,9 @@ const WritingAssistant = () => {
                     <div className="text-center py-8">
                       <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
                       <p className="text-xs text-muted-foreground">
-                        {pt ? "Nenhuma ilustração ainda." : "No illustrations yet."}
+                        {pt
+                          ? "Nenhuma ilustração vinculada a este projeto ainda."
+                          : "No illustrations linked to this project yet."}
                       </p>
                     </div>
                   ) : (
