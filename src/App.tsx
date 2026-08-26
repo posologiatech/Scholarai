@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ActiveProjectProvider } from "@/contexts/ActiveProjectContext";
+import { CommandPaletteProvider } from "@/contexts/CommandPaletteContext";
+import GlobalCommandPalette from "@/components/app/GlobalCommandPalette";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -80,6 +82,7 @@ const App = () => (
     <LanguageProvider>
       <AuthProvider>
         <ActiveProjectProvider>
+        <CommandPaletteProvider>
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -87,6 +90,7 @@ const App = () => (
             <CookieBanner />
             <OracleAgent />
             <AdminRoadmapDialog />
+            <GlobalCommandPalette />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
@@ -166,6 +170,7 @@ const App = () => (
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
+        </CommandPaletteProvider>
         </ActiveProjectProvider>
       </AuthProvider>
     </LanguageProvider>

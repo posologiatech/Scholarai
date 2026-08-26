@@ -4,6 +4,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useActiveProject } from "@/contexts/ActiveProjectContext";
+import { useCommandPalette } from "@/contexts/CommandPaletteContext";
 import { fetchProjectLinks } from "@/lib/research/integrations";
 import type { ResearchLinkType } from "@/lib/research/types";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import {
   GraduationCap, Globe, LogOut, BookOpen, Table, FileText,
   LayoutDashboard, Shield, ShieldCheck, Palette, BrainCircuit,
   PanelLeftClose, PanelLeft, Network, Users, PenLine, BarChart3, Bell, ClipboardCheck, GitBranch,
-  ClipboardList, Activity, Rocket, FlaskConical, Award, LifeBuoy, Compass, X,
+  ClipboardList, Activity, Rocket, FlaskConical, Award, LifeBuoy, Compass, X, Search,
 } from "lucide-react";
 import { useState, useMemo, type ComponentType } from "react";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
   const { user, signOut } = useAuth();
   const { isAdmin } = useAdmin();
   const { activeProjectId, activeProjectTitle, setActiveProject } = useActiveProject();
+  const { setOpen: setPaletteOpen } = useCommandPalette();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -160,6 +162,27 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
               </span>
             )}
           </Link>
+        </div>
+
+        {/* Global search / command palette trigger */}
+        <div className="border-b border-border/40 px-3 py-2.5">
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            title={collapsed ? (pt ? "Buscar (Ctrl+K)" : "Search (Ctrl+K)") : undefined}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              collapsed && "justify-center px-0"
+            )}
+          >
+            <Search className="h-3.5 w-3.5 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-left">{pt ? "Buscar" : "Search"}</span>
+                <span className="rounded border border-border/60 px-1 text-[10px] font-medium">Ctrl+K</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* Active project switcher */}
