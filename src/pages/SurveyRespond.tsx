@@ -296,7 +296,7 @@ const SurveyRespond = () => {
           return (
             <Card key={q.id} className={cn(showError && "border-destructive")}>
               <CardContent className="pt-6">
-                <QuestionRenderer question={q} respondMode value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} />
+                <QuestionRenderer question={q} respondMode value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} token={token} />
                 {showError && (
                   <p className="text-xs text-destructive mt-2">Esta questão é obrigatória.</p>
                 )}

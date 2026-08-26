@@ -105,14 +105,25 @@ export function evaluateVisibleQuestionIds(
   return visible;
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidPhone(value: string): boolean {
+  return (value.match(/\d/g) || []).length >= 8;
+}
+
 export function isQuestionAnswered(question: QuestionRow, answer: any): boolean {
   switch (question.question_type) {
     case "multiple_choice":
       return question.settings?.allowMultiple
         ? Array.isArray(answer) && answer.length > 0
         : typeof answer === "string" && answer.trim().length > 0;
-    case "text_entry":
-      return typeof answer === "string" && answer.trim().length > 0;
+    case "text_entry": {
+      if (typeof answer !== "string" || answer.trim().length === 0) return false;
+      const format = question.settings?.format;
+      if (format === "email") return EMAIL_RE.test(answer.trim());
+      if (format === "phone") return isValidPhone(answer);
+      return true;
+    }
     case "matrix_table": {
       const rows = question.matrix_rows || [];
       if (!answer || typeof answer !== "object" || Array.isArray(answer)) return false;

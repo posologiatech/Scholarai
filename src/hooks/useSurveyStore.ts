@@ -21,7 +21,11 @@ export type QuestionType =
   | "matrix_table"
   | "slider"
   | "rank_order"
-  | "constant_sum";
+  | "constant_sum"
+  | "date_time"
+  | "nps"
+  | "signature"
+  | "file_upload";
 
 export const QUESTION_TYPE_LABELS: Record<QuestionType, { pt: string; en: string }> = {
   multiple_choice: { pt: "Múltipla Escolha", en: "Multiple Choice" },
@@ -30,6 +34,10 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, { pt: string; en: string
   slider: { pt: "Controle Deslizante", en: "Slider" },
   rank_order: { pt: "Classificação", en: "Rank Order" },
   constant_sum: { pt: "Soma Constante", en: "Constant Sum" },
+  date_time: { pt: "Data / Hora", en: "Date / Time" },
+  nps: { pt: "NPS / Nota", en: "NPS / Rating" },
+  signature: { pt: "Assinatura", en: "Signature" },
+  file_upload: { pt: "Upload de Arquivo", en: "File Upload" },
 };
 
 export interface SurveyQuestion {
@@ -231,7 +239,9 @@ export const useSurveyStore = create<SurveyBuilderState>((set, get) => ({
             type === "slider"
               ? { min: 0, max: 100, step: 1 }
               : type === "text_entry"
-              ? { multiline: false }
+              ? { multiline: false, format: "none" }
+              : type === "date_time"
+              ? { mode: "date" }
               : {},
         },
       ],

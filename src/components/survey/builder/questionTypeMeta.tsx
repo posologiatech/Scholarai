@@ -1,4 +1,16 @@
-import { AlignLeft, ArrowUpDown, ListChecks, LucideIcon, Percent, SlidersHorizontal, Table2 } from "lucide-react";
+import {
+  AlignLeft,
+  ArrowUpDown,
+  CalendarClock,
+  Gauge,
+  ListChecks,
+  LucideIcon,
+  PenTool,
+  Percent,
+  SlidersHorizontal,
+  Table2,
+  UploadCloud,
+} from "lucide-react";
 import { QuestionType } from "@/hooks/useSurveyStore";
 
 export interface QuestionTypeMeta {
@@ -47,5 +59,29 @@ export const QUESTION_TYPE_META: Record<QuestionType, QuestionTypeMeta> = {
     border: "border-l-cyan-500",
     badgeBg: "bg-cyan-500/10",
     badgeText: "text-cyan-600 dark:text-cyan-400",
+  },
+  date_time: {
+    icon: CalendarClock,
+    border: "border-l-sky-500",
+    badgeBg: "bg-sky-500/10",
+    badgeText: "text-sky-600 dark:text-sky-400",
+  },
+  nps: {
+    icon: Gauge,
+    border: "border-l-orange-500",
+    badgeBg: "bg-orange-500/10",
+    badgeText: "text-orange-600 dark:text-orange-400",
+  },
+  signature: {
+    icon: PenTool,
+    border: "border-l-pink-500",
+    badgeBg: "bg-pink-500/10",
+    badgeText: "text-pink-600 dark:text-pink-400",
+  },
+  file_upload: {
+    icon: UploadCloud,
+    border: "border-l-indigo-500",
+    badgeBg: "bg-indigo-500/10",
+    badgeText: "text-indigo-600 dark:text-indigo-400",
   },
 };

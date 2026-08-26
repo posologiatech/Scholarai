@@ -2,6 +2,24 @@ import { SurveyQuestion, useSurveyStore } from "@/hooks/useSurveyStore";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { cn } from "@/lib/utils";
 
 interface Props {
   question: SurveyQuestion;
@@ -27,33 +45,16 @@ const RankOrder = ({ question, editable, respondMode, value, onChange }: Props) 
   };
 
   if (respondMode) {
-    // Ranked by clicking items in order, not by dragging — kept keyed by choice TEXT to match
-    // the coding convention the other choice-based types (multiple_choice) already use.
-    const ranked: string[] = Array.isArray(value) ? value : [];
-    const unranked = choices.filter((c) => !ranked.includes(c.text));
+    // Ranking is stored keyed by choice TEXT, matching the coding convention the other
+    // choice-based types (multiple_choice) already use. Nothing counts as "answered" until
+    // the respondent actually drags something — see surveyLogic.ts's rank_order case, which
+    // requires answer.length === choices.length (same "must interact" rule the Slider follows).
+    const ranked: string[] = Array.isArray(value) && value.length === choices.length ? value : choices.map((c) => c.text);
     return (
-      <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">Clique nos itens na ordem de preferência</p>
-        {ranked.map((text, idx) => (
-          <div
-            key={text}
-            className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded px-3 py-2 text-sm cursor-pointer"
-            onClick={() => onChange?.(ranked.filter((r) => r !== text))}
-          >
-            <span className="text-xs font-bold text-primary w-5">{idx + 1}.</span>
-            {text}
-          </div>
-        ))}
-        {unranked.map((c) => (
-          <div
-            key={c.id}
-            className="flex items-center gap-2 border rounded px-3 py-2 text-sm cursor-pointer hover:bg-muted/50"
-            onClick={() => onChange?.([...ranked, c.text])}
-          >
-            {c.text}
-          </div>
-        ))}
-      </div>
+      <RankOrderDnd
+        items={ranked}
+        onReorder={(next) => onChange?.(next)}
+      />
     );
   }
 
@@ -94,6 +95,58 @@ const RankOrder = ({ question, editable, respondMode, value, onChange }: Props) 
           Add Item
         </Button>
       )}
+    </div>
+  );
+};
+
+const RankOrderDnd = ({ items, onReorder }: { items: string[]; onReorder: (items: string[]) => void }) => {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const fromIdx = items.indexOf(active.id as string);
+    const toIdx = items.indexOf(over.id as string);
+    if (fromIdx < 0 || toIdx < 0) return;
+    onReorder(arrayMove(items, fromIdx, toIdx));
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">Arraste os itens para ordená-los por preferência</p>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={items} strategy={verticalListSortingStrategy}>
+          <div className="space-y-1.5">
+            {items.map((text, idx) => (
+              <RankOrderItem key={text} id={text} index={idx} />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+};
+
+const RankOrderItem = ({ id, index }: { id: string; index: number }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "flex items-center gap-2 bg-card border rounded px-3 py-2 text-sm cursor-grab active:cursor-grabbing touch-none",
+        isDragging && "opacity-50"
+      )}
+    >
+      <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+      <span className="text-xs font-bold text-primary w-5 shrink-0">{index + 1}.</span>
+      {id}
     </div>
   );
 };

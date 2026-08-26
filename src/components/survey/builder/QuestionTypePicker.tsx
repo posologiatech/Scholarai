@@ -14,6 +14,10 @@ const TYPE_ORDER: QuestionType[] = [
   "slider",
   "rank_order",
   "constant_sum",
+  "date_time",
+  "file_upload",
+  "nps",
+  "signature",
 ];
 
 interface Props {

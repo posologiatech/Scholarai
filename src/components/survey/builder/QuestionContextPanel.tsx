@@ -23,6 +23,10 @@ const questionTypeOrder: QuestionType[] = [
   "slider",
   "rank_order",
   "constant_sum",
+  "date_time",
+  "file_upload",
+  "nps",
+  "signature",
 ];
 
 const QuestionContextPanel = () => {
@@ -266,6 +270,129 @@ const QuestionContextPanel = () => {
                     })
                   }
                 />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">{locale === "pt" ? "Formato validado" : "Validated format"}</Label>
+                <Select
+                  value={question.settings?.format || "none"}
+                  onValueChange={(v) =>
+                    updateQuestion(question.id, { settings: { ...question.settings, format: v } })
+                  }
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{locale === "pt" ? "Nenhum" : "None"}</SelectItem>
+                    <SelectItem value="email">{locale === "pt" ? "E-mail" : "Email"}</SelectItem>
+                    <SelectItem value="phone">{locale === "pt" ? "Telefone" : "Phone"}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+
+          {question.question_type === "date_time" && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <Label className="text-xs font-semibold">
+                  {locale === "pt" ? "Configurações de Data/Hora" : "Date/Time Settings"}
+                </Label>
+                <Select
+                  value={question.settings?.mode || "date"}
+                  onValueChange={(v) =>
+                    updateQuestion(question.id, { settings: { ...question.settings, mode: v } })
+                  }
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">{locale === "pt" ? "Data" : "Date"}</SelectItem>
+                    <SelectItem value="datetime">{locale === "pt" ? "Data e hora" : "Date and time"}</SelectItem>
+                    <SelectItem value="time">{locale === "pt" ? "Hora" : "Time"}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {question.settings?.mode !== "time" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[10px]">{locale === "pt" ? "Data mín." : "Min date"}</Label>
+                      <Input
+                        type="date"
+                        className="h-8 text-xs"
+                        value={validationRules.minDate || ""}
+                        onChange={(e) =>
+                          updateQuestion(question.id, {
+                            validation_rules: { ...validationRules, minDate: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px]">{locale === "pt" ? "Data máx." : "Max date"}</Label>
+                      <Input
+                        type="date"
+                        className="h-8 text-xs"
+                        value={validationRules.maxDate || ""}
+                        onChange={(e) =>
+                          updateQuestion(question.id, {
+                            validation_rules: { ...validationRules, maxDate: e.target.value },
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {question.question_type === "nps" && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">
+                  {locale === "pt" ? "Rótulos da escala" : "Scale labels"}
+                </Label>
+                <Input
+                  className="h-8 text-xs"
+                  placeholder={locale === "pt" ? "Pouco provável" : "Not likely"}
+                  value={question.settings?.labelLow || ""}
+                  onChange={(e) =>
+                    updateQuestion(question.id, { settings: { ...question.settings, labelLow: e.target.value } })
+                  }
+                />
+                <Input
+                  className="h-8 text-xs"
+                  placeholder={locale === "pt" ? "Muito provável" : "Very likely"}
+                  value={question.settings?.labelHigh || ""}
+                  onChange={(e) =>
+                    updateQuestion(question.id, { settings: { ...question.settings, labelHigh: e.target.value } })
+                  }
+                />
+              </div>
+            </>
+          )}
+
+          {question.question_type === "file_upload" && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">
+                  {locale === "pt" ? "Tipos aceitos (opcional)" : "Accepted types (optional)"}
+                </Label>
+                <Input
+                  className="h-8 text-xs"
+                  placeholder=".pdf,.jpg,.png"
+                  value={question.settings?.accept || ""}
+                  onChange={(e) =>
+                    updateQuestion(question.id, { settings: { ...question.settings, accept: e.target.value } })
+                  }
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  {locale === "pt" ? "Tamanho máximo: 20MB por arquivo" : "Max size: 20MB per file"}
+                </p>
               </div>
             </>
           )}

@@ -11,7 +11,8 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Download, ChevronDown, BrainCircuit } from "lucide-react";
+import { toast } from "sonner";
+import { Download, ChevronDown, BrainCircuit, Paperclip } from "lucide-react";
 import * as XLSX from "xlsx";
 import { buildExportColumns, buildChoiceCodingMap, formatCodedValue, buildCodebookRows } from "@/lib/survey/codebook";
 import { useSurveyDataMindExport } from "@/hooks/useSurveyDataMindExport";
@@ -52,6 +53,22 @@ const ResponseDataGrid = ({ surveyId }: { surveyId: string }) => {
   });
 
   const columns = useMemo(() => buildExportColumns(questions || []), [questions]);
+
+  // file_upload/signature answers are stored as a survey-uploads storage path, not text —
+  // render those cells as a "download" action instead of the raw path string.
+  const fileColumnIds = useMemo(
+    () => new Set((questions || []).filter((q) => q.question_type === "file_upload" || q.question_type === "signature").map((q) => q.id)),
+    [questions]
+  );
+
+  const downloadFile = async (path: string) => {
+    const { data, error } = await supabase.storage.from("survey-uploads").createSignedUrl(path, 3600);
+    if (error || !data) {
+      toast.error(locale === "pt" ? "Não foi possível gerar o link do arquivo" : "Could not generate the file link");
+      return;
+    }
+    window.open(data.signedUrl, "_blank");
+  };
 
   // Build choice coding map for coded export
   const choiceCodingMap = useMemo(() => buildChoiceCodingMap(questions || []), [questions]);
@@ -260,7 +277,21 @@ ${valueLabelBlocks ? `\nVALUE LABELS\n${valueLabelBlocks}.\n` : ""}`;
                   <TableCell className="text-xs">{row.started_at}</TableCell>
                   <TableCell className="text-xs">{row.duration}</TableCell>
                   {columns.map((col) => (
-                    <TableCell key={col.id} className="text-xs max-w-[250px] truncate">{row[col.id] || "—"}</TableCell>
+                    <TableCell key={col.id} className="text-xs max-w-[250px] truncate">
+                      {fileColumnIds.has(col.id) && row[col.id] ? (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 gap-1 text-xs"
+                          onClick={() => downloadFile(row[col.id])}
+                        >
+                          <Paperclip className="h-3 w-3" />
+                          {locale === "pt" ? "Baixar" : "Download"}
+                        </Button>
+                      ) : (
+                        row[col.id] || "—"
+                      )}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))

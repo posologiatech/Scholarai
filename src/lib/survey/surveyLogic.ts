@@ -119,6 +119,13 @@ export interface AnsweredCheckQuestion {
   settings?: any;
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** A phone is "valid enough" once it has at least 8 digits, regardless of punctuation/mask. */
+function isValidPhone(value: string): boolean {
+  return (value.match(/\d/g) || []).length >= 8;
+}
+
 /** Whether a required question has a real, submittable answer — not just a truthy default. */
 export function isQuestionAnswered(question: AnsweredCheckQuestion, answer: any): boolean {
   switch (question.question_type) {
@@ -126,8 +133,13 @@ export function isQuestionAnswered(question: AnsweredCheckQuestion, answer: any)
       return question.settings?.allowMultiple
         ? Array.isArray(answer) && answer.length > 0
         : typeof answer === "string" && answer.trim().length > 0;
-    case "text_entry":
-      return typeof answer === "string" && answer.trim().length > 0;
+    case "text_entry": {
+      if (typeof answer !== "string" || answer.trim().length === 0) return false;
+      const format = question.settings?.format;
+      if (format === "email") return EMAIL_RE.test(answer.trim());
+      if (format === "phone") return isValidPhone(answer);
+      return true;
+    }
     case "matrix_table": {
       const rows = (question.matrix_rows || []) as { id: string }[];
       if (!answer || typeof answer !== "object" || Array.isArray(answer)) return false;

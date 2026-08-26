@@ -10,10 +10,26 @@ interface Props {
   onChange?: (value: any) => void;
 }
 
+const FORMAT_PLACEHOLDER: Record<string, string> = {
+  email: "nome@exemplo.com",
+  phone: "(00) 00000-0000",
+};
+
 const TextEntry = ({ question, respondMode, value, onChange }: Props) => {
   const multiline = question.settings?.multiline;
+  const format = question.settings?.format;
 
   if (respondMode) {
+    if (format === "email" || format === "phone") {
+      return (
+        <Input
+          type={format === "email" ? "email" : "tel"}
+          value={value || ""}
+          onChange={(e) => onChange?.(e.target.value)}
+          placeholder={FORMAT_PLACEHOLDER[format]}
+        />
+      );
+    }
     return multiline ? (
       <Textarea
         value={value || ""}
