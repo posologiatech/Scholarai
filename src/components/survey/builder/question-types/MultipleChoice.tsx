@@ -1,4 +1,5 @@
 import { SurveyQuestion, SurveyChoice, useSurveyStore } from "@/hooks/useSurveyStore";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -17,6 +18,7 @@ const genId = () => crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)
 
 const MultipleChoice = ({ question, editable, respondMode, value, onChange }: Props) => {
   const { updateQuestion } = useSurveyStore();
+  const { locale } = useLanguage();
   const choices = [...(question.choices || [])].sort((a, b) => a.order - b.order);
   const allowMultiple = question.settings?.allowMultiple;
 
@@ -104,7 +106,7 @@ const MultipleChoice = ({ question, editable, respondMode, value, onChange }: Pr
       {editable && (
         <Button variant="ghost" size="sm" className="text-xs mt-1" onClick={addChoice}>
           <Plus className="h-3 w-3 mr-1" />
-          Add Choice
+          {locale === "pt" ? "Adicionar Opção" : "Add Choice"}
         </Button>
       )}
     </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSurveyStore, QuestionType, SurveyChoice, MatrixItem } from "@/hooks/useSurveyStore";
+import { useSurveyStore, QuestionType, SurveyChoice, MatrixItem, QUESTION_TYPE_LABELS } from "@/hooks/useSurveyStore";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -110,15 +110,6 @@ const AIQuestionGenerator = ({ blockId, surveyId }: { blockId: string; surveyId:
     });
   };
 
-  const typeLabels: Record<string, string> = {
-    multiple_choice: locale === "pt" ? "Múltipla Escolha" : "Multiple Choice",
-    text_entry: locale === "pt" ? "Texto" : "Text Entry",
-    matrix_table: locale === "pt" ? "Matriz" : "Matrix",
-    slider: "Slider",
-    rank_order: locale === "pt" ? "Classificação" : "Rank Order",
-    constant_sum: locale === "pt" ? "Soma Constante" : "Constant Sum",
-  };
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -175,7 +166,7 @@ const AIQuestionGenerator = ({ blockId, surveyId }: { blockId: string; surveyId:
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[10px] font-medium bg-muted px-1.5 py-0.5 rounded">
-                            {typeLabels[gq.question_type] || gq.question_type}
+                            {QUESTION_TYPE_LABELS[gq.question_type]?.[locale] || gq.question_type}
                           </span>
                           {gq.is_required && <span className="text-[10px] text-destructive">*</span>}
                         </div>

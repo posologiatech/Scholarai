@@ -1,4 +1,4 @@
-import { useSurveyStore, QuestionType } from "@/hooks/useSurveyStore";
+import { useSurveyStore, QuestionType, QUESTION_TYPE_LABELS } from "@/hooks/useSurveyStore";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
@@ -16,13 +16,13 @@ import {
 import { Settings2, Stethoscope } from "lucide-react";
 import { clinicalValidationTemplates } from "@/components/survey/ecrf/ClinicalValidationTemplates";
 
-const questionTypes: { value: QuestionType; label: string; labelPt: string }[] = [
-  { value: "multiple_choice", label: "Multiple Choice", labelPt: "Múltipla Escolha" },
-  { value: "text_entry", label: "Text Entry", labelPt: "Entrada de Texto" },
-  { value: "matrix_table", label: "Matrix / Likert", labelPt: "Matriz / Likert" },
-  { value: "slider", label: "Slider", labelPt: "Controle Deslizante" },
-  { value: "rank_order", label: "Rank Order", labelPt: "Classificação" },
-  { value: "constant_sum", label: "Constant Sum", labelPt: "Soma Constante" },
+const questionTypeOrder: QuestionType[] = [
+  "multiple_choice",
+  "text_entry",
+  "matrix_table",
+  "slider",
+  "rank_order",
+  "constant_sum",
 ];
 
 const QuestionContextPanel = () => {
@@ -82,9 +82,9 @@ const QuestionContextPanel = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {questionTypes.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {locale === "pt" ? t.labelPt : t.label}
+                {questionTypeOrder.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {QUESTION_TYPE_LABELS[type][locale]}
                   </SelectItem>
                 ))}
               </SelectContent>

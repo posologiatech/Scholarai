@@ -1,4 +1,5 @@
 import { SurveyQuestion, MatrixItem, useSurveyStore } from "@/hooks/useSurveyStore";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -16,6 +17,7 @@ const genId = () => crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)
 
 const MatrixTable = ({ question, editable, respondMode, value, onChange }: Props) => {
   const { updateQuestion } = useSurveyStore();
+  const { locale } = useLanguage();
   const rows = [...(question.matrix_rows || [])].sort((a, b) => a.order - b.order);
   const cols = [...(question.matrix_columns || [])].sort((a, b) => a.order - b.order);
 
@@ -132,7 +134,7 @@ const MatrixTable = ({ question, editable, respondMode, value, onChange }: Props
       {editable && (
         <Button variant="ghost" size="sm" className="text-xs mt-2" onClick={addRow}>
           <Plus className="h-3 w-3 mr-1" />
-          Add Row
+          {locale === "pt" ? "Adicionar Linha" : "Add Row"}
         </Button>
       )}
     </div>

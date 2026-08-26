@@ -259,6 +259,26 @@ const SurveyRespond = () => {
     );
   }
 
+  if (survey.status !== "active") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <Card className="max-w-md mx-auto">
+          <CardContent className="pt-6 text-center space-y-3">
+            <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto" />
+            <p className="text-lg font-semibold">
+              {survey.status === "closed" ? "This survey is closed" : "This survey isn't open yet"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {survey.status === "closed"
+                ? "It is no longer accepting responses."
+                : "The researcher hasn't published it yet — check back later."}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Show consent flow first if needed
   if (needsConsent) {
     return (

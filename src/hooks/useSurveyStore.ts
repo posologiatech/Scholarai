@@ -23,6 +23,15 @@ export type QuestionType =
   | "rank_order"
   | "constant_sum";
 
+export const QUESTION_TYPE_LABELS: Record<QuestionType, { pt: string; en: string }> = {
+  multiple_choice: { pt: "Múltipla Escolha", en: "Multiple Choice" },
+  text_entry: { pt: "Entrada de Texto", en: "Text Entry" },
+  matrix_table: { pt: "Matriz / Likert", en: "Matrix / Likert" },
+  slider: { pt: "Controle Deslizante", en: "Slider" },
+  rank_order: { pt: "Classificação", en: "Rank Order" },
+  constant_sum: { pt: "Soma Constante", en: "Constant Sum" },
+};
+
 export interface SurveyQuestion {
   id: string;
   block_id: string;

@@ -56,9 +56,11 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (survey.status !== "active" && survey.status !== "draft") {
+    if (survey.status !== "active") {
       return new Response(
-        JSON.stringify({ error: "Survey is closed" }),
+        JSON.stringify({
+          error: survey.status === "closed" ? "Survey is closed" : "Survey has not been published yet",
+        }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

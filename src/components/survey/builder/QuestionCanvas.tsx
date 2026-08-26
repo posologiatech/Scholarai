@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSurveyStore, QuestionType } from "@/hooks/useSurveyStore";
+import { useSurveyStore, QuestionType, QUESTION_TYPE_LABELS } from "@/hooks/useSurveyStore";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,15 +15,6 @@ import { cn } from "@/lib/utils";
 import QuestionRenderer from "./QuestionRenderer";
 import LogicBadge from "@/components/survey/flow/LogicBadge";
 import AIQuestionGenerator from "./AIQuestionGenerator";
-
-const questionTypeLabels: Record<QuestionType, { en: string; pt: string }> = {
-  multiple_choice: { en: "Multiple Choice", pt: "Múltipla Escolha" },
-  text_entry: { en: "Text Entry", pt: "Entrada de Texto" },
-  matrix_table: { en: "Matrix / Likert", pt: "Matriz / Likert" },
-  slider: { en: "Slider", pt: "Controle Deslizante" },
-  rank_order: { en: "Rank Order", pt: "Classificação" },
-  constant_sum: { en: "Constant Sum", pt: "Soma Constante" },
-};
 
 const QuestionCanvas = () => {
   const { locale } = useLanguage();
@@ -124,7 +115,7 @@ const QuestionCanvas = () => {
                         Q{idx + 1}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {questionTypeLabels[question.question_type]?.[locale] || question.question_type}
+                        {QUESTION_TYPE_LABELS[question.question_type]?.[locale] || question.question_type}
                       </span>
                       {question.is_required && (
                         <span className="text-xs text-destructive font-medium">*</span>
@@ -158,9 +149,9 @@ const QuestionCanvas = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                {(Object.keys(questionTypeLabels) as QuestionType[]).map((type) => (
+                {(Object.keys(QUESTION_TYPE_LABELS) as QuestionType[]).map((type) => (
                   <DropdownMenuItem key={type} onClick={() => addQuestion(activeBlockId, survey.id, type)}>
-                    {questionTypeLabels[type][locale]}
+                    {QUESTION_TYPE_LABELS[type][locale]}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

@@ -50,6 +50,12 @@ const statusColor: Record<string, string> = {
   closed: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
+const statusLabel: Record<string, { pt: string; en: string }> = {
+  draft: { pt: "Rascunho", en: "Draft" },
+  active: { pt: "Ativa", en: "Active" },
+  closed: { pt: "Encerrada", en: "Closed" },
+};
+
 const Surveys = () => {
   const { user } = useAuth();
   const { locale } = useLanguage();
@@ -216,7 +222,7 @@ const Surveys = () => {
                     <td className="px-4 py-3 font-medium">{survey.title}</td>
                     <td className="px-4 py-3">
                       <Badge variant="secondary" className={statusColor[survey.status] || ""}>
-                        {survey.status}
+                        {statusLabel[survey.status]?.[locale] || survey.status}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">

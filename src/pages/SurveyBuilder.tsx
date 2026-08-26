@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -25,9 +25,16 @@ import {
 } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText, UsersRound } from "lucide-react";
+import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText, UsersRound, Rocket, Lock } from "lucide-react";
 import { toast } from "sonner";
+
+const STATUS_BADGE: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground",
+  active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  closed: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+};
 
 type BuilderView = "build" | "consent" | "visits" | "participants" | "compliance" | "team" | "flow" | "distribute" | "results" | "preview";
 
@@ -116,6 +123,26 @@ const SurveyBuilder = () => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current);
     };
   }, [store.isDirty, save]);
+
+  const changeStatus = useMutation({
+    mutationFn: async (newStatus: "active" | "closed") => {
+      const patch: Record<string, any> = { status: newStatus };
+      if (newStatus === "active") patch.published_at = new Date().toISOString();
+      if (newStatus === "closed") patch.closed_at = new Date().toISOString();
+      const { error } = await supabase.from("surveys").update(patch).eq("id", store.survey!.id);
+      if (error) throw error;
+      return patch;
+    },
+    onSuccess: (patch) => {
+      store.setSurvey({ ...store.survey!, ...patch });
+      toast.success(
+        patch.status === "active"
+          ? (locale === "pt" ? "Coleta publicada — já pode receber respostas." : "Collection published — it can now receive responses.")
+          : (locale === "pt" ? "Coleta encerrada." : "Collection closed.")
+      );
+    },
+    onError: () => toast.error(locale === "pt" ? "Falha ao atualizar status" : "Failed to update status"),
+  });
 
   useEffect(() => () => store.resetStore(), []);
 
@@ -249,6 +276,25 @@ const SurveyBuilder = () => {
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2 ml-4">
+          <Badge variant="secondary" className={STATUS_BADGE[store.survey.status] || ""}>
+            {store.survey.status === "active"
+              ? (locale === "pt" ? "Ativa" : "Active")
+              : store.survey.status === "closed"
+                ? (locale === "pt" ? "Encerrada" : "Closed")
+                : (locale === "pt" ? "Rascunho" : "Draft")}
+          </Badge>
+          {store.survey.status === "draft" && (
+            <Button variant="outline" size="sm" onClick={() => changeStatus.mutate("active")} disabled={changeStatus.isPending}>
+              <Rocket className="h-4 w-4 mr-1" />
+              {locale === "pt" ? "Publicar" : "Publish"}
+            </Button>
+          )}
+          {store.survey.status === "active" && (
+            <Button variant="outline" size="sm" onClick={() => changeStatus.mutate("closed")} disabled={changeStatus.isPending}>
+              <Lock className="h-4 w-4 mr-1" />
+              {locale === "pt" ? "Encerrar" : "Close"}
+            </Button>
+          )}
           <Button size="sm" onClick={save} disabled={!store.isDirty}>
             <Save className="h-4 w-4 mr-1" />
             {locale === "pt" ? "Salvar" : "Save"}
