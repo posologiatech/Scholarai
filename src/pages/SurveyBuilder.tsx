@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import { useEffect, useCallback, useRef, useState, lazy, Suspense } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText, UsersRound, Rocket, Lock } from "lucide-react";
+import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText, UsersRound, Rocket, Lock, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { createSurveyAnalysisTask } from "@/lib/research/integrations";
 
@@ -61,6 +61,7 @@ const SurveyBuilder = () => {
   const store = useSurveyStore();
   const isMobile = useIsMobile();
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const currentView = getViewFromPath(location.pathname);
   // Legacy surveys created before this field existed keep every tab (their prior behavior).
   const studyType: "quick" | "clinical" = store.survey?.settings?.study_type === "quick" ? "quick" : "clinical";
@@ -114,6 +115,7 @@ const SurveyBuilder = () => {
         await supabase.from("survey_logic_rules").upsert(rule as any, { onConflict: "id" });
       }
       store.markClean();
+      setLastSavedAt(new Date());
     } catch {
       toast.error("Failed to save");
     }
@@ -242,17 +244,68 @@ const SurveyBuilder = () => {
   return (
     <div className="flex flex-col h-screen">
       {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 h-14 border-b bg-background shrink-0">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/surveys")}>
+      <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 h-14 border-b bg-background shrink-0">
+        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate("/surveys")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <Input
           value={store.survey.title}
           onChange={(e) => store.updateSurveyField("title", e.target.value)}
-          className="max-w-xs border-none shadow-none text-base font-semibold focus-visible:ring-0 px-1"
+          className="min-w-0 flex-1 sm:flex-none sm:max-w-xs border-none shadow-none text-base font-semibold focus-visible:ring-0 px-1"
         />
-        <Tabs value={currentView} className="ml-auto">
-          <TabsList className="h-auto flex-wrap items-center gap-1.5 bg-transparent p-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 ml-auto shrink-0">
+          {!isMobile && (
+            <Badge variant="secondary" className={STATUS_BADGE[store.survey.status] || ""}>
+              {store.survey.status === "active"
+                ? (locale === "pt" ? "Ativa" : "Active")
+                : store.survey.status === "closed"
+                  ? (locale === "pt" ? "Encerrada" : "Closed")
+                  : (locale === "pt" ? "Rascunho" : "Draft")}
+            </Badge>
+          )}
+          {store.survey.status === "draft" && (
+            <Button variant="outline" size="sm" onClick={() => changeStatus.mutate("active")} disabled={changeStatus.isPending}>
+              <Rocket className="h-4 w-4 sm:mr-1" />
+              {!isMobile && (locale === "pt" ? "Publicar" : "Publish")}
+            </Button>
+          )}
+          {store.survey.status === "active" && (
+            <Button variant="outline" size="sm" onClick={() => changeStatus.mutate("closed")} disabled={changeStatus.isPending}>
+              <Lock className="h-4 w-4 sm:mr-1" />
+              {!isMobile && (locale === "pt" ? "Encerrar" : "Close")}
+            </Button>
+          )}
+          {store.isDirty ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
+              <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+              {!isMobile && (locale === "pt" ? "Salvando..." : "Saving...")}
+            </span>
+          ) : (
+            lastSavedAt && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
+                <Check className="h-3 w-3 shrink-0" />
+                {!isMobile && (
+                  <>
+                    {locale === "pt" ? "Salvo às " : "Saved at "}
+                    {lastSavedAt.toLocaleTimeString(locale === "pt" ? "pt-BR" : "en-US", { hour: "2-digit", minute: "2-digit" })}
+                  </>
+                )}
+              </span>
+            )
+          )}
+          <Button size="sm" onClick={save} disabled={!store.isDirty}>
+            <Save className="h-4 w-4 sm:mr-1" />
+            {!isMobile && (locale === "pt" ? "Salvar" : "Save")}
+          </Button>
+        </div>
+      </div>
+
+      {/* View tabs — a separate horizontally-scrolling row (like BlockStepper below it) instead
+          of sharing the h-14 top bar, which used to wrap onto a second line and clip as soon as
+          the clinical clusters (or this row's own status/save controls) left too little width. */}
+      <div className="border-b bg-muted/10 px-4 py-1.5 overflow-x-auto shrink-0">
+        <Tabs value={currentView}>
+          <TabsList className="h-auto items-center gap-1.5 bg-transparent p-0 w-max">
             {/* Cluster: Montar */}
             <div className="flex items-center gap-0.5 rounded-md bg-muted p-1">
               <TabsTrigger value="build" className="text-xs" onClick={() => navigate(`/surveys/${id}/build`)}>
@@ -314,31 +367,6 @@ const SurveyBuilder = () => {
             </div>
           </TabsList>
         </Tabs>
-        <div className="flex items-center gap-2 ml-4">
-          <Badge variant="secondary" className={STATUS_BADGE[store.survey.status] || ""}>
-            {store.survey.status === "active"
-              ? (locale === "pt" ? "Ativa" : "Active")
-              : store.survey.status === "closed"
-                ? (locale === "pt" ? "Encerrada" : "Closed")
-                : (locale === "pt" ? "Rascunho" : "Draft")}
-          </Badge>
-          {store.survey.status === "draft" && (
-            <Button variant="outline" size="sm" onClick={() => changeStatus.mutate("active")} disabled={changeStatus.isPending}>
-              <Rocket className="h-4 w-4 mr-1" />
-              {locale === "pt" ? "Publicar" : "Publish"}
-            </Button>
-          )}
-          {store.survey.status === "active" && (
-            <Button variant="outline" size="sm" onClick={() => changeStatus.mutate("closed")} disabled={changeStatus.isPending}>
-              <Lock className="h-4 w-4 mr-1" />
-              {locale === "pt" ? "Encerrar" : "Close"}
-            </Button>
-          )}
-          <Button size="sm" onClick={save} disabled={!store.isDirty}>
-            <Save className="h-4 w-4 mr-1" />
-            {locale === "pt" ? "Salvar" : "Save"}
-          </Button>
-        </div>
       </div>
 
       {/* Content */}
