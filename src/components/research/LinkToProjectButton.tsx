@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Link2 } from "lucide-react";
+import { Link2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { ProjectPicker } from "./ProjectPicker";
 import { linkResource, attachEntityToProject, notifyProject } from "@/lib/research/integrations";
 import type { ResearchLinkType } from "@/lib/research/types";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useActiveProject } from "@/contexts/ActiveProjectContext";
+import { cn } from "@/lib/utils";
 
 interface Props {
   resourceType: ResearchLinkType;
@@ -25,26 +27,34 @@ export function LinkToProjectButton({
   resourceType, resourceId, label, url, attachTable, metadata, size = "sm", variant = "outline", onLinked,
 }: Props) {
   const { locale } = useLanguage();
+  const pt = locale === "pt";
+  const { activeProjectId, activeProjectTitle, setActiveProject } = useActiveProject();
   const [open, setOpen] = useState(false);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [projectTitle, setProjectTitle] = useState<string>("");
+  const [projectId, setProjectId] = useState<string | null>(activeProjectId);
+  const [projectTitle, setProjectTitle] = useState<string>(activeProjectTitle || "");
   const [saving, setSaving] = useState(false);
 
-  const save = async () => {
-    if (!projectId) return toast.error(locale === "pt" ? "Selecione um projeto" : "Select a project");
+  // Re-sync the dialog's picker to the active project whenever it's (re)opened.
+  useEffect(() => {
+    if (open) {
+      setProjectId(activeProjectId);
+      setProjectTitle(activeProjectTitle || "");
+    }
+  }, [open, activeProjectId, activeProjectTitle]);
+
+  const link = async (pid: string, ptitle: string) => {
     setSaving(true);
     try {
-      await linkResource({ projectId, resourceType, resourceId, label, url, metadata });
-      if (attachTable) await attachEntityToProject(attachTable, resourceId, projectId);
+      await linkResource({ projectId: pid, resourceType, resourceId, label, url, metadata });
+      if (attachTable) await attachEntityToProject(attachTable, resourceId, pid);
       await notifyProject(
-        projectId,
+        pid,
         "link_added",
-        locale === "pt" ? `Recurso vinculado: ${label}` : `Resource linked: ${label}`,
+        pt ? `Recurso vinculado: ${label}` : `Resource linked: ${label}`,
       );
-      toast.success(
-        locale === "pt" ? `Vinculado a "${projectTitle}"` : `Linked to "${projectTitle}"`,
-      );
-      onLinked?.(projectId);
+      setActiveProject(pid, ptitle);
+      toast.success(pt ? `Vinculado a "${ptitle}"` : `Linked to "${ptitle}"`);
+      onLinked?.(pid);
       setOpen(false);
     } catch (e: any) {
       toast.error(e.message);
@@ -53,30 +63,63 @@ export function LinkToProjectButton({
     }
   };
 
+  // One click when there's already an active project — no picker round-trip needed.
+  const handleMainClick = () => {
+    if (activeProjectId) link(activeProjectId, activeProjectTitle || "");
+    else setOpen(true);
+  };
+
+  const handleDialogSave = () => {
+    if (!projectId) return toast.error(pt ? "Selecione um projeto" : "Select a project");
+    link(projectId, projectTitle);
+  };
+
+  const mainLabel = activeProjectId
+    ? (pt ? `Vincular a "${activeProjectTitle}"` : `Link to "${activeProjectTitle}"`)
+    : (pt ? "Vincular a projeto" : "Link to project");
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size={size} variant={variant} className="gap-1.5">
-          <Link2 className="h-4 w-4" />
-          {locale === "pt" ? "Vincular a projeto" : "Link to project"}
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{locale === "pt" ? "Vincular ao projeto de pesquisa" : "Link to research project"}</DialogTitle>
-          <DialogDescription>
-            {locale === "pt"
-              ? "Conecte este recurso a um projeto para centralizar referências, dados e atividade."
-              : "Connect this resource to a project to centralize references, data and activity."}
-          </DialogDescription>
-        </DialogHeader>
-        <ProjectPicker value={projectId} onChange={(id, title) => { setProjectId(id); setProjectTitle(title || ""); }} />
-        <DialogFooter>
-          <Button onClick={save} disabled={saving || !projectId}>
-            {saving ? "..." : locale === "pt" ? "Vincular" : "Link"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <div className="inline-flex">
+      <Button
+        size={size}
+        variant={variant}
+        className={cn("gap-1.5 max-w-[220px]", activeProjectId && "rounded-r-none")}
+        onClick={handleMainClick}
+        disabled={saving}
+      >
+        <Link2 className="h-4 w-4 shrink-0" />
+        <span className="truncate">{saving ? "..." : mainLabel}</span>
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        {activeProjectId && (
+          <DialogTrigger asChild>
+            <Button
+              size={size}
+              variant={variant}
+              className="rounded-l-none border-l border-l-background/40 px-1.5"
+              title={pt ? "Escolher outro projeto" : "Choose another project"}
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </DialogTrigger>
+        )}
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{pt ? "Vincular ao projeto de pesquisa" : "Link to research project"}</DialogTitle>
+            <DialogDescription>
+              {pt
+                ? "Conecte este recurso a um projeto para centralizar referências, dados e atividade."
+                : "Connect this resource to a project to centralize references, data and activity."}
+            </DialogDescription>
+          </DialogHeader>
+          <ProjectPicker value={projectId} onChange={(id, title) => { setProjectId(id); setProjectTitle(title || ""); }} />
+          <DialogFooter>
+            <Button onClick={handleDialogSave} disabled={saving || !projectId}>
+              {saving ? "..." : pt ? "Vincular" : "Link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

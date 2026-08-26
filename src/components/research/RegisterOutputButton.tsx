@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { ProjectPicker } from "./ProjectPicker";
 import { registerOutput, linkResource, notifyProject } from "@/lib/research/integrations";
 import type { ResearchLinkType } from "@/lib/research/types";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useActiveProject } from "@/contexts/ActiveProjectContext";
 
 interface Props {
   defaultTitle: string;
@@ -29,11 +30,22 @@ export function RegisterOutputButton({
 }: Props) {
   const { locale } = useLanguage();
   const pt = locale === "pt";
+  const { activeProjectId, activeProjectTitle, setActiveProject } = useActiveProject();
   const [open, setOpen] = useState(false);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [projectTitle, setProjectTitle] = useState("");
+  const [projectId, setProjectId] = useState<string | null>(activeProjectId);
+  const [projectTitle, setProjectTitle] = useState(activeProjectTitle || "");
   const [title, setTitle] = useState(defaultTitle);
   const [saving, setSaving] = useState(false);
+
+  // Re-sync to the active project and the latest suggested title whenever the dialog (re)opens.
+  useEffect(() => {
+    if (open) {
+      setProjectId(activeProjectId);
+      setProjectTitle(activeProjectTitle || "");
+      setTitle(defaultTitle);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const save = async () => {
     if (!projectId) return toast.error(pt ? "Selecione um projeto" : "Select a project");
@@ -49,6 +61,7 @@ export function RegisterOutputButton({
         "output_registered",
         pt ? `Output registrado: ${title.trim()}` : `Output registered: ${title.trim()}`,
       );
+      setActiveProject(projectId, projectTitle);
       toast.success(pt ? `Registrado em "${projectTitle}"` : `Registered in "${projectTitle}"`);
       setOpen(false);
     } catch (e: any) {
