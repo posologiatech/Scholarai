@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Search, Users, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
+import { fetchCoauthorCorpus, buildCoauthorGraph } from "@/lib/research/coauthorGraph";
 
 interface AuthorNode {
   id: string;
@@ -56,72 +56,13 @@ const CoauthorshipNetwork = () => {
 
   const fetchPapers = async () => {
     setLoading(true);
-    // Get papers from saved_searches
-    const { data: searches } = await supabase
-      .from("saved_searches")
-      .select("papers")
-      .order("created_at", { ascending: false })
-      .limit(50);
-
-    const allPapers: any[] = [];
-    if (searches) {
-      for (const s of searches) {
-        if (Array.isArray(s.papers)) allPapers.push(...s.papers);
-      }
-    }
-
-    // Also get from papers table
-    const { data: dbPapers } = await supabase
-      .from("papers")
-      .select("title, authors, year, doi")
-      .limit(500);
-
-    if (dbPapers) allPapers.push(...dbPapers);
-
-    // Deduplicate by DOI or title
-    const seen = new Set<string>();
-    const unique = allPapers.filter((p) => {
-      const key = p.doi || p.title?.toLowerCase();
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
+    const unique = await fetchCoauthorCorpus();
     setPapers(unique);
     setLoading(false);
   };
 
-  const normalizeAuthor = (a: any): string => {
-    const name = typeof a === "string" ? a : a?.name || a?.lastName || "";
-    return name.trim().replace(/\s+/g, " ");
-  };
-
   const { nodes, edges, authorMap } = useMemo(() => {
-    const authorPapers: Record<string, { count: number; papers: string[] }> = {};
-    const edgeMap: Record<string, { weight: number; sharedPapers: string[] }> = {};
-
-    for (const paper of papers) {
-      const authors = Array.isArray(paper.authors)
-        ? paper.authors.map(normalizeAuthor).filter(Boolean)
-        : [];
-      const pTitle = paper.title || "?";
-
-      for (const a of authors) {
-        if (!authorPapers[a]) authorPapers[a] = { count: 0, papers: [] };
-        authorPapers[a].count++;
-        authorPapers[a].papers.push(pTitle);
-      }
-
-      // Create edges between co-authors
-      for (let i = 0; i < authors.length; i++) {
-        for (let j = i + 1; j < authors.length; j++) {
-          const key = [authors[i], authors[j]].sort().join("|||");
-          if (!edgeMap[key]) edgeMap[key] = { weight: 0, sharedPapers: [] };
-          edgeMap[key].weight++;
-          edgeMap[key].sharedPapers.push(pTitle);
-        }
-      }
-    }
+    const { authorPapers, edgeMap } = buildCoauthorGraph(papers);
 
     // Filter by search
     const filteredAuthors = searchFilter

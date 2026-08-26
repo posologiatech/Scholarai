@@ -15,6 +15,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { ROLE_LABEL, type ResearchMemberRole } from "@/lib/research/types";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
+import SuggestedCollaborators from "@/components/research/SuggestedCollaborators";
 
 // CRediT — Contributor Roles Taxonomy (14 official roles)
 // https://credit.niso.org/
@@ -172,6 +173,8 @@ export default function CreditAuthorshipTab({ projectId, projectTitle }: { proje
           </div>
         </CardContent>
       </Card>
+
+      <SuggestedCollaborators projectId={projectId} members={members} />
 
       <div className="space-y-2">
         {ordered.map((m: any) => {
