@@ -215,7 +215,13 @@ export default function CreditAuthorshipTab({ projectId, projectTitle }: { proje
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>{t("Ordem na assinatura", "Author order")}</Label>
-                <Input type="number" min={1} value={draft.author_order} onChange={(e) => setDraft({ ...draft, author_order: e.target.value })} />
+                <Input
+                  type="number"
+                  min={1}
+                  value={draft.author_order}
+                  onChange={(e) => setDraft({ ...draft, author_order: e.target.value })}
+                  className="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
               </div>
               <div className="flex items-center justify-between rounded-md border p-3">
                 <div>
