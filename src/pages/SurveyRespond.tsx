@@ -268,7 +268,14 @@ const SurveyRespond = () => {
           )}
           <h1 className="text-lg font-semibold">{survey.title}</h1>
           {survey.description && <p className="text-sm text-muted-foreground mt-1">{survey.description}</p>}
-          <div className="h-2 w-full rounded-full bg-secondary mt-3 overflow-hidden">
+          <div
+            className="h-2 w-full rounded-full bg-secondary mt-3 overflow-hidden"
+            role="progressbar"
+            aria-valuenow={currentBlockIdx + 1}
+            aria-valuemin={1}
+            aria-valuemax={visibleBlocks.length}
+            aria-label="Progresso da coleta"
+          >
             <div
               className={cn("h-full rounded-full transition-all", !brandColor && "bg-primary")}
               style={{ width: `${progress}%`, ...(brandColor ? { backgroundColor: brandColor } : {}) }}

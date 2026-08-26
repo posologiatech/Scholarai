@@ -65,6 +65,7 @@ const MatrixTable = ({ question, editable, respondMode, value, onChange }: Props
                         variant="ghost"
                         size="icon"
                         className="h-5 w-5 shrink-0"
+                        aria-label={locale === "pt" ? "Remover coluna" : "Remove column"}
                         onClick={() => removeItem("matrix_columns", col.id)}
                       >
                         <X className="h-3 w-3" />
@@ -78,7 +79,13 @@ const MatrixTable = ({ question, editable, respondMode, value, onChange }: Props
             ))}
             {editable && (
               <th className="p-1">
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={addCol}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  aria-label={locale === "pt" ? "Adicionar coluna" : "Add column"}
+                  onClick={addCol}
+                >
                   <Plus className="h-3 w-3" />
                 </Button>
               </th>
@@ -101,6 +108,7 @@ const MatrixTable = ({ question, editable, respondMode, value, onChange }: Props
                         variant="ghost"
                         size="icon"
                         className="h-5 w-5 shrink-0"
+                        aria-label={locale === "pt" ? "Remover linha" : "Remove row"}
                         onClick={() => removeItem("matrix_rows", row.id)}
                       >
                         <X className="h-3 w-3" />
@@ -118,8 +126,12 @@ const MatrixTable = ({ question, editable, respondMode, value, onChange }: Props
                       value={answers[row.id] || ""}
                       onValueChange={(v) => onChange?.({ ...answers, [row.id]: v })}
                       className="inline-flex"
+                      aria-label={row.text}
                     >
-                      <RadioGroupItem value={col.id} />
+                      {/* Each cell is otherwise just a bare radio with no visible label — a screen
+                          reader would announce "radio button, not checked" with zero context
+                          about which statement/scale-point it belongs to. */}
+                      <RadioGroupItem value={col.id} aria-label={`${row.text} — ${col.text}`} />
                     </RadioGroup>
                   ) : (
                     <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/20 mx-auto" />

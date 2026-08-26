@@ -40,43 +40,46 @@ export const QUESTION_TYPE_META: Record<QuestionType, QuestionTypeMeta> = {
     icon: Table2,
     border: "border-l-amber-500",
     badgeBg: "bg-amber-500/10",
-    badgeText: "text-amber-600 dark:text-amber-400",
+    // amber/emerald/rose/cyan/sky/orange/pink-600 all fall under 4.5:1 against this 10%-tint
+    // background in light mode (measured ~3.0-4.1:1, WCAG AA requires 4.5:1 for normal text) —
+    // bumped to -700, which clears AA (~4.65-5.5:1) without needing to touch the dark variant.
+    badgeText: "text-amber-700 dark:text-amber-400",
   },
   slider: {
     icon: SlidersHorizontal,
     border: "border-l-emerald-500",
     badgeBg: "bg-emerald-500/10",
-    badgeText: "text-emerald-600 dark:text-emerald-400",
+    badgeText: "text-emerald-700 dark:text-emerald-400",
   },
   rank_order: {
     icon: ArrowUpDown,
     border: "border-l-rose-500",
     badgeBg: "bg-rose-500/10",
-    badgeText: "text-rose-600 dark:text-rose-400",
+    badgeText: "text-rose-700 dark:text-rose-400",
   },
   constant_sum: {
     icon: Percent,
     border: "border-l-cyan-500",
     badgeBg: "bg-cyan-500/10",
-    badgeText: "text-cyan-600 dark:text-cyan-400",
+    badgeText: "text-cyan-700 dark:text-cyan-400",
   },
   date_time: {
     icon: CalendarClock,
     border: "border-l-sky-500",
     badgeBg: "bg-sky-500/10",
-    badgeText: "text-sky-600 dark:text-sky-400",
+    badgeText: "text-sky-700 dark:text-sky-400",
   },
   nps: {
     icon: Gauge,
     border: "border-l-orange-500",
     badgeBg: "bg-orange-500/10",
-    badgeText: "text-orange-600 dark:text-orange-400",
+    badgeText: "text-orange-700 dark:text-orange-400",
   },
   signature: {
     icon: PenTool,
     border: "border-l-pink-500",
     badgeBg: "bg-pink-500/10",
-    badgeText: "text-pink-600 dark:text-pink-400",
+    badgeText: "text-pink-700 dark:text-pink-400",
   },
   file_upload: {
     icon: UploadCloud,

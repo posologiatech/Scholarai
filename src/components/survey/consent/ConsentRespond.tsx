@@ -203,6 +203,7 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
         size="icon"
         className="h-6 w-6"
         onClick={() => setFontSize((f) => Math.max(12, f - 2))}
+        aria-label={locale === "pt" ? "Diminuir fonte" : "Decrease font"}
         title={locale === "pt" ? "Diminuir fonte" : "Decrease font"}
       >
         <ZoomOut className="h-3 w-3" />
@@ -213,6 +214,7 @@ const ConsentRespond = ({ consent, onConsentComplete }: ConsentRespondProps) => 
         size="icon"
         className="h-6 w-6"
         onClick={() => setFontSize((f) => Math.min(24, f + 2))}
+        aria-label={locale === "pt" ? "Aumentar fonte" : "Increase font"}
         title={locale === "pt" ? "Aumentar fonte" : "Increase font"}
       >
         <ZoomIn className="h-3 w-3" />

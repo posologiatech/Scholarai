@@ -61,6 +61,7 @@ const FileUploadQuestion = ({ question, respondMode, value, onChange, token }: P
           variant="ghost"
           size="icon"
           className="h-6 w-6 shrink-0"
+          aria-label="Remover arquivo"
           onClick={() => onChange?.(null)}
         >
           <X className="h-3.5 w-3.5" />

@@ -60,7 +60,8 @@ const ConstantSum = ({ question, editable, respondMode, value, onChange }: Props
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0"
+              aria-label="Remove category"
               onClick={() => updateQuestion(question.id, { choices: choices.filter((ch) => ch.id !== c.id) })}
             >
               <X className="h-3 w-3" />

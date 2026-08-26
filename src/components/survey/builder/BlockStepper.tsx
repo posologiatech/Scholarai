@@ -153,6 +153,12 @@ const BlockChip = ({
       {...attributes}
       {...listeners}
       onClick={onSelect}
+      onKeyDown={(e) => {
+        // dnd-kit's own keyboard sensor claims Space (pick up/drop) on this element, so only
+        // Enter is free to mean "select this block" — without this, keyboard users could
+        // reorder blocks but never actually switch which one is being edited.
+        if (e.key === "Enter") { e.preventDefault(); onSelect(); }
+      }}
       className={cn(
         "group flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs cursor-pointer shrink-0 touch-none transition-colors",
         isActive
@@ -175,6 +181,7 @@ const BlockChip = ({
         <span className="flex items-center gap-0.5 -mr-1 pl-0.5">
           <button
             type="button"
+            aria-label={locale === "pt" ? "Renomear bloco" : "Rename block"}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); setDraft(block.title); setEditing(true); }}
             className="rounded p-0.5 hover:bg-primary-foreground/20"
@@ -184,6 +191,7 @@ const BlockChip = ({
           {canRemove && (
             <button
               type="button"
+              aria-label={locale === "pt" ? "Excluir bloco" : "Delete block"}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); onRemove(); }}
               className="rounded p-0.5 hover:bg-primary-foreground/20"

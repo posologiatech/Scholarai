@@ -80,6 +80,8 @@ const SignatureCanvas = ({ onSignatureChange }: SignatureCanvasProps) => {
       <div className="relative border-2 border-dashed border-border rounded-lg bg-card">
         <canvas
           ref={canvasRef}
+          role="img"
+          aria-label={hasSignature ? "Assinatura desenhada" : "Área de assinatura, ainda em branco — requer mouse ou toque; não há alternativa por teclado"}
           className="w-full h-32 touch-none cursor-crosshair"
           onMouseDown={startDraw}
           onMouseMove={draw}

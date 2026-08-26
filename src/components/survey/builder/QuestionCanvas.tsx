@@ -155,12 +155,26 @@ const SortableQuestionCard = ({
       )}
       onClick={onSelect}
     >
-      {/* Floating toolbar — appears on hover/active instead of a single lonely trash icon */}
-      <div className="absolute -top-3 right-4 flex items-center gap-0.5 rounded-md border bg-card p-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onDuplicate(); }}>
+      {/* Floating toolbar — appears on hover/active instead of a single lonely trash icon.
+          focus-within (not just group-hover) keeps it visible for keyboard users tabbing to
+          the buttons themselves — opacity-0 alone would make a focused button invisible. */}
+      <div className="absolute -top-3 right-4 flex items-center gap-0.5 rounded-md border bg-card p-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          aria-label={locale === "pt" ? "Duplicar questão" : "Duplicate question"}
+          onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+        >
           <Copy className="h-3.5 w-3.5" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onRemove(); }}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          aria-label={locale === "pt" ? "Excluir questão" : "Delete question"}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        >
           <Trash2 className="h-3.5 w-3.5 text-destructive" />
         </Button>
       </div>
@@ -171,6 +185,7 @@ const SortableQuestionCard = ({
             type="button"
             {...attributes}
             {...listeners}
+            aria-label={locale === "pt" ? "Reordenar questão (arraste ou use as setas)" : "Reorder question (drag or use arrow keys)"}
             className="text-muted-foreground/40 cursor-grab active:cursor-grabbing touch-none"
             onClick={(e) => e.stopPropagation()}
           >

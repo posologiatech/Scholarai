@@ -97,7 +97,8 @@ const MultipleChoice = ({ question, editable, respondMode, value, onChange }: Pr
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0"
+              aria-label={locale === "pt" ? "Remover opção" : "Remove option"}
               onClick={() => removeChoice(choice.id)}
             >
               <X className="h-3 w-3" />
