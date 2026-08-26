@@ -1,18 +1,15 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Slider } from "@/components/ui/slider";
-import { Label } from "@/components/ui/label";
 import { CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 import ConsentRespond from "@/components/survey/consent/ConsentRespond";
+import { evaluateVisibility, findMissingRequired } from "@/lib/survey/surveyLogic";
+import QuestionRenderer from "@/components/survey/builder/QuestionRenderer";
+import { cn } from "@/lib/utils";
 
 type AnswerMap = Record<string, any>;
 
@@ -55,6 +52,7 @@ const SurveyRespond = () => {
   const [error, setError] = useState<string | null>(null);
   const [consentCompleted, setConsentCompleted] = useState(false);
   const [consentSignatureId, setConsentSignatureId] = useState<string | null>(null);
+  const [validationAttempted, setValidationAttempted] = useState(false);
   const startTime = useRef(Date.now());
   const [seed] = useState(() => Math.floor(Math.random() * 2 ** 31));
 
@@ -104,83 +102,14 @@ const SurveyRespond = () => {
     startTime.current = Date.now(); // Reset timer for actual survey
   }, []);
 
-  // Evaluate logic rules to determine which questions and blocks are visible.
-  // Every action the builder (ConditionBuilder.tsx) offers has to actually do something
-  // here — an action that's configurable but a no-op at runtime is worse than not
-  // offering it, because the researcher believes their branching logic is live.
-  const { visibleQuestions, visibleBlocks } = useMemo(() => {
-    const sortedQuestions = [...allQuestions].sort((a: any, b: any) => a.question_order - b.question_order);
-    const hiddenQuestionIds = new Set<string>();
-
-    // A block is only ever a "show_block" target because someone wants it hidden until
-    // its condition fires — so any block referenced that way starts hidden by default.
-    // Blocks nobody conditions on are always visible, same as before.
-    const hiddenBlockIds = new Set<string>(
-      rules.filter((r: any) => r.action === "show_block" && r.target_id).map((r: any) => r.target_id)
-    );
-
-    rules.forEach((rule: any) => {
-      const condition = rule.condition as any;
-      if (!condition?.field) return;
-
-      const answer = answers[condition.field];
-      let conditionMet = false;
-
-      switch (condition.operator) {
-        case "equal":
-          conditionMet = String(answer) === String(condition.value);
-          break;
-        case "not_equal":
-          conditionMet = String(answer) !== String(condition.value);
-          break;
-        case "greater_than":
-          conditionMet = Number(answer) > Number(condition.value);
-          break;
-        case "less_than":
-          conditionMet = Number(answer) < Number(condition.value);
-          break;
-        case "contains":
-          conditionMet = String(answer || "").toLowerCase().includes(String(condition.value).toLowerCase());
-          break;
-      }
-
-      if (!conditionMet) return;
-
-      if (rule.action === "hide_question" && rule.target_id) {
-        hiddenQuestionIds.add(rule.target_id);
-      }
-
-      if (rule.action === "show_block" && rule.target_id) {
-        hiddenBlockIds.delete(rule.target_id);
-      }
-
-      if (rule.action === "skip_to" && rule.target_id) {
-        const sourceQ = sortedQuestions.find((q: any) => q.id === rule.source_question_id);
-        const targetQ = sortedQuestions.find((q: any) => q.id === rule.target_id);
-        if (sourceQ && targetQ && targetQ.question_order > sourceQ.question_order) {
-          sortedQuestions.forEach((q: any) => {
-            if (q.question_order > sourceQ.question_order && q.question_order < targetQ.question_order) {
-              hiddenQuestionIds.add(q.id);
-            }
-          });
-        }
-      }
-
-      if (rule.action === "end_survey") {
-        const sourceQ = sortedQuestions.find((q: any) => q.id === rule.source_question_id);
-        if (sourceQ) {
-          sortedQuestions.forEach((q: any) => {
-            if (q.question_order > sourceQ.question_order) hiddenQuestionIds.add(q.id);
-          });
-        }
-      }
-    });
-
-    return {
-      visibleQuestions: allQuestions.filter((q: any) => !hiddenQuestionIds.has(q.id) && !hiddenBlockIds.has(q.block_id)),
-      visibleBlocks: blocks.filter((b: any) => !hiddenBlockIds.has(b.id)),
-    };
-  }, [allQuestions, blocks, rules, answers]);
+  // Evaluate logic rules to determine which questions and blocks are visible, via the same
+  // engine the builder's preview runs (src/lib/survey/surveyLogic.ts) — every action the
+  // builder (ConditionBuilder.tsx) offers has to actually do something here, and it has to
+  // match what the researcher saw in preview.
+  const { visibleQuestions, visibleBlocks } = useMemo(
+    () => evaluateVisibility(allQuestions, blocks, rules, answers),
+    [allQuestions, blocks, rules, answers]
+  );
 
   const blockQuestions = useMemo(() => {
     if (!visibleBlocks.length) return [];
@@ -202,11 +131,17 @@ const SurveyRespond = () => {
 
   const progress = visibleBlocks.length ? ((currentBlockIdx + 1) / visibleBlocks.length) * 100 : 0;
 
+  const missingRequired = useMemo(() => findMissingRequired(blockQuestions, answers), [blockQuestions, answers]);
+  const missingRequiredIds = useMemo(() => new Set(missingRequired.map((q) => q.id)), [missingRequired]);
+
+  useEffect(() => setValidationAttempted(false), [currentBlockIdx]);
+
   const setAnswer = useCallback((questionId: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   }, []);
 
   const handleSubmit = async () => {
+    if (missingRequired.length > 0) { setValidationAttempted(true); return; }
     setSubmitting(true);
     setError(null);
     try {
@@ -339,20 +274,19 @@ const SurveyRespond = () => {
           </div>
         )}
 
-        {blockQuestions.map((q: any) => (
-          <Card key={q.id}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-start gap-1">
-                {q.question_text}
-                {q.is_required && <span className="text-destructive">*</span>}
-              </CardTitle>
-              {q.description && <p className="text-xs text-muted-foreground">{q.description}</p>}
-            </CardHeader>
-            <CardContent>
-              <QuestionInput question={q} value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} />
-            </CardContent>
-          </Card>
-        ))}
+        {blockQuestions.map((q: any) => {
+          const showError = validationAttempted && missingRequiredIds.has(q.id);
+          return (
+            <Card key={q.id} className={cn(showError && "border-destructive")}>
+              <CardContent className="pt-6">
+                <QuestionRenderer question={q} respondMode value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} />
+                {showError && (
+                  <p className="text-xs text-destructive mt-2">Esta questão é obrigatória.</p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
 
         {error && (
           <p className="text-sm text-destructive text-center">{error}</p>
@@ -368,7 +302,12 @@ const SurveyRespond = () => {
               Submit
             </Button>
           ) : (
-            <Button onClick={() => setCurrentBlockIdx((p) => p + 1)}>
+            <Button
+              onClick={() => {
+                if (missingRequired.length > 0) { setValidationAttempted(true); return; }
+                setCurrentBlockIdx((p) => p + 1);
+              }}
+            >
               Next
             </Button>
           )}
@@ -376,153 +315,6 @@ const SurveyRespond = () => {
       </div>
     </div>
   );
-};
-
-// ─── Individual question input components ──────────────────────
-const QuestionInput = ({ question, value, onChange }: { question: any; value: any; onChange: (v: any) => void }) => {
-  const q = question;
-
-  if (q.question_type === "multiple_choice") {
-    const choices = (q.choices || []) as any[];
-    const isMulti = q.settings?.allow_multiple;
-    if (isMulti) {
-      const selected = Array.isArray(value) ? value : [];
-      return (
-        <div className="space-y-2">
-          {choices.map((c: any) => (
-            <div key={c.id} className="flex items-center gap-2">
-              <Checkbox
-                checked={selected.includes(c.text)}
-                onCheckedChange={(checked) => {
-                  onChange(checked ? [...selected, c.text] : selected.filter((s: string) => s !== c.text));
-                }}
-              />
-              <Label className="text-sm font-normal">{c.text}</Label>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    return (
-      <RadioGroup value={value || ""} onValueChange={onChange}>
-        {choices.map((c: any) => (
-          <div key={c.id} className="flex items-center gap-2">
-            <RadioGroupItem value={c.text} id={c.id} />
-            <Label htmlFor={c.id} className="text-sm font-normal">{c.text}</Label>
-          </div>
-        ))}
-      </RadioGroup>
-    );
-  }
-
-  if (q.question_type === "text_entry") {
-    const isMultiline = q.settings?.multiline;
-    if (isMultiline) {
-      return <Textarea value={value || ""} onChange={(e) => onChange(e.target.value)} placeholder="Your answer..." rows={4} />;
-    }
-    return <Input value={value || ""} onChange={(e) => onChange(e.target.value)} placeholder="Your answer..." />;
-  }
-
-  if (q.question_type === "slider") {
-    const min = q.settings?.min ?? 0;
-    const max = q.settings?.max ?? 100;
-    const step = q.settings?.step ?? 1;
-    const val = value ?? min;
-    return (
-      <div className="space-y-3">
-        <Slider value={[val]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} />
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>{min}</span>
-          <span className="font-medium text-foreground">{val}</span>
-          <span>{max}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (q.question_type === "matrix_table") {
-    const rows = (q.matrix_rows || []) as any[];
-    const cols = (q.matrix_columns || []) as any[];
-    const matrixVal = (typeof value === "object" && value !== null && !Array.isArray(value)) ? value : {};
-
-    return (
-      <div className="overflow-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr>
-              <th className="text-left p-2 min-w-[120px]"></th>
-              {cols.map((c: any) => (
-                <th key={c.id} className="text-center p-2 text-xs font-medium min-w-[80px]">{c.text}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r: any) => (
-              <tr key={r.id} className="border-t">
-                <td className="p-2 text-sm">{r.text}</td>
-                {cols.map((c: any) => (
-                  <td key={c.id} className="text-center p-2">
-                    <RadioGroup value={matrixVal[r.id] || ""} onValueChange={(v) => onChange({ ...matrixVal, [r.id]: v })} className="flex justify-center">
-                      <RadioGroupItem value={c.id} />
-                    </RadioGroup>
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
-  if (q.question_type === "rank_order") {
-    const choices = (q.choices || []) as any[];
-    const ranked = Array.isArray(value) ? value : [];
-    const unranked = choices.filter((c: any) => !ranked.includes(c.text));
-    return (
-      <div className="space-y-2">
-        <p className="text-xs text-muted-foreground mb-2">Click items in order of preference</p>
-        {ranked.map((item: string, idx: number) => (
-          <div key={item} className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded px-3 py-2 text-sm cursor-pointer" onClick={() => onChange(ranked.filter((r: string) => r !== item))}>
-            <span className="text-xs font-bold text-primary w-5">{idx + 1}.</span>
-            {item}
-          </div>
-        ))}
-        {unranked.map((c: any) => (
-          <div key={c.id} className="flex items-center gap-2 border rounded px-3 py-2 text-sm cursor-pointer hover:bg-muted/50" onClick={() => onChange([...ranked, c.text])}>
-            {c.text}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (q.question_type === "constant_sum") {
-    const choices = (q.choices || []) as any[];
-    const vals = (typeof value === "object" && value !== null && !Array.isArray(value)) ? value : {};
-    const total = Object.values(vals).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
-    const target = q.settings?.total ?? 100;
-    return (
-      <div className="space-y-3">
-        {choices.map((c: any) => (
-          <div key={c.id} className="flex items-center gap-3">
-            <Label className="text-sm min-w-[120px]">{c.text}</Label>
-            <Input
-              type="number"
-              value={vals[c.id] || ""}
-              onChange={(e) => onChange({ ...vals, [c.id]: Number(e.target.value) || 0 })}
-              className="w-24"
-            />
-          </div>
-        ))}
-        <p className={`text-xs ${total === target ? "text-[hsl(var(--success))]" : "text-destructive"}`}>
-          Total: {total} / {target}
-        </p>
-      </div>
-    );
-  }
-
-  return <p className="text-sm text-muted-foreground">Unsupported question type</p>;
 };
 
 export default SurveyRespond;

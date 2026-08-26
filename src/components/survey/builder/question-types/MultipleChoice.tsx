@@ -43,6 +43,8 @@ const MultipleChoice = ({ question, editable, respondMode, value, onChange }: Pr
   };
 
   if (respondMode) {
+    // Stored/coded by choice TEXT, not id — src/lib/survey/codebook.ts builds its value-label
+    // map keyed by the option's text, so that's what has to travel through answers/exports.
     if (allowMultiple) {
       const selected: string[] = value || [];
       return (
@@ -50,11 +52,11 @@ const MultipleChoice = ({ question, editable, respondMode, value, onChange }: Pr
           {choices.map((c) => (
             <label key={c.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer">
               <Checkbox
-                checked={selected.includes(c.id)}
+                checked={selected.includes(c.text)}
                 onCheckedChange={(checked) => {
                   const next = checked
-                    ? [...selected, c.id]
-                    : selected.filter((s) => s !== c.id);
+                    ? [...selected, c.text]
+                    : selected.filter((s) => s !== c.text);
                   onChange?.(next);
                 }}
               />
@@ -68,7 +70,7 @@ const MultipleChoice = ({ question, editable, respondMode, value, onChange }: Pr
       <RadioGroup value={value || ""} onValueChange={(v) => onChange?.(v)}>
         {choices.map((c) => (
           <label key={c.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer">
-            <RadioGroupItem value={c.id} />
+            <RadioGroupItem value={c.text} />
             <span className="text-sm">{c.text}</span>
           </label>
         ))}

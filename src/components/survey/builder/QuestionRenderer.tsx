@@ -30,6 +30,7 @@ const QuestionRenderer = ({ question, editable, respondMode, value, onChange }: 
   ) : (
     <p className="text-base font-medium text-foreground">
       {question.question_text || "Untitled Question"}
+      {question.is_required && <span className="text-destructive"> *</span>}
     </p>
   );
 

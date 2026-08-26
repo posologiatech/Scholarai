@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { hashAnswerLink, hashResponseRollup } from "../_shared/survey-integrity.ts";
+import { evaluateVisibleQuestionIds, isQuestionAnswered } from "../_shared/survey-logic.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,6 +63,31 @@ Deno.serve(async (req: Request) => {
           error: survey.status === "closed" ? "Survey is closed" : "Survey has not been published yet",
         }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Required-question validation has to happen here too, not just in the client UI — a
+    // hand-crafted POST to this endpoint would otherwise bypass it entirely. Only questions
+    // actually visible under the survey's own conditional logic are enforced, so a required
+    // question hidden by a skip/end rule doesn't block submission.
+    const [questionsRes, rulesRes] = await Promise.all([
+      supabase.from("survey_questions").select("*").eq("survey_id", survey.id),
+      supabase.from("survey_logic_rules").select("*").eq("survey_id", survey.id),
+    ]);
+    const surveyQuestions = questionsRes.data || [];
+    const surveyRules = rulesRes.data || [];
+
+    const visibleIds = evaluateVisibleQuestionIds(surveyQuestions as any, surveyRules as any, answers);
+    const missing = surveyQuestions.filter(
+      (q: any) => q.is_required && visibleIds.has(q.id) && !isQuestionAnswered(q, answers[q.id])
+    );
+    if (missing.length > 0) {
+      return new Response(
+        JSON.stringify({
+          error: "Missing required answers",
+          missing_question_ids: missing.map((q: any) => q.id),
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

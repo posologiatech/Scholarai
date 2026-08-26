@@ -13,7 +13,7 @@ interface Props {
 
 const genId = () => crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
 
-const RankOrder = ({ question, editable }: Props) => {
+const RankOrder = ({ question, editable, respondMode, value, onChange }: Props) => {
   const { updateQuestion } = useSurveyStore();
   const choices = [...(question.choices || [])].sort((a, b) => a.order - b.order);
 
@@ -25,6 +25,37 @@ const RankOrder = ({ question, editable }: Props) => {
       ],
     });
   };
+
+  if (respondMode) {
+    // Ranked by clicking items in order, not by dragging — kept keyed by choice TEXT to match
+    // the coding convention the other choice-based types (multiple_choice) already use.
+    const ranked: string[] = Array.isArray(value) ? value : [];
+    const unranked = choices.filter((c) => !ranked.includes(c.text));
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">Clique nos itens na ordem de preferência</p>
+        {ranked.map((text, idx) => (
+          <div
+            key={text}
+            className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded px-3 py-2 text-sm cursor-pointer"
+            onClick={() => onChange?.(ranked.filter((r) => r !== text))}
+          >
+            <span className="text-xs font-bold text-primary w-5">{idx + 1}.</span>
+            {text}
+          </div>
+        ))}
+        {unranked.map((c) => (
+          <div
+            key={c.id}
+            className="flex items-center gap-2 border rounded px-3 py-2 text-sm cursor-pointer hover:bg-muted/50"
+            onClick={() => onChange?.([...ranked, c.text])}
+          >
+            {c.text}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">

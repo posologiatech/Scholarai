@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useSurveyStore, QuestionType, QUESTION_TYPE_LABELS } from "@/hooks/useSurveyStore";
+import { SurveyQuestion, useSurveyStore, QuestionType, QUESTION_TYPE_LABELS } from "@/hooks/useSurveyStore";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,6 +14,23 @@ import { cn } from "@/lib/utils";
 import QuestionRenderer from "./QuestionRenderer";
 import LogicBadge from "@/components/survey/flow/LogicBadge";
 import AIQuestionGenerator from "./AIQuestionGenerator";
+import {
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const QuestionCanvas = () => {
   const { locale } = useLanguage();
@@ -31,8 +47,10 @@ const QuestionCanvas = () => {
     reorderQuestions,
   } = useSurveyStore();
 
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [overId, setOverId] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   if (!survey || !activeBlockId) {
     return (
@@ -47,33 +65,15 @@ const QuestionCanvas = () => {
     .filter((q) => q.block_id === activeBlockId)
     .sort((a, b) => a.question_order - b.question_order);
 
-  const handleDragStart = (e: React.DragEvent, qId: string) => {
-    setDragId(qId);
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", qId);
-  };
-
-  const handleDragOver = (e: React.DragEvent, qId: string) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    setOverId(qId);
-  };
-
-  const handleDrop = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    if (!dragId || dragId === targetId) { setDragId(null); setOverId(null); return; }
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
     const ids = blockQuestions.map((q) => q.id);
-    const fromIdx = ids.indexOf(dragId);
-    const toIdx = ids.indexOf(targetId);
+    const fromIdx = ids.indexOf(active.id as string);
+    const toIdx = ids.indexOf(over.id as string);
     if (fromIdx < 0 || toIdx < 0) return;
-    ids.splice(fromIdx, 1);
-    ids.splice(toIdx, 0, dragId);
-    reorderQuestions(activeBlockId, ids);
-    setDragId(null);
-    setOverId(null);
+    reorderQuestions(activeBlockId, arrayMove(ids, fromIdx, toIdx));
   };
-
-  const handleDragEnd = () => { setDragId(null); setOverId(null); };
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -86,58 +86,25 @@ const QuestionCanvas = () => {
 
       <ScrollArea className="flex-1">
         <div className="p-6 space-y-4 max-w-3xl mx-auto">
-          {blockQuestions.map((question, idx) => {
-            const isDragging = dragId === question.id;
-            const isOver = overId === question.id && dragId !== question.id;
-            return (
-              <Card
-                key={question.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, question.id)}
-                onDragOver={(e) => handleDragOver(e, question.id)}
-                onDrop={(e) => handleDrop(e, question.id)}
-                onDragEnd={handleDragEnd}
-                className={cn(
-                  "relative group transition-all cursor-pointer",
-                  activeQuestionId === question.id
-                    ? "ring-2 ring-primary shadow-md"
-                    : "hover:shadow-sm",
-                  isDragging && "opacity-40",
-                  isOver && "ring-2 ring-primary/50 ring-dashed"
-                )}
-                onClick={() => setActiveQuestion(question.id)}
-              >
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <GripVertical className="h-4 w-4 text-muted-foreground/40 cursor-grab active:cursor-grabbing" />
-                      <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                        Q{idx + 1}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {QUESTION_TYPE_LABELS[question.question_type]?.[locale] || question.question_type}
-                      </span>
-                      {question.is_required && (
-                        <span className="text-xs text-destructive font-medium">*</span>
-                      )}
-                      {logicRules.filter((r) => r.source_question_id === question.id).length > 0 && (
-                        <LogicBadge count={logicRules.filter((r) => r.source_question_id === question.id).length} />
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => { e.stopPropagation(); removeQuestion(question.id); }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
-                  </div>
-                  <QuestionRenderer question={question} editable />
-                </div>
-              </Card>
-            );
-          })}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={blockQuestions.map((q) => q.id)} strategy={verticalListSortingStrategy}>
+              {blockQuestions.map((question, idx) => {
+                const ruleCount = logicRules.filter((r) => r.source_question_id === question.id).length;
+                return (
+                  <SortableQuestionCard
+                    key={question.id}
+                    question={question}
+                    index={idx}
+                    locale={locale}
+                    isActive={activeQuestionId === question.id}
+                    ruleCount={ruleCount}
+                    onSelect={() => setActiveQuestion(question.id)}
+                    onRemove={() => removeQuestion(question.id)}
+                  />
+                );
+              })}
+            </SortableContext>
+          </DndContext>
 
           <div className="flex justify-center gap-2 pt-2">
             <DropdownMenu>
@@ -161,6 +128,76 @@ const QuestionCanvas = () => {
         </div>
       </ScrollArea>
     </div>
+  );
+};
+
+interface SortableQuestionCardProps {
+  question: SurveyQuestion;
+  index: number;
+  locale: string;
+  isActive: boolean;
+  ruleCount: number;
+  onSelect: () => void;
+  onRemove: () => void;
+}
+
+const SortableQuestionCard = ({
+  question,
+  index,
+  locale,
+  isActive,
+  ruleCount,
+  onSelect,
+  onRemove,
+}: SortableQuestionCardProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: question.id });
+
+  return (
+    <Card
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "relative group transition-shadow cursor-pointer",
+        isActive ? "ring-2 ring-primary shadow-md" : "hover:shadow-sm",
+        isDragging && "opacity-40 z-10"
+      )}
+      onClick={onSelect}
+    >
+      <div className="p-5">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              {...attributes}
+              {...listeners}
+              className="text-muted-foreground/40 cursor-grab active:cursor-grabbing touch-none"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+            <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
+              Q{index + 1}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {QUESTION_TYPE_LABELS[question.question_type]?.[locale as "pt" | "en"] || question.question_type}
+            </span>
+            {question.is_required && (
+              <span className="text-xs text-destructive font-medium">*</span>
+            )}
+            {ruleCount > 0 && <LogicBadge count={ruleCount} />}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          >
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </Button>
+        </div>
+        <QuestionRenderer question={question} editable />
+      </div>
+    </Card>
   );
 };
 

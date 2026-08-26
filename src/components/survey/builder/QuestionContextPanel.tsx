@@ -301,6 +301,27 @@ const QuestionContextPanel = () => {
               </div>
             </>
           )}
+
+          {question.question_type === "constant_sum" && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">
+                  {locale === "pt" ? "Soma alvo" : "Target Sum"}
+                </Label>
+                <Input
+                  type="number"
+                  className="h-8 text-xs"
+                  value={question.settings?.targetSum ?? 100}
+                  onChange={(e) =>
+                    updateQuestion(question.id, {
+                      settings: { ...question.settings, targetSum: Number(e.target.value) },
+                    })
+                  }
+                />
+              </div>
+            </>
+          )}
         </div>
       </ScrollArea>
     </div>
