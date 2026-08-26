@@ -16,6 +16,8 @@ import KnowledgeGraphView, {
 } from "@/components/knowledge-graph/KnowledgeGraphView";
 import PaperListPanel from "@/components/knowledge-graph/PaperListPanel";
 import PaperDetailPanel from "@/components/knowledge-graph/PaperDetailPanel";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { RegisterOutputButton } from "@/components/research/RegisterOutputButton";
 
 interface Paper {
   id: string;
@@ -249,6 +251,30 @@ const KnowledgeGraph = () => {
             <Badge variant="secondary" className="text-[10px]">
               {papers.length} papers
             </Badge>
+          )}
+          {hasGraph && (
+            <div className="ml-auto flex items-center gap-1">
+              <LinkToProjectButton
+                resourceType="knowledge_graph"
+                resourceId={searchQuery}
+                label={searchQuery}
+                url={`/knowledge-graph?q=${encodeURIComponent(searchQuery)}`}
+                metadata={{ papers: papers.length }}
+                size="sm"
+                variant="ghost"
+              />
+              <RegisterOutputButton
+                defaultTitle={locale === "pt" ? `Mapa de citações: ${searchQuery}` : `Citation map: ${searchQuery}`}
+                outputType="analysis"
+                description={locale === "pt" ? "Mapa de conexões entre papers gerado no Knowledge Graph." : "Paper connection map generated in Knowledge Graph."}
+                url={`/knowledge-graph?q=${encodeURIComponent(searchQuery)}`}
+                linkType="knowledge_graph"
+                linkResourceId={searchQuery}
+                metrics={{ papers: papers.length, edges: graphEdges.length }}
+                size="sm"
+                variant="ghost"
+              />
+            </div>
           )}
         </div>
         <div className="flex gap-2 max-w-xl">

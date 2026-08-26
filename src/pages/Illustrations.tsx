@@ -10,11 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Download, Trash2, RefreshCw, Sparkles, Image as ImageIcon, Wand2, Layers, ChevronDown, BookOpen, PenTool, Globe } from "lucide-react";
+import { Download, Trash2, RefreshCw, Sparkles, Image as ImageIcon, Wand2, Layers, ChevronDown, BookOpen, PenTool, Globe, Boxes } from "lucide-react";
 import IllustrationTemplates from "@/components/app/IllustrationTemplates";
 import IllustrationEditor from "@/components/app/IllustrationEditor";
 import IllustrationAnnotator from "@/components/app/IllustrationAnnotator";
 import IllustrationCommunity from "@/components/app/IllustrationCommunity";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { RegisterOutputButton } from "@/components/research/RegisterOutputButton";
 import jsPDF from "jspdf";
 
 interface Illustration {
@@ -409,9 +411,31 @@ const Illustrations = () => {
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
                         <span className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</span>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-wrap justify-end">
+                          <LinkToProjectButton
+                            resourceType="illustration"
+                            resourceId={item.id}
+                            label={item.prompt.slice(0, 80)}
+                            url={item.image_url}
+                            metadata={{ category: item.category ?? null }}
+                            size="sm"
+                            variant="ghost"
+                          />
+                          <RegisterOutputButton
+                            defaultTitle={item.prompt.slice(0, 80)}
+                            outputType="other"
+                            description={pt ? "Ilustração científica gerada com IA." : "AI-generated scientific illustration."}
+                            url={item.image_url}
+                            linkType="illustration"
+                            linkResourceId={item.id}
+                            trigger={
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title={pt ? "Registrar como output" : "Register as output"}>
+                                <Boxes className="h-3.5 w-3.5" />
+                              </Button>
+                            }
+                          />
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setAnnotateTarget(item.image_url)} title={pt ? "Anotar" : "Annotate"}>
                             <PenTool className="h-3.5 w-3.5" />
                           </Button>

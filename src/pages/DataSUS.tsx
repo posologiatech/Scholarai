@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { EXAMPLE_QUERIES, TABNET_BASES } from "@/lib/datasus-catalog";
 import ReactMarkdown from "react-markdown";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 
 interface ParsedTable {
   title: string;
@@ -399,6 +400,16 @@ export default function DataSUS() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+
+          {activeConvId && activeTab === "chat" && (
+            <LinkToProjectButton
+              resourceType="datasus"
+              resourceId={activeConvId}
+              label={conversations.find((c) => c.id === activeConvId)?.title || "Análise DataSUS"}
+              size="sm"
+              variant="ghost"
+            />
+          )}
 
           {pyodide.status !== "idle" && (
             <Badge

@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Trash2, Search, BookOpen, BarChart3, PenLine, ClipboardList, ListChecks, Sigma, Wallet, Share2, Plus } from "lucide-react";
+import { ExternalLink, Trash2, Search, BookOpen, BarChart3, PenLine, ClipboardList, ListChecks, Sigma, Wallet, Share2, Plus, Image, Users, Stethoscope, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { fetchProjectLinks, unlinkResource } from "@/lib/research/integrations";
@@ -21,10 +21,15 @@ const TYPE_ICON: Record<ResearchLinkType, any> = {
   meta_analysis: Sigma,
   funding: Wallet,
   knowledge_graph: Share2,
+  illustration: Image,
+  coauthorship: Users,
+  datasus: Stethoscope,
+  reference_check: ShieldCheck,
 };
 
 const GROUP_ORDER: ResearchLinkType[] = [
-  "search", "library", "writing", "datamind", "survey", "systematic_review", "meta_analysis", "knowledge_graph", "funding",
+  "search", "library", "writing", "datamind", "survey", "systematic_review", "meta_analysis",
+  "knowledge_graph", "coauthorship", "illustration", "datasus", "reference_check", "funding",
 ];
 
 interface Props { projectId: string }
@@ -62,6 +67,7 @@ export default function ConnectionsTab({ projectId }: Props) {
       case "datamind": return l.resource_id ? `/datamind/${l.resource_id}` : "/datamind";
       case "survey": return l.resource_id ? `/surveys/${l.resource_id}/build` : "/surveys";
       case "knowledge_graph": return "/knowledge-graph";
+      case "coauthorship": return "/coauthorship";
       default: return l.url || base;
     }
   };

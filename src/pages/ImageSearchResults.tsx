@@ -4,8 +4,10 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle, ImageOff, ExternalLink, ArrowLeft } from "lucide-react";
+import { Loader2, AlertCircle, ImageOff, ExternalLink, ArrowLeft, BookImage, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface Figure {
   doi: string | null;
@@ -26,12 +28,29 @@ const ImageSearchResults = () => {
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
   const { canUse } = useSubscription();
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [figures, setFigures] = useState<Figure[]>([]);
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [hiddenUrls, setHiddenUrls] = useState<Set<string>>(new Set());
+  const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
+
+  const saveToIllustrations = async (fig: Figure) => {
+    if (!user) return;
+    const { error: insertError } = await supabase.from("illustrations").insert({
+      user_id: user.id,
+      prompt: fig.figure_label ? `${fig.figure_label} — ${fig.source_paper_title}` : fig.source_paper_title,
+      image_url: fig.image_url,
+    } as never);
+    if (insertError) {
+      toast.error(pt ? "Não foi possível salvar a figura" : "Could not save the figure");
+      return;
+    }
+    setSavedUrls((prev) => new Set(prev).add(fig.image_url));
+    toast.success(pt ? "Figura salva em Ilustrações" : "Figure saved to Illustrations");
+  };
 
   useEffect(() => {
     if (!query.trim()) return;
@@ -144,6 +163,17 @@ const ImageSearchResults = () => {
                     {fig.caption && (
                       <p className="text-xs text-muted-foreground line-clamp-3">{fig.caption}</p>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs justify-start gap-1.5"
+                      disabled={savedUrls.has(fig.image_url)}
+                      onClick={() => saveToIllustrations(fig)}
+                    >
+                      {savedUrls.has(fig.image_url)
+                        ? <><Check className="h-3.5 w-3.5" />{pt ? "Salva em Ilustrações" : "Saved to Illustrations"}</>
+                        : <><BookImage className="h-3.5 w-3.5" />{pt ? "Salvar em Ilustrações" : "Save to Illustrations"}</>}
+                    </Button>
                     <a
                       href={fig.paper_url}
                       target="_blank"

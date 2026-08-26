@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 
 interface AuthorNode {
   id: string;
@@ -307,6 +308,15 @@ const CoauthorshipNetwork = () => {
                 ))}
               </ul>
             </div>
+
+            <LinkToProjectButton
+              resourceType="coauthorship"
+              resourceId={selectedAuthor.id}
+              label={selectedAuthor.label}
+              metadata={{ paperCount: selectedAuthor.paperCount }}
+              variant="outline"
+              size="sm"
+            />
 
             <Button variant="ghost" size="sm" className="w-full" onClick={() => setSelectedAuthor(null)}>
               {pt ? "Fechar" : "Close"}

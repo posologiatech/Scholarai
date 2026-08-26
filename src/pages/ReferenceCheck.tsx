@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Upload, Loader2, FileText, AlertTriangle, CheckCircle2, XCircle, Shield, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
+import { RegisterOutputButton } from "@/components/research/RegisterOutputButton";
 
 interface ReferenceResult {
   raw_text: string;
@@ -288,10 +289,21 @@ const ReferenceCheck = () => {
           {/* Results */}
           {results && results.length > 0 && (
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
                 <CardTitle className="text-base">
                   {locale === "pt" ? "Relatório de Referências" : "Reference Report"}
                 </CardTitle>
+                {summary && (
+                  <RegisterOutputButton
+                    defaultTitle={locale === "pt" ? `Checagem de referências: ${file?.name || ""}` : `Reference check: ${file?.name || ""}`}
+                    outputType="report"
+                    description={locale === "pt" ? "Relatório de verificação de referências gerado na plataforma." : "Reference verification report generated on the platform."}
+                    linkType="reference_check"
+                    metrics={summary as unknown as Record<string, number>}
+                    size="sm"
+                    variant="ghost"
+                  />
+                )}
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
