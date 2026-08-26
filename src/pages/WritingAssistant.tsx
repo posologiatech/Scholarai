@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
@@ -811,301 +811,322 @@ const WritingAssistant = () => {
           </p>
         </div>
 
-        <Tabs defaultValue="papers" className="flex-1 flex flex-col">
-          <TabsList className="mx-3 mt-3 grid grid-cols-4 h-9 rounded-lg bg-muted/60 p-0.5">
-            <TabsTrigger value="papers" className="text-[10px] px-1 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
-              <FileText className="h-3 w-3 mr-0.5" />
-              Papers ({selectedPapers.length})
-            </TabsTrigger>
-            <TabsTrigger value="datamind" className="text-[10px] px-1 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-accent transition-all">
-              <Database className="h-3 w-3 mr-0.5" />
-              DataMind ({selectedAnalyses.length})
-            </TabsTrigger>
-            <TabsTrigger value="mypdfs" className="text-[10px] px-1 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
-              <Upload className="h-3 w-3 mr-0.5" />
-              {pt ? "PDFs" : "PDFs"} ({selectedPDFs.length})
-            </TabsTrigger>
-            <TabsTrigger value="illustrations" className="text-[10px] px-1 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-accent transition-all">
-              <ImageIcon className="h-3 w-3 mr-0.5" />
-              {pt ? "Imagens" : "Images"}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="papers" className="flex-1 flex flex-col px-3 pb-3 mt-2">
-            <Input
-              placeholder={pt ? "Buscar papers..." : "Search papers..."}
-              value={paperSearch}
-              onChange={e => setPaperSearch(e.target.value)}
-              className="h-8 text-xs mb-2 bg-background/80 border-border/40 focus-visible:ring-primary/30"
-            />
-            <ScrollArea className="flex-1">
-              <div className="space-y-1">
-                {loadingPapers ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
-                  </div>
-                ) : filteredGroups.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileText className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
-                    <p className="text-xs text-muted-foreground">
-                      {pt ? "Nenhum paper encontrado" : "No papers found"}
-                    </p>
-                  </div>
-                ) : (
-                  filteredGroups.map(group => {
-                    const isExpanded = expandedSearches.has(group.id);
-                    const selectedCount = group.papers.filter(p => selectedPapers.some(sp => sp.id === p.id)).length;
-                    return (
-                      <Collapsible key={group.id} open={isExpanded} onOpenChange={() => toggleSearchExpanded(group.id)}>
-                        <CollapsibleTrigger className="w-full flex items-center gap-1.5 p-2.5 rounded-lg hover:bg-muted/60 text-xs text-left group transition-colors">
-                          {isExpanded ? (
-                            <ChevronDown className="h-3 w-3 text-primary shrink-0 transition-transform" />
-                          ) : (
-                            <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0 transition-transform" />
-                          )}
-                          <span className="font-semibold text-foreground line-clamp-1 flex-1">{group.query}</span>
-                          {selectedCount > 0 && (
-                            <Badge className="text-[9px] h-4 px-1.5 bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">{selectedCount}</Badge>
-                          )}
-                          <span className="text-[10px] text-muted-foreground/60 shrink-0">{group.papers.length}</span>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <div className="ml-3 space-y-0.5 border-l-2 border-border/30 pl-3">
-                            {group.papers.map(paper => {
-                              const isSelected = selectedPapers.some(p => p.id === paper.id);
-                              return (
-                                <button
-                                  key={paper.id}
-                                  onClick={() => togglePaper(paper)}
-                                  className={`w-full text-left p-2.5 rounded-lg text-xs transition-all duration-200 ${
-                                    isSelected
-                                      ? "bg-primary/8 border-l-2 border-l-primary shadow-sm shadow-primary/5 ml-[-2px]"
-                                      : "hover:bg-muted/50 border-l-2 border-l-transparent ml-[-2px]"
-                                  }`}
-                                >
-                                  <p className={`font-medium line-clamp-2 ${isSelected ? "text-primary" : "text-foreground"}`}>{paper.title}</p>
-                                  <p className="text-muted-foreground/70 mt-0.5">
-                                    {formatAuthors(paper.authors)} {paper.year ? `(${paper.year})` : ""}
-                                  </p>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    );
-                  })
-                )}
-              </div>
-            </ScrollArea>
-          </TabsContent>
-
-          <TabsContent value="datamind" className="flex-1 flex flex-col px-3 pb-3 mt-2">
-            <ScrollArea className="flex-1">
-              <div className="space-y-1">
-                {loadingAnalyses ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
-                  </div>
-                ) : datamindAnalyses.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Database className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
-                    <p className="text-xs text-muted-foreground">
-                      {pt ? "Nenhuma análise encontrada" : "No analyses found"}
-                    </p>
-                  </div>
-                ) : (
-                  datamindAnalyses.map(analysis => {
-                    const isSelected = selectedAnalyses.some(a => a.id === analysis.id);
-                    return (
-                      <button
-                        key={analysis.id}
-                        onClick={() => toggleAnalysis(analysis)}
-                        className={`w-full text-left p-2.5 rounded-lg text-xs transition-all duration-200 ${
-                          isSelected
-                            ? "bg-accent/8 border-l-2 border-l-accent shadow-sm shadow-accent/5"
-                            : "hover:bg-muted/50 border-l-2 border-l-transparent"
-                        }`}
-                      >
-                        <p className={`font-medium line-clamp-2 ${isSelected ? "text-accent" : "text-foreground"}`}>{analysis.title}</p>
-                        <p className="text-muted-foreground/60 mt-0.5 line-clamp-1">{analysis.content.slice(0, 80)}...</p>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </ScrollArea>
-          </TabsContent>
-
-          <TabsContent value="mypdfs" className="flex-1 flex flex-col px-3 pb-3 mt-2">
-            {/* Upload area with animated border */}
-            <div className="mb-3">
-              <label className="block">
-                <div className={`relative rounded-xl p-3.5 text-center cursor-pointer transition-all duration-300 ${
-                  uploadingPDF
-                    ? "bg-primary/5 border border-primary/30"
-                    : "border-2 border-dashed border-border/50 hover:border-primary/40 hover:bg-primary/3 hover:shadow-sm"
-                }`}>
-                  {uploadingPDF ? (
-                    <div className="space-y-2">
-                      <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />
-                      <p className="text-xs text-muted-foreground">{pt ? "Processando..." : "Processing..."}</p>
-                      <Progress value={uploadProgress} className="h-1.5" />
+        <div className="flex-1 overflow-y-auto">
+          <Accordion type="single" collapsible defaultValue="papers" className="px-3">
+            <AccordionItem value="papers" className="border-border/30">
+              <AccordionTrigger className="text-xs py-3 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:text-muted-foreground">
+                <span className="flex items-center gap-1.5 flex-1 min-w-0 mr-2">
+                  <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="truncate">Papers</span>
+                  {selectedPapers.length > 0 && (
+                    <Badge className="text-[9px] h-4 px-1.5 bg-primary/10 text-primary border-primary/20 hover:bg-primary/10 ml-auto">{selectedPapers.length}</Badge>
+                  )}
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3">
+                <Input
+                  placeholder={pt ? "Buscar papers..." : "Search papers..."}
+                  value={paperSearch}
+                  onChange={e => setPaperSearch(e.target.value)}
+                  className="h-8 text-xs mb-2 bg-background/80 border-border/40 focus-visible:ring-primary/30"
+                />
+                <div className="space-y-1 max-h-72 overflow-y-auto">
+                  {loadingPapers ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
+                    </div>
+                  ) : filteredGroups.length === 0 ? (
+                    <div className="text-center py-8">
+                      <FileText className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                      <p className="text-xs text-muted-foreground">
+                        {pt ? "Nenhum paper encontrado" : "No papers found"}
+                      </p>
                     </div>
                   ) : (
-                    <>
-                      <div className="h-10 w-10 mx-auto rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-2">
-                        <Upload className="h-4 w-4 text-primary" />
-                      </div>
-                      <p className="text-xs font-medium text-foreground">
-                        {pt ? "Enviar PDFs" : "Upload PDFs"}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                        {pt ? "Clique ou arraste" : "Click or drag"}
-                      </p>
-                    </>
+                    filteredGroups.map(group => {
+                      const isExpanded = expandedSearches.has(group.id);
+                      const selectedCount = group.papers.filter(p => selectedPapers.some(sp => sp.id === p.id)).length;
+                      return (
+                        <Collapsible key={group.id} open={isExpanded} onOpenChange={() => toggleSearchExpanded(group.id)}>
+                          <CollapsibleTrigger className="w-full flex items-center gap-1.5 p-2.5 rounded-lg hover:bg-muted/60 text-xs text-left group transition-colors">
+                            {isExpanded ? (
+                              <ChevronDown className="h-3 w-3 text-primary shrink-0 transition-transform" />
+                            ) : (
+                              <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0 transition-transform" />
+                            )}
+                            <span className="font-semibold text-foreground line-clamp-1 flex-1">{group.query}</span>
+                            {selectedCount > 0 && (
+                              <Badge className="text-[9px] h-4 px-1.5 bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">{selectedCount}</Badge>
+                            )}
+                            <span className="text-[10px] text-muted-foreground/60 shrink-0">{group.papers.length}</span>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="ml-3 space-y-0.5 border-l-2 border-border/30 pl-3">
+                              {group.papers.map(paper => {
+                                const isSelected = selectedPapers.some(p => p.id === paper.id);
+                                return (
+                                  <button
+                                    key={paper.id}
+                                    onClick={() => togglePaper(paper)}
+                                    className={`w-full text-left p-2.5 rounded-lg text-xs transition-all duration-200 ${
+                                      isSelected
+                                        ? "bg-primary/8 border-l-2 border-l-primary shadow-sm shadow-primary/5 ml-[-2px]"
+                                        : "hover:bg-muted/50 border-l-2 border-l-transparent ml-[-2px]"
+                                    }`}
+                                  >
+                                    <p className={`font-medium line-clamp-2 ${isSelected ? "text-primary" : "text-foreground"}`}>{paper.title}</p>
+                                    <p className="text-muted-foreground/70 mt-0.5">
+                                      {formatAuthors(paper.authors)} {paper.year ? `(${paper.year})` : ""}
+                                    </p>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      );
+                    })
                   )}
                 </div>
-                <input
-                  ref={pdfInputRef}
-                  type="file"
-                  accept=".pdf"
-                  multiple
-                  className="hidden"
-                  onChange={handlePDFUpload}
-                  disabled={uploadingPDF}
-                />
-              </label>
-              {uploadedPDFs.some(p => p.status === "error") && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearErrorPDFs}
-                  className="w-full text-xs text-destructive hover:text-destructive h-7 mt-1"
-                >
-                  <Trash2 className="h-3 w-3 mr-1" />
-                  {pt ? "Limpar erros" : "Clear errors"}
-                </Button>
-              )}
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="space-y-1">
-                {loadingPDFs ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
-                  </div>
-                ) : uploadedPDFs.length === 0 ? (
-                  <div className="text-center py-8">
-                    <File className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
-                    <p className="text-xs text-muted-foreground">
-                      {pt ? "Nenhum PDF enviado ainda" : "No PDFs uploaded yet"}
-                    </p>
-                  </div>
-                ) : (
-                  uploadedPDFs.map(pdf => {
-                    const isSelected = selectedPDFs.some(p => p.id === pdf.id);
-                    const isProcessed = pdf.status === "processed";
-                    const isProcessing = pdf.status === "processing";
-                    return (
-                      <div
-                        key={pdf.id}
-                        className={`relative group rounded-lg text-xs transition-all duration-200 ${
-                          isSelected
-                            ? "bg-primary/8 border-l-2 border-l-primary shadow-sm shadow-primary/5"
-                            : "hover:bg-muted/50 border-l-2 border-l-transparent"
-                        }`}
-                      >
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="datamind" className="border-border/30">
+              <AccordionTrigger className="text-xs py-3 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:text-muted-foreground">
+                <span className="flex items-center gap-1.5 flex-1 min-w-0 mr-2">
+                  <Database className="h-3.5 w-3.5 text-accent shrink-0" />
+                  <span className="truncate">DataMind</span>
+                  {selectedAnalyses.length > 0 && (
+                    <Badge className="text-[9px] h-4 px-1.5 bg-accent/10 text-accent border-accent/20 hover:bg-accent/10 ml-auto">{selectedAnalyses.length}</Badge>
+                  )}
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3">
+                <div className="space-y-1 max-h-72 overflow-y-auto">
+                  {loadingAnalyses ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+                    </div>
+                  ) : datamindAnalyses.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Database className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                      <p className="text-xs text-muted-foreground">
+                        {pt ? "Nenhuma análise encontrada" : "No analyses found"}
+                      </p>
+                    </div>
+                  ) : (
+                    datamindAnalyses.map(analysis => {
+                      const isSelected = selectedAnalyses.some(a => a.id === analysis.id);
+                      return (
                         <button
-                          onClick={() => isProcessed && togglePDF(pdf)}
-                          className="w-full text-left p-2.5"
-                          disabled={!isProcessed}
+                          key={analysis.id}
+                          onClick={() => toggleAnalysis(analysis)}
+                          className={`w-full text-left p-2.5 rounded-lg text-xs transition-all duration-200 ${
+                            isSelected
+                              ? "bg-accent/8 border-l-2 border-l-accent shadow-sm shadow-accent/5"
+                              : "hover:bg-muted/50 border-l-2 border-l-transparent"
+                          }`}
                         >
-                          <div className="flex items-start gap-2">
-                            <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${
-                              isProcessed ? "bg-primary/10" : isProcessing ? "bg-amber-500/10" : "bg-destructive/10"
-                            }`}>
-                              <File className={`h-3.5 w-3.5 ${
-                                isProcessed ? "text-primary" : isProcessing ? "text-amber-500" : "text-destructive"
-                              }`} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-foreground line-clamp-2">
-                                {pdf.title || pdf.file_name}
-                              </p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge
-                                  variant={isProcessed ? "secondary" : isProcessing ? "outline" : "destructive"}
-                                  className={`text-[9px] px-1.5 py-0 ${
-                                    isProcessed ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" : ""
-                                  }`}
-                                >
-                                  {isProcessed
-                                    ? (pt ? "Processado" : "Processed")
-                                    : isProcessing
-                                      ? (pt ? "Processando" : "Processing")
-                                      : (pt ? "Erro" : "Error")}
-                                </Badge>
-                                {isProcessed && pdf.extracted_text && (
-                                  <span className="text-[10px] text-muted-foreground/50">
-                                    {(pdf.extracted_text.length / 1000).toFixed(0)}k chars
-                                  </span>
-                                )}
+                          <p className={`font-medium line-clamp-2 ${isSelected ? "text-accent" : "text-foreground"}`}>{analysis.title}</p>
+                          <p className="text-muted-foreground/60 mt-0.5 line-clamp-1">{analysis.content.slice(0, 80)}...</p>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="mypdfs" className="border-border/30">
+              <AccordionTrigger className="text-xs py-3 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:text-muted-foreground">
+                <span className="flex items-center gap-1.5 flex-1 min-w-0 mr-2">
+                  <Upload className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="truncate">PDFs</span>
+                  {selectedPDFs.length > 0 && (
+                    <Badge className="text-[9px] h-4 px-1.5 bg-primary/10 text-primary border-primary/20 hover:bg-primary/10 ml-auto">{selectedPDFs.length}</Badge>
+                  )}
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3">
+                {/* Upload area with animated border */}
+                <div className="mb-3">
+                  <label className="block">
+                    <div className={`relative rounded-xl p-3.5 text-center cursor-pointer transition-all duration-300 ${
+                      uploadingPDF
+                        ? "bg-primary/5 border border-primary/30"
+                        : "border-2 border-dashed border-border/50 hover:border-primary/40 hover:bg-primary/3 hover:shadow-sm"
+                    }`}>
+                      {uploadingPDF ? (
+                        <div className="space-y-2">
+                          <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />
+                          <p className="text-xs text-muted-foreground">{pt ? "Processando..." : "Processing..."}</p>
+                          <Progress value={uploadProgress} className="h-1.5" />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="h-10 w-10 mx-auto rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-2">
+                            <Upload className="h-4 w-4 text-primary" />
+                          </div>
+                          <p className="text-xs font-medium text-foreground">
+                            {pt ? "Enviar PDFs" : "Upload PDFs"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                            {pt ? "Clique ou arraste" : "Click or drag"}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    <input
+                      ref={pdfInputRef}
+                      type="file"
+                      accept=".pdf"
+                      multiple
+                      className="hidden"
+                      onChange={handlePDFUpload}
+                      disabled={uploadingPDF}
+                    />
+                  </label>
+                  {uploadedPDFs.some(p => p.status === "error") && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearErrorPDFs}
+                      className="w-full text-xs text-destructive hover:text-destructive h-7 mt-1"
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      {pt ? "Limpar erros" : "Clear errors"}
+                    </Button>
+                  )}
+                </div>
+                <div className="space-y-1 max-h-72 overflow-y-auto">
+                  {loadingPDFs ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
+                    </div>
+                  ) : uploadedPDFs.length === 0 ? (
+                    <div className="text-center py-8">
+                      <File className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                      <p className="text-xs text-muted-foreground">
+                        {pt ? "Nenhum PDF enviado ainda" : "No PDFs uploaded yet"}
+                      </p>
+                    </div>
+                  ) : (
+                    uploadedPDFs.map(pdf => {
+                      const isSelected = selectedPDFs.some(p => p.id === pdf.id);
+                      const isProcessed = pdf.status === "processed";
+                      const isProcessing = pdf.status === "processing";
+                      return (
+                        <div
+                          key={pdf.id}
+                          className={`relative group rounded-lg text-xs transition-all duration-200 ${
+                            isSelected
+                              ? "bg-primary/8 border-l-2 border-l-primary shadow-sm shadow-primary/5"
+                              : "hover:bg-muted/50 border-l-2 border-l-transparent"
+                          }`}
+                        >
+                          <button
+                            onClick={() => isProcessed && togglePDF(pdf)}
+                            className="w-full text-left p-2.5"
+                            disabled={!isProcessed}
+                          >
+                            <div className="flex items-start gap-2">
+                              <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                isProcessed ? "bg-primary/10" : isProcessing ? "bg-amber-500/10" : "bg-destructive/10"
+                              }`}>
+                                <File className={`h-3.5 w-3.5 ${
+                                  isProcessed ? "text-primary" : isProcessing ? "text-amber-500" : "text-destructive"
+                                }`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-foreground line-clamp-2">
+                                  {pdf.title || pdf.file_name}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Badge
+                                    variant={isProcessed ? "secondary" : isProcessing ? "outline" : "destructive"}
+                                    className={`text-[9px] px-1.5 py-0 ${
+                                      isProcessed ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" : ""
+                                    }`}
+                                  >
+                                    {isProcessed
+                                      ? (pt ? "Processado" : "Processed")
+                                      : isProcessing
+                                        ? (pt ? "Processando" : "Processing")
+                                        : (pt ? "Erro" : "Error")}
+                                  </Badge>
+                                  {isProcessed && pdf.extracted_text && (
+                                    <span className="text-[10px] text-muted-foreground/50">
+                                      {(pdf.extracted_text.length / 1000).toFixed(0)}k chars
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deletePDF(pdf); }}
+                            className="absolute top-2 right-2 h-5 w-5 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-destructive transition-all"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="illustrations" className="border-border/30">
+              <AccordionTrigger className="text-xs py-3 hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:text-muted-foreground">
+                <span className="flex items-center gap-1.5 flex-1 min-w-0 mr-2">
+                  <ImageIcon className="h-3.5 w-3.5 text-accent shrink-0" />
+                  <span className="truncate">{pt ? "Imagens" : "Images"}</span>
+                  {illustrations.length > 0 && (
+                    <Badge className="text-[9px] h-4 px-1.5 bg-accent/10 text-accent border-accent/20 hover:bg-accent/10 ml-auto">{illustrations.length}</Badge>
+                  )}
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="pb-3">
+                <p className="text-[11px] text-muted-foreground mb-2">
+                  {pt
+                    ? "Clique em uma imagem para inseri-la no documento na posição atual do cursor."
+                    : "Click an image to insert it into the document at the current cursor position."}
+                </p>
+                <div className="max-h-72 overflow-y-auto">
+                  {loadingIllustrations ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+                    </div>
+                  ) : illustrations.length === 0 ? (
+                    <div className="text-center py-8">
+                      <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                      <p className="text-xs text-muted-foreground">
+                        {pt ? "Nenhuma ilustração ainda." : "No illustrations yet."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {illustrations.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => insertIllustration(item)}
+                          title={pt ? "Inserir no documento" : "Insert into document"}
+                          className="group relative rounded-lg overflow-hidden border border-border/50 bg-muted/20 hover:border-accent/50 transition-colors text-left"
+                        >
+                          <img src={item.image_url} alt={item.prompt} className="w-full aspect-square object-cover bg-white" />
+                          <div className="absolute inset-0 bg-background/0 group-hover:bg-background/60 flex items-center justify-center transition-colors">
+                            <ImagePlus className="h-5 w-5 text-accent opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
                         </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); deletePDF(pdf); }}
-                          className="absolute top-2 right-2 h-5 w-5 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-destructive transition-all"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </ScrollArea>
-          </TabsContent>
-
-          <TabsContent value="illustrations" className="flex-1 flex flex-col px-3 pb-3 mt-2">
-            <p className="text-[11px] text-muted-foreground mb-2">
-              {pt
-                ? "Clique em uma imagem para inseri-la no documento na posição atual do cursor."
-                : "Click an image to insert it into the document at the current cursor position."}
-            </p>
-            <ScrollArea className="flex-1">
-              {loadingIllustrations ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ) : illustrations.length === 0 ? (
-                <div className="text-center py-8">
-                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {pt ? "Nenhuma ilustração ainda." : "No illustrations yet."}
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {illustrations.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => insertIllustration(item)}
-                      title={pt ? "Inserir no documento" : "Insert into document"}
-                      className="group relative rounded-lg overflow-hidden border border-border/50 bg-muted/20 hover:border-accent/50 transition-colors text-left"
-                    >
-                      <img src={item.image_url} alt={item.prompt} className="w-full aspect-square object-cover bg-white" />
-                      <div className="absolute inset-0 bg-background/0 group-hover:bg-background/60 flex items-center justify-center transition-colors">
-                        <ImagePlus className="h-5 w-5 text-accent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </TabsContent>
-        </Tabs>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
       </div>
 
       {/* ─── Main editor area ─── */}
