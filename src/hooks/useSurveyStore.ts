@@ -77,6 +77,7 @@ export interface Survey {
   description: string;
   status: string;
   settings: Record<string, any>;
+  research_project_id: string | null;
   created_at: string;
   updated_at: string;
   published_at: string | null;

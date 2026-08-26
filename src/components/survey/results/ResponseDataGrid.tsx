@@ -11,11 +11,14 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Download, ChevronDown } from "lucide-react";
+import { Download, ChevronDown, BrainCircuit } from "lucide-react";
 import * as XLSX from "xlsx";
+import { buildExportColumns, buildChoiceCodingMap, formatCodedValue, buildCodebookRows } from "@/lib/survey/codebook";
+import { useSurveyDataMindExport } from "@/hooks/useSurveyDataMindExport";
 
 const ResponseDataGrid = ({ surveyId }: { surveyId: string }) => {
   const { locale } = useLanguage();
+  const { exportToDataMind, isExporting } = useSurveyDataMindExport(surveyId);
   const [useVariableNames, setUseVariableNames] = useState(false);
   const [useCodedValues, setUseCodedValues] = useState(false);
   const [page, setPage] = useState(0);
@@ -48,38 +51,14 @@ const ResponseDataGrid = ({ surveyId }: { surveyId: string }) => {
     enabled: !!responses?.length,
   });
 
-  const columns = useMemo(() => {
-    if (!questions) return [];
-    return questions.map((q: any, i: number) => ({
-      id: q.id,
-      varName: `Q${i + 1}_${q.question_type}`,
-      questionText: q.question_text || `Question ${i + 1}`,
-    }));
-  }, [questions]);
+  const columns = useMemo(() => buildExportColumns(questions || []), [questions]);
 
   // Build choice coding map for coded export
-  const choiceCodingMap = useMemo(() => {
-    const map: Record<string, Record<string, string>> = {};
-    if (!questions) return map;
-    questions.forEach((q: any) => {
-      if (q.question_type === "multiple_choice" && Array.isArray(q.choices)) {
-        const coding: Record<string, string> = {};
-        (q.choices as any[]).forEach((c: any, idx: number) => {
-          coding[c.text || c] = String(idx);
-        });
-        map[q.id] = coding;
-      }
-    });
-    return map;
-  }, [questions]);
+  const choiceCodingMap = useMemo(() => buildChoiceCodingMap(questions || []), [questions]);
 
   const formatValue = (value: string, questionId: string) => {
     if (!useCodedValues || !value) return value;
-    const coding = choiceCodingMap[questionId];
-    if (!coding) return value;
-    // Handle multi-value separated by "; "
-    const parts = value.split("; ");
-    return parts.map(p => coding[p] !== undefined ? coding[p] : p).join("; ");
+    return formatCodedValue(value, questionId, choiceCodingMap);
   };
 
   const rows = useMemo(() => {
@@ -138,26 +117,12 @@ const ResponseDataGrid = ({ surveyId }: { surveyId: string }) => {
     downloadText(`survey_data.${ext}`, toCSV(headers, data, delimiter), "text/csv");
   };
 
-  // Codebook: variable \u2194 question text \u2194 type \u2194 value labels, one row per question
-  const buildCodebookRows = () => {
-    const header = ["Variable", "Question", "Type", "Value Labels"];
-    const body = columns.map((c) => {
-      const q = (questions || []).find((qq: any) => qq.id === c.id);
-      const coding = choiceCodingMap[c.id];
-      const labels = coding
-        ? Object.entries(coding).map(([label, code]) => `${code} = ${label}`).join(" | ")
-        : "";
-      return [c.varName, c.questionText, q?.question_type || "", labels];
-    });
-    return [header, ...body];
-  };
-
   const exportXLSX = () => {
     const { headers, data } = buildExportData();
     const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Responses");
-    const codebookWs = XLSX.utils.aoa_to_sheet(buildCodebookRows());
+    const codebookWs = XLSX.utils.aoa_to_sheet(buildCodebookRows(columns, questions || [], choiceCodingMap));
     XLSX.utils.book_append_sheet(wb, codebookWs, "Codebook");
     XLSX.writeFile(wb, "survey_data.xlsx");
   };
@@ -240,23 +205,29 @@ ${valueLabelBlocks ? `\nVALUE LABELS\n${valueLabelBlocks}.\n` : ""}`;
             <Switch checked={useCodedValues} onCheckedChange={setUseCodedValues} />
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Download className="h-4 w-4" />
-              {locale === "pt" ? "Exportar" : "Export"}
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => exportCSV(",", "csv")}>CSV</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => exportCSV("\t", "tsv")}>TSV</DropdownMenuItem>
-            <DropdownMenuItem onClick={exportXLSX}>Excel (.xlsx) + codebook</DropdownMenuItem>
-            <DropdownMenuItem onClick={exportSPSS}>
-              {locale === "pt" ? "Sintaxe SPSS (.sps + .csv)" : "SPSS syntax (.sps + .csv)"}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={exportToDataMind} disabled={isExporting}>
+            <BrainCircuit className="h-4 w-4" />
+            {locale === "pt" ? "Analisar no DataMind" : "Analyze in DataMind"}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Download className="h-4 w-4" />
+                {locale === "pt" ? "Exportar" : "Export"}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => exportCSV(",", "csv")}>CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportCSV("\t", "tsv")}>TSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportXLSX}>Excel (.xlsx) + codebook</DropdownMenuItem>
+              <DropdownMenuItem onClick={exportSPSS}>
+                {locale === "pt" ? "Sintaxe SPSS (.sps + .csv)" : "SPSS syntax (.sps + .csv)"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <div className="border rounded-lg overflow-auto max-h-[60vh]">

@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText, UsersRound, Rocket, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { createSurveyAnalysisTask } from "@/lib/research/integrations";
 
 const STATUS_BADGE: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -134,11 +135,29 @@ const SurveyBuilder = () => {
       return patch;
     },
     onSuccess: (patch) => {
-      store.setSurvey({ ...store.survey!, ...patch });
+      const prevSurvey = store.survey!;
+      store.setSurvey({ ...prevSurvey, ...patch });
+
+      if (patch.status === "active") {
+        toast.success(locale === "pt" ? "Coleta publicada — já pode receber respostas." : "Collection published — it can now receive responses.");
+        return;
+      }
+
+      const projectId = prevSurvey.research_project_id;
+      if (projectId) {
+        createSurveyAnalysisTask(projectId, prevSurvey.title).catch(() => { /* non-blocking */ });
+      }
       toast.success(
-        patch.status === "active"
-          ? (locale === "pt" ? "Coleta publicada — já pode receber respostas." : "Collection published — it can now receive responses.")
-          : (locale === "pt" ? "Coleta encerrada." : "Collection closed.")
+        locale === "pt" ? "Coleta encerrada." : "Collection closed.",
+        {
+          description: projectId
+            ? (locale === "pt" ? "Uma tarefa de análise foi criada no projeto vinculado." : "An analysis task was created in the linked project.")
+            : undefined,
+          action: {
+            label: locale === "pt" ? "Analisar no DataMind" : "Analyze in DataMind",
+            onClick: () => navigate(`/surveys/${id}/results/reports`),
+          },
+        },
       );
     },
     onError: () => toast.error(locale === "pt" ? "Falha ao atualizar status" : "Failed to update status"),

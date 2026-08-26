@@ -6,7 +6,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
-import { createSurveyAnalysisTask } from "@/lib/research/integrations";
+import { createSurveyAnalysisTask, linkResource } from "@/lib/research/integrations";
+import { useActiveProject } from "@/contexts/ActiveProjectContext";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +62,7 @@ const Surveys = () => {
   const { locale } = useLanguage();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { activeProjectId } = useActiveProject();
   const linkedSurveyIds = useProjectLinkedIds("survey");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -84,7 +86,7 @@ const Surveys = () => {
     mutationFn: async ({ title, studyType }: { title: string; studyType: StudyType }) => {
       const { data, error } = await supabase
         .from("surveys")
-        .insert({ user_id: user!.id, title, settings: { study_type: studyType } })
+        .insert({ user_id: user!.id, title, settings: { study_type: studyType }, research_project_id: activeProjectId })
         .select()
         .single();
       if (error) throw error;
@@ -94,6 +96,9 @@ const Surveys = () => {
         title: locale === "pt" ? "Bloco 1" : "Block 1",
         block_order: 0,
       });
+      if (activeProjectId) {
+        await linkResource({ projectId: activeProjectId, resourceType: "survey", resourceId: data.id, label: data.title });
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -131,10 +136,14 @@ const Surveys = () => {
           title: `${source.title} (Copy)`,
           description: source.description,
           settings: source.settings,
+          research_project_id: source.research_project_id ?? null,
         })
         .select()
         .single();
       if (error) throw error;
+      if (source.research_project_id) {
+        await linkResource({ projectId: source.research_project_id, resourceType: "survey", resourceId: data.id, label: data.title });
+      }
       return data;
     },
     onSuccess: () => {

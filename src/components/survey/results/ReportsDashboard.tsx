@@ -5,8 +5,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BrainCircuit, FileDown, Users, Clock, CheckCircle2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { useSurveyDataMindExport } from "@/hooks/useSurveyDataMindExport";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -36,7 +35,7 @@ const calcSD = (values: number[], mean: number) => {
 
 const ReportsDashboard = ({ surveyId }: { surveyId: string }) => {
   const { locale } = useLanguage();
-  const navigate = useNavigate();
+  const { exportToDataMind, isExporting } = useSurveyDataMindExport(surveyId);
 
   const { data: questions } = useQuery({
     queryKey: ["survey-questions-report", surveyId],
@@ -82,72 +81,6 @@ const ReportsDashboard = ({ surveyId }: { surveyId: string }) => {
     return durations.length ? Math.round(calcMean(durations)) : 0;
   }, [responses]);
 
-  const handleExportDataMind = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { toast.error("Login required"); return; }
-
-      // Build CSV from answers
-      if (!questions?.length || !responses?.length) {
-        toast.error(locale === "pt" ? "Sem dados para exportar" : "No data to export");
-        return;
-      }
-
-      const headers = ["respondent_id", ...questions.map((q) => `Q_${q.question_text.slice(0, 40).replace(/[,\n]/g, " ")}`)];
-      const rows = responses.map((r) => {
-        const responseAnswers = answers?.filter((a) => a.response_id === r.id) || [];
-        const vals = questions!.map((q) => {
-          const ans = responseAnswers.find((a) => a.question_id === q.id);
-          if (!ans) return "";
-          if (ans.answer_text) return `"${ans.answer_text.replace(/"/g, '""')}"`;
-          if (ans.answer_numeric !== null) return String(ans.answer_numeric);
-          if (Array.isArray(ans.answer_choices) && (ans.answer_choices as any[]).length)
-            return `"${(ans.answer_choices as string[]).join("; ")}"`;
-          return "";
-        });
-        return [r.respondent_id || r.id, ...vals].join(",");
-      });
-
-      const csv = [headers.join(","), ...rows].join("\n");
-      const blob = new Blob([csv], { type: "text/csv" });
-
-      // Upload to datamind-files bucket
-      const fileName = `survey_${surveyId}_${Date.now()}.csv`;
-      const filePath = `${user.id}/${fileName}`;
-      const { error: uploadErr } = await supabase.storage.from("datamind-files").upload(filePath, blob);
-      if (uploadErr) throw uploadErr;
-
-      // Create conversation
-      const { data: conv, error: convErr } = await supabase
-        .from("datamind_conversations")
-        .insert({ user_id: user.id, title: `Survey Analysis - ${fileName}` })
-        .select("id")
-        .single();
-      if (convErr) throw convErr;
-
-      // Create file record
-      await supabase.from("datamind_files").insert({
-        user_id: user.id,
-        conversation_id: conv.id,
-        file_name: fileName,
-        file_path: filePath,
-        file_size: blob.size,
-      });
-
-      // Create initial message
-      await supabase.from("datamind_messages").insert({
-        conversation_id: conv.id,
-        role: "system",
-        content: `Survey data file loaded: ${fileName} (${totalResponses} responses, ${questions.length} questions). Ready for analysis.`,
-      });
-
-      toast.success(locale === "pt" ? "Dados enviados para DataMind!" : "Data sent to DataMind!");
-      navigate(`/datamind/${conv.id}`);
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Export failed");
-    }
-  };
 
   const renderQuestionChart = (q: QuestionData) => {
     const qAnswers = answers?.filter((a) => a.question_id === q.id) || [];
@@ -320,7 +253,7 @@ const ReportsDashboard = ({ surveyId }: { surveyId: string }) => {
 
       {/* Action buttons */}
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportDataMind}>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={exportToDataMind} disabled={isExporting}>
           <BrainCircuit className="h-4 w-4" />
           {locale === "pt" ? "Analisar no DataMind" : "Analyze in DataMind"}
         </Button>
