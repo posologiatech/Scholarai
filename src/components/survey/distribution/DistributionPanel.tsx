@@ -1,13 +1,14 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link2, Mail, Palette, Users } from "lucide-react";
+import { Link2, Mail, Palette, Users, Webhook } from "lucide-react";
 import AnonymousLinkTab from "./AnonymousLinkTab";
 import EmailComposerTab from "./EmailComposerTab";
 import ContactListTab from "./ContactListTab";
 import BrandingTab from "./BrandingTab";
+import WebhookTab from "./WebhookTab";
 
-const SUBTABS = ["link", "email", "contacts", "branding"] as const;
+const SUBTABS = ["link", "email", "contacts", "branding", "webhook"] as const;
 
 const DistributionPanel = ({ surveyId }: { surveyId: string }) => {
   const { locale } = useLanguage();
@@ -44,6 +45,10 @@ const DistributionPanel = ({ surveyId }: { surveyId: string }) => {
               <Palette className="h-3.5 w-3.5" />
               {locale === "pt" ? "Identidade" : "Branding"}
             </TabsTrigger>
+            <TabsTrigger value="webhook" className="gap-1.5">
+              <Webhook className="h-3.5 w-3.5" />
+              Webhook
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="link">
@@ -57,6 +62,9 @@ const DistributionPanel = ({ surveyId }: { surveyId: string }) => {
           </TabsContent>
           <TabsContent value="branding">
             <BrandingTab surveyId={surveyId} />
+          </TabsContent>
+          <TabsContent value="webhook">
+            <WebhookTab surveyId={surveyId} />
           </TabsContent>
         </Tabs>
       </div>

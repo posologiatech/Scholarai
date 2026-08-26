@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { hashAnswerLink, hashResponseRollup } from "../_shared/survey-integrity.ts";
 import { evaluateVisibleQuestionIds, isQuestionAnswered } from "../_shared/survey-logic.ts";
+import { sendSurveyWebhook } from "../_shared/survey-webhook.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,7 +47,7 @@ Deno.serve(async (req: Request) => {
     // Check survey is active
     const { data: survey, error: surveyErr } = await supabase
       .from("surveys")
-      .select("id, status")
+      .select("id, status, settings")
       .eq("id", dist.survey_id)
       .single();
 
@@ -159,6 +160,25 @@ Deno.serve(async (req: Request) => {
       .from("survey_responses")
       .update({ response_hash: responseHash })
       .eq("id", response.id);
+
+    // Best-effort notification to an external system (Zapier, a spreadsheet, a lab CRM) —
+    // deliberately metadata-only, never the answer content itself, since this is clinical
+    // research data going to a URL the researcher configured. A delivery failure here must
+    // never fail the respondent's submission, which has already been durably recorded above.
+    const webhook = (survey.settings as any)?.webhook;
+    if (webhook?.enabled && webhook.url) {
+      try {
+        await sendSurveyWebhook(webhook, {
+          event: "survey.response.completed",
+          survey_id: survey.id,
+          response_id: response.id,
+          answer_count: answerRows.length,
+          completed_at: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error("survey-respond: webhook delivery failed", err);
+      }
+    }
 
     return new Response(
       JSON.stringify({ success: true, response_id: response.id }),
