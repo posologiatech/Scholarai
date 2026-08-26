@@ -18,7 +18,7 @@ export type ResearchScheduleStatus =
 export type ResearchLinkType =
   | "search" | "library" | "datamind" | "writing"
   | "survey" | "systematic_review" | "meta_analysis" | "funding" | "knowledge_graph"
-  | "illustration" | "coauthorship" | "datasus" | "reference_check";
+  | "illustration" | "coauthorship" | "datasus" | "reference_check" | "workspace";
 
 export interface ResearchProjectLink {
   id: string;
@@ -47,6 +47,7 @@ export const LINK_TYPE_LABEL: Record<ResearchLinkType, { pt: string; en: string;
   coauthorship: { pt: "Rede de coautoria", en: "Co-authorship network", route: "/coauthorship" },
   datasus: { pt: "Análise DataSUS", en: "DataSUS analysis", route: "/datasus" },
   reference_check: { pt: "Checagem de referências", en: "Reference check", route: "/reference-check" },
+  workspace: { pt: "Workspace", en: "Workspace", route: "/workspaces" },
 };
 
 

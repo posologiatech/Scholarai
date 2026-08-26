@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TasksBoard } from "@/components/research/TasksBoard";
+import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 
 interface Workspace {
   id: string;
@@ -416,6 +417,13 @@ const WorkspaceDetail = () => {
             <p className="text-sm text-muted-foreground mt-0.5 truncate">{workspace.description}</p>
           )}
         </div>
+        <LinkToProjectButton
+          resourceType="workspace"
+          resourceId={workspace.id}
+          label={workspace.name}
+          size="sm"
+          variant="ghost"
+        />
         <Badge variant="outline" className={`${roleColor(myRole)} text-xs`}>
           {myRole === "owner" && <Crown className="h-3 w-3 mr-1" />}
           {roleLabel(myRole)}

@@ -98,7 +98,7 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
       items: [
         { label: t("nav.researchProjects"), href: "/research", icon: FlaskConical },
         { label: t("nav.fundingCalls"), href: "/research/funding", icon: Award, linkType: "funding" },
-        { label: "Workspaces", href: "/workspaces", icon: Users },
+        { label: "Workspaces", href: "/workspaces", icon: Users, linkType: "workspace" },
       ],
     },
   ];
