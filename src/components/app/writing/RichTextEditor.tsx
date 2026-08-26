@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import Image from "@tiptap/extension-image";
 import Collaboration from "@tiptap/extension-collaboration";
 import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
 import * as Y from "yjs";
@@ -15,6 +16,8 @@ import type { SectionId } from "@/lib/writing/sections";
 
 export interface RichTextEditorHandle {
   insertHtml: (html: string) => void;
+  /** Inserts an image (e.g. from the Illustrations gallery or a found paper figure) at the end of the document. */
+  insertImage: (src: string, alt?: string) => void;
   /** Inserts AI-generated text wrapped as a pending suggestion (accept/reject in the editor). */
   insertSuggestion: (text: string, author?: string) => void;
   /** Ensures the section's heading exists, then inserts as a pending suggestion at the end of that section's block. */
@@ -108,6 +111,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
             SectionHeading,
             Placeholder.configure({ placeholder: placeholder || "" }),
             SuggestionInsertion,
+            Image.configure({ HTMLAttributes: { class: "rounded-lg border border-border max-w-full h-auto" } }),
             Collaboration.configure({ document: ydoc }),
             CollaborationCaret.configure({
               provider,
@@ -121,6 +125,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
             SectionHeading,
             Placeholder.configure({ placeholder: placeholder || "" }),
             SuggestionInsertion,
+            Image.configure({ HTMLAttributes: { class: "rounded-lg border border-border max-w-full h-auto" } }),
           ],
       content: collaboration ? undefined : value,
       editable,
@@ -160,6 +165,10 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
         insertHtml: (html: string) => {
           if (!editor) return;
           editor.chain().focus("end").insertContent(html).run();
+        },
+        insertImage: (src: string, alt?: string) => {
+          if (!editor) return;
+          editor.chain().focus("end").insertContent({ type: "image", attrs: { src, alt: alt || "" } }).run();
         },
         insertSuggestion: (text: string, author = "ai") => {
           if (!editor) return;

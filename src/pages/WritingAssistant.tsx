@@ -25,6 +25,7 @@ import {
   FileText, Plus, Trash2, ChevronRight, ChevronDown, Database, Copy, Check, ArrowRight,
   Upload, File, X, GraduationCap, Eye, MessageSquareWarning, Sigma, Star,
   AlertTriangle, Save, FolderOpen, Clock, Search, FilePlus2, Shield, Users, ListTree,
+  Image as ImageIcon, ImagePlus,
 } from "lucide-react";
 import AIDeclarationDialog, { type AIUsageEntry } from "@/components/app/AIDeclarationDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -61,6 +62,12 @@ interface DataMindAnalysis {
   id: string;
   title: string;
   content: string;
+}
+
+interface IllustrationSource {
+  id: string;
+  prompt: string;
+  image_url: string;
 }
 
 interface UploadedPDF {
@@ -116,6 +123,10 @@ const WritingAssistant = () => {
   const [uploadedPDFs, setUploadedPDFs] = useState<UploadedPDF[]>([]);
   const [selectedPDFs, setSelectedPDFs] = useState<UploadedPDF[]>([]);
   const [loadingPDFs, setLoadingPDFs] = useState(false);
+
+  // Illustrations gallery (inserted directly into the document, not used as AI synthesis sources)
+  const [illustrations, setIllustrations] = useState<IllustrationSource[]>([]);
+  const [loadingIllustrations, setLoadingIllustrations] = useState(false);
   const [uploadingPDF, setUploadingPDF] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -241,6 +252,27 @@ const WritingAssistant = () => {
     };
     loadPDFs();
   }, [user]);
+
+  // Load illustrations gallery
+  useEffect(() => {
+    if (!user) return;
+    const loadIllustrations = async () => {
+      setLoadingIllustrations(true);
+      const { data } = await supabase
+        .from("illustrations")
+        .select("id, prompt, image_url")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      setIllustrations((data || []) as IllustrationSource[]);
+      setLoadingIllustrations(false);
+    };
+    loadIllustrations();
+  }, [user]);
+
+  const insertIllustration = (item: IllustrationSource) => {
+    editorRef.current?.insertImage(item.image_url, item.prompt);
+    toast.success(pt ? "Imagem inserida no documento" : "Image inserted into the document");
+  };
 
   const filteredGroups = searchGroups.map(g => ({
     ...g,
@@ -775,23 +807,27 @@ const WritingAssistant = () => {
             {pt ? "Fontes" : "Sources"}
           </h2>
           <p className="text-[11px] text-muted-foreground mt-1.5 ml-[38px]">
-            {pt ? "Selecione papers, análises e PDFs" : "Select papers, analyses and PDFs"}
+            {pt ? "Selecione papers, análises, PDFs e imagens" : "Select papers, analyses, PDFs and images"}
           </p>
         </div>
 
         <Tabs defaultValue="papers" className="flex-1 flex flex-col">
-          <TabsList className="mx-3 mt-3 grid grid-cols-3 h-9 rounded-lg bg-muted/60 p-0.5">
-            <TabsTrigger value="papers" className="text-[10px] px-1.5 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+          <TabsList className="mx-3 mt-3 grid grid-cols-4 h-9 rounded-lg bg-muted/60 p-0.5">
+            <TabsTrigger value="papers" className="text-[10px] px-1 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
               <FileText className="h-3 w-3 mr-0.5" />
               Papers ({selectedPapers.length})
             </TabsTrigger>
-            <TabsTrigger value="datamind" className="text-[10px] px-1.5 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-accent transition-all">
+            <TabsTrigger value="datamind" className="text-[10px] px-1 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-accent transition-all">
               <Database className="h-3 w-3 mr-0.5" />
               DataMind ({selectedAnalyses.length})
             </TabsTrigger>
-            <TabsTrigger value="mypdfs" className="text-[10px] px-1.5 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+            <TabsTrigger value="mypdfs" className="text-[10px] px-1 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
               <Upload className="h-3 w-3 mr-0.5" />
               {pt ? "PDFs" : "PDFs"} ({selectedPDFs.length})
+            </TabsTrigger>
+            <TabsTrigger value="illustrations" className="text-[10px] px-1 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-accent transition-all">
+              <ImageIcon className="h-3 w-3 mr-0.5" />
+              {pt ? "Imagens" : "Images"}
             </TabsTrigger>
           </TabsList>
 
@@ -1029,6 +1065,44 @@ const WritingAssistant = () => {
                   })
                 )}
               </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="illustrations" className="flex-1 flex flex-col px-3 pb-3 mt-2">
+            <p className="text-[11px] text-muted-foreground mb-2">
+              {pt
+                ? "Clique em uma imagem para inseri-la no documento na posição atual do cursor."
+                : "Click an image to insert it into the document at the current cursor position."}
+            </p>
+            <ScrollArea className="flex-1">
+              {loadingIllustrations ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+                </div>
+              ) : illustrations.length === 0 ? (
+                <div className="text-center py-8">
+                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                  <p className="text-xs text-muted-foreground">
+                    {pt ? "Nenhuma ilustração ainda." : "No illustrations yet."}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {illustrations.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => insertIllustration(item)}
+                      title={pt ? "Inserir no documento" : "Insert into document"}
+                      className="group relative rounded-lg overflow-hidden border border-border/50 bg-muted/20 hover:border-accent/50 transition-colors text-left"
+                    >
+                      <img src={item.image_url} alt={item.prompt} className="w-full aspect-square object-cover bg-white" />
+                      <div className="absolute inset-0 bg-background/0 group-hover:bg-background/60 flex items-center justify-center transition-colors">
+                        <ImagePlus className="h-5 w-5 text-accent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </ScrollArea>
           </TabsContent>
         </Tabs>
