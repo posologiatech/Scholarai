@@ -43,6 +43,7 @@ import type { SupabaseYjsProvider } from "@/lib/collab/supabaseYjsProvider";
 import { bytesToPgHex, pgHexToBytes } from "@/lib/collab/yjsPersistence";
 import { colorFromId } from "@/lib/collab/presenceColor";
 import { promoteWritingToPublication } from "@/lib/research/integrations";
+import { useActiveProject } from "@/contexts/ActiveProjectContext";
 interface Paper {
   id: string;
   title: string;
@@ -95,6 +96,7 @@ interface WritingDocument {
 const WritingAssistant = () => {
   const { locale } = useLanguage();
   const { user } = useAuth();
+  const { activeProjectId, activeProjectTitle } = useActiveProject();
   const pt = locale === "pt";
   const [searchParams] = useSearchParams();
 
@@ -172,15 +174,17 @@ const WritingAssistant = () => {
   // AI usage tracking
   const [aiUsageLog, setAiUsageLog] = useState<AIUsageEntry[]>([]);
   const [showAIDeclaration, setShowAIDeclaration] = useState(false);
-  // Load papers from saved searches (grouped)
+  // Load papers from saved searches (grouped) — scoped to the active project, so
+  // searches saved for unrelated work don't clutter the sources of this article.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeProjectId) { setSearchGroups([]); return; }
     const loadPapers = async () => {
       setLoadingPapers(true);
       const { data } = await supabase
         .from("saved_searches")
         .select("id, query, papers")
         .eq("user_id", user.id)
+        .eq("research_project_id", activeProjectId)
         .order("created_at", { ascending: false });
 
       if (data) {
@@ -202,17 +206,18 @@ const WritingAssistant = () => {
       setLoadingPapers(false);
     };
     loadPapers();
-  }, [user]);
+  }, [user, activeProjectId]);
 
-  // Load DataMind conversations/analyses
+  // Load DataMind conversations/analyses — scoped to the active project.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeProjectId) { setDatamindAnalyses([]); return; }
     const loadAnalyses = async () => {
       setLoadingAnalyses(true);
       const { data: convs } = await supabase
         .from("datamind_conversations")
         .select("id, title")
         .eq("user_id", user.id)
+        .eq("research_project_id", activeProjectId)
         .order("updated_at", { ascending: false })
         .limit(50);
 
@@ -231,21 +236,24 @@ const WritingAssistant = () => {
           return { id: c.id, title: c.title, content: summary.slice(0, 2000) };
         });
         setDatamindAnalyses(analyses);
+      } else {
+        setDatamindAnalyses([]);
       }
       setLoadingAnalyses(false);
     };
     loadAnalyses();
-  }, [user]);
+  }, [user, activeProjectId]);
 
-  // Load uploaded PDFs
+  // Load uploaded PDFs — scoped to the active project.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !activeProjectId) { setUploadedPDFs([]); return; }
     const loadPDFs = async () => {
       setLoadingPDFs(true);
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("uploaded_papers")
         .select("id, file_name, title, extracted_text, file_path, status, created_at")
         .eq("user_id", user.id)
+        .eq("research_project_id", activeProjectId)
         .order("created_at", { ascending: false });
       setUploadedPDFs((data || []) as UploadedPDF[]);
       setLoadingPDFs(false);
@@ -253,11 +261,11 @@ const WritingAssistant = () => {
     loadPDFs();
   }, [user]);
 
-  // Load illustrations already linked to this document's project — not the whole
-  // gallery, which would be unusable once the researcher has dozens of images
-  // spread across unrelated projects.
+  // Load illustrations linked to the active project — not the whole gallery, which
+  // would be unusable once the researcher has dozens of images across unrelated
+  // projects. Same active-project scoping as Papers, DataMind and PDFs above.
   useEffect(() => {
-    if (!researchProjectId) {
+    if (!activeProjectId) {
       setIllustrations([]);
       return;
     }
@@ -266,7 +274,7 @@ const WritingAssistant = () => {
       const { data } = await (supabase as any)
         .from("research_project_links")
         .select("resource_id, label, url")
-        .eq("project_id", researchProjectId)
+        .eq("project_id", activeProjectId)
         .eq("resource_type", "illustration")
         .order("created_at", { ascending: false });
       setIllustrations(
@@ -277,7 +285,7 @@ const WritingAssistant = () => {
       setLoadingIllustrations(false);
     };
     loadIllustrations();
-  }, [researchProjectId]);
+  }, [activeProjectId]);
 
   const insertIllustration = (item: IllustrationSource) => {
     editorRef.current?.insertImage(item.image_url, item.prompt);
@@ -327,6 +335,10 @@ const WritingAssistant = () => {
   const handlePDFUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !user) return;
+    if (!activeProjectId) {
+      toast.error(pt ? "Selecione um projeto ativo na barra lateral antes de enviar PDFs" : "Select an active project in the sidebar before uploading PDFs");
+      return;
+    }
 
     setUploadingPDF(true);
     setUploadProgress(0);
@@ -353,7 +365,7 @@ const WritingAssistant = () => {
 
         if (uploadError) throw uploadError;
 
-        const { data: record, error: insertError } = await supabase
+        const { data: record, error: insertError } = await (supabase as any)
           .from("uploaded_papers")
           .insert({
             user_id: user.id,
@@ -362,6 +374,7 @@ const WritingAssistant = () => {
             file_size: file.size,
             title: file.name.replace(/\.pdf$/i, ""),
             status: "processing",
+            research_project_id: activeProjectId,
           })
           .select()
           .single();
@@ -816,8 +829,10 @@ const WritingAssistant = () => {
             </div>
             {pt ? "Fontes" : "Sources"}
           </h2>
-          <p className="text-[11px] text-muted-foreground mt-1.5 ml-[38px]">
-            {pt ? "Selecione papers, análises, PDFs e imagens" : "Select papers, analyses, PDFs and images"}
+          <p className="text-[11px] text-muted-foreground mt-1.5 ml-[38px] truncate">
+            {activeProjectId
+              ? (pt ? `Vinculadas a "${activeProjectTitle}"` : `Linked to "${activeProjectTitle}"`)
+              : (pt ? "Selecione um projeto ativo na barra lateral" : "Select an active project in the sidebar")}
           </p>
         </div>
 
@@ -834,6 +849,12 @@ const WritingAssistant = () => {
                 </span>
               </AccordionTrigger>
               <AccordionContent className="pb-3">
+                {!activeProjectId ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">
+                    {pt ? "Selecione um projeto ativo para ver papers vinculados a ele." : "Select an active project to see papers linked to it."}
+                  </p>
+                ) : (
+                <>
                 <Input
                   placeholder={pt ? "Buscar papers..." : "Search papers..."}
                   value={paperSearch}
@@ -849,7 +870,7 @@ const WritingAssistant = () => {
                     <div className="text-center py-8">
                       <FileText className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
                       <p className="text-xs text-muted-foreground">
-                        {pt ? "Nenhum paper encontrado" : "No papers found"}
+                        {pt ? "Nenhum paper vinculado a este projeto ainda" : "No papers linked to this project yet"}
                       </p>
                     </div>
                   ) : (
@@ -898,6 +919,8 @@ const WritingAssistant = () => {
                     })
                   )}
                 </div>
+                </>
+                )}
               </AccordionContent>
             </AccordionItem>
 
@@ -912,6 +935,11 @@ const WritingAssistant = () => {
                 </span>
               </AccordionTrigger>
               <AccordionContent className="pb-3">
+                {!activeProjectId ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">
+                    {pt ? "Selecione um projeto ativo para ver análises vinculadas a ele." : "Select an active project to see analyses linked to it."}
+                  </p>
+                ) : (
                 <div className="space-y-1 max-h-72 overflow-y-auto">
                   {loadingAnalyses ? (
                     <div className="flex justify-center py-8">
@@ -921,7 +949,7 @@ const WritingAssistant = () => {
                     <div className="text-center py-8">
                       <Database className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
                       <p className="text-xs text-muted-foreground">
-                        {pt ? "Nenhuma análise encontrada" : "No analyses found"}
+                        {pt ? "Nenhuma análise vinculada a este projeto ainda" : "No analyses linked to this project yet"}
                       </p>
                     </div>
                   ) : (
@@ -944,6 +972,7 @@ const WritingAssistant = () => {
                     })
                   )}
                 </div>
+                )}
               </AccordionContent>
             </AccordionItem>
 
@@ -958,6 +987,12 @@ const WritingAssistant = () => {
                 </span>
               </AccordionTrigger>
               <AccordionContent className="pb-3">
+                {!activeProjectId ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">
+                    {pt ? "Selecione um projeto ativo para enviar e ver PDFs vinculados a ele." : "Select an active project to upload and see PDFs linked to it."}
+                  </p>
+                ) : (
+                <>
                 {/* Upload area with animated border */}
                 <div className="mb-3">
                   <label className="block">
@@ -1084,6 +1119,8 @@ const WritingAssistant = () => {
                     })
                   )}
                 </div>
+                </>
+                )}
               </AccordionContent>
             </AccordionItem>
 
@@ -1098,17 +1135,19 @@ const WritingAssistant = () => {
                 </span>
               </AccordionTrigger>
               <AccordionContent className="pb-3">
+                {!activeProjectId ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">
+                    {pt ? "Selecione um projeto ativo para ver e inserir as ilustrações vinculadas a ele." : "Select an active project to see and insert the illustrations linked to it."}
+                  </p>
+                ) : (
+                <>
                 <p className="text-[11px] text-muted-foreground mb-2">
-                  {researchProjectId
-                    ? (pt
-                        ? "Ilustrações vinculadas ao projeto deste documento. Clique para inserir no cursor."
-                        : "Illustrations linked to this document's project. Click to insert at the cursor.")
-                    : (pt
-                        ? "Vincule este documento a um projeto de pesquisa para ver e inserir as ilustrações vinculadas a ele."
-                        : "Link this document to a research project to see and insert the illustrations linked to it.")}
+                  {pt
+                    ? "Clique em uma imagem para inseri-la no documento na posição atual do cursor."
+                    : "Click an image to insert it into the document at the current cursor position."}
                 </p>
                 <div className="max-h-72 overflow-y-auto">
-                  {!researchProjectId ? null : loadingIllustrations ? (
+                  {loadingIllustrations ? (
                     <div className="flex justify-center py-8">
                       <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
                     </div>
@@ -1139,6 +1178,8 @@ const WritingAssistant = () => {
                     </div>
                   )}
                 </div>
+                </>
+                )}
               </AccordionContent>
             </AccordionItem>
           </Accordion>
