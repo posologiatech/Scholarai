@@ -28,7 +28,7 @@ export function ProjectPicker({ value, onChange, placeholder, className }: Props
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between font-normal", className)}
+          className={cn("w-full min-w-0 justify-between font-normal", className)}
         >
           <span className="flex min-w-0 items-center gap-2">
             <FolderGit2 className="h-4 w-4 shrink-0 text-muted-foreground" />
