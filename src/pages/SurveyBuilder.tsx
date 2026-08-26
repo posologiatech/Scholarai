@@ -6,9 +6,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useSurveyStore } from "@/hooks/useSurveyStore";
 
-import BlockSidebar from "@/components/survey/builder/BlockSidebar";
+import BlockStepper from "@/components/survey/builder/BlockStepper";
 import QuestionCanvas from "@/components/survey/builder/QuestionCanvas";
 import QuestionContextPanel from "@/components/survey/builder/QuestionContextPanel";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import FlowCanvas from "@/components/survey/flow/FlowCanvas";
 import DistributionPanel from "@/components/survey/distribution/DistributionPanel";
 import SurveyResultsPanel from "@/components/survey/results/SurveyResultsPanel";
@@ -57,6 +59,7 @@ const SurveyBuilder = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const store = useSurveyStore();
+  const isMobile = useIsMobile();
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
   const currentView = getViewFromPath(location.pathname);
   // Legacy surveys created before this field existed keep every tab (their prior behavior).
@@ -202,19 +205,36 @@ const SurveyBuilder = () => {
         return <SurveyPreviewPanel />;
       default:
         return (
-          <ResizablePanelGroup direction="horizontal">
-            <ResizablePanel defaultSize={18} minSize={14} maxSize={28}>
-              <BlockSidebar />
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={55} minSize={35}>
-              <QuestionCanvas />
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={27} minSize={20} maxSize={35}>
-              <QuestionContextPanel />
-            </ResizablePanel>
-          </ResizablePanelGroup>
+          <div className="flex flex-col h-full">
+            <BlockStepper />
+            {isMobile ? (
+              <>
+                <div className="flex-1 min-h-0">
+                  <QuestionCanvas />
+                </div>
+                {/* On a phone-width screen there's no room for a third column, so the
+                    properties panel becomes a bottom sheet that opens with the question. */}
+                <Sheet
+                  open={!!store.activeQuestionId}
+                  onOpenChange={(open) => !open && store.setActiveQuestion(null)}
+                >
+                  <SheetContent side="bottom" className="h-[75vh] p-0">
+                    <QuestionContextPanel />
+                  </SheetContent>
+                </Sheet>
+              </>
+            ) : (
+              <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+                <ResizablePanel defaultSize={70} minSize={40}>
+                  <QuestionCanvas />
+                </ResizablePanel>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={30} minSize={20} maxSize={40}>
+                  <QuestionContextPanel />
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            )}
+          </div>
         );
     }
   };

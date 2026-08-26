@@ -99,7 +99,7 @@ interface SurveyBuilderState {
 
   // Blocks
   setBlocks: (blocks: SurveyBlock[]) => void;
-  addBlock: (surveyId: string) => string;
+  addBlock: (surveyId: string, locale?: "pt" | "en") => string;
   updateBlock: (blockId: string, updates: Partial<SurveyBlock>) => void;
   removeBlock: (blockId: string) => void;
   reorderBlocks: (blockIds: string[]) => void;
@@ -108,6 +108,7 @@ interface SurveyBuilderState {
   // Questions
   setQuestions: (questions: SurveyQuestion[]) => void;
   addQuestion: (blockId: string, surveyId: string, type?: QuestionType) => string;
+  duplicateQuestion: (questionId: string) => void;
   updateQuestion: (questionId: string, updates: Partial<SurveyQuestion>) => void;
   removeQuestion: (questionId: string) => void;
   reorderQuestions: (blockId: string, questionIds: string[]) => void;
@@ -143,7 +144,7 @@ export const useSurveyStore = create<SurveyBuilderState>((set, get) => ({
     })),
 
   setBlocks: (blocks) => set({ blocks }),
-  addBlock: (surveyId) => {
+  addBlock: (surveyId, locale = "en") => {
     const id = genId();
     set((s) => ({
       blocks: [
@@ -151,7 +152,7 @@ export const useSurveyStore = create<SurveyBuilderState>((set, get) => ({
         {
           id,
           survey_id: surveyId,
-          title: `Block ${s.blocks.length + 1}`,
+          title: `${locale === "pt" ? "Bloco" : "Block"} ${s.blocks.length + 1}`,
           description: "",
           block_order: s.blocks.length,
           randomize_questions: false,
@@ -239,6 +240,31 @@ export const useSurveyStore = create<SurveyBuilderState>((set, get) => ({
     }));
     return id;
   },
+  duplicateQuestion: (questionId) =>
+    set((s) => {
+      const original = s.questions.find((q) => q.id === questionId);
+      if (!original) return s;
+      const copy: SurveyQuestion = {
+        ...original,
+        id: genId(),
+        choices: original.choices.map((c) => ({ ...c, id: genId() })),
+        matrix_rows: original.matrix_rows.map((r) => ({ ...r, id: genId() })),
+        matrix_columns: original.matrix_columns.map((c) => ({ ...c, id: genId() })),
+      };
+      // Insert right after the original and shift every later question in the same
+      // block down one slot, so the copy lands next to what it duplicates.
+      const questions = s.questions.map((q) =>
+        q.block_id === original.block_id && q.question_order > original.question_order
+          ? { ...q, question_order: q.question_order + 1 }
+          : q
+      );
+      copy.question_order = original.question_order + 1;
+      return {
+        questions: [...questions, copy],
+        activeQuestionId: copy.id,
+        isDirty: true,
+      };
+    }),
   updateQuestion: (questionId, updates) =>
     set((s) => ({
       questions: s.questions.map((q) => (q.id === questionId ? { ...q, ...updates } : q)),

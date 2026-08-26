@@ -4,11 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 import ConsentRespond from "@/components/survey/consent/ConsentRespond";
 import { evaluateVisibility, findMissingRequired } from "@/lib/survey/surveyLogic";
 import QuestionRenderer from "@/components/survey/builder/QuestionRenderer";
+import type { SurveyBranding } from "@/components/survey/distribution/BrandingTab";
 import { cn } from "@/lib/utils";
 
 type AnswerMap = Record<string, any>;
@@ -88,6 +88,8 @@ const SurveyRespond = () => {
   });
 
   const survey = surveyData?.survey;
+  const branding: SurveyBranding = (survey?.settings as any)?.branding || {};
+  const brandColor = branding.color || null;
   const blocks = surveyData?.blocks || [];
   const allQuestions = surveyData?.questions || [];
   const rules = surveyData?.rules || [];
@@ -253,10 +255,25 @@ const SurveyRespond = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b bg-card">
-        <div className="max-w-2xl mx-auto px-4 py-4">
+        <div className="max-w-2xl mx-auto px-4 py-4 sm:py-5">
+          {(branding.logoUrl || branding.displayName) && (
+            <div className="flex items-center gap-2 mb-2">
+              {branding.logoUrl && (
+                <img src={branding.logoUrl} alt="" className="h-6 w-6 rounded object-contain shrink-0" />
+              )}
+              {branding.displayName && (
+                <span className="text-xs font-medium text-muted-foreground truncate">{branding.displayName}</span>
+              )}
+            </div>
+          )}
           <h1 className="text-lg font-semibold">{survey.title}</h1>
           {survey.description && <p className="text-sm text-muted-foreground mt-1">{survey.description}</p>}
-          <Progress value={progress} className="mt-3 h-2" />
+          <div className="h-2 w-full rounded-full bg-secondary mt-3 overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all", !brandColor && "bg-primary")}
+              style={{ width: `${progress}%`, ...(brandColor ? { backgroundColor: brandColor } : {}) }}
+            />
+          </div>
           <p className="text-xs text-muted-foreground mt-1">
             {currentBlockIdx + 1} / {visibleBlocks.length}
           </p>
@@ -292,17 +309,22 @@ const SurveyRespond = () => {
           <p className="text-sm text-destructive text-center">{error}</p>
         )}
 
-        <div className="flex justify-between pt-4">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3 pt-4">
           <Button variant="outline" disabled={currentBlockIdx === 0} onClick={() => setCurrentBlockIdx((p) => p - 1)}>
             Previous
           </Button>
           {isLastBlock ? (
-            <Button onClick={handleSubmit} disabled={submitting}>
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting}
+              style={brandColor ? { backgroundColor: brandColor } : undefined}
+            >
               {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Submit
             </Button>
           ) : (
             <Button
+              style={brandColor ? { backgroundColor: brandColor } : undefined}
               onClick={() => {
                 if (missingRequired.length > 0) { setValidationAttempted(true); return; }
                 setCurrentBlockIdx((p) => p + 1);
