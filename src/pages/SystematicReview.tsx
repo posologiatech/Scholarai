@@ -12,6 +12,7 @@ import StepReport from "@/components/app/systematic-review/StepReport";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
 import { importPapersToReferences } from "@/lib/research/integrations";
 import { buildProtocolDocument, type Pico } from "@/lib/systematicReview/protocol";
 
@@ -22,6 +23,7 @@ const SystematicReview = () => {
   const initialQuestion = searchParams.get("q") || "";
   const autoSuggestions = searchParams.get("auto") !== "false";
   const reviewId = searchParams.get("id");
+  const linkedReviewIds = useProjectLinkedIds("systematic_review");
 
   const [currentStep, setCurrentStep] = useState(0);
   const [dbId, setDbId] = useState<string | null>(reviewId);
@@ -168,6 +170,7 @@ const SystematicReview = () => {
             label={question || (locale === "pt" ? "Revisão sistemática" : "Systematic review")}
             attachTable="systematic_reviews"
             variant="outline"
+            linked={linkedReviewIds.has(dbId)}
             metadata={{ included: includedPaperIds.length, total: papers.length }}
             onLinked={async (projectId) => {
               try {

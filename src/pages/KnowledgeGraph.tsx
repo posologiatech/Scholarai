@@ -17,6 +17,7 @@ import KnowledgeGraphView, {
 import PaperListPanel from "@/components/knowledge-graph/PaperListPanel";
 import PaperDetailPanel from "@/components/knowledge-graph/PaperDetailPanel";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
 import { RegisterOutputButton } from "@/components/research/RegisterOutputButton";
 
 interface Paper {
@@ -46,6 +47,7 @@ const KnowledgeGraph = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const query = searchParams.get("q") || "";
+  const linkedGraphIds = useProjectLinkedIds("knowledge_graph");
 
   const [searchQuery, setSearchQuery] = useState(query);
   const [papers, setPapers] = useState<Paper[]>([]);
@@ -262,6 +264,7 @@ const KnowledgeGraph = () => {
                 metadata={{ papers: papers.length }}
                 size="sm"
                 variant="ghost"
+                linked={linkedGraphIds.has(searchQuery)}
               />
               <RegisterOutputButton
                 defaultTitle={locale === "pt" ? `Mapa de citações: ${searchQuery}` : `Citation map: ${searchQuery}`}

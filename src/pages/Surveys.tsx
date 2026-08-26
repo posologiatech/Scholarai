@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
 import { createSurveyAnalysisTask } from "@/lib/research/integrations";
 
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ const Surveys = () => {
   const { locale } = useLanguage();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const linkedSurveyIds = useProjectLinkedIds("survey");
   const [search, setSearch] = useState("");
 
   const { data: surveys = [], isLoading } = useQuery({
@@ -205,6 +207,7 @@ const Surveys = () => {
                           label={survey.title}
                           attachTable="surveys"
                           variant="ghost"
+                          linked={linkedSurveyIds.has(survey.id)}
                           metadata={{ status: survey.status }}
                           onLinked={async (projectId) => {
                             if (["completed", "closed", "encerrada", "concluida"].includes(String(survey.status))) {

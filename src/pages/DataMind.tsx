@@ -40,6 +40,7 @@ import {
 import * as XLSX from "xlsx";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 import { RegisterOutputButton } from "@/components/research/RegisterOutputButton";
+import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
 
 export interface Conversation {
   id: string;
@@ -91,6 +92,7 @@ const DataMind = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { activeProjectId } = useActiveProject();
+  const linkedDataMindIds = useProjectLinkedIds("datamind");
   // Personal feature: only this account can route large-dataset execution to the
   // owner's home server. Real enforcement lives server-side in the edge function —
   // this is just for deciding what to show/attempt in the UI.
@@ -836,6 +838,7 @@ const DataMind = () => {
                   label={conversations.find((c) => c.id === conversationId)?.title || "Análise DataMind"}
                   attachTable="datamind_conversations"
                   variant="ghost"
+                  linked={linkedDataMindIds.has(conversationId)}
                 />
               )}
               {conversationId && messages.length > 0 && (

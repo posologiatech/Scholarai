@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
 import { importPapersToReferences } from "@/lib/research/integrations";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -33,6 +34,7 @@ const Library = () => {
   const pt = locale === "pt";
   const { user } = useAuth();
   const navigate = useNavigate();
+  const linkedSearchIds = useProjectLinkedIds("search");
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -221,6 +223,7 @@ const Library = () => {
                     label={s.query}
                     attachTable="saved_searches"
                     variant="ghost"
+                    linked={linkedSearchIds.has(s.id)}
                     metadata={{ papers: (s.papers as any[])?.length || 0 }}
                     onLinked={async (projectId) => {
                       try {

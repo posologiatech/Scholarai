@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Link2, ChevronDown, Check } from "lucide-react";
@@ -31,6 +32,7 @@ export function LinkToProjectButton({
   const { locale } = useLanguage();
   const pt = locale === "pt";
   const { activeProjectId, activeProjectTitle, setActiveProject } = useActiveProject();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(activeProjectId);
   const [projectTitle, setProjectTitle] = useState<string>(activeProjectTitle || "");
@@ -55,6 +57,7 @@ export function LinkToProjectButton({
         pt ? `Recurso vinculado: ${label}` : `Resource linked: ${label}`,
       );
       setActiveProject(pid, ptitle);
+      queryClient.invalidateQueries({ queryKey: ["project-links", pid, resourceType] });
       toast.success(pt ? `Vinculado a "${ptitle}"` : `Linked to "${ptitle}"`);
       onLinked?.(pid);
       setOpen(false);

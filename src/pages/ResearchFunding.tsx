@@ -15,11 +15,13 @@ import { ArrowLeft, Banknote, BellRing, BellOff, ExternalLink, Plus } from "luci
 import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "sonner";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
 
 const Inner = () => {
   const { locale } = useLanguage();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const linkedFundingIds = useProjectLinkedIds("funding");
   const [agency, setAgency] = useState<string>("all");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ agency: "CNPq", title: "", description: "", url: "", deadline: "", areas: "" });
@@ -142,6 +144,7 @@ const Inner = () => {
                       url={c.url || undefined}
                       variant="ghost"
                       metadata={{ agency: c.agency, deadline: c.deadline }}
+                      linked={linkedFundingIds.has(c.id)}
                     />
                     <Button size="icon" variant="ghost" onClick={() => toggleSub(c.id)} title={subscribed ? "Unfollow" : "Follow"}>
                       {subscribed ? <BellRing className="h-4 w-4 text-primary" /> : <BellOff className="h-4 w-4" />}

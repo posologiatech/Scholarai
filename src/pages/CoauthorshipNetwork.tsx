@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
 
 interface AuthorNode {
   id: string;
@@ -30,6 +31,7 @@ const CoauthorshipNetwork = () => {
   const pt = locale === "pt";
   const { user } = useAuth();
   const fgRef = useRef<ForceGraphMethods | undefined>();
+  const linkedCoauthorIds = useProjectLinkedIds("coauthorship");
 
   const [loading, setLoading] = useState(true);
   const [papers, setPapers] = useState<any[]>([]);
@@ -316,6 +318,7 @@ const CoauthorshipNetwork = () => {
               metadata={{ paperCount: selectedAuthor.paperCount }}
               variant="outline"
               size="sm"
+              linked={linkedCoauthorIds.has(selectedAuthor.id)}
             />
 
             <Button variant="ghost" size="sm" className="w-full" onClick={() => setSelectedAuthor(null)}>

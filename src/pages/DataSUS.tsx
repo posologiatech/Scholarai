@@ -23,6 +23,7 @@ import {
 import { EXAMPLE_QUERIES, TABNET_BASES } from "@/lib/datasus-catalog";
 import ReactMarkdown from "react-markdown";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
 
 interface ParsedTable {
   title: string;
@@ -78,6 +79,7 @@ export default function DataSUS() {
   const pyodide = usePyodide();
   const pyodideStatusRef = useRef(pyodide.status);
   const navigate = useNavigate();
+  const linkedDataSUSIds = useProjectLinkedIds("datasus");
 
   const [conversations, setConversations] = useState<DataSUSConversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -408,6 +410,7 @@ export default function DataSUS() {
               label={conversations.find((c) => c.id === activeConvId)?.title || "Análise DataSUS"}
               size="sm"
               variant="ghost"
+              linked={linkedDataSUSIds.has(activeConvId)}
             />
           )}
 

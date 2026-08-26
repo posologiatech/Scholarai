@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TasksBoard } from "@/components/research/TasksBoard";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
 
 interface Workspace {
   id: string;
@@ -72,6 +73,7 @@ const WorkspaceDetail = () => {
   const { locale } = useLanguage();
   const { user } = useAuth();
   const { canUse } = useSubscription();
+  const linkedWorkspaceIds = useProjectLinkedIds("workspace");
   const [showSummaryLimitDialog, setShowSummaryLimitDialog] = useState(false);
   const pt = locale === "pt";
 
@@ -423,6 +425,7 @@ const WorkspaceDetail = () => {
           label={workspace.name}
           size="sm"
           variant="ghost"
+          linked={linkedWorkspaceIds.has(workspace.id)}
         />
         <Badge variant="outline" className={`${roleColor(myRole)} text-xs`}>
           {myRole === "owner" && <Crown className="h-3 w-3 mr-1" />}

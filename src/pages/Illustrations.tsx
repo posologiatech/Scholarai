@@ -16,6 +16,7 @@ import IllustrationEditor from "@/components/app/IllustrationEditor";
 import IllustrationAnnotator from "@/components/app/IllustrationAnnotator";
 import IllustrationCommunity from "@/components/app/IllustrationCommunity";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
+import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
 import { RegisterOutputButton } from "@/components/research/RegisterOutputButton";
 import jsPDF from "jspdf";
 
@@ -51,6 +52,7 @@ const Illustrations = () => {
   const { locale } = useLanguage();
   const pt = locale === "pt";
   const { user } = useAuth();
+  const linkedIllustrationIds = useProjectLinkedIds("illustration");
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState("biorender");
   const [generating, setGenerating] = useState(false);
@@ -422,6 +424,7 @@ const Illustrations = () => {
                             metadata={{ category: item.category ?? null }}
                             size="sm"
                             variant="ghost"
+                            linked={linkedIllustrationIds.has(item.id)}
                           />
                           <RegisterOutputButton
                             defaultTitle={item.prompt.slice(0, 80)}
