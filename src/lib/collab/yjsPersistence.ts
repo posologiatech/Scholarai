@@ -2,8 +2,13 @@ import * as Y from "yjs";
 import { generateJSON, getSchema } from "@tiptap/core";
 import { prosemirrorJSONToYXmlFragment } from "@tiptap/y-tiptap";
 import StarterKit from "@tiptap/starter-kit";
+import { SectionHeading } from "@/lib/writing/sectionHeading";
+import { SuggestionInsertion } from "@/lib/writing/suggestionMarks";
 
-const SEED_EXTENSIONS = [StarterKit.configure({ history: false })];
+// Must mirror RichTextEditor's collaboration-branch extensions exactly — any node/mark
+// missing here gets silently stripped from existing HTML when a doc first goes collaborative
+// (e.g. a heading's data-section-id, or a pending suggestion's <ins data-suggestion-id>).
+const SEED_EXTENSIONS = [StarterKit.configure({ heading: false, history: false }), SectionHeading, SuggestionInsertion];
 
 /** Seeds an empty Y.Doc's default xml fragment from existing HTML — used the first time a
  * legacy (non-collaborative) document is opened in a collaborative session. */
