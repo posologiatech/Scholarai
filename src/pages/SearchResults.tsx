@@ -44,6 +44,8 @@ import { toast } from "sonner";
 import ColumnsPanel, { type ColumnDef } from "@/components/app/ColumnsPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useActiveProject } from "@/contexts/ActiveProjectContext";
+import { linkResource } from "@/lib/research/integrations";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -116,6 +118,7 @@ const SearchResults = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { activeProjectId } = useActiveProject();
   const { canUse } = useSubscription();
   const query = searchParams.get("q") || "";
   const [showLimitDialog, setShowLimitDialog] = useState(false);
@@ -572,15 +575,29 @@ const SearchResults = () => {
     }
     setSavingToLibrary(true);
     try {
-      const { error } = await supabase.from("saved_searches").insert({
+      const { data, error } = await supabase.from("saved_searches").insert({
         user_id: user.id,
         query,
         papers: filtered as any,
         columns: columns as any,
         column_data: columnData as any,
-      });
+        research_project_id: activeProjectId,
+      }).select("id").single();
       if (error) throw error;
-      toast.success(locale === "pt" ? "Salvo na biblioteca!" : "Saved to library!");
+      if (activeProjectId && data) {
+        await linkResource({
+          projectId: activeProjectId,
+          resourceType: "search",
+          resourceId: data.id,
+          label: query,
+          metadata: { papers: filtered.length },
+        });
+      }
+      toast.success(
+        activeProjectId
+          ? (locale === "pt" ? `Salvo e vinculado ao projeto ativo!` : `Saved and linked to the active project!`)
+          : (locale === "pt" ? "Salvo na biblioteca!" : "Saved to library!"),
+      );
     } catch (err: any) {
       console.error("Save error:", err);
       toast.error(locale === "pt" ? "Erro ao salvar" : "Failed to save");

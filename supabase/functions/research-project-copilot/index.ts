@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
       { data: schedule },
       { data: refs },
       { data: ideas },
+      { data: links },
     ] = await Promise.all([
       supabase.from("research_projects").select("*").eq("id", project_id).single(),
       supabase.from("research_project_members").select("full_name,role,invited_email").eq("project_id", project_id),
@@ -49,6 +50,11 @@ Deno.serve(async (req) => {
       supabase.from("research_schedule_items").select("title,description,phase,status,start_date,end_date,progress,is_milestone,predecessor_id").eq("project_id", project_id).order("start_date", { nullsFirst: false }),
       supabase.from("research_project_references").select("title,authors,year,doi,external_paper_id").eq("project_id", project_id).limit(60),
       supabase.from("research_ideas").select("title,description").eq("project_id", project_id).limit(20),
+      // Every module resource explicitly linked to this project (illustrations, knowledge
+      // graph explorations, DataSUS analyses, workspaces, funding calls, etc.) — the same
+      // data the Connections tab shows, so the copilot's knowledge matches what the
+      // researcher sees as "part of this project".
+      supabase.from("research_project_links").select("resource_type,label,url,metadata,created_at").eq("project_id", project_id).order("created_at", { ascending: false }),
     ]);
 
     if (!project) {
@@ -123,6 +129,28 @@ Deno.serve(async (req) => {
       ideas.forEach((i: any) => lines.push(`- ${i.title}${i.description ? ": " + clip(i.description, 200) : ""}`));
     }
 
+    if (links?.length) {
+      const TYPE_LABEL: Record<string, string> = {
+        search: "Buscas salvas", library: "Referências da Biblioteca",
+        datamind: "Análises DataMind", writing: "Documentos de escrita",
+        survey: "Pesquisas de coleta (surveys)", systematic_review: "Revisões sistemáticas",
+        meta_analysis: "Meta-análises", funding: "Editais de fomento vinculados",
+        knowledge_graph: "Mapas de conhecimento explorados", illustration: "Ilustrações",
+        coauthorship: "Coautores/colaboradores mapeados", datasus: "Análises DataSUS",
+        reference_check: "Checagens de referência", workspace: "Workspaces vinculados",
+      };
+      const grouped: Record<string, any[]> = {};
+      links.forEach((l: any) => { (grouped[l.resource_type] ||= []).push(l); });
+      lines.push(`\n## OUTROS RECURSOS VINCULADOS AO PROJETO`);
+      for (const [type, items] of Object.entries(grouped)) {
+        lines.push(`\n### ${TYPE_LABEL[type] ?? type} (${items.length})`);
+        items.slice(0, 15).forEach((it: any) => {
+          const meta = it.metadata && Object.keys(it.metadata).length ? ` (${JSON.stringify(it.metadata)})` : "";
+          lines.push(`- ${it.label || "(sem título)"}${meta}`);
+        });
+      }
+    }
+
     // ===== RAG sobre os papers da Biblioteca vinculados =====
     const lastUserMsg = [...messages].reverse().find((m: Msg) => m.role === "user")?.content ?? "";
     if (lastUserMsg && refs?.some((r: any) => r.external_paper_id)) {
@@ -155,7 +183,7 @@ Deno.serve(async (req) => {
     const lang = locale === "en" ? "English" : "Português (pt-BR)";
     const system: Msg = {
       role: "system",
-      content: `Você é o Copiloto de Pesquisa deste projeto. Tem memória total do projeto via o CONTEXTO abaixo (visão geral, equipe, tarefas, reuniões/atas, cronograma, referências, ideias).
+      content: `Você é o Copiloto de Pesquisa deste projeto. Tem memória total do projeto via o CONTEXTO abaixo (visão geral, equipe, tarefas, reuniões/atas, cronograma, referências, ideias, e todo recurso de outros módulos vinculado ao projeto — ilustrações, mapas de conhecimento, análises DataSUS, workspaces, editais, etc.).
 
 Princípios obrigatórios:
 - ZERO FABRICAÇÃO. Se algo não está no contexto, responda explicitamente "Não consta no projeto" e proponha onde registrar.

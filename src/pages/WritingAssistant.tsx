@@ -42,7 +42,7 @@ import * as Y from "yjs";
 import type { SupabaseYjsProvider } from "@/lib/collab/supabaseYjsProvider";
 import { bytesToPgHex, pgHexToBytes } from "@/lib/collab/yjsPersistence";
 import { colorFromId } from "@/lib/collab/presenceColor";
-import { promoteWritingToPublication } from "@/lib/research/integrations";
+import { promoteWritingToPublication, linkResource } from "@/lib/research/integrations";
 import { useActiveProject } from "@/contexts/ActiveProjectContext";
 interface Paper {
   id: string;
@@ -541,19 +541,35 @@ const WritingAssistant = () => {
             content: editorContent,
             section: selectedSection,
             citation_style: citationStyle,
+            research_project_id: activeProjectId,
           })
           .select("id")
           .single();
-        if (data) setCurrentDocId(data.id);
+        if (data) {
+          setCurrentDocId(data.id);
+          setResearchProjectId(activeProjectId);
+          if (activeProjectId) {
+            await linkResource({
+              projectId: activeProjectId,
+              resourceType: "writing",
+              resourceId: data.id,
+              label: title,
+            });
+          }
+        }
       }
-      toast.success(pt ? "Documento salvo" : "Document saved");
+      toast.success(
+        !currentDocId && activeProjectId
+          ? (pt ? `Documento salvo e vinculado ao projeto ativo` : `Document saved and linked to the active project`)
+          : (pt ? "Documento salvo" : "Document saved"),
+      );
       loadDocuments();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setIsSaving(false);
     }
-  }, [user, editorContent, docTitle, currentDocId, selectedSection, citationStyle, pt, loadDocuments, maybeSnapshotVersion]);
+  }, [user, editorContent, docTitle, currentDocId, selectedSection, citationStyle, activeProjectId, pt, loadDocuments, maybeSnapshotVersion]);
 
   const loadDocument = useCallback((doc: WritingDocument) => {
     setCurrentDocId(doc.id);

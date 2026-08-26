@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useActiveProject } from "@/contexts/ActiveProjectContext";
+import { linkResource } from "@/lib/research/integrations";
 import { useSubscription } from "@/hooks/useSubscription";
 import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 import { supabase } from "@/integrations/supabase/client";
@@ -88,6 +90,7 @@ const DataMind = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { activeProjectId } = useActiveProject();
   // Personal feature: only this account can route large-dataset execution to the
   // owner's home server. Real enforcement lives server-side in the edge function —
   // this is just for deciding what to show/attempt in the UI.
@@ -270,12 +273,20 @@ const DataMind = () => {
     if (!user) return null;
     const { data, error } = await supabase
       .from("datamind_conversations")
-      .insert({ user_id: user.id, title: title || "Nova análise" })
+      .insert({ user_id: user.id, title: title || "Nova análise", research_project_id: activeProjectId })
       .select()
       .single();
     if (error) {
       toast({ title: "Erro ao criar conversa", variant: "destructive" });
       return null;
+    }
+    if (activeProjectId) {
+      await linkResource({
+        projectId: activeProjectId,
+        resourceType: "datamind",
+        resourceId: data.id,
+        label: data.title,
+      });
     }
     setConversations((prev) => [data, ...prev]);
     navigate(`/datamind/${data.id}`);
