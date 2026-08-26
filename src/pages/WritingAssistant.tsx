@@ -1412,12 +1412,12 @@ const WritingAssistant = () => {
             headings={headings}
             selectedSection={selectedSection}
             onSelectSection={setSelectedSection}
-            onNavigate={(pos) => editorRef.current?.focusAt(pos)}
+            onNavigate={(pos) => editorRef.current?.focusAt(pos + 1)}
             onInsertSkeleton={handleInsertSkeleton}
             pt={pt}
           />
           {/* Editor */}
-          <div className="flex-1 flex flex-col border-r border-border/30">
+          <div className="flex-1 min-w-0 flex flex-col border-r border-border/30">
             <div
               className="flex-1 overflow-y-auto shadow-inner shadow-muted/20"
               style={{
@@ -1501,7 +1501,7 @@ const WritingAssistant = () => {
                   <div className="px-4 pb-2 space-y-1">
                     {suggestions.map((s) => (
                       <div key={s.suggestionId} className="flex items-center gap-2 rounded-md bg-background/60 border border-border/40 px-2 py-1">
-                        <span className="flex-1 truncate text-xs text-foreground/80">{s.text || "…"}</span>
+                        <span className="flex-1 min-w-0 truncate text-xs text-foreground/80">{s.text || "…"}</span>
                         <button
                           className="text-emerald-600 hover:text-emerald-700"
                           title={pt ? "Aceitar" : "Accept"}
@@ -1576,7 +1576,7 @@ const WritingAssistant = () => {
           </div>
 
           {/* Right panel: AI Output or CAPES Advisor */}
-          <div className="w-[45%] flex flex-col bg-gradient-to-b from-primary/[0.02] to-accent/[0.02]">
+          <div className="w-[45%] shrink-0 flex flex-col bg-gradient-to-b from-primary/[0.02] to-accent/[0.02]">
             {/* Explicit tab strip — two views of the same panel */}
             <div className="h-10 shrink-0 border-b border-border/20 flex items-center px-2 gap-1 bg-muted/30">
               <button

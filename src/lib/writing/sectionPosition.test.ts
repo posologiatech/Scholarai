@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { SectionHeading } from "./sectionHeading";
@@ -17,6 +17,10 @@ describe("sectionPosition", () => {
 
   beforeEach(() => {
     editor = makeEditor();
+  });
+
+  afterEach(() => {
+    editor.destroy();
   });
 
   it("inserts a heading for a section that doesn't exist yet, at doc end", () => {
