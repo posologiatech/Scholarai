@@ -346,6 +346,16 @@ const ConsentBuilder = ({ surveyId }: ConsentBuilderProps) => {
           </div>
         </div>
 
+        {/* First-time explainer */}
+        <div className="flex items-start gap-2 p-3 border rounded-lg bg-primary/5 border-primary/20 text-sm">
+          <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+          <p className="text-muted-foreground">
+            {locale === "pt"
+              ? "O TCLE é o documento que cada participante lê e assina antes de responder ao estudo. As seções abaixo já vêm com um modelo pronto conforme as exigências do CEP — edite o conteúdo, preencha os dados de contato do pesquisador e clique em \"Salvar TCLE\" para publicar."
+              : "The consent form (TCLE) is what each participant reads and signs before answering the study. The sections below start from a template that meets ethics committee requirements — edit the content, fill in the researcher's contact details, and click \"Save Consent\" to publish it."}
+          </p>
+        </div>
+
         {/* Readability indicator (Art. 2.1-II CONEP) */}
         {fullText.trim().length > 50 && (
           <div className={`flex items-center gap-2 p-3 border rounded-lg text-sm ${

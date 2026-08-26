@@ -5,7 +5,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import OnboardingDialog from "@/components/app/OnboardingDialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Clock, ArrowRight, Sparkles, BookOpen, Table, FileText, Palette, ClipboardList } from "lucide-react";
+import { Search, Clock, ArrowRight, Sparkles, BookOpen, Table, FileText, Palette, ClipboardList, ListChecks } from "lucide-react";
 import QuestionEvaluator, { type Evaluation } from "@/components/app/QuestionEvaluator";
 
 const Dashboard = () => {
@@ -177,6 +177,7 @@ const Dashboard = () => {
                 { icon: FileText, label: t("dashboard.action.reports"), href: "/reports" },
                 { icon: Palette, label: t("dashboard.action.illustrations"), href: "/illustrations" },
                 { icon: ClipboardList, label: locale === "pt" ? "Revisão Sistemática" : "Systematic Review", href: "/systematic-review" },
+                { icon: ListChecks, label: t("nav.surveys"), href: "/surveys" },
               ].map((action) => (
                 <button
                   key={action.href}

@@ -49,10 +49,15 @@ const AuditLogPanel = ({ surveyId }: { surveyId: string }) => {
       <Card>
         <CardContent className="pt-6 text-center">
           <Shield className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm font-medium text-muted-foreground">
             {locale === "pt"
-              ? "Nenhum evento registrado na trilha de auditoria"
-              : "No events recorded in the audit trail"}
+              ? "Nenhum evento registrado ainda"
+              : "No events recorded yet"}
+          </p>
+          <p className="text-xs text-muted-foreground/70 mt-1 max-w-sm mx-auto">
+            {locale === "pt"
+              ? "Esta trilha registra automaticamente assinaturas de TCLE, edições de respostas e verificações de integridade (GCP/CEP). Os eventos aparecem aqui assim que participantes começarem a responder ou dados forem alterados."
+              : "This trail automatically logs consent signatures, answer edits, and integrity checks (GCP/IRB). Events will appear here once participants start responding or data is changed."}
           </p>
         </CardContent>
       </Card>
