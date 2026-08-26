@@ -516,6 +516,7 @@ const WritingAssistant = () => {
     if (!user || isContentEmpty(editorContent)) return;
     setIsSaving(true);
     const title = docTitle.trim() || (pt ? "Sem título" : "Untitled");
+    let justLinked = false;
     try {
       if (currentDocId) {
         const payload: Record<string, unknown> = {
@@ -527,10 +528,25 @@ const WritingAssistant = () => {
         if (ydocRef.current) {
           payload.yjs_state = bytesToPgHex(Y.encodeStateAsUpdate(ydocRef.current));
         }
+        // Auto-save runs every 30s and creates the row long before the user might pick
+        // an active project — so linking can't be a one-time thing done only at insert.
+        // Any save of an unlinked document with an active project selected links it.
+        const shouldAutoLink = !researchProjectId && !!activeProjectId;
+        if (shouldAutoLink) payload.research_project_id = activeProjectId;
         await supabase
           .from("writing_documents")
           .update(payload)
           .eq("id", currentDocId);
+        if (shouldAutoLink) {
+          setResearchProjectId(activeProjectId);
+          await linkResource({
+            projectId: activeProjectId as string,
+            resourceType: "writing",
+            resourceId: currentDocId,
+            label: title,
+          });
+          justLinked = true;
+        }
         maybeSnapshotVersion(currentDocId, editorContent);
       } else {
         const { data } = await supabase
@@ -555,11 +571,12 @@ const WritingAssistant = () => {
               resourceId: data.id,
               label: title,
             });
+            justLinked = true;
           }
         }
       }
       toast.success(
-        !currentDocId && activeProjectId
+        justLinked
           ? (pt ? `Documento salvo e vinculado ao projeto ativo` : `Document saved and linked to the active project`)
           : (pt ? "Documento salvo" : "Document saved"),
       );
@@ -569,7 +586,7 @@ const WritingAssistant = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [user, editorContent, docTitle, currentDocId, selectedSection, citationStyle, activeProjectId, pt, loadDocuments, maybeSnapshotVersion]);
+  }, [user, editorContent, docTitle, currentDocId, selectedSection, citationStyle, activeProjectId, researchProjectId, pt, loadDocuments, maybeSnapshotVersion]);
 
   const loadDocument = useCallback((doc: WritingDocument) => {
     setCurrentDocId(doc.id);
@@ -1255,6 +1272,7 @@ const WritingAssistant = () => {
                   url={`/writing?docId=${currentDocId}`}
                   attachTable="writing_documents"
                   variant="ghost"
+                  linked={!!researchProjectId && researchProjectId === activeProjectId}
                   metadata={{ section: selectedSection }}
                   onLinked={async (projectId) => {
                     setResearchProjectId(projectId);

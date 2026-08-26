@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Link2, ChevronDown } from "lucide-react";
+import { Link2, ChevronDown, Check } from "lucide-react";
 import { toast } from "sonner";
 import { ProjectPicker } from "./ProjectPicker";
 import { linkResource, attachEntityToProject, notifyProject } from "@/lib/research/integrations";
@@ -21,10 +21,12 @@ interface Props {
   size?: "sm" | "default";
   variant?: "outline" | "secondary" | "ghost" | "default";
   onLinked?: (projectId: string) => void;
+  /** When true, shows an "already linked" confirmation instead of the action prompt. */
+  linked?: boolean;
 }
 
 export function LinkToProjectButton({
-  resourceType, resourceId, label, url, attachTable, metadata, size = "sm", variant = "outline", onLinked,
+  resourceType, resourceId, label, url, attachTable, metadata, size = "sm", variant = "outline", onLinked, linked = false,
 }: Props) {
   const { locale } = useLanguage();
   const pt = locale === "pt";
@@ -74,20 +76,23 @@ export function LinkToProjectButton({
     link(projectId, projectTitle);
   };
 
-  const mainLabel = activeProjectId
-    ? (pt ? `Vincular a "${activeProjectTitle}"` : `Link to "${activeProjectTitle}"`)
-    : (pt ? "Vincular a projeto" : "Link to project");
+  const mainLabel = linked && activeProjectId
+    ? (pt ? `Vinculado a "${activeProjectTitle}"` : `Linked to "${activeProjectTitle}"`)
+    : activeProjectId
+      ? (pt ? `Vincular a "${activeProjectTitle}"` : `Link to "${activeProjectTitle}"`)
+      : (pt ? "Vincular a projeto" : "Link to project");
 
   return (
     <div className="inline-flex">
       <Button
         size={size}
-        variant={variant}
-        className={cn("gap-1.5 max-w-[220px]", activeProjectId && "rounded-r-none")}
+        variant={linked ? "ghost" : variant}
+        className={cn("gap-1.5 max-w-[220px]", activeProjectId && "rounded-r-none", linked && "text-muted-foreground hover:text-foreground")}
         onClick={handleMainClick}
         disabled={saving}
+        title={linked ? (pt ? "Já vinculado — clique para vincular novamente" : "Already linked — click to re-link") : undefined}
       >
-        <Link2 className="h-4 w-4 shrink-0" />
+        {linked ? <Check className="h-4 w-4 shrink-0 text-emerald-600" /> : <Link2 className="h-4 w-4 shrink-0" />}
         <span className="truncate">{saving ? "..." : mainLabel}</span>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
