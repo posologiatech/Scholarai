@@ -202,6 +202,8 @@
   font-family: ui-serif, Georgia, "Times New Roman", serif;
   font-size: 0.875rem;
   line-height: 1.9;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .writing-editor-prose p {
