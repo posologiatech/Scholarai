@@ -27,8 +27,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText, UsersRound } from "lucide-react";
-
-const TabDivider = () => <div className="w-px h-5 bg-border mx-1 shrink-0" />;
 import { toast } from "sonner";
 
 type BuilderView = "build" | "consent" | "visits" | "participants" | "compliance" | "team" | "flow" | "distribute" | "results" | "preview";
@@ -188,61 +186,66 @@ const SurveyBuilder = () => {
           className="max-w-xs border-none shadow-none text-base font-semibold focus-visible:ring-0 px-1"
         />
         <Tabs value={currentView} className="ml-auto">
-          <TabsList className="h-9 flex-wrap">
+          <TabsList className="h-auto flex-wrap items-center gap-1.5 bg-transparent p-0">
             {/* Cluster: Montar */}
-            <TabsTrigger value="build" className="text-xs" onClick={() => navigate(`/surveys/${id}/build`)}>
-              <Hammer className="h-3 w-3 mr-1" />
-              {locale === "pt" ? "Construir" : "Build"}
-            </TabsTrigger>
-            <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
-              <GitBranch className="h-3 w-3 mr-1" />
-              {locale === "pt" ? "Fluxo" : "Flow"}
-            </TabsTrigger>
-            <TabsTrigger value="preview" className="text-xs" onClick={() => navigate(`/surveys/${id}/preview`)}>
-              <Eye className="h-3 w-3 mr-1" />
-              {locale === "pt" ? "Prévia" : "Preview"}
-            </TabsTrigger>
+            <div className="flex items-center gap-0.5 rounded-md bg-muted p-1">
+              <TabsTrigger value="build" className="text-xs" onClick={() => navigate(`/surveys/${id}/build`)}>
+                <Hammer className="h-3 w-3 mr-1" />
+                {locale === "pt" ? "Construir" : "Build"}
+              </TabsTrigger>
+              <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
+                <GitBranch className="h-3 w-3 mr-1" />
+                {locale === "pt" ? "Fluxo" : "Flow"}
+              </TabsTrigger>
+              <TabsTrigger value="preview" className="text-xs" onClick={() => navigate(`/surveys/${id}/preview`)}>
+                <Eye className="h-3 w-3 mr-1" />
+                {locale === "pt" ? "Prévia" : "Preview"}
+              </TabsTrigger>
+            </div>
 
             {!isQuick && (
               <>
-                <TabDivider />
                 {/* Cluster: Ética & Participantes */}
-                <TabsTrigger value="consent" className="text-xs" onClick={() => navigate(`/surveys/${id}/consent`)}>
-                  <ShieldCheck className="h-3 w-3 mr-1" />
-                  TCLE
-                </TabsTrigger>
-                <TabsTrigger value="visits" className="text-xs" onClick={() => navigate(`/surveys/${id}/visits`)}>
-                  <Calendar className="h-3 w-3 mr-1" />
-                  {locale === "pt" ? "Visitas" : "Visits"}
-                </TabsTrigger>
-                <TabsTrigger value="participants" className="text-xs" onClick={() => navigate(`/surveys/${id}/participants`)}>
-                  <Users className="h-3 w-3 mr-1" />
-                  {locale === "pt" ? "Participantes" : "Participants"}
-                </TabsTrigger>
-                <TabsTrigger value="compliance" className="text-xs" onClick={() => navigate(`/surveys/${id}/compliance`)}>
-                  <FileText className="h-3 w-3 mr-1" />
-                  {locale === "pt" ? "Conformidade" : "Compliance"}
-                </TabsTrigger>
+                <div className="flex items-center gap-0.5 rounded-md bg-muted p-1">
+                  <TabsTrigger value="consent" className="text-xs" onClick={() => navigate(`/surveys/${id}/consent`)}>
+                    <ShieldCheck className="h-3 w-3 mr-1" />
+                    TCLE
+                  </TabsTrigger>
+                  <TabsTrigger value="visits" className="text-xs" onClick={() => navigate(`/surveys/${id}/visits`)}>
+                    <Calendar className="h-3 w-3 mr-1" />
+                    {locale === "pt" ? "Visitas" : "Visits"}
+                  </TabsTrigger>
+                  <TabsTrigger value="participants" className="text-xs" onClick={() => navigate(`/surveys/${id}/participants`)}>
+                    <Users className="h-3 w-3 mr-1" />
+                    {locale === "pt" ? "Participantes" : "Participants"}
+                  </TabsTrigger>
+                  <TabsTrigger value="compliance" className="text-xs" onClick={() => navigate(`/surveys/${id}/compliance`)}>
+                    <FileText className="h-3 w-3 mr-1" />
+                    {locale === "pt" ? "Conformidade" : "Compliance"}
+                  </TabsTrigger>
+                </div>
 
-                <TabDivider />
                 {/* Cluster: Equipe */}
-                <TabsTrigger value="team" className="text-xs" onClick={() => navigate(`/surveys/${id}/team`)}>
-                  <UsersRound className="h-3 w-3 mr-1" />
-                  {locale === "pt" ? "Equipe" : "Team"}
-                </TabsTrigger>
+                <div className="flex items-center gap-0.5 rounded-md bg-muted p-1">
+                  <TabsTrigger value="team" className="text-xs" onClick={() => navigate(`/surveys/${id}/team`)}>
+                    <UsersRound className="h-3 w-3 mr-1" />
+                    {locale === "pt" ? "Equipe" : "Team"}
+                  </TabsTrigger>
+                </div>
               </>
             )}
 
-            <TabDivider />
             {/* Cluster: Publicar & Resultados */}
-            <TabsTrigger value="distribute" className="text-xs" onClick={() => navigate(`/surveys/${id}/distribute`)}>
-              <Send className="h-3 w-3 mr-1" />
-              {locale === "pt" ? "Distribuir" : "Distribute"}
-            </TabsTrigger>
-            <TabsTrigger value="results" className="text-xs" onClick={() => navigate(`/surveys/${id}/results`)}>
-              <BarChart3 className="h-3 w-3 mr-1" />
-              {locale === "pt" ? "Resultados" : "Results"}
-            </TabsTrigger>
+            <div className="flex items-center gap-0.5 rounded-md bg-muted p-1">
+              <TabsTrigger value="distribute" className="text-xs" onClick={() => navigate(`/surveys/${id}/distribute`)}>
+                <Send className="h-3 w-3 mr-1" />
+                {locale === "pt" ? "Distribuir" : "Distribute"}
+              </TabsTrigger>
+              <TabsTrigger value="results" className="text-xs" onClick={() => navigate(`/surveys/${id}/results`)}>
+                <BarChart3 className="h-3 w-3 mr-1" />
+                {locale === "pt" ? "Resultados" : "Results"}
+              </TabsTrigger>
+            </div>
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2 ml-4">
