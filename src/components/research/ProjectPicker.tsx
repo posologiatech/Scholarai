@@ -30,9 +30,9 @@ export function ProjectPicker({ value, onChange, placeholder, className }: Props
           aria-expanded={open}
           className={cn("w-full justify-between font-normal", className)}
         >
-          <span className="flex items-center gap-2 truncate">
+          <span className="flex min-w-0 items-center gap-2">
             <FolderGit2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="truncate">
+            <span className="min-w-0 truncate">
               {selected?.title || placeholder || (locale === "pt" ? "Selecionar projeto..." : "Select project...")}
             </span>
           </span>
@@ -59,9 +59,10 @@ export function ProjectPicker({ value, onChange, placeholder, className }: Props
                   key={p.id}
                   value={p.title}
                   onSelect={() => { onChange(p.id, p.title); setOpen(false); }}
+                  className="min-w-0"
                 >
-                  <Check className={cn("mr-2 h-4 w-4", value === p.id ? "opacity-100" : "opacity-0")} />
-                  <span className="truncate">{p.title}</span>
+                  <Check className={cn("mr-2 h-4 w-4 shrink-0", value === p.id ? "opacity-100" : "opacity-0")} />
+                  <span className="min-w-0 truncate">{p.title}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
