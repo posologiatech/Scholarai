@@ -100,6 +100,12 @@ interface SurveyBuilderState {
   activeBlockId: string | null;
   activeQuestionId: string | null;
   isDirty: boolean;
+  // Ids removed locally since the last load/save — the autosave in SurveyBuilder.tsx only
+  // upserts what's currently in the store, so without tracking these separately a removed
+  // block/question/rule would vanish from the UI but its row would live on in Supabase forever.
+  deletedBlockIds: string[];
+  deletedQuestionIds: string[];
+  deletedLogicRuleIds: string[];
 
   // Survey
   setSurvey: (survey: Survey) => void;
@@ -143,6 +149,9 @@ export const useSurveyStore = create<SurveyBuilderState>((set, get) => ({
   activeBlockId: null,
   activeQuestionId: null,
   isDirty: false,
+  deletedBlockIds: [],
+  deletedQuestionIds: [],
+  deletedLogicRuleIds: [],
 
   setSurvey: (survey) => set({ survey }),
   updateSurveyField: (field, value) =>
@@ -182,6 +191,9 @@ export const useSurveyStore = create<SurveyBuilderState>((set, get) => ({
       blocks: s.blocks.filter((b) => b.id !== blockId),
       questions: s.questions.filter((q) => q.block_id !== blockId),
       activeBlockId: s.activeBlockId === blockId ? null : s.activeBlockId,
+      // Deleting the block row cascades to its questions/rules in the DB, so those don't
+      // need to be tracked separately here.
+      deletedBlockIds: [...s.deletedBlockIds, blockId],
       isDirty: true,
     })),
   reorderBlocks: (blockIds) =>
@@ -284,6 +296,7 @@ export const useSurveyStore = create<SurveyBuilderState>((set, get) => ({
     set((s) => ({
       questions: s.questions.filter((q) => q.id !== questionId),
       activeQuestionId: s.activeQuestionId === questionId ? null : s.activeQuestionId,
+      deletedQuestionIds: [...s.deletedQuestionIds, questionId],
       isDirty: true,
     })),
   reorderQuestions: (blockId, questionIds) =>
@@ -323,6 +336,7 @@ export const useSurveyStore = create<SurveyBuilderState>((set, get) => ({
   removeLogicRule: (ruleId) =>
     set((s) => ({
       logicRules: s.logicRules.filter((r) => r.id !== ruleId),
+      deletedLogicRuleIds: [...s.deletedLogicRuleIds, ruleId],
       isDirty: true,
     })),
 
@@ -335,6 +349,12 @@ export const useSurveyStore = create<SurveyBuilderState>((set, get) => ({
       activeBlockId: null,
       activeQuestionId: null,
       isDirty: false,
+      deletedBlockIds: [],
+      deletedQuestionIds: [],
+      deletedLogicRuleIds: [],
     }),
-  markClean: () => set({ isDirty: false }),
+  // Called both after a successful save (the pending deletes are now real in the DB) and
+  // right after loading fresh data (nothing pending yet) — both cases mean "no local deletes
+  // still owed to Supabase".
+  markClean: () => set({ isDirty: false, deletedBlockIds: [], deletedQuestionIds: [], deletedLogicRuleIds: [] }),
 }));

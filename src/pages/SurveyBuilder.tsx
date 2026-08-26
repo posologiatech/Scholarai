@@ -20,6 +20,8 @@ import VisitManager from "@/components/survey/ecrf/VisitManager";
 import ParticipantList from "@/components/survey/ecrf/ParticipantList";
 import ComplianceDocuments from "@/components/survey/compliance/ComplianceDocuments";
 import SurveyTeamTab from "@/components/survey/team/SurveyTeamTab";
+import VersionHistoryPanel from "@/components/survey/builder/VersionHistoryPanel";
+import { createSurveyVersion } from "@/lib/survey/versionHistory";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -29,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText, UsersRound, Rocket, Lock, Loader2, Check } from "lucide-react";
+import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText, UsersRound, Rocket, Lock, Loader2, Check, History } from "lucide-react";
 import { toast } from "sonner";
 import { createSurveyAnalysisTask } from "@/lib/research/integrations";
 
@@ -39,13 +41,13 @@ const STATUS_BADGE: Record<string, string> = {
   closed: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
-type BuilderView = "build" | "consent" | "visits" | "participants" | "compliance" | "team" | "flow" | "distribute" | "results" | "preview";
+type BuilderView = "build" | "consent" | "visits" | "participants" | "compliance" | "team" | "flow" | "distribute" | "results" | "preview" | "history";
 
 // Distribute/Results can carry a sub-tab segment (e.g. /distribute/email), so match the
 // view keyword anywhere in the path rather than requiring it to be the final segment.
 const getViewFromPath = (pathname: string): BuilderView => {
   const match = pathname.match(
-    /\/surveys\/[^/]+\/(consent|visits|participants|compliance|team|flow|distribute|results|preview)(?:\/|$)/
+    /\/surveys\/[^/]+\/(consent|visits|participants|compliance|team|flow|distribute|results|preview|history)(?:\/|$)/
   );
   return (match?.[1] as BuilderView) ?? "build";
 };
@@ -105,6 +107,21 @@ const SurveyBuilder = () => {
         })
         .eq("id", store.survey.id);
 
+      // Deletes first — a removed block cascades away its own questions/rules in the DB, so
+      // this has to land before the upserts below would otherwise resurrect a question that
+      // still exists locally in a *different* block's stale reference. In practice order
+      // rarely matters (each list is independent), but doing deletes first keeps the DB
+      // never briefly further out of sync with the store than it already was.
+      if (store.deletedBlockIds.length) {
+        await supabase.from("survey_blocks").delete().in("id", store.deletedBlockIds);
+      }
+      if (store.deletedQuestionIds.length) {
+        await supabase.from("survey_questions").delete().in("id", store.deletedQuestionIds);
+      }
+      if (store.deletedLogicRuleIds.length) {
+        await supabase.from("survey_logic_rules").delete().in("id", store.deletedLogicRuleIds);
+      }
+
       for (const block of store.blocks) {
         await supabase.from("survey_blocks").upsert(block, { onConflict: "id" });
       }
@@ -119,7 +136,16 @@ const SurveyBuilder = () => {
     } catch {
       toast.error("Failed to save");
     }
-  }, [store.survey, store.blocks, store.questions, store.logicRules, store.isDirty]);
+  }, [
+    store.survey,
+    store.blocks,
+    store.questions,
+    store.logicRules,
+    store.isDirty,
+    store.deletedBlockIds,
+    store.deletedQuestionIds,
+    store.deletedLogicRuleIds,
+  ]);
 
   useEffect(() => {
     if (!store.isDirty) return;
@@ -132,6 +158,13 @@ const SurveyBuilder = () => {
 
   const changeStatus = useMutation({
     mutationFn: async (newStatus: "active" | "closed") => {
+      // Flush pending edits first, then checkpoint exactly what's going live/closing — the
+      // single most valuable moment to have a version to roll back to.
+      await save();
+      await createSurveyVersion(store.survey!.id, newStatus === "active" ? "publish" : "close").catch(() => {
+        // A missed checkpoint shouldn't block publishing/closing the actual survey.
+      });
+
       const patch: Record<string, any> = { status: newStatus };
       if (newStatus === "active") patch.published_at = new Date().toISOString();
       if (newStatus === "closed") patch.closed_at = new Date().toISOString();
@@ -205,6 +238,8 @@ const SurveyBuilder = () => {
         return <SurveyResultsPanel surveyId={id!} />;
       case "preview":
         return <SurveyPreviewPanel />;
+      case "history":
+        return <VersionHistoryPanel surveyId={id!} onEnsureSaved={save} />;
       default:
         return (
           <div className="flex flex-col h-full">
@@ -363,6 +398,10 @@ const SurveyBuilder = () => {
               <TabsTrigger value="results" className="text-xs" onClick={() => navigate(`/surveys/${id}/results`)}>
                 <BarChart3 className="h-3 w-3 mr-1" />
                 {locale === "pt" ? "Resultados" : "Results"}
+              </TabsTrigger>
+              <TabsTrigger value="history" className="text-xs" onClick={() => navigate(`/surveys/${id}/history`)}>
+                <History className="h-3 w-3 mr-1" />
+                {locale === "pt" ? "Histórico" : "History"}
               </TabsTrigger>
             </div>
           </TabsList>
