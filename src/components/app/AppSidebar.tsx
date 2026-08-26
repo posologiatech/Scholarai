@@ -14,12 +14,14 @@ import {
   GraduationCap, Globe, LogOut, BookOpen, Table, FileText,
   LayoutDashboard, Shield, ShieldCheck, Palette, BrainCircuit,
   PanelLeftClose, PanelLeft, Network, Users, PenLine, BarChart3, Bell, ClipboardCheck, GitBranch,
-  ClipboardList, Activity, Rocket, FlaskConical, Award, LifeBuoy, Compass, X, Search,
+  ClipboardList, Activity, Rocket, FlaskConical, Award, LifeBuoy, Compass, X, Search, Menu,
 } from "lucide-react";
-import { useState, useMemo, type ComponentType } from "react";
+import { useState, useMemo, type ComponentType, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { PlanBadge } from "@/components/app/UsageMeter";
 import { AdminNotificationsBell } from "@/components/app/AdminNotificationsBell";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 interface NavItem {
   label: string;
@@ -38,7 +40,13 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
   const { setOpen: setPaletteOpen } = useCommandPalette();
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  // Icon-only collapse is a desktop affordance (reclaim width from a sidebar that's always
+  // there) — inside the mobile Sheet the sidebar is already an overlay you dismiss, so it
+  // always renders expanded there regardless of the desktop toggle's state.
+  const effectiveCollapsed = !isMobile && collapsed;
 
   const { data: activeProjectLinks = [] } = useQuery({
     queryKey: ["research-project-links", activeProjectId],
@@ -53,6 +61,7 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
   const toggleLocale = () => setLocale(locale === "pt" ? "en" : "pt");
 
   const handleSignOut = async () => {
+    setMobileOpen(false);
     await signOut();
     navigate("/");
   };
@@ -118,17 +127,18 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
       <Link
         key={link.href}
         to={link.href}
-        title={collapsed ? link.label : undefined}
+        title={effectiveCollapsed ? link.label : undefined}
+        onClick={() => setMobileOpen(false)}
         className={cn(
           "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
           isActive
             ? "bg-primary/10 text-primary"
             : "text-muted-foreground hover:bg-muted hover:text-foreground",
-          collapsed && "justify-center px-0"
+          effectiveCollapsed && "justify-center px-0"
         )}
       >
         <link.icon className="h-4 w-4 shrink-0" />
-        {!collapsed && (
+        {!effectiveCollapsed && (
           <span className="flex-1 min-w-0 flex items-center gap-1.5">
             <span className="truncate">{link.label}</span>
             {isLinked && (
@@ -143,132 +153,129 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
     );
   };
 
-  return (
-    <div className="flex min-h-screen w-full bg-background">
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "sticky top-0 z-40 flex h-screen flex-col border-r border-border/40 bg-background/95 backdrop-blur-sm transition-all duration-300",
-          collapsed ? "w-16" : "w-60"
-        )}
-      >
-        {/* Logo */}
-        <div className="flex h-14 items-center gap-2 border-b border-border/40 px-3">
-          <Link to="/dashboard" className="flex items-center gap-2 min-w-0">
-            <GraduationCap className="h-6 w-6 shrink-0 text-primary" />
-            {!collapsed && (
-              <span className="font-display text-lg font-bold text-foreground truncate">
-                ScholarAI
-              </span>
-            )}
-          </Link>
-        </div>
+  // Shared between the desktop sticky <aside> and the mobile off-canvas Sheet, so the two
+  // surfaces can't quietly drift apart into two different navs to maintain.
+  const sidebarBody: ReactNode = (
+    <>
+      {/* Logo */}
+      <div className="flex h-14 items-center gap-2 border-b border-border/40 px-3">
+        <Link to="/dashboard" className="flex items-center gap-2 min-w-0" onClick={() => setMobileOpen(false)}>
+          <GraduationCap className="h-6 w-6 shrink-0 text-primary" />
+          {!effectiveCollapsed && (
+            <span className="font-display text-lg font-bold text-foreground truncate">
+              ScholarAI
+            </span>
+          )}
+        </Link>
+      </div>
 
-        {/* Global search / command palette trigger */}
+      {/* Global search / command palette trigger */}
+      <div className="border-b border-border/40 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={() => { setPaletteOpen(true); setMobileOpen(false); }}
+          title={effectiveCollapsed ? (pt ? "Buscar (Ctrl+K)" : "Search (Ctrl+K)") : undefined}
+          className={cn(
+            "flex w-full items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            effectiveCollapsed && "justify-center px-0"
+          )}
+        >
+          <Search className="h-3.5 w-3.5 shrink-0" />
+          {!effectiveCollapsed && (
+            <>
+              <span className="flex-1 text-left">{pt ? "Buscar" : "Search"}</span>
+              <span className="rounded border border-border/60 px-1 text-[10px] font-medium">Ctrl+K</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Active project switcher */}
+      {!effectiveCollapsed && (
         <div className="border-b border-border/40 px-3 py-2.5">
-          <button
-            type="button"
-            onClick={() => setPaletteOpen(true)}
-            title={collapsed ? (pt ? "Buscar (Ctrl+K)" : "Search (Ctrl+K)") : undefined}
-            className={cn(
-              "flex w-full items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-              collapsed && "justify-center px-0"
+          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+            {pt ? "Projeto ativo" : "Active project"}
+          </p>
+          <div className="flex items-center gap-1">
+            <ProjectPicker
+              value={activeProjectId}
+              onChange={(id, title) => setActiveProject(id, title)}
+              placeholder={pt ? "Nenhum" : "None"}
+              className="h-8 text-xs"
+            />
+            {activeProjectId && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                title={pt ? "Limpar projeto ativo" : "Clear active project"}
+                onClick={() => setActiveProject(null)}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
             )}
-          >
-            <Search className="h-3.5 w-3.5 shrink-0" />
-            {!collapsed && (
-              <>
-                <span className="flex-1 text-left">{pt ? "Buscar" : "Search"}</span>
-                <span className="rounded border border-border/60 px-1 text-[10px] font-medium">Ctrl+K</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Active project switcher */}
-        {!collapsed && (
-          <div className="border-b border-border/40 px-3 py-2.5">
-            <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
-              {pt ? "Projeto ativo" : "Active project"}
-            </p>
-            <div className="flex items-center gap-1">
-              <ProjectPicker
-                value={activeProjectId}
-                onChange={(id, title) => setActiveProject(id, title)}
-                placeholder={pt ? "Nenhum" : "None"}
-                className="h-8 text-xs"
-              />
-              {activeProjectId && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-                  title={pt ? "Limpar projeto ativo" : "Clear active project"}
-                  onClick={() => setActiveProject(null)}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Nav links */}
-        <ScrollArea className="flex-1 py-2">
-          <nav className="flex flex-col gap-0.5 px-2">
-            {renderItem({ label: t("nav.dashboard"), href: "/dashboard", icon: LayoutDashboard })}
+      {/* Nav links */}
+      <ScrollArea className="flex-1 py-2">
+        <nav className="flex flex-col gap-0.5 px-2">
+          {renderItem({ label: t("nav.dashboard"), href: "/dashboard", icon: LayoutDashboard })}
 
-            {navGroups.map((group) => (
-              <div key={group.title} className="mt-3 first:mt-1">
-                {!collapsed && (
-                  <p className="px-3 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                    {group.title}
-                  </p>
-                )}
-                <div className="flex flex-col gap-0.5">
-                  {group.items.map(renderItem)}
-                </div>
-              </div>
-            ))}
-
-            <div className="mt-3 flex flex-col gap-0.5 border-t border-border/40 pt-2">
-              {footerLinks.map(renderItem)}
-            </div>
-          </nav>
-        </ScrollArea>
-
-        {/* Bottom section */}
-        <div className="border-t border-border/40 p-2 space-y-1">
-          {!collapsed && (
-            <Link to="/my-plan" className="block px-3 py-1 flex items-center justify-between hover:bg-muted/50 rounded-lg transition-colors">
-              {user?.email && (
-                <p className="text-xs text-muted-foreground truncate flex-1 mr-2">
-                  {user.email}
+          {navGroups.map((group) => (
+            <div key={group.title} className="mt-3 first:mt-1">
+              {!effectiveCollapsed && (
+                <p className="px-3 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                  {group.title}
                 </p>
               )}
-              <PlanBadge />
-            </Link>
-          )}
-          {!collapsed && (
-            <Link
-              to="/account/privacy"
-              className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded-lg transition-colors"
-            >
-              <ShieldCheck className="h-3.5 w-3.5" />
-              {t("nav.accountPrivacy")}
-            </Link>
-          )}
-          <div className={cn("flex gap-1", collapsed ? "flex-col items-center" : "")}>
-            <AdminNotificationsBell />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleLocale}
-              aria-label={t("nav.toggleLanguage")}
-              className="h-8 w-8"
-            >
-              <Globe className="h-4 w-4" />
-            </Button>
+              <div className="flex flex-col gap-0.5">
+                {group.items.map(renderItem)}
+              </div>
+            </div>
+          ))}
+
+          <div className="mt-3 flex flex-col gap-0.5 border-t border-border/40 pt-2">
+            {footerLinks.map(renderItem)}
+          </div>
+        </nav>
+      </ScrollArea>
+
+      {/* Bottom section */}
+      <div className="border-t border-border/40 p-2 space-y-1">
+        {!effectiveCollapsed && (
+          <Link to="/my-plan" className="block px-3 py-1 flex items-center justify-between hover:bg-muted/50 rounded-lg transition-colors" onClick={() => setMobileOpen(false)}>
+            {user?.email && (
+              <p className="text-xs text-muted-foreground truncate flex-1 mr-2">
+                {user.email}
+              </p>
+            )}
+            <PlanBadge />
+          </Link>
+        )}
+        {!effectiveCollapsed && (
+          <Link
+            to="/account/privacy"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded-lg transition-colors"
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            {t("nav.accountPrivacy")}
+          </Link>
+        )}
+        <div className={cn("flex gap-1", effectiveCollapsed ? "flex-col items-center" : "")}>
+          <AdminNotificationsBell />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleLocale}
+            aria-label={t("nav.toggleLanguage")}
+            className="h-8 w-8"
+          >
+            <Globe className="h-4 w-4" />
+          </Button>
+          {!isMobile && (
             <Button
               variant="ghost"
               size="icon"
@@ -277,28 +284,63 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
             >
               {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleSignOut}
-              aria-label={t("dashboard.signOut")}
-              className="h-8 w-8"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-          {!collapsed && (
-            <p className="px-3 py-1 text-[10px] text-muted-foreground/60 leading-tight">
-              Desenvolvido por Sérgio Araújo. Posologia Produções
-            </p>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleSignOut}
+            aria-label={t("dashboard.signOut")}
+            className="h-8 w-8"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
+        {!effectiveCollapsed && (
+          <p className="px-3 py-1 text-[10px] text-muted-foreground/60 leading-tight">
+            Desenvolvido por Sérgio Araújo. Posologia Produções
+          </p>
+        )}
+      </div>
+    </>
+  );
+
+  return (
+    <div className="flex min-h-screen w-full bg-background">
+      {/* Desktop sidebar — hidden below the mobile breakpoint, replaced by the Sheet below */}
+      <aside
+        className={cn(
+          "hidden md:flex sticky top-0 z-40 h-screen flex-col border-r border-border/40 bg-background/95 backdrop-blur-sm transition-all duration-300",
+          collapsed ? "w-16" : "w-60"
+        )}
+      >
+        {sidebarBody}
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 min-w-0">
-        {children}
-      </main>
+      {/* Mobile off-canvas nav */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" className="w-72 max-w-[80vw] flex flex-col p-0">
+          <SheetTitle className="sr-only">{pt ? "Menu de navegação" : "Navigation menu"}</SheetTitle>
+          {sidebarBody}
+        </SheetContent>
+      </Sheet>
+
+      <div className="flex flex-1 min-w-0 flex-col">
+        {/* Mobile top bar with the menu trigger the desktop sidebar doesn't need */}
+        <div className="flex md:hidden h-14 shrink-0 items-center gap-2 border-b border-border/40 bg-background/95 backdrop-blur-sm px-3">
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setMobileOpen(true)} aria-label={pt ? "Abrir menu" : "Open menu"}>
+            <Menu className="h-5 w-5" />
+          </Button>
+          <Link to="/dashboard" className="flex items-center gap-2 min-w-0">
+            <GraduationCap className="h-5 w-5 shrink-0 text-primary" />
+            <span className="font-display text-base font-bold text-foreground truncate">ScholarAI</span>
+          </Link>
+        </div>
+
+        {/* Main content */}
+        <main className="flex-1 min-w-0 min-h-0">
+          {children}
+        </main>
+      </div>
     </div>
   );
 };
