@@ -27,21 +27,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Save, Eye, GitBranch, Send, BarChart3, Hammer, ShieldCheck, Calendar, Users, FileText, UsersRound } from "lucide-react";
+
+const TabDivider = () => <div className="w-px h-5 bg-border mx-1 shrink-0" />;
 import { toast } from "sonner";
 
 type BuilderView = "build" | "consent" | "visits" | "participants" | "compliance" | "team" | "flow" | "distribute" | "results" | "preview";
 
+// Distribute/Results can carry a sub-tab segment (e.g. /distribute/email), so match the
+// view keyword anywhere in the path rather than requiring it to be the final segment.
 const getViewFromPath = (pathname: string): BuilderView => {
-  if (pathname.endsWith("/consent")) return "consent";
-  if (pathname.endsWith("/visits")) return "visits";
-  if (pathname.endsWith("/participants")) return "participants";
-  if (pathname.endsWith("/compliance")) return "compliance";
-  if (pathname.endsWith("/team")) return "team";
-  if (pathname.endsWith("/flow")) return "flow";
-  if (pathname.endsWith("/distribute")) return "distribute";
-  if (pathname.endsWith("/results")) return "results";
-  if (pathname.endsWith("/preview")) return "preview";
-  return "build";
+  const match = pathname.match(
+    /\/surveys\/[^/]+\/(consent|visits|participants|compliance|team|flow|distribute|results|preview)(?:\/|$)/
+  );
+  return (match?.[1] as BuilderView) ?? "build";
 };
 
 const CLINICAL_ONLY_VIEWS: BuilderView[] = ["consent", "visits", "participants", "compliance", "team"];
@@ -191,12 +189,24 @@ const SurveyBuilder = () => {
         />
         <Tabs value={currentView} className="ml-auto">
           <TabsList className="h-9 flex-wrap">
+            {/* Cluster: Montar */}
             <TabsTrigger value="build" className="text-xs" onClick={() => navigate(`/surveys/${id}/build`)}>
               <Hammer className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Construir" : "Build"}
             </TabsTrigger>
+            <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
+              <GitBranch className="h-3 w-3 mr-1" />
+              {locale === "pt" ? "Fluxo" : "Flow"}
+            </TabsTrigger>
+            <TabsTrigger value="preview" className="text-xs" onClick={() => navigate(`/surveys/${id}/preview`)}>
+              <Eye className="h-3 w-3 mr-1" />
+              {locale === "pt" ? "Prévia" : "Preview"}
+            </TabsTrigger>
+
             {!isQuick && (
               <>
+                <TabDivider />
+                {/* Cluster: Ética & Participantes */}
                 <TabsTrigger value="consent" className="text-xs" onClick={() => navigate(`/surveys/${id}/consent`)}>
                   <ShieldCheck className="h-3 w-3 mr-1" />
                   TCLE
@@ -213,18 +223,18 @@ const SurveyBuilder = () => {
                   <FileText className="h-3 w-3 mr-1" />
                   {locale === "pt" ? "Conformidade" : "Compliance"}
                 </TabsTrigger>
+
+                <TabDivider />
+                {/* Cluster: Equipe */}
+                <TabsTrigger value="team" className="text-xs" onClick={() => navigate(`/surveys/${id}/team`)}>
+                  <UsersRound className="h-3 w-3 mr-1" />
+                  {locale === "pt" ? "Equipe" : "Team"}
+                </TabsTrigger>
               </>
             )}
-            <TabsTrigger value="flow" className="text-xs" onClick={() => navigate(`/surveys/${id}/flow`)}>
-              <GitBranch className="h-3 w-3 mr-1" />
-              {locale === "pt" ? "Fluxo" : "Flow"}
-            </TabsTrigger>
-            {!isQuick && (
-              <TabsTrigger value="team" className="text-xs" onClick={() => navigate(`/surveys/${id}/team`)}>
-                <UsersRound className="h-3 w-3 mr-1" />
-                {locale === "pt" ? "Equipe" : "Team"}
-              </TabsTrigger>
-            )}
+
+            <TabDivider />
+            {/* Cluster: Publicar & Resultados */}
             <TabsTrigger value="distribute" className="text-xs" onClick={() => navigate(`/surveys/${id}/distribute`)}>
               <Send className="h-3 w-3 mr-1" />
               {locale === "pt" ? "Distribuir" : "Distribute"}
@@ -236,10 +246,6 @@ const SurveyBuilder = () => {
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2 ml-4">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/surveys/${id}/preview`)}>
-            <Eye className="h-4 w-4 mr-1" />
-            {locale === "pt" ? "Prévia" : "Preview"}
-          </Button>
           <Button size="sm" onClick={save} disabled={!store.isDirty}>
             <Save className="h-4 w-4 mr-1" />
             {locale === "pt" ? "Salvar" : "Save"}

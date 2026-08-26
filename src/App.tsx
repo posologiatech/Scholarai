@@ -152,7 +152,9 @@ const App = () => (
               <Route path="/surveys/:id/flow" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/team" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/distribute" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
+              <Route path="/surveys/:id/distribute/:subtab" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/results" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
+              <Route path="/surveys/:id/results/:subtab" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/surveys/:id/preview" element={<ProtectedRoute><SurveyBuilder /></ProtectedRoute>} />
               <Route path="/survey/respond/:token" element={<SurveyRespond />} />
               <Route path="/consent/revoke/:signatureId" element={<ConsentRevoke />} />

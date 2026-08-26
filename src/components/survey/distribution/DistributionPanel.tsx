@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link2, Mail, Users } from "lucide-react";
@@ -6,8 +6,13 @@ import AnonymousLinkTab from "./AnonymousLinkTab";
 import EmailComposerTab from "./EmailComposerTab";
 import ContactListTab from "./ContactListTab";
 
+const SUBTABS = ["link", "email", "contacts"] as const;
+
 const DistributionPanel = ({ surveyId }: { surveyId: string }) => {
   const { locale } = useLanguage();
+  const { subtab } = useParams<{ subtab?: string }>();
+  const navigate = useNavigate();
+  const activeTab = SUBTABS.includes(subtab as any) ? (subtab as (typeof SUBTABS)[number]) : "link";
 
   return (
     <div className="h-full overflow-auto">
@@ -16,7 +21,11 @@ const DistributionPanel = ({ surveyId }: { surveyId: string }) => {
           {locale === "pt" ? "Distribuição" : "Distribution"}
         </h2>
 
-        <Tabs defaultValue="link" className="space-y-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => navigate(`/surveys/${surveyId}/distribute/${v}`, { replace: true })}
+          className="space-y-6"
+        >
           <TabsList>
             <TabsTrigger value="link" className="gap-1.5">
               <Link2 className="h-3.5 w-3.5" />
