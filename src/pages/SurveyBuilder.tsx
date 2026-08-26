@@ -17,7 +17,7 @@ import ConsentBuilder from "@/components/survey/consent/ConsentBuilder";
 import VisitManager from "@/components/survey/ecrf/VisitManager";
 import ParticipantList from "@/components/survey/ecrf/ParticipantList";
 import ComplianceDocuments from "@/components/survey/compliance/ComplianceDocuments";
-import TeamManager from "@/components/survey/team/TeamManager";
+import SurveyTeamTab from "@/components/survey/team/SurveyTeamTab";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -172,7 +172,7 @@ const SurveyBuilder = () => {
       case "compliance":
         return <ComplianceDocuments surveyId={id!} />;
       case "team":
-        return <TeamManager surveyId={id!} />;
+        return <SurveyTeamTab surveyId={id!} />;
       case "flow":
         return <FlowCanvas />;
       case "distribute":
