@@ -1,10 +1,10 @@
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Plus, X, Sparkles } from "lucide-react";
+import { Plus, X, Sparkles, Info } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { fetchCoauthorCorpus, buildCoauthorGraph, namesLooselyMatch } from "@/lib/research/coauthorGraph";
@@ -39,7 +39,7 @@ export default function SuggestedCollaborators({ projectId, members }: { project
     [members],
   );
 
-  const { data: corpus = [] } = useQuery({
+  const { data: corpus = [], isLoading } = useQuery({
     queryKey: ["coauthor-corpus"],
     queryFn: fetchCoauthorCorpus,
     enabled: memberNames.length > 0,
@@ -97,7 +97,8 @@ export default function SuggestedCollaborators({ projectId, members }: { project
 
   const dismiss = (name: string) => setDismissed((prev) => new Set(prev).add(name));
 
-  if (memberNames.length === 0 || suggestions.length === 0) return null;
+  // No named members to check against, or the corpus query hasn't resolved yet — nothing useful to show.
+  if (memberNames.length === 0 || isLoading) return null;
 
   return (
     <Card className="bg-gradient-to-r from-indigo-500/5 to-transparent">
@@ -106,11 +107,22 @@ export default function SuggestedCollaborators({ projectId, members }: { project
           <Sparkles className="h-4 w-4 text-indigo-500" />
           <p className="text-sm font-semibold">{pt ? "Colaboradores sugeridos" : "Suggested collaborators"}</p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {pt
-            ? "Encontrados na sua rede de coautorias, mas ainda fora da equipe deste projeto."
-            : "Found in your co-authorship network, but not yet on this project's team."}
-        </p>
+        {suggestions.length === 0 ? (
+          <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            {pt
+              ? <>Nenhuma sugestão ainda. Isso aparece quando o nome de um membro da equipe é encontrado como autor em artigos indexados na sua{" "}
+                  <Link to="/coauthorship" className="underline hover:text-foreground">Rede de Coautorias</Link>, com coautores que ainda não estão neste projeto.</>
+              : <>No suggestions yet. This shows up when a team member's name is found as an author in papers indexed in your{" "}
+                  <Link to="/coauthorship" className="underline hover:text-foreground">Co-authorship Network</Link>, with co-authors not yet on this project.</>}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {pt
+              ? "Encontrados na sua rede de coautorias, mas ainda fora da equipe deste projeto."
+              : "Found in your co-authorship network, but not yet on this project's team."}
+          </p>
+        )}
         <div className="flex flex-col gap-2">
           {suggestions.map((s) => (
             <div key={s.name} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/60 px-3 py-2">
