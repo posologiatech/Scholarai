@@ -644,10 +644,12 @@ const DataMind = () => {
             for (const f of allFiles) {
               const cacheKey = f.file_path + (isRCode ? "_r" : "_py");
               if (loadedFilesRef.current.has(cacheKey)) continue;
-              const { data: fileBlob } = await supabase.storage
+              const { data: fileBlob, error: downloadError } = await supabase.storage
                 .from("datamind-files")
                 .download(f.file_path);
-              if (!fileBlob) continue;
+              if (downloadError || !fileBlob) {
+                throw new Error(`Falha ao carregar o arquivo "${f.file_name}" para a análise. Verifique sua conexão e tente novamente.`);
+              }
               const arrayBuf = await fileBlob.arrayBuffer();
               if (isRCode) {
                 await webR.writeFile(f.file_name, arrayBuf);
@@ -687,7 +689,9 @@ const DataMind = () => {
         } catch (e) {
           console.error("Execution error:", e);
           outputType = "text";
-          outputContent = "Erro ao executar o código no navegador.";
+          outputContent = e instanceof Error && e.message.startsWith("Falha ao carregar o arquivo")
+            ? e.message
+            : "Erro ao executar o código no navegador.";
         }
       }
 
