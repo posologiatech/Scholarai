@@ -11,6 +11,8 @@ interface Model {
   id: string;
   name: string;
   description: string;
+  /** The model this provider recommends for statistical code generation. */
+  recommended?: boolean;
 }
 
 interface Provider {
@@ -52,7 +54,11 @@ const DataMindModelSelector = ({ value, onChange }: Props) => {
           if (!value && data.providers.length > 0) {
             const google = data.providers.find((p: Provider) => p.id === "google");
             const preferred = google || data.providers[0];
-            onChange({ provider: preferred.id, model: preferred.models[0].id });
+            // Default to the recommended model, not merely the first one listed —
+            // DataMind generates statistical code, where the cheap model costs more
+            // in retries and wrong tests than it saves per call.
+            const model = preferred.models.find((m: Model) => m.recommended) || preferred.models[0];
+            onChange({ provider: preferred.id, model: model.id });
           }
         }
       } catch (e) {

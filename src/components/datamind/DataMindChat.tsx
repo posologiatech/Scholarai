@@ -12,6 +12,10 @@ interface Props {
   messages: Message[];
   files: DataMindFile[];
   loading: boolean;
+  /** What the assistant is doing right now, shown instead of a generic spinner. */
+  loadingStage?: string | null;
+  /** The explanation as it streams in, before the message row exists. */
+  streamingText?: string;
   conversationId?: string;
   onSend: (content: string, file?: File) => void;
   hasConversation: boolean;
@@ -22,7 +26,7 @@ interface Props {
   onOpenGoogleSheetsImport?: () => void;
 }
 
-const DataMindChat = ({ messages, files, loading, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange, onOpenGoogleSheetsImport }: Props) => {
+const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange, onOpenGoogleSheetsImport }: Props) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -83,6 +87,8 @@ const DataMindChat = ({ messages, files, loading, conversationId, onSend, hasCon
                   fileName={f.file_name}
                   data={spreadsheetData.rows}
                   columns={spreadsheetData.columns}
+                  totalRows={spreadsheetData.totalRows}
+                  truncated={spreadsheetData.truncated}
                   onSelectionChange={onSelectionChange}
                 />
               ) : (
@@ -110,13 +116,21 @@ const DataMindChat = ({ messages, files, loading, conversationId, onSend, hasCon
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                   <BrainCircuit className="h-4 w-4 text-primary" />
                 </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "300ms" }} />
-                  </div>
-                  Analisando seus dados...
+                <div className="flex-1 min-w-0">
+                  {/* Once text starts arriving, it replaces the status line: the
+                      researcher reads the plan while the code is still generating. */}
+                  {streamingText ? (
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{streamingText}</p>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </div>
+                      {loadingStage || "Analisando seus dados..."}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

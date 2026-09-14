@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { SandboxFile } from "@/lib/datamind/parseTabular";
 
 export type WebRStatus = "idle" | "loading" | "installing" | "ready" | "running" | "error";
 
@@ -71,12 +72,12 @@ export function useWebR() {
   );
 
   const runR = useCallback(
-    (code: string, fileNames?: string[]): Promise<RunResult> => {
+    (code: string, files?: SandboxFile[]): Promise<RunResult> => {
       const worker = getWorker();
       setStatus("running");
       return new Promise((resolve) => {
         resolveRef.current = resolve;
-        worker.postMessage({ action: "run", payload: { code, fileNames } });
+        worker.postMessage({ action: "run", payload: { code, files } });
       });
     },
     [getWorker]

@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { callAI } from "../_shared/ai-caller.ts";
+import { callAI, estimateCostUsd, logFlatCost } from "../_shared/ai-caller.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { trackUsage } from "../_shared/usage-tracker.ts";
 import { checkPlanLimit, planLimitExceededResponse } from "../_shared/plan-limits.ts";
@@ -20,6 +20,157 @@ function looksLikeFabricatedData(text: string): boolean {
   return false;
 }
 
+/**
+ * The compact dataset profile the client computes at upload time (see
+ * src/lib/datamind/profile.ts). Sending it lets the model pick variables and tests
+ * from real types, levels and data-quality flags instead of guessing from names.
+ */
+interface CompactColumn {
+  name: string;
+  type: string;
+  missingPct: number;
+  unique: number;
+  role?: "id" | "constant";
+  sentinels?: number[];
+  levels?: { value: string; count: number }[];
+  stats?: {
+    mean: number;
+    median: number;
+    std: number;
+    min: number;
+    max: number;
+    skew: number;
+    outliers: number;
+  };
+}
+
+interface CompactProfile {
+  basedOnRows: number;
+  totalRows: number;
+  sampled: boolean;
+  quality: number;
+  duplicateRows: number;
+  columns: CompactColumn[];
+  correlations: { a: string; b: string; r: number; n: number }[];
+  warnings: { severity: string; message: string }[];
+}
+
+interface FileSchema {
+  file_name: string;
+  columns: string[];
+  rows?: number;
+  profile?: CompactProfile;
+}
+
+/** Newline used when assembling prompt text, kept as a constant so no escape
+ * sequence has to survive the template literals below. */
+const NL = String.fromCharCode(10);
+
+/** Resolved per provider by ai-caller to that provider's strongest model. */
+const STRONG_MODEL = "gemini-2.5-pro";
+
+const TYPE_LABELS: Record<string, string> = {
+  numeric: "numérico",
+  categorical: "categórico",
+  datetime: "data",
+  text: "texto",
+  boolean: "booleano",
+};
+
+function describeColumn(col: CompactColumn): string {
+  const bits: string[] = [`[${TYPE_LABELS[col.type] || col.type}]`];
+
+  if (col.role === "id") bits.push("IDENTIFICADOR — não usar como variável de análise");
+  if (col.role === "constant") bits.push("CONSTANTE — sem variância, inútil para análise");
+
+  if (col.stats) {
+    const s = col.stats;
+    bits.push(`média=${s.mean} mediana=${s.median} dp=${s.std} min=${s.min} max=${s.max}`);
+    if (Math.abs(s.skew) > 1) bits.push(`assimetria=${s.skew}`);
+    if (s.outliers > 0) bits.push(`outliers=${s.outliers}`);
+  }
+
+  if (col.levels?.length) {
+    bits.push(`níveis: ${col.levels.map((l) => `${l.value} (n=${l.count})`).join(", ")}`);
+  } else if (!col.stats) {
+    bits.push(`${col.unique} valores distintos`);
+  }
+
+  if (col.missingPct > 0) bits.push(`ausentes=${col.missingPct}%`);
+  if (col.sentinels?.length) {
+    bits.push(`ATENÇÃO: ${col.sentinels.join(", ")} parecem código de ausência, não medida real`);
+  }
+
+  return `  - ${col.name} ${bits.join(" | ")}`;
+}
+
+function describeProfile(profile: CompactProfile): string {
+  const parts: string[] = [];
+
+  parts.push(`Colunas (perfil calculado sobre ${profile.basedOnRows} linhas${profile.sampled ? ` de ${profile.totalRows} — é uma AMOSTRA, confirme no dataset completo antes de concluir` : ""}):`);
+  parts.push(profile.columns.map(describeColumn).join(NL));
+
+  if (profile.duplicateRows > 0) {
+    parts.push(`Linhas duplicadas: ${profile.duplicateRows}`);
+  }
+
+  if (profile.warnings.length > 0) {
+    parts.push(`Problemas de qualidade já detectados:
+${profile.warnings.map((w) => `  - [${w.severity}] ${w.message}`).join(NL)}`);
+  }
+
+  if (profile.correlations.length > 0) {
+    parts.push(`Correlações já calculadas (Pearson, pares completos):
+${profile.correlations.map((c) => `  - ${c.a} x ${c.b}: r=${c.r} (n=${c.n})`).join(NL)}`);
+  }
+
+  return parts.join(NL);
+}
+
+/**
+ * Passes a stream through untouched while watching for the trailing usage chunk.
+ *
+ * ai-caller only logs cost when it can parse a complete body, so a forwarded stream
+ * would otherwise spend money invisibly — and the per-user cost ceiling reads that
+ * same log. This keeps streamed DataMind calls accounted for.
+ */
+function costMeter(userId: string, provider?: string, model?: string): TransformStream<Uint8Array, Uint8Array> {
+  const decoder = new TextDecoder();
+  let tail = "";
+  let tokensInput = 0;
+  let tokensOutput = 0;
+
+  return new TransformStream({
+    transform(chunk, controller) {
+      controller.enqueue(chunk);
+      try {
+        // Only the tail is retained: the usage chunk is the last one, and buffering
+        // the whole conversation here would defeat the point of streaming.
+        tail = (tail + decoder.decode(chunk, { stream: true })).slice(-4000);
+        const matches = tail.matchAll(/"usage"\s*:\s*\{[^}]*\}/g);
+        for (const match of matches) {
+          const usage = JSON.parse(`{${match[0]}}`).usage;
+          if (usage?.prompt_tokens != null) tokensInput = usage.prompt_tokens;
+          if (usage?.completion_tokens != null) tokensOutput = usage.completion_tokens;
+        }
+      } catch {
+        // A usage object split across chunks simply gets picked up on the next one.
+      }
+    },
+    flush() {
+      if (tokensInput === 0 && tokensOutput === 0) return;
+      const resolvedModel = model || STRONG_MODEL;
+      logFlatCost(
+        userId,
+        provider || "stream",
+        resolvedModel,
+        "datamind_chat",
+        estimateCostUsd(resolvedModel, tokensInput, tokensOutput),
+      ).catch((e) => console.error("[datamind-chat] stream cost logging failed:", e));
+    },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -33,24 +184,41 @@ serve(async (req) => {
   }
 
   try {
-    const { message, history, schemas, provider, model, codeLanguage } = await req.json();
+    const { message, history, schemas, provider, model, codeLanguage, stream } = await req.json();
     const isR = codeLanguage === "r";
-    const fileSchemas: { file_name: string; columns: string[]; rows?: number }[] = Array.isArray(schemas) ? schemas : [];
+    const fileSchemas: FileSchema[] = Array.isArray(schemas) ? schemas : [];
     const hasData = fileSchemas.length > 0;
 
     // Describes each loaded dataframe and the variable name it's bound to in the sandbox,
     // so the model references real variables instead of guessing "df".
-    function describeSchemas(list: typeof fileSchemas): string {
+    function describeSchemas(list: FileSchema[]): string {
       if (list.length === 0) return "Nenhum arquivo enviado ainda.";
+
+      // With a profile the model already knows types, levels, missing rates and
+      // which columns to avoid — so it must not ask the researcher for any of
+      // that, nor burn a run just to discover column names.
+      const profileRule = list.some((f) => f.profile)
+        ? `
+
+REGRA DO PERFIL: o perfil acima foi calculado sobre os dados REAIS. Use-o para escolher variáveis e testes. NUNCA pergunte ao pesquisador algo que já está no perfil (tipo da variável, níveis de uma categórica, quantidade de ausentes). NUNCA proponha uma coluna marcada como IDENTIFICADOR ou CONSTANTE como variável de análise. Se o perfil apontar código de ausência ou assimetria forte, trate isso explicitamente no código e diga o que fez.`
+        : "";
+
       if (list.length === 1) {
         const f = list[0];
-        return `Arquivo "${f.file_name}" (variável: df${f.rows != null ? `, ${f.rows} linhas` : ""}): colunas = ${JSON.stringify(f.columns)}`;
+        const header = `Arquivo "${f.file_name}" (variável: df${f.rows != null ? `, ${f.rows} linhas` : ""})`;
+        const body = f.profile ? describeProfile(f.profile) : `colunas = ${JSON.stringify(f.columns)}`;
+        return `${header}
+${body}${profileRule}`;
       }
+
       const lines = list.map((f) => {
         const varName = `df_${f.file_name.replace(/\.[^/.]+$/, "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") || "file"}`;
-        return `- "${f.file_name}" → variável ${varName}${f.rows != null ? ` (${f.rows} linhas)` : ""}: colunas = ${JSON.stringify(f.columns)}`;
+        const header = `- "${f.file_name}" → variável ${varName}${f.rows != null ? ` (${f.rows} linhas)` : ""}`;
+        const body = f.profile ? `
+${describeProfile(f.profile)}` : `: colunas = ${JSON.stringify(f.columns)}`;
+        return `${header}${body}`;
       });
-      return `MÚLTIPLOS ARQUIVOS carregados nesta conversa, cada um já disponível como um dataframe separado (também acessível via dict "dfs", pela chave do nome do arquivo):\n${lines.join("\n")}\n\nREGRA DE CRUZAMENTO ENTRE ARQUIVOS: se o usuário pedir para cruzar/unir/comparar dois arquivos (join/merge), NÃO adivinhe as colunas-chave. Pergunte antes quais colunas usar para o cruzamento (mesmo padrão de "perguntar parâmetros antes de executar" usado para testes estatísticos) — a menos que o usuário já tenha especificado claramente as colunas.`;
+      return `MÚLTIPLOS ARQUIVOS carregados nesta conversa, cada um já disponível como um dataframe separado (também acessível via dict "dfs", pela chave do nome do arquivo):\n${lines.join("\n")}\n\nREGRA DE CRUZAMENTO ENTRE ARQUIVOS: se o usuário pedir para cruzar/unir/comparar dois arquivos (join/merge), NÃO adivinhe as colunas-chave. Pergunte antes quais colunas usar para o cruzamento (mesmo padrão de "perguntar parâmetros antes de executar" usado para testes estatísticos) — a menos que o usuário já tenha especificado claramente as colunas.${profileRule}`;
     }
 
     const noDataSystemPrompt = `Você é o DataMind, assistente de análise de dados. Responda SEMPRE em JSON válido: {"explanation": "...", "code": null}
@@ -392,11 +560,20 @@ Campo "explanation" — markdown em português brasileiro, estilo relatório pro
 Campo "code": código Python/R completo seguindo a estrutura acima. Null se não precisar.
 Responda SEMPRE em português brasileiro.`;
 
+    // Field order is load-bearing while streaming: the client shows "explanation"
+    // as it arrives, and it can only do that if the model emits it before "code".
+    const orderRule = `${NL}${NL}ORDEM DOS CAMPOS: no JSON de resposta, escreva SEMPRE o campo "explanation" COMPLETO antes de começar o campo "code". Nunca inverta essa ordem.`;
+
     const messages_arr = [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: systemPrompt + orderRule },
       ...(history || []).slice(-8),
       { role: "user", content: message },
     ];
+
+    // Anthropic is not OpenAI-compatible in ai-caller, which skips it entirely when
+    // streaming — forcing it here would leave no provider to try. Those requests
+    // stay on the buffered path instead of silently changing provider.
+    const wantsStream = stream === true && provider !== "anthropic";
 
     let response: Response;
 
@@ -407,6 +584,8 @@ Responda SEMPRE em português brasileiro.`;
         messages: messages_arr,
         model: model,
         temperature: 0.3,
+        stream: wantsStream,
+        ...(wantsStream ? { stream_options: { include_usage: true } } : {}),
         _forceProvider: provider,
       } as any);
     } else {
@@ -414,8 +593,12 @@ Responda SEMPRE em português brasileiro.`;
         _userId: auth.userId,
         _promptType: "datamind_chat",
         messages: messages_arr,
-        model: "gpt-4o-mini",
+        // Statistical code generation is the one place where a weak model is
+        // expensive: a wrong test costs a retry and, worse, a wrong result.
+        model: STRONG_MODEL,
         temperature: 0.3,
+        stream: wantsStream,
+        ...(wantsStream ? { stream_options: { include_usage: true } } : {}),
       });
     }
 
@@ -423,6 +606,19 @@ Responda SEMPRE em português brasileiro.`;
       const errText = await response.text();
       console.error("AI error:", response.status, errText);
       throw new Error(`AI call failed: ${response.status}`);
+    }
+
+    if (wantsStream && response.body) {
+      // Forwarded verbatim in OpenAI delta format, the same contract the other
+      // streaming functions in this project use.
+      return new Response(response.body.pipeThrough(costMeter(auth.userId, provider, model)), {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
     }
 
     const data = await response.json();

@@ -9,12 +9,15 @@ interface Props {
   fileName: string;
   data: Record<string, string>[];
   columns: string[];
+  /** True row count in the file, when the grid holds only a capped slice. */
+  totalRows?: number;
+  truncated?: boolean;
   onSelectionChange?: (context: { data: Record<string, string>[]; summary: string } | null) => void;
 }
 
 type Row = { [key: string]: string | number; __rowIndex: number };
 
-const DataMindSpreadsheet = ({ fileName, data, columns: colNames, onSelectionChange }: Props) => {
+const DataMindSpreadsheet = ({ fileName, data, columns: colNames, totalRows, truncated, onSelectionChange }: Props) => {
   const [selectedRows, setSelectedRows] = useState<ReadonlySet<number>>(new Set());
   const [sortColumns, setSortColumns] = useState<readonly SortColumn[]>([]);
 
@@ -95,8 +98,21 @@ const DataMindSpreadsheet = ({ fileName, data, columns: colNames, onSelectionCha
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/30">
         <FileSpreadsheet className="h-4 w-4 text-primary" />
         <span className="text-sm font-medium text-foreground">{fileName}</span>
-        <span className="text-xs text-muted-foreground ml-auto">
-          {data.length.toLocaleString()} linhas · {colNames.length} colunas
+        <span className="text-xs text-muted-foreground ml-auto text-right">
+          {truncated && totalRows != null ? (
+            <>
+              {data.length.toLocaleString("pt-BR")} de {totalRows.toLocaleString("pt-BR")} linhas ·{" "}
+              {colNames.length} colunas
+              {/* The cap is on the grid only — analyses always run over the whole file. */}
+              <span className="block text-[11px] text-yellow-600">
+                Pré-visualização limitada; a análise usa o arquivo completo
+              </span>
+            </>
+          ) : (
+            <>
+              {data.length.toLocaleString("pt-BR")} linhas · {colNames.length} colunas
+            </>
+          )}
         </span>
       </div>
 

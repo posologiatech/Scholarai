@@ -33,9 +33,18 @@ MEMORY_LIMIT_BYTES = int(os.environ.get("DATAMIND_EXEC_MEMORY_LIMIT_GB", "3")) *
 app = FastAPI()
 
 
+class TabularDialect(BaseModel):
+    """How the browser read the file; mirrored here so pandas reads it identically."""
+
+    delimiter: str = ","
+    decimal: str = "."
+    encoding: str = "utf-8"
+
+
 class FileRef(BaseModel):
     file_name: str
     url: str
+    dialect: Optional[TabularDialect] = None
 
 
 class RunRequest(BaseModel):
@@ -61,7 +70,28 @@ def slugify_var_name(file_name: str, used: set) -> str:
     return final
 
 
-def _worker(code: str, file_paths: dict, result_queue) -> None:
+def read_csv_kwargs(dialect: Optional[dict]) -> dict:
+    """Turns the browser-detected dialect into explicit pandas read arguments.
+
+    Without this, a pt-BR export (";" separator, "1.234,56" numbers, cp1252) loads
+    as a single text column and every downstream analysis is wrong.
+    """
+    if not dialect:
+        return {}
+    kwargs: dict = {}
+    delimiter = dialect.get("delimiter")
+    if delimiter:
+        kwargs["sep"] = delimiter
+    if dialect.get("decimal") == ",":
+        kwargs["decimal"] = ","
+        kwargs["thousands"] = "."
+    encoding = dialect.get("encoding")
+    if encoding:
+        kwargs["encoding"] = encoding
+    return kwargs
+
+
+def _worker(code: str, files: list, result_queue) -> None:
     """Runs in its own child process so a runaway analysis can't take the API down."""
     try:
         resource.setrlimit(resource.RLIMIT_AS, (MEMORY_LIMIT_BYTES, MEMORY_LIMIT_BYTES))
@@ -141,21 +171,22 @@ def _worker(code: str, file_paths: dict, result_queue) -> None:
     dfs: dict = {}
     scope["dfs"] = dfs
 
-    for file_name, local_path in file_paths.items():
+    for entry in files:
+        file_name = entry["file_name"]
+        local_path = entry["local_path"]
         var_name = f"df_{slugify_var_name(file_name, used_names)}"
         try:
             if file_name.lower().endswith((".xlsx", ".xls")):
                 loaded = pd.read_excel(local_path)
             else:
-                loaded = pd.read_csv(local_path)
+                loaded = pd.read_csv(local_path, **read_csv_kwargs(entry.get("dialect")))
             scope[var_name] = loaded
             dfs[file_name] = loaded
         except Exception as e:
             print(f"Aviso: falha ao carregar arquivo {file_name}: {e}")
 
-    if len(file_paths) == 1:
-        only_file = next(iter(file_paths))
-        only_var = f"df_{slugify_var_name(only_file, set())}"
+    if len(files) == 1:
+        only_var = f"df_{slugify_var_name(files[0]['file_name'], set())}"
         if only_var in scope:
             scope["df"] = scope[only_var]
 
@@ -178,7 +209,7 @@ def run(payload: RunRequest, authorization: str = Header(None)):
         return {"stdout": "", "images": [], "error": "Execução remota de R ainda não é suportada."}
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        file_paths: dict[str, str] = {}
+        files: list[dict] = []
         for f in payload.files:
             local_path = str(Path(tmp_dir) / f.file_name)
             try:
@@ -186,13 +217,17 @@ def run(payload: RunRequest, authorization: str = Header(None)):
                 resp.raise_for_status()
                 with open(local_path, "wb") as fh:
                     fh.write(resp.content)
-                file_paths[f.file_name] = local_path
+                files.append({
+                    "file_name": f.file_name,
+                    "local_path": local_path,
+                    "dialect": f.dialect.model_dump() if f.dialect else None,
+                })
             except Exception as e:
                 return {"stdout": "", "images": [], "error": f"Falha ao baixar {f.file_name}: {e}"}
 
         ctx = multiprocessing.get_context("spawn")
         result_queue = ctx.Queue()
-        proc = ctx.Process(target=_worker, args=(payload.code, file_paths, result_queue))
+        proc = ctx.Process(target=_worker, args=(payload.code, files, result_queue))
         proc.start()
         proc.join(timeout=TIMEOUT_SECONDS)
 

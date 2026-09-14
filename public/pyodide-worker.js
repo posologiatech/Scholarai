@@ -77,21 +77,52 @@ function slugifyVarName(fileName, used) {
   return final;
 }
 
-function buildDataBootstrap(fileNames) {
-  const names = (fileNames || []).filter(Boolean);
-  if (names.length === 0) return "";
+// Accepts either plain file names or {fileName, dialect} specs, so a caller that
+// has not detected a dialect still gets pandas' defaults.
+function normalizeFileSpecs(files) {
+  return (files || [])
+    .map((f) => (typeof f === "string" ? { fileName: f } : f))
+    .filter((f) => f && f.fileName);
+}
+
+function pyLiteral(value) {
+  return JSON.stringify(value);
+}
+
+/**
+ * Turns the dialect detected in the browser into explicit pandas read arguments.
+ * Without this, a pt-BR export (";" separator, "1.234,56" numbers, cp1252) loads
+ * as a single text column and every downstream analysis is wrong.
+ */
+function readCsvArgs(dialect) {
+  if (!dialect) return "";
+  const args = [];
+  if (dialect.delimiter) args.push(`sep=${pyLiteral(dialect.delimiter)}`);
+  if (dialect.decimal === ",") {
+    args.push(`decimal=","`);
+    args.push(`thousands="."`);
+  }
+  if (dialect.encoding) args.push(`encoding=${pyLiteral(dialect.encoding)}`);
+  return args.length > 0 ? ", " + args.join(", ") : "";
+}
+
+function buildDataBootstrap(files) {
+  const specs = normalizeFileSpecs(files);
+  if (specs.length === 0) return "";
 
   const used = new Set();
-  const entries = names.map((fileName) => ({
-    fileName,
-    varName: `df_${slugifyVarName(fileName, used)}`,
+  const entries = specs.map((spec) => ({
+    fileName: spec.fileName,
+    dialect: spec.dialect,
+    varName: `df_${slugifyVarName(spec.fileName, used)}`,
   }));
 
   let code = "import pandas as pd\ndfs = {}\n";
-  for (const { fileName, varName } of entries) {
+  for (const { fileName, dialect, varName } of entries) {
     const isExcel = /\.xlsx?$/i.test(fileName);
     const reader = isExcel ? "read_excel" : "read_csv";
-    code += `try:\n    ${varName} = pd.${reader}(${JSON.stringify("/tmp/" + fileName)})\n    dfs[${JSON.stringify(fileName)}] = ${varName}\nexcept Exception as e:\n    print(f"Aviso: falha ao carregar arquivo ${fileName.replace(/"/g, '\\"')}: {e}")\n`;
+    const args = isExcel ? "" : readCsvArgs(dialect);
+    code += `try:\n    ${varName} = pd.${reader}(${pyLiteral("/tmp/" + fileName)}${args})\n    dfs[${pyLiteral(fileName)}] = ${varName}\nexcept Exception as e:\n    print(f"Aviso: falha ao carregar arquivo ${fileName.replace(/"/g, '\\"')}: {e}")\n`;
   }
   // With a single file, keep the familiar "df" name so existing prompt templates keep working.
   if (entries.length === 1) {
@@ -100,7 +131,7 @@ function buildDataBootstrap(fileNames) {
   return code;
 }
 
-async function runCode(code, fileNames) {
+async function runCode(code, files) {
   const py = await initPyodide();
   await installPackages();
 
@@ -191,7 +222,7 @@ def show_chart(data, kind="bar", x=None, y=None, series=None, title=""):
     print(f"__DATACHART_START__{payload}__DATACHART_END__")
 `;
 
-  const dataBootstrap = buildDataBootstrap(fileNames);
+  const dataBootstrap = buildDataBootstrap(files);
 
   const collectCode = `
 sys.stdout = sys.__stdout__
@@ -259,7 +290,7 @@ self.onmessage = async (e) => {
         self.postMessage({ type: "fileWritten", data: payload.fileName });
         break;
       case "run":
-        await runCode(payload.code, payload.fileNames);
+        await runCode(payload.code, payload.files || payload.fileNames);
         break;
       case "reset":
         await resetRuntime();

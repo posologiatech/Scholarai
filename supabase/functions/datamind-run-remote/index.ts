@@ -26,7 +26,7 @@ serve(async (req) => {
   }
 
   try {
-    const { code, codeLanguage, filePaths } = await req.json();
+    const { code, codeLanguage, files: fileSpecs, filePaths } = await req.json();
 
     if (codeLanguage === "r") {
       return new Response(
@@ -46,15 +46,29 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const files: { file_name: string; url: string }[] = [];
-    for (const filePath of (filePaths as string[]) || []) {
+    // The client sends {path, fileName, dialect}. Older callers sent bare paths, in
+    // which case the storage name is the best available fallback.
+    type RequestedFile = { path: string; fileName?: string; dialect?: unknown };
+    const requested: RequestedFile[] = Array.isArray(fileSpecs)
+      ? (fileSpecs as RequestedFile[])
+      : ((filePaths as string[]) || []).map((path) => ({ path }));
+
+    const files: { file_name: string; url: string; dialect?: unknown }[] = [];
+    for (const item of requested) {
       const { data, error } = await supabaseAdmin.storage
         .from("datamind-files")
-        .createSignedUrl(filePath, 120);
+        .createSignedUrl(item.path, 120);
       if (error || !data) {
-        throw new Error(`Falha ao gerar URL assinada para ${filePath}: ${error?.message}`);
+        throw new Error(`Falha ao gerar URL assinada para ${item.path}: ${error?.message}`);
       }
-      files.push({ file_name: filePath.split("/").pop() || filePath, url: data.signedUrl });
+      // The original file name must survive: the sandbox derives the dataframe
+      // variable name from it, and the storage path carries an upload timestamp
+      // prefix that would produce a different variable than the prompt promised.
+      files.push({
+        file_name: item.fileName || item.path.split("/").pop() || item.path,
+        url: data.signedUrl,
+        dialect: item.dialect,
+      });
     }
 
     const execRes = await fetch(`${execUrl.replace(/\/$/, "")}/run`, {

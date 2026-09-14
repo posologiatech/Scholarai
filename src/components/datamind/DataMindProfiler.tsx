@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { SpreadsheetData } from "@/pages/DataMind";
+import { DatasetProfile, profileDataset } from "@/lib/datamind/profile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -7,183 +8,11 @@ import { Button } from "@/components/ui/button";
 import { X, BarChart3, AlertTriangle, CheckCircle2, TrendingUp, Hash, Type, Calendar } from "lucide-react";
 import { motion } from "framer-motion";
 
-interface ColumnProfile {
-  name: string;
-  type: "numeric" | "categorical" | "datetime" | "text" | "boolean";
-  missing: number;
-  missingPct: number;
-  unique: number;
-  uniquePct: number;
-  // numeric stats
-  mean?: number;
-  median?: number;
-  std?: number;
-  min?: number;
-  max?: number;
-  skewness?: number;
-  outliers?: number;
-  // categorical stats
-  topValues?: { value: string; count: number }[];
-  // quality
-  qualityScore: number;
-}
-
-interface DatasetProfile {
-  totalRows: number;
-  totalCols: number;
-  overallQuality: number;
-  duplicateRows: number;
-  memoryEstimate: string;
-  columns: ColumnProfile[];
-  correlations: { col1: string; col2: string; value: number }[];
-  warnings: string[];
-}
-
 interface Props {
   data: SpreadsheetData;
   fileName: string;
   onClose: () => void;
   onSendToChat?: (msg: string) => void;
-}
-
-function detectType(values: string[]): "numeric" | "categorical" | "datetime" | "text" | "boolean" {
-  const nonEmpty = values.filter(v => v && v.trim() !== "" && v !== "NA" && v !== "null");
-  if (nonEmpty.length === 0) return "text";
-  
-  const boolVals = new Set(["true", "false", "yes", "no", "sim", "não", "0", "1"]);
-  if (nonEmpty.every(v => boolVals.has(v.toLowerCase()))) return "boolean";
-  
-  const numericCount = nonEmpty.filter(v => !isNaN(Number(v))).length;
-  if (numericCount / nonEmpty.length > 0.8) return "numeric";
-  
-  const datePatterns = /^\d{4}[-/]\d{1,2}[-/]\d{1,2}|^\d{1,2}[-/]\d{1,2}[-/]\d{4}/;
-  const dateCount = nonEmpty.filter(v => datePatterns.test(v)).length;
-  if (dateCount / nonEmpty.length > 0.5) return "datetime";
-  
-  const uniqueRatio = new Set(nonEmpty).size / nonEmpty.length;
-  if (uniqueRatio < 0.3 && nonEmpty.length > 10) return "categorical";
-  
-  return "text";
-}
-
-function calcNumericStats(values: number[]) {
-  if (values.length === 0) return {};
-  const sorted = [...values].sort((a, b) => a - b);
-  const n = sorted.length;
-  const mean = values.reduce((s, v) => s + v, 0) / n;
-  const median = n % 2 === 0 ? (sorted[n/2 - 1] + sorted[n/2]) / 2 : sorted[Math.floor(n/2)];
-  const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
-  const std = Math.sqrt(variance);
-  
-  // Skewness
-  const skewness = n > 2 ? values.reduce((s, v) => s + ((v - mean) / (std || 1)) ** 3, 0) / n : 0;
-  
-  // Outliers (IQR)
-  const q1 = sorted[Math.floor(n * 0.25)];
-  const q3 = sorted[Math.floor(n * 0.75)];
-  const iqr = q3 - q1;
-  const outliers = values.filter(v => v < q1 - 1.5 * iqr || v > q3 + 1.5 * iqr).length;
-  
-  return { mean, median, std, min: sorted[0], max: sorted[n - 1], skewness, outliers };
-}
-
-function profileDataset(data: SpreadsheetData): DatasetProfile {
-  const { columns: cols, rows } = data;
-  const totalRows = rows.length;
-  const totalCols = cols.length;
-  const warnings: string[] = [];
-  
-  // Duplicate rows
-  const rowStrings = rows.map(r => cols.map(c => r[c] || "").join("|"));
-  const uniqueRows = new Set(rowStrings);
-  const duplicateRows = totalRows - uniqueRows.size;
-  if (duplicateRows > 0) warnings.push(`${duplicateRows} linhas duplicadas encontradas`);
-  
-  // Memory estimate
-  const charCount = rows.reduce((s, r) => s + cols.reduce((ss, c) => ss + (r[c]?.length || 0), 0), 0);
-  const memBytes = charCount * 2;
-  const memoryEstimate = memBytes > 1e6 ? `${(memBytes / 1e6).toFixed(1)} MB` : `${(memBytes / 1e3).toFixed(0)} KB`;
-  
-  // Profile each column
-  const columnProfiles: ColumnProfile[] = cols.map(col => {
-    const values = rows.map(r => r[col] || "");
-    const missing = values.filter(v => !v.trim() || v === "NA" || v === "null" || v === "NaN" || v === "999").length;
-    const missingPct = (missing / totalRows) * 100;
-    const nonEmpty = values.filter(v => v.trim() && v !== "NA" && v !== "null" && v !== "NaN");
-    const uniqueSet = new Set(nonEmpty);
-    const unique = uniqueSet.size;
-    const uniquePct = nonEmpty.length > 0 ? (unique / nonEmpty.length) * 100 : 0;
-    const type = detectType(values);
-    
-    let qualityScore = 100;
-    qualityScore -= missingPct * 0.5;
-    
-    const profile: ColumnProfile = { name: col, type, missing, missingPct, unique, uniquePct, qualityScore: Math.max(0, qualityScore) };
-    
-    if (type === "numeric") {
-      const numVals = nonEmpty.map(Number).filter(v => !isNaN(v));
-      const stats = calcNumericStats(numVals);
-      Object.assign(profile, stats);
-      if (stats.outliers && stats.outliers > totalRows * 0.05) {
-        warnings.push(`Coluna "${col}": ${stats.outliers} outliers detectados`);
-        profile.qualityScore -= 10;
-      }
-      if (Math.abs(stats.skewness || 0) > 2) {
-        warnings.push(`Coluna "${col}": distribuição altamente assimétrica (skewness=${stats.skewness?.toFixed(2)})`);
-      }
-    }
-    
-    if (type === "categorical") {
-      const freq: Record<string, number> = {};
-      nonEmpty.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
-      profile.topValues = Object.entries(freq)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([value, count]) => ({ value, count }));
-    }
-    
-    if (missingPct > 30) warnings.push(`Coluna "${col}": ${missingPct.toFixed(1)}% de valores ausentes`);
-    if (uniquePct === 100 && type !== "text" && totalRows > 10) profile.qualityScore = Math.min(profile.qualityScore, 95);
-    
-    profile.qualityScore = Math.max(0, Math.round(profile.qualityScore));
-    return profile;
-  });
-  
-  // Simple correlations for numeric columns
-  const numericCols = columnProfiles.filter(c => c.type === "numeric");
-  const correlations: { col1: string; col2: string; value: number }[] = [];
-  
-  for (let i = 0; i < Math.min(numericCols.length, 8); i++) {
-    for (let j = i + 1; j < Math.min(numericCols.length, 8); j++) {
-      const c1 = numericCols[i].name;
-      const c2 = numericCols[j].name;
-      const vals1 = rows.map(r => Number(r[c1])).filter(v => !isNaN(v));
-      const vals2 = rows.map(r => Number(r[c2])).filter(v => !isNaN(v));
-      const n = Math.min(vals1.length, vals2.length);
-      if (n < 5) continue;
-      
-      const m1 = vals1.slice(0, n).reduce((s, v) => s + v, 0) / n;
-      const m2 = vals2.slice(0, n).reduce((s, v) => s + v, 0) / n;
-      let num = 0, d1 = 0, d2 = 0;
-      for (let k = 0; k < n; k++) {
-        num += (vals1[k] - m1) * (vals2[k] - m2);
-        d1 += (vals1[k] - m1) ** 2;
-        d2 += (vals2[k] - m2) ** 2;
-      }
-      const corr = d1 > 0 && d2 > 0 ? num / Math.sqrt(d1 * d2) : 0;
-      if (Math.abs(corr) > 0.5) {
-        correlations.push({ col1: c1, col2: c2, value: Math.round(corr * 100) / 100 });
-      }
-    }
-  }
-  
-  if (correlations.filter(c => Math.abs(c.value) > 0.9).length > 0) {
-    warnings.push("Correlações muito altas detectadas — possível multicolinearidade");
-  }
-  
-  const overallQuality = Math.round(columnProfiles.reduce((s, c) => s + c.qualityScore, 0) / columnProfiles.length);
-  
-  return { totalRows, totalCols, overallQuality, duplicateRows, memoryEstimate, columns: columnProfiles, correlations, warnings };
 }
 
 const typeIcons: Record<string, typeof Hash> = {
@@ -237,7 +66,35 @@ const DataMindProfiler = ({ data, fileName, onClose, onSendToChat }: Props) => {
         <div className="flex items-center gap-2">
           {onSendToChat && (
             <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => {
-              const summary = `📊 **Perfil do Dataset (${fileName})**\n- ${profile.totalRows} linhas, ${profile.totalCols} colunas\n- Score de qualidade: ${profile.overallQuality}/100\n- Duplicatas: ${profile.duplicateRows}\n- Avisos: ${profile.warnings.length}\n\nColunas:\n${profile.columns.map(c => `  - **${c.name}** (${typeLabels[c.type]}): ${c.missingPct.toFixed(1)}% missing, ${c.unique} únicos`).join("\n")}\n\n${profile.correlations.length > 0 ? `Correlações relevantes:\n${profile.correlations.map(c => `  - ${c.col1} ↔ ${c.col2}: ${c.value}`).join("\n")}` : ""}\n\nBaseado neste perfil, sugira as melhores análises para este dataset.`;
+              // The column lines carry type and cardinality so the model can pick a
+              // test without guessing, and the warnings travel with it so it cannot
+              // recommend an analysis over data the profile already flagged.
+              const columnLines = profile.columns
+                .map((c) => {
+                  const parts = [typeLabels[c.type], `${c.missingPct.toFixed(1)}% missing`, `${c.unique} únicos`];
+                  if (c.isIdCandidate) parts.push("parece identificador");
+                  if (c.isConstant) parts.push("constante");
+                  if (c.sentinels?.length) {
+                    parts.push(`códigos de ausência suspeitos: ${c.sentinels.map((sv) => sv.value).join(", ")}`);
+                  }
+                  if (c.topValues?.length) {
+                    parts.push(`níveis: ${c.topValues.slice(0, 5).map((tv) => `${tv.value} (${tv.count})`).join(", ")}`);
+                  }
+                  return `  - **${c.name}** (${parts.join("; ")})`;
+                })
+                .join("\n");
+
+              const warningLines =
+                profile.warnings.length > 0
+                  ? `\n\nProblemas detectados:\n${profile.warnings.map((w) => `  - [${w.severity}] ${w.message}`).join("\n")}`
+                  : "";
+
+              const correlationLines =
+                profile.correlations.length > 0
+                  ? `\n\nCorrelações relevantes:\n${profile.correlations.map((c) => `  - ${c.col1} ↔ ${c.col2}: r=${c.value} (n=${c.n})`).join("\n")}`
+                  : "";
+
+              const summary = `📊 **Perfil do Dataset (${fileName})**\n- ${profile.totalRows} linhas, ${profile.totalCols} colunas\n- Score de qualidade: ${profile.overallQuality}/100\n- Duplicatas: ${profile.duplicateRows}\n\nColunas:\n${columnLines}${warningLines}${correlationLines}\n\nBaseado neste perfil, sugira as melhores análises para este dataset.`;
               onSendToChat(summary);
             }}>
               Analisar com IA
@@ -272,7 +129,9 @@ const DataMindProfiler = ({ data, fileName, onClose, onSendToChat }: Props) => {
             </div>
             <ul className="space-y-1">
               {profile.warnings.slice(0, 5).map((w, i) => (
-                <li key={i} className="text-xs text-muted-foreground">• {w}</li>
+                <li key={i} className="text-xs text-muted-foreground">
+                  <span className={w.severity === "critical" ? "text-red-500 font-medium" : ""}>•</span> {w.message}
+                </li>
               ))}
             </ul>
           </div>

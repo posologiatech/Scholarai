@@ -20,12 +20,18 @@ interface ProviderConfig {
   isOpenAICompatible: boolean;
 }
 
+// "gemini-2.5-pro" doubles as the request for "this provider's strongest model":
+// DataMind asks for it when generating statistical code, and each provider maps it
+// to the best model it actually serves.
 const PROVIDERS: ProviderConfig[] = [
   {
     id: "groq",
     baseUrl: "https://api.groq.com/openai/v1/chat/completions",
     headerFn: (key) => ({ Authorization: `Bearer ${key}`, "Content-Type": "application/json" }),
-    modelMap: { "google/gemini-3-flash-preview": "llama-3.3-70b-versatile" },
+    modelMap: {
+      "google/gemini-3-flash-preview": "llama-3.3-70b-versatile",
+      "gemini-2.5-pro": "llama-3.3-70b-versatile",
+    },
     defaultModel: "llama-3.3-70b-versatile",
     isOpenAICompatible: true,
   },
@@ -33,7 +39,10 @@ const PROVIDERS: ProviderConfig[] = [
     id: "openai",
     baseUrl: "https://api.openai.com/v1/chat/completions",
     headerFn: (key) => ({ Authorization: `Bearer ${key}`, "Content-Type": "application/json" }),
-    modelMap: { "google/gemini-3-flash-preview": "gpt-4o-mini" },
+    modelMap: {
+      "google/gemini-3-flash-preview": "gpt-4o-mini",
+      "gemini-2.5-pro": "gpt-4o",
+    },
     defaultModel: "gpt-4o-mini",
     isOpenAICompatible: true,
   },
@@ -41,7 +50,7 @@ const PROVIDERS: ProviderConfig[] = [
     id: "openrouter",
     baseUrl: "https://openrouter.ai/api/v1/chat/completions",
     headerFn: (key) => ({ Authorization: `Bearer ${key}`, "Content-Type": "application/json" }),
-    modelMap: {},
+    modelMap: { "gemini-2.5-pro": "google/gemini-2.5-pro" },
     defaultModel: "google/gemini-2.5-flash",
     isOpenAICompatible: true,
   },
@@ -49,7 +58,10 @@ const PROVIDERS: ProviderConfig[] = [
     id: "google",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     headerFn: (key) => ({ Authorization: `Bearer ${key}`, "Content-Type": "application/json" }),
-    modelMap: { "google/gemini-3-flash-preview": "gemini-3.5-flash" },
+    modelMap: {
+      "google/gemini-3-flash-preview": "gemini-3.5-flash",
+      "gemini-2.5-pro": "gemini-2.5-pro",
+    },
     defaultModel: "gemini-3.5-flash",
     isOpenAICompatible: true,
   },
@@ -61,7 +73,10 @@ const PROVIDERS: ProviderConfig[] = [
       "Content-Type": "application/json",
       "anthropic-version": "2023-06-01",
     }),
-    modelMap: { "google/gemini-3-flash-preview": "claude-sonnet-4-20250514" },
+    modelMap: {
+      "google/gemini-3-flash-preview": "claude-sonnet-4-20250514",
+      "gemini-2.5-pro": "claude-sonnet-4-20250514",
+    },
     defaultModel: "claude-sonnet-4-20250514",
     isOpenAICompatible: false,
     transformRequest: (body: any) => {
@@ -216,6 +231,33 @@ export async function notifyCostCeilingBreach(userId: string) {
   }
 }
 
+// Estimated cost per 1M tokens (approximate, kept in sync with each provider's
+// published pricing -- this feeds get_user_monthly_ai_cost, so a stale entry here
+// means the cost ceiling under/over-fires for that model).
+const COST_PER_MILLION_TOKENS: Record<string, { input: number; output: number }> = {
+  "gpt-4o-mini": { input: 0.15, output: 0.6 },
+  "gpt-4o": { input: 2.5, output: 10 },
+  "llama-3.3-70b-versatile": { input: 0.59, output: 0.79 },
+  "gemini-2.5-flash": { input: 0.15, output: 0.6 },
+  "gemini-2.5-pro": { input: 1.25, output: 5 },
+  "gemini-3-flash-preview": { input: 0.5, output: 3 },
+  "gemini-3-flash": { input: 0.5, output: 3 },
+  "gemini-2.5-flash-lite": { input: 0.1, output: 0.4 },
+  "claude-sonnet-4-20250514": { input: 3, output: 15 },
+};
+
+/**
+ * Exported because a streaming call gets no parsed body here -- the caller that
+ * forwards the stream reads the usage chunk itself and logs the cost via
+ * logFlatCost, and must use these same rates.
+ */
+export function estimateCostUsd(model: string, tokensInput: number, tokensOutput: number): number {
+  // Unknown model: assume the pricier end of the "flash-tier" models seen above
+  // rather than the cheapest, so an un-mapped model can't silently under-report.
+  const rates = COST_PER_MILLION_TOKENS[model] || { input: 0.5, output: 3 };
+  return (tokensInput * rates.input + tokensOutput * rates.output) / 1_000_000;
+}
+
 async function logAIUsage(
   provider: string,
   model: string,
@@ -231,26 +273,7 @@ async function logAIUsage(
     const usage = responseData?.usage;
     const tokensInput = usage?.prompt_tokens ?? 0;
     const tokensOutput = usage?.completion_tokens ?? 0;
-
-    // Estimated cost per 1M tokens (approximate, kept in sync with each provider's
-    // published pricing -- this feeds get_user_monthly_ai_cost, so a stale entry here
-    // means the cost ceiling under/over-fires for that model).
-    const costMap: Record<string, { input: number; output: number }> = {
-      "gpt-4o-mini": { input: 0.15, output: 0.6 },
-      "gpt-4o": { input: 2.5, output: 10 },
-      "llama-3.3-70b-versatile": { input: 0.59, output: 0.79 },
-      "gemini-2.5-flash": { input: 0.15, output: 0.6 },
-      "gemini-2.5-pro": { input: 1.25, output: 5 },
-      "gemini-3-flash-preview": { input: 0.5, output: 3 },
-      "gemini-3-flash": { input: 0.5, output: 3 },
-      "gemini-2.5-flash-lite": { input: 0.1, output: 0.4 },
-      "claude-sonnet-4-20250514": { input: 3, output: 15 },
-    };
-    // Unknown model: assume the pricier end of the "flash-tier" models seen above
-    // rather than the cheapest, so an un-mapped model can't silently under-report.
-    const rates = costMap[model] || { input: 0.5, output: 3 };
-    const estimatedCost =
-      (tokensInput * rates.input + tokensOutput * rates.output) / 1_000_000;
+    const estimatedCost = estimateCostUsd(model, tokensInput, tokensOutput);
 
     await supabase.from("ai_usage_log").insert({
       user_id: userId || PLACEHOLDER_USER_ID,

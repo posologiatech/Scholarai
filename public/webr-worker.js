@@ -59,20 +59,47 @@ function slugifyVarName(fileName, used) {
   return final;
 }
 
-function buildDataBootstrap(fileNames) {
-  const names = (fileNames || []).filter((fn) => fn && fn.toLowerCase().endsWith(".csv"));
-  if (names.length === 0) return "";
+// Accepts either plain file names or {fileName, dialect} specs, so a caller that
+// has not detected a dialect still gets read.csv's defaults.
+function normalizeFileSpecs(files) {
+  return (files || [])
+    .map((f) => (typeof f === "string" ? { fileName: f } : f))
+    .filter((f) => f && f.fileName);
+}
+
+/**
+ * Mirrors the pandas side: the dialect detected in the browser becomes explicit
+ * read.csv arguments, so a pt-BR export does not land as one text column.
+ */
+function readCsvArgs(dialect) {
+  if (!dialect) return "";
+  const args = [];
+  if (dialect.delimiter) args.push(`sep=${JSON.stringify(dialect.delimiter)}`);
+  if (dialect.decimal) args.push(`dec=${JSON.stringify(dialect.decimal)}`);
+  if (dialect.encoding) {
+    args.push(`fileEncoding=${JSON.stringify(dialect.encoding === "latin-1" ? "latin1" : "UTF-8")}`);
+  }
+  return args.length > 0 ? ", " + args.join(", ") : "";
+}
+
+function buildDataBootstrap(files) {
+  const specs = normalizeFileSpecs(files).filter(
+    (f) => f.fileName.toLowerCase().endsWith(".csv")
+  );
+  if (specs.length === 0) return "";
 
   const used = new Set();
-  const entries = names.map((fileName) => ({
-    fileName,
-    varName: `df_${slugifyVarName(fileName, used)}`,
+  const entries = specs.map((spec) => ({
+    fileName: spec.fileName,
+    dialect: spec.dialect,
+    varName: `df_${slugifyVarName(spec.fileName, used)}`,
   }));
 
   let code = "dfs <- list()\n";
-  for (const { fileName, varName } of entries) {
+  for (const { fileName, dialect, varName } of entries) {
     const path = "/tmp/" + fileName;
-    code += `${varName} <- tryCatch(read.csv("${path}", stringsAsFactors=FALSE), error=function(e) { cat("Aviso:", e$message, "\\n"); NULL })\n`;
+    const args = readCsvArgs(dialect);
+    code += `${varName} <- tryCatch(read.csv("${path}", stringsAsFactors=FALSE${args}), error=function(e) { cat("Aviso:", e$message, "\\n"); NULL })\n`;
     code += `dfs[["${fileName}"]] <- ${varName}\n`;
   }
   if (entries.length === 1) {
@@ -81,7 +108,7 @@ function buildDataBootstrap(fileNames) {
   return code;
 }
 
-async function runCode(code, fileNames) {
+async function runCode(code, files) {
   const r = await initWebR();
 
   const showChartHelper = `
@@ -104,7 +131,7 @@ show_chart <- function(data, kind="bar", x=NULL, y=NULL, series=NULL, title="") 
 }
 `;
 
-  let fullCode = showChartHelper + buildDataBootstrap(fileNames);
+  let fullCode = showChartHelper + buildDataBootstrap(files);
 
   fullCode += code;
 
@@ -160,7 +187,7 @@ self.onmessage = async (e) => {
         await writeFile(payload.fileName, payload.data);
         break;
       case "run":
-        await runCode(payload.code, payload.fileNames);
+        await runCode(payload.code, payload.files || payload.fileNames);
         break;
       case "reset":
         await resetRuntime();

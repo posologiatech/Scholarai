@@ -10,7 +10,9 @@ const corsHeaders = {
 interface ProviderInfo {
   id: string;
   name: string;
-  models: Array<{ id: string; name: string; description: string }>;
+  // `recommended` marks the model DataMind should default to for this provider —
+  // statistical code generation, where a weak model costs retries and wrong tests.
+  models: Array<{ id: string; name: string; description: string; recommended?: boolean }>;
 }
 
 const PROVIDER_MODELS: Record<string, ProviderInfo> = {
@@ -18,7 +20,7 @@ const PROVIDER_MODELS: Record<string, ProviderInfo> = {
     id: "groq",
     name: "Groq",
     models: [
-      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", description: "Rápido e versátil" },
+      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", description: "Rápido e versátil", recommended: true },
       { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", description: "Ultra rápido" },
       { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", description: "Bom para análise" },
     ],
@@ -27,7 +29,7 @@ const PROVIDER_MODELS: Record<string, ProviderInfo> = {
     id: "openai",
     name: "OpenAI",
     models: [
-      { id: "gpt-4o", name: "GPT-4o", description: "Mais capaz para análises complexas" },
+      { id: "gpt-4o", name: "GPT-4o", description: "Mais capaz para análises complexas", recommended: true },
       { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Rápido para maioria das tarefas" },
     ],
   },
@@ -35,7 +37,7 @@ const PROVIDER_MODELS: Record<string, ProviderInfo> = {
     id: "anthropic",
     name: "Anthropic",
     models: [
-      { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", description: "Mais capaz" },
+      { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", description: "Mais capaz", recommended: true },
       { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", description: "Rápido e eficiente" },
     ],
   },
@@ -44,7 +46,7 @@ const PROVIDER_MODELS: Record<string, ProviderInfo> = {
     name: "OpenRouter",
     models: [
       { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Rápido e multimodal" },
-      { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Mais capaz" },
+      { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Mais capaz", recommended: true },
       { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4", description: "Via OpenRouter" },
     ],
   },
@@ -55,7 +57,7 @@ const PROVIDER_MODELS: Record<string, ProviderInfo> = {
       { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", description: "Melhor custo-benefício, rápido e eficiente" },
       { id: "gemini-3-flash", name: "Gemini 3 Flash", description: "Rápido e econômico" },
       { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Rápido e eficiente" },
-      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Mais capaz" },
+      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Mais capaz", recommended: true },
     ],
   },
 };

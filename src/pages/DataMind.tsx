@@ -37,7 +37,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import * as XLSX from "xlsx";
+import {
+  DEFAULT_DIALECT,
+  ParsedTable,
+  SandboxFile,
+  TabularDialect,
+  parseCSVBuffer,
+  toCSV,
+} from "@/lib/datamind/parseTabular";
+import { parseExcelBuffer } from "@/lib/datamind/parseWorkbook";
+import { CompactProfile, compactProfile, profileDataset } from "@/lib/datamind/profile";
+import { buildHistory } from "@/lib/datamind/conversationContext";
+import { extractExplanationPrefix, parseAssistantReply } from "@/lib/datamind/parseAssistantReply";
+import { readAssistantStream } from "@/lib/datamind/streamAssistant";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 import { RegisterOutputButton } from "@/components/research/RegisterOutputButton";
 import { useProjectLinkedIds } from "@/hooks/useProjectLinkedIds";
@@ -74,6 +86,11 @@ export interface Message {
 export interface SpreadsheetData {
   columns: string[];
   rows: Record<string, string>[];
+  /** How the file was read, so the sandbox can read it identically. */
+  dialect?: TabularDialect;
+  /** True row count in the file, which can exceed the rows held in memory. */
+  totalRows?: number;
+  truncated?: boolean;
 }
 
 export interface SelectedContext {
@@ -85,6 +102,38 @@ const MAX_ROWS = 50000;
 // Above this combined row count, execution routes to the owner's home-server sandbox
 // instead of the in-browser Pyodide (see supabase/functions/datamind-run-remote).
 const REMOTE_EXEC_THRESHOLD_ROWS = 50000;
+
+/** Newline constant, so output assembly reads the same everywhere it appears. */
+const NL = String.fromCharCode(10);
+
+const DATAMIND_CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/datamind-chat`;
+
+// How many times a failed analysis is sent back to the model for repair before the
+// researcher is shown an error. Each attempt is one extra AI call.
+const MAX_FIX_ATTEMPTS = 2;
+
+/** The shape every sandbox engine returns (Pyodide, WebR and the remote server). */
+interface ExecutionResult {
+  stdout: string;
+  images: string[];
+  error: string | null;
+}
+
+/**
+ * Reads back the dialect stored on the file row. Files uploaded before dialect
+ * detection existed have none, so they keep the engines' defaults — which is
+ * exactly how they were read at the time.
+ */
+function readDialect(schemaInfo: Record<string, unknown> | null | undefined): TabularDialect | undefined {
+  const dialect = (schemaInfo as { dialect?: TabularDialect } | null)?.dialect;
+  if (!dialect || !dialect.delimiter) return undefined;
+  return dialect;
+}
+
+/** Pairs every file with the dialect it was read under, for any sandbox engine. */
+function toSandboxFiles(files: DataMindFile[]): SandboxFile[] {
+  return files.map((f) => ({ fileName: f.file_name, dialect: readDialect(f.schema_info) }));
+}
 
 const DataMind = () => {
   const { id: conversationId } = useParams();
@@ -105,6 +154,10 @@ const DataMind = () => {
   const [files, setFiles] = useState<DataMindFile[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
+  // What the assistant is currently doing, shown instead of a generic spinner.
+  const [loadingStage, setLoadingStage] = useState<string | null>(null);
+  // The explanation as it streams in, before the message row exists.
+  const [streamingText, setStreamingText] = useState("");
   const [selectedModel, setSelectedModel] = useState<{ provider: string; model: string } | null>(null);
   const [codeLanguage, setCodeLanguage] = useState("python");
   const pyodide = usePyodide();
@@ -226,48 +279,36 @@ const DataMind = () => {
         .download(file.file_path);
       if (!blob) return;
 
-      if (file.file_name.endsWith(".csv")) {
-        const text = await blob.text();
-        parseCSVFull(text);
-      } else if (file.file_name.match(/\.xlsx?$/i)) {
-        const buffer = await blob.arrayBuffer();
+      const buffer = await blob.arrayBuffer();
+      if (file.file_name.match(/\.xlsx?$/i)) {
         parseExcelFull(buffer);
+      } else {
+        parseCSVFull(buffer, readDialect(file.schema_info));
       }
     } catch (e) {
       console.error("Failed to re-parse file for spreadsheet:", e);
     }
   };
 
-  const parseCSVFull = (text: string) => {
-    const lines = text.split("\n").filter(Boolean);
-    if (lines.length < 2) return;
-    const headers = lines[0].split(",").map((h) => h.trim().replace(/"/g, ""));
-    const rows = lines.slice(1, MAX_ROWS + 1).map((line) => {
-      const vals = line.split(",").map((v) => v.trim().replace(/"/g, ""));
-      const row: Record<string, string> = {};
-      headers.forEach((h, i) => (row[h] = vals[i] || ""));
-      return row;
-    });
-    setSpreadsheetData({ columns: headers, rows });
+  /**
+   * Parsing goes through the shared ingestion layer so the grid, the profiler and
+   * the sandbox all see the same columns and the same numbers. `dialect` lets a
+   * reload reuse what was detected on upload instead of guessing again.
+   */
+  const parseCSVFull = (buffer: ArrayBuffer, dialect?: TabularDialect): ParsedTable => {
+    const table = parseCSVBuffer(buffer, { maxRows: MAX_ROWS, dialect });
+    setSpreadsheetData(table);
+    return table;
   };
 
-  const parseExcelFull = (buffer: ArrayBuffer) => {
+  const parseExcelFull = (buffer: ArrayBuffer): ParsedTable | null => {
     try {
-      const workbook = XLSX.read(buffer, { type: "array" });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-      if (jsonData.length === 0) return;
-
-      const headers = Object.keys(jsonData[0]);
-      const rows = jsonData.slice(0, MAX_ROWS).map((row) => {
-        const r: Record<string, string> = {};
-        headers.forEach((h) => (r[h] = String(row[h] ?? "")));
-        return r;
-      });
-      setSpreadsheetData({ columns: headers, rows });
+      const table = parseExcelBuffer(buffer, { maxRows: MAX_ROWS });
+      setSpreadsheetData(table);
+      return table;
     } catch (e) {
       console.error("Excel parse error:", e);
+      return null;
     }
   };
 
@@ -305,14 +346,8 @@ const DataMind = () => {
 
   // Builds a CSV blob from parsed rows so the import has the same durable storage
   // snapshot (and reload/reparse path) as a regular CSV upload — not a live sync.
-  const buildCSVBlob = (columns: string[], rows: Record<string, string>[]): Blob => {
-    const escapeCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-    const lines = [
-      columns.map(escapeCell).join(","),
-      ...rows.map((row) => columns.map((c) => escapeCell(row[c] ?? "")).join(",")),
-    ];
-    return new Blob([lines.join("\n")], { type: "text/csv" });
-  };
+  const buildCSVBlob = (columns: string[], rows: Record<string, string>[]): Blob =>
+    new Blob([toCSV(columns, rows)], { type: "text/csv;charset=utf-8" });
 
   const importGoogleSheet = async (spreadsheetUrl: string, sheetName: string) => {
     if (!user) return;
@@ -384,7 +419,9 @@ const DataMind = () => {
         file_name: `${safeName}.csv`,
         file_path: filePath,
         file_size: blob.size,
-        schema_info: { columns, rows: rows.length } as any,
+        // buildCSVBlob writes a canonical comma/UTF-8 CSV, so that is the dialect
+        // the sandbox must read it back with — not whatever the source sheet used.
+        schema_info: { columns, rows: rows.length, dialect: DEFAULT_DIALECT } as any,
         preview_data: rows.slice(0, 5) as any,
       }])
       .select()
@@ -392,7 +429,7 @@ const DataMind = () => {
 
     if (fileData) {
       setFiles((prev) => [...prev, fileData as unknown as DataMindFile]);
-      setSpreadsheetData({ columns, rows });
+      setSpreadsheetData({ columns, rows, dialect: DEFAULT_DIALECT, totalRows: rows.length, truncated: false });
     }
 
     const { data: msg } = await supabase.from("datamind_messages").insert({
@@ -472,49 +509,48 @@ const DataMind = () => {
       if (uploadError) {
         toast({ title: "Erro no upload", description: uploadError.message, variant: "destructive" });
         setLoading(false);
+    setLoadingStage(null);
+    setStreamingText("");
         return;
       }
 
-      // Parse file preview client-side
+      // Parse once, up front: the same ParsedTable feeds the grid, the preview and
+      // the schema, and its dialect is what the sandbox will read the file with.
       let previewData: unknown[] = [];
       let schemaInfo: Record<string, unknown> = {};
-      const isExcel = file.name.match(/\.xlsx?$/i);
-      if (file.name.endsWith(".csv")) {
-        try {
-          const text = await file.text();
-          const lines = text.split("\n").filter(Boolean);
-          const headers = lines[0].split(",").map((h) => h.trim().replace(/"/g, ""));
-          schemaInfo = { columns: headers, rows: lines.length - 1 };
-          previewData = lines.slice(1, 6).map((line) => {
-            const vals = line.split(",").map((v) => v.trim().replace(/"/g, ""));
-            const row: Record<string, string> = {};
-            headers.forEach((h, i) => (row[h] = vals[i] || ""));
-            return row;
-          });
-          // Full parse for spreadsheet
-          parseCSVFull(text);
-        } catch { /* ignore parse errors */ }
-      } else if (isExcel) {
-        try {
-          const buffer = await file.arrayBuffer();
-          const workbook = XLSX.read(buffer, { type: "array" });
-          const sheetName = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-          if (jsonData.length > 0) {
-            const headers = Object.keys(jsonData[0]);
-            schemaInfo = { columns: headers, rows: jsonData.length };
-            previewData = jsonData.slice(0, 5).map((row) => {
-              const r: Record<string, string> = {};
-              headers.forEach((h) => (r[h] = String(row[h] ?? "")));
-              return r;
+      const isExcel = /\.xlsx?$/i.test(file.name);
+      try {
+        const buffer = await file.arrayBuffer();
+        const table = isExcel ? parseExcelFull(buffer) : parseCSVFull(buffer);
+
+        if (table && table.columns.length > 0) {
+          // The profile is computed once here and stored with the file, so every
+          // later request can hand the model real types, levels and data-quality
+          // flags instead of a bare column list.
+          schemaInfo = {
+            columns: table.columns,
+            rows: table.totalRows,
+            dialect: table.dialect,
+            profile: compactProfile(profileDataset(table), table.totalRows),
+          };
+          previewData = table.rows.slice(0, 5);
+
+          if (table.truncated) {
+            toast({
+              title: "Arquivo grande",
+              description: `A planilha mostra as primeiras ${MAX_ROWS.toLocaleString("pt-BR")} de ${table.totalRows.toLocaleString("pt-BR")} linhas. A análise usa o arquivo completo.`,
             });
-            // Full parse for spreadsheet
-            parseExcelFull(buffer);
           }
-        } catch {
-          schemaInfo = { file_type: "excel", file_name: file.name, file_size: file.size, note: "Excel file - schema will be detected by Python/pandas" };
+        } else if (isExcel) {
+          schemaInfo = {
+            file_type: "excel",
+            file_name: file.name,
+            file_size: file.size,
+            note: "Excel file - schema will be detected by Python/pandas",
+          };
         }
+      } catch (e) {
+        console.error("File parse error:", e);
       }
 
       const { data: fileData } = await supabase
@@ -589,85 +625,190 @@ const DataMind = () => {
       const allFiles = uploadedFile ? [...files, uploadedFile] : files;
 
       const schemas = allFiles.map((f) => {
-        const info = f.schema_info as { columns?: string[]; rows?: number };
-        return { file_name: f.file_name, columns: info?.columns || [], rows: info?.rows };
+        const info = f.schema_info as { columns?: string[]; rows?: number; profile?: CompactProfile };
+        return {
+          file_name: f.file_name,
+          columns: info?.columns || [],
+          rows: info?.rows,
+          profile: info?.profile,
+        };
       });
 
-      const history = [...messages, userMsg].filter(Boolean).slice(-10).map((m) => ({
-        role: m!.role,
-        content: m!.content,
-      }));
+      // Past assistant turns carry their code and results, so a follow-up such as
+      // "interprete isso" is answered from the numbers that were actually produced.
+      // The current message is excluded: it is sent separately as `message`.
+      const history = buildHistory(messages);
 
-      const { data: aiResponse, error: aiError } = await supabase.functions.invoke(
-        "datamind-chat",
-        {
-          body: {
-            message: fullContent,
-            history,
-            schemas,
-            provider: selectedModel?.provider || undefined,
-            model: selectedModel?.model || undefined,
-            codeLanguage,
-          },
-        }
+      setLoadingStage(
+        allFiles.length > 0 ? "Lendo o perfil dos dados e escolhendo a análise..." : "Pensando..."
       );
+      const requestBody = {
+        message: fullContent,
+        history,
+        schemas,
+        provider: selectedModel?.provider || undefined,
+        model: selectedModel?.model || undefined,
+        codeLanguage,
+        stream: true,
+      };
 
-      if (aiError) throw aiError;
+      // Streamed through a raw fetch rather than functions.invoke, which buffers the
+      // whole body. The function falls back to a plain JSON response whenever the
+      // chosen provider cannot stream, so both shapes are handled here.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
 
-      const aiContent = aiResponse?.explanation || "Não consegui processar sua solicitação.";
-      const codeBlock = aiResponse?.code || null;
+      const chatResponse = await fetch(DATAMIND_CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!chatResponse.ok) {
+        throw new Error(`datamind-chat respondeu ${chatResponse.status}`);
+      }
+
+      let reply: { explanation: string; code: string | null };
+
+      if (chatResponse.headers.get("content-type")?.includes("text/event-stream")) {
+        const raw = await readAssistantStream(chatResponse, {
+          onText: (soFar) => {
+            // The prompt puts "explanation" first precisely so it can be shown
+            // while the code field is still being generated.
+            const prefix = extractExplanationPrefix(soFar);
+            if (prefix) setStreamingText(prefix);
+          },
+        });
+        reply = parseAssistantReply(raw);
+      } else {
+        const json = await chatResponse.json();
+        reply = { explanation: json?.explanation || "", code: json?.code || null };
+      }
+
+      setStreamingText("");
+
+      const aiContent = reply.explanation || "Não consegui processar sua solicitação.";
+      const codeBlock = reply.code;
 
       // Execute code if present
       let outputType: string | null = null;
       let outputContent: string | null = null;
+      // The code that actually ran, which may be a repaired version of what the
+      // model first produced — that is what gets stored and shown.
+      let executedCode: string | null = codeBlock;
+      let fixNote = "";
+      let autoFixed = false;
 
       if (codeBlock && allFiles.length > 0) {
-        try {
-          const isRCode = codeLanguage === "r";
-          const totalRows = allFiles.reduce((sum, f) => {
-            const info = f.schema_info as { rows?: number };
-            return sum + (Number(info?.rows) || 0);
-          }, 0);
-          const canUseRemoteExec = !isRCode && isOwner && totalRows > REMOTE_EXEC_THRESHOLD_ROWS;
-          setUsedRemoteExec(canUseRemoteExec);
+        const isRCode = codeLanguage === "r";
+        const totalRows = allFiles.reduce((sum, f) => {
+          const info = f.schema_info as { rows?: number };
+          return sum + (Number(info?.rows) || 0);
+        }, 0);
+        const canUseRemoteExec = !isRCode && isOwner && totalRows > REMOTE_EXEC_THRESHOLD_ROWS;
+        setUsedRemoteExec(canUseRemoteExec);
 
-          let result: { stdout: string; images: string[]; error: string | null };
-
+        const runOnce = async (source: string): Promise<ExecutionResult> => {
           if (canUseRemoteExec) {
             const { data: remoteData, error: remoteError } = await supabase.functions.invoke(
               "datamind-run-remote",
-              { body: { code: codeBlock, codeLanguage, filePaths: allFiles.map((f) => f.file_path) } }
+              {
+                body: {
+                  code: source,
+                  codeLanguage,
+                  // The original file name matters: it decides the dataframe variable
+                  // name, and the storage path carries an upload timestamp prefix.
+                  files: allFiles.map((f) => ({
+                    path: f.file_path,
+                    fileName: f.file_name,
+                    dialect: readDialect(f.schema_info),
+                  })),
+                },
+              }
             );
             if (remoteError) throw remoteError;
-            result = remoteData;
-          } else {
-            for (const f of allFiles) {
-              const cacheKey = f.file_path + (isRCode ? "_r" : "_py");
-              if (loadedFilesRef.current.has(cacheKey)) continue;
-              const { data: fileBlob, error: downloadError } = await supabase.storage
-                .from("datamind-files")
-                .download(f.file_path);
-              if (downloadError || !fileBlob) {
-                throw new Error(`Falha ao carregar o arquivo "${f.file_name}" para a análise. Verifique sua conexão e tente novamente.`);
-              }
-              const arrayBuf = await fileBlob.arrayBuffer();
-              if (isRCode) {
-                await webR.writeFile(f.file_name, arrayBuf);
-              } else {
-                await pyodide.writeFile(f.file_name, arrayBuf);
-              }
-              loadedFilesRef.current.add(cacheKey);
+            return remoteData as ExecutionResult;
+          }
+
+          for (const f of allFiles) {
+            const cacheKey = f.file_path + (isRCode ? "_r" : "_py");
+            if (loadedFilesRef.current.has(cacheKey)) continue;
+            const { data: fileBlob, error: downloadError } = await supabase.storage
+              .from("datamind-files")
+              .download(f.file_path);
+            if (downloadError || !fileBlob) {
+              throw new Error(`Falha ao carregar o arquivo "${f.file_name}" para a análise. Verifique sua conexão e tente novamente.`);
+            }
+            const arrayBuf = await fileBlob.arrayBuffer();
+            if (isRCode) {
+              await webR.writeFile(f.file_name, arrayBuf);
+            } else {
+              await pyodide.writeFile(f.file_name, arrayBuf);
+            }
+            loadedFilesRef.current.add(cacheKey);
+          }
+
+          const sandboxFiles = toSandboxFiles(allFiles);
+          return isRCode
+            ? await webR.runR(source, sandboxFiles)
+            : await pyodide.runPython(source, sandboxFiles);
+        };
+
+        try {
+          setLoadingStage("Executando a análise...");
+          let result = await runOnce(executedCode);
+
+          // Self-repair loop: a traceback is something the model can act on, and
+          // making the researcher debug generated code is the difference between a
+          // tool that "always works" and one that fails in their face.
+          let attempt = 0;
+          while (result.error && attempt < MAX_FIX_ATTEMPTS) {
+            attempt++;
+            setLoadingStage(
+              attempt === 1
+                ? "O código falhou — corrigindo e tentando de novo..."
+                : `Corrigindo o código (tentativa ${attempt} de ${MAX_FIX_ATTEMPTS})...`
+            );
+
+            const { data: fixData, error: fixError } = await supabase.functions.invoke("datamind-fix", {
+              body: {
+                code: executedCode,
+                error: result.error,
+                codeLanguage,
+                schemas,
+                provider: selectedModel?.provider || undefined,
+                model: selectedModel?.model || undefined,
+              },
+            });
+
+            // No code back means the fixer judged the analysis impossible, or itself
+            // failed; its note explains that far better than a raw traceback.
+            if (fixError || !fixData?.code) {
+              if (fixData?.note) fixNote = fixData.note;
+              break;
             }
 
-            const fileNames = allFiles.map((f) => f.file_name);
-            result = isRCode
-              ? await webR.runR(codeBlock, fileNames)
-              : await pyodide.runPython(codeBlock, fileNames);
+            fixNote = fixData.note || fixNote;
+            executedCode = fixData.code;
+            setLoadingStage("Executando a análise corrigida...");
+            result = await runOnce(executedCode);
           }
 
           if (result.error) {
             outputType = "text";
-            outputContent = `Erro na execução:\n${result.error}`;
+            outputContent = [
+              attempt > 0
+                ? `Não consegui executar esta análise, mesmo após ${attempt} tentativa(s) de correção automática.`
+                : "Não consegui executar esta análise.",
+              fixNote ? `Motivo: ${fixNote}` : "",
+              `Detalhe técnico:${NL}${result.error}`,
+            ]
+              .filter(Boolean)
+              .join(NL + NL);
           } else {
             const parts: string[] = [];
             if (result.stdout?.trim()) {
@@ -680,11 +821,14 @@ const DataMind = () => {
             }
             if (parts.length > 0) {
               outputType = result.images.length > 0 ? "mixed" : "text";
-              outputContent = parts.join("\n");
+              outputContent = parts.join(NL);
             } else {
               outputType = "text";
               outputContent = "Código executado com sucesso (sem output).";
             }
+            // Flagged so the UI can say the code shown is a repaired version, not
+            // the one first generated.
+            if (attempt > 0) autoFixed = true;
           }
         } catch (e) {
           console.error("Execution error:", e);
@@ -700,8 +844,8 @@ const DataMind = () => {
         .insert({
           conversation_id: activeConvId,
           role: "assistant",
-          content: aiContent,
-          code_block: codeBlock,
+          content: autoFixed ? `${aiContent}${NL}${NL}_O código falhou na primeira execução e foi corrigido automaticamente._` : aiContent,
+          code_block: executedCode,
           output_type: outputType,
           output_content: outputContent,
         })
@@ -735,6 +879,8 @@ const DataMind = () => {
     }
 
     setLoading(false);
+    setLoadingStage(null);
+    setStreamingText("");
   };
 
   // Apply pipeline: sequentially send each step's prompt
@@ -953,7 +1099,14 @@ const DataMind = () => {
                 conversationId={conversationId}
                 fileId={files[0]?.id}
                 onApply={(cleaned) => {
-                  setSpreadsheetData(cleaned);
+                  // Cleaning rewrites rows, not how the file is read — keep the
+                  // dialect so a later sandbox run still parses it the same way.
+                  setSpreadsheetData({
+                    ...cleaned,
+                    dialect: cleaned.dialect ?? spreadsheetData.dialect,
+                    totalRows: cleaned.totalRows ?? cleaned.rows.length,
+                    truncated: cleaned.truncated ?? spreadsheetData.truncated,
+                  });
                   setCleaningOpen(false);
                 }}
                 onClose={() => setCleaningOpen(false)}
@@ -977,6 +1130,8 @@ const DataMind = () => {
             messages={messages}
             files={files}
             loading={loading}
+            loadingStage={loadingStage}
+            streamingText={streamingText}
             conversationId={conversationId}
             onSend={sendMessage}
             hasConversation={!!conversationId}
