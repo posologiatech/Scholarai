@@ -20,7 +20,7 @@ interface Props {
   /** The explanation as it streams in, before the message row exists. */
   streamingText?: string;
   conversationId?: string;
-  onSend: (content: string, file?: File) => void;
+  onSend: (content: string, attachments?: File[]) => void;
   hasConversation: boolean;
   existingFiles?: DataMindFile[];
   spreadsheetData?: SpreadsheetData | null;
@@ -36,12 +36,15 @@ interface Props {
   triageSummary?: string;
   /** Model choice, so the written briefing uses the one the researcher picked. */
   selectedModel?: { provider: string; model: string } | null;
+  /** The spreadsheet currently open in the grid, when several are attached. */
+  activeFileId?: string;
+  onSelectFile?: (fileId: string) => void;
   /** True while a multi-step plan is running, which can be several minutes of calls. */
   planRunning?: boolean;
   onCancelPlan?: () => void;
 }
 
-const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange, onOpenGoogleSheetsImport, findings = [], findingsScanning = false, onDismissFinding, onInterpretFindings, interpretingFindings, triageSummary, selectedModel, planRunning, onCancelPlan }: Props) => {
+const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange, onOpenGoogleSheetsImport, findings = [], findingsScanning = false, onDismissFinding, onInterpretFindings, interpretingFindings, triageSummary, selectedModel, activeFileId, onSelectFile, planRunning, onCancelPlan }: Props) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -94,30 +97,41 @@ const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, c
           </div>
         ) : (
           <div className="max-w-4xl mx-auto px-4 py-6 space-y-1">
-            {/* Interactive spreadsheet or fallback file preview */}
-            {files.map((f) =>
-              spreadsheetData && spreadsheetData.columns.length > 0 ? (
-                <DataMindSpreadsheet
+            {/* The grid holds one sheet at a time — the others are previews the
+                researcher can open, since `spreadsheetData` describes the active
+                file alone and reusing it for every card would show one file's rows
+                under another file's name. */}
+            {files.map((f) => {
+              const isActive = f.id === (activeFileId ?? files[0]?.id);
+              if (isActive && spreadsheetData && spreadsheetData.columns.length > 0) {
+                return (
+                  <DataMindSpreadsheet
+                    key={f.id}
+                    fileName={f.file_name}
+                    data={spreadsheetData.rows}
+                    columns={spreadsheetData.columns}
+                    totalRows={spreadsheetData.totalRows}
+                    truncated={spreadsheetData.truncated}
+                    onSelectionChange={onSelectionChange}
+                  />
+                );
+              }
+              return (
+                <DataMindFilePreview
                   key={f.id}
-                  fileName={f.file_name}
-                  data={spreadsheetData.rows}
-                  columns={spreadsheetData.columns}
-                  totalRows={spreadsheetData.totalRows}
-                  truncated={spreadsheetData.truncated}
-                  onSelectionChange={onSelectionChange}
+                  file={f}
+                  onOpen={!isActive && onSelectFile ? () => onSelectFile(f.id) : undefined}
                 />
-              ) : (
-                <DataMindFilePreview key={f.id} file={f} />
-              )
-            )}
+              );
+            })}
 
             {/* What is in the file, assembled from the profile and the stored
                 findings — no rescan, no AI call unless the researcher asks for
                 the written version. Scoped to the active file. */}
             {files.length > 0 && (
               <DataMindBriefing
-                key={files[0].id}
-                file={files[0]}
+                key={(files.find((f) => f.id === activeFileId) || files[0]).id}
+                file={files.find((f) => f.id === activeFileId) || files[0]}
                 findings={findings}
                 model={selectedModel}
                 loading={loading}

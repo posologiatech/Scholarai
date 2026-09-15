@@ -209,6 +209,14 @@ const DataMind = () => {
 
   // Full spreadsheet data (client-side only, not persisted)
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
+  /**
+   * Which file the grid, the profiler and the briefing are about.
+   *
+   * A conversation can hold several spreadsheets — that is the point of attaching
+   * more than one — but only one of them can be the open sheet, so the others are
+   * shown as previews until the researcher picks them.
+   */
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [selectedContext, setSelectedContext] = useState<SelectedContext | null>(null);
 
   // Bulk selection state
@@ -280,6 +288,7 @@ const DataMind = () => {
       setMessages([]);
       setFiles([]);
       setSpreadsheetData(null);
+      setActiveFileId(null);
       setSelectedContext(null);
       setShowProfiler(false);
       setProfilingDone(false);
@@ -303,6 +312,7 @@ const DataMind = () => {
         setFiles(loadedFiles);
         // Re-parse the first file for spreadsheet if available
         if (loadedFiles.length > 0) {
+          setActiveFileId(loadedFiles[0].id);
           reParseFileFromStorage(loadedFiles[0]);
         }
       }
@@ -328,6 +338,24 @@ const DataMind = () => {
       console.error("Failed to re-parse file for spreadsheet:", e);
     }
   };
+
+  /** The file the grid currently holds; everything about "this sheet" reads it. */
+  const activeFile = files.find((f) => f.id === activeFileId) || files[0];
+
+  /** Opens another attached spreadsheet in the grid, profiler and briefing. */
+  const selectFile = useCallback(
+    (fileId: string) => {
+      const file = files.find((f) => f.id === fileId);
+      if (!file || fileId === activeFileId) return;
+      setActiveFileId(fileId);
+      setSelectedContext(null);
+      setSpreadsheetData(null);
+      void reParseFileFromStorage(file);
+    },
+    // reParseFileFromStorage is stable enough for this: it only reads storage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [files, activeFileId]
+  );
 
   /**
    * Parsing goes through the shared ingestion layer so the grid, the profiler and
@@ -932,7 +960,7 @@ const DataMind = () => {
     }
   };
 
-  const sendMessage = async (content: string, file?: File) => {
+  const sendMessage = async (content: string, attachments?: File[]) => {
     if (!user) return;
     if (!canUse("datamind_chat")) {
       setShowDmLimitDialog(true);
@@ -947,20 +975,30 @@ const DataMind = () => {
       activeConvId = newId;
     }
 
-    // Handle file upload
-    let uploadedFile: DataMindFile | null = null;
-    if (file) {
-      const filePath = `${user.id}/${Date.now()}_${file.name}`;
+    // Handle file uploads — one message may carry several spreadsheets, which is
+    // what makes "compare these two files" a single question instead of two turns.
+    const incoming = attachments || [];
+    const uploadedFiles: DataMindFile[] = [];
+    // The grid shows the first file of the batch; parsing the others must not
+    // steal it, so the table is captured here and applied once at the end.
+    let firstTable: ParsedTable | null = null;
+
+    for (const [index, file] of incoming.entries()) {
+      // The index keeps two same-named files in one batch from landing on the
+      // same storage path within the same millisecond.
+      const filePath = `${user.id}/${Date.now()}_${index}_${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from("datamind-files")
         .upload(filePath, file);
 
       if (uploadError) {
-        toast({ title: "Erro no upload", description: uploadError.message, variant: "destructive" });
-        setLoading(false);
-    setLoadingStage(null);
-    setStreamingText("");
-        return;
+        toast({
+          title: `Erro no upload de "${file.name}"`,
+          description: uploadError.message,
+          variant: "destructive",
+        });
+        // One bad file does not cancel the others, nor the question itself.
+        continue;
       }
 
       // Parse once, up front: the same ParsedTable feeds the grid, the preview and
@@ -970,9 +1008,10 @@ const DataMind = () => {
       const isExcel = /\.xlsx?$/i.test(file.name);
       try {
         const buffer = await file.arrayBuffer();
-        const table = isExcel ? parseExcelFull(buffer) : parseCSVFull(buffer);
+        const table = isExcel ? parseExcelBuffer(buffer, { maxRows: MAX_ROWS }) : parseCSVBuffer(buffer, { maxRows: MAX_ROWS });
 
         if (table && table.columns.length > 0) {
+          if (!firstTable) firstTable = table;
           // The profile is computed once here and stored with the file, so every
           // later request can hand the model real types, levels and data-quality
           // flags instead of a bare column list.
@@ -986,7 +1025,7 @@ const DataMind = () => {
 
           if (table.truncated) {
             toast({
-              title: "Arquivo grande",
+              title: `Arquivo grande: ${file.name}`,
               description: `A planilha mostra as primeiras ${MAX_ROWS.toLocaleString("pt-BR")} de ${table.totalRows.toLocaleString("pt-BR")} linhas. A análise usa o arquivo completo.`,
             });
           }
@@ -1015,14 +1054,18 @@ const DataMind = () => {
         }])
         .select()
         .single();
-      if (fileData) {
-        uploadedFile = fileData as unknown as DataMindFile;
-        setFiles((prev) => [...prev, uploadedFile!]);
-        // Auto-show profiler on upload
-        if (!profilingDone) {
-          setShowProfiler(true);
-          setProfilingDone(true);
-        }
+      if (fileData) uploadedFiles.push(fileData as unknown as DataMindFile);
+    }
+
+    if (uploadedFiles.length > 0) {
+      setFiles((prev) => [...prev, ...uploadedFiles]);
+      // Whatever else arrived, the grid and the briefing follow the first of the batch.
+      setActiveFileId(uploadedFiles[0].id);
+      if (firstTable) setSpreadsheetData(firstTable);
+      // Auto-show profiler on upload
+      if (!profilingDone) {
+        setShowProfiler(true);
+        setProfilingDone(true);
       }
     }
 
@@ -1048,8 +1091,8 @@ const DataMind = () => {
     }
 
     // Save user message
-    const userMsgContent = file
-      ? `${content}\n\n📎 Arquivo: **${file.name}**`
+    const userMsgContent = uploadedFiles.length > 0
+      ? `${content}\n\n📎 ${uploadedFiles.length > 1 ? "Arquivos" : "Arquivo"}: ${uploadedFiles.map((f) => `**${f.file_name}**`).join(", ")}`
       : content;
 
     const { data: userMsg } = await supabase
@@ -1071,7 +1114,7 @@ const DataMind = () => {
     try {
       // All files in the conversation (including one just uploaded) are available as context —
       // `files` state won't include `uploadedFile` yet since setFiles hasn't flushed.
-      const allFiles = uploadedFile ? [...files, uploadedFile] : files;
+      const allFiles = [...files, ...uploadedFiles];
 
       const schemas = allFiles.map((f) => {
         const info = f.schema_info as { columns?: string[]; rows?: number; profile?: CompactProfile };
@@ -1437,7 +1480,7 @@ const DataMind = () => {
               <DataCleaningPanel
                 data={spreadsheetData}
                 conversationId={conversationId}
-                fileId={files[0]?.id}
+                fileId={activeFile?.id}
                 onApply={(cleaned) => {
                   // Cleaning rewrites rows, not how the file is read — keep the
                   // dialect so a later sandbox run still parses it the same way.
@@ -1459,7 +1502,7 @@ const DataMind = () => {
             <div className="px-4 py-3 border-b border-border/30">
               <DataMindProfiler
                 data={spreadsheetData}
-                fileName={files[0]?.file_name || "dataset"}
+                fileName={activeFile?.file_name || "dataset"}
                 onClose={() => setShowProfiler(false)}
                 onSendToChat={(msg) => { setShowProfiler(false); sendMessage(msg); }}
               />
@@ -1487,6 +1530,8 @@ const DataMind = () => {
             interpretingFindings={interpretingFindings}
             triageSummary={triageSummary}
             selectedModel={selectedModel}
+            activeFileId={activeFile?.id}
+            onSelectFile={selectFile}
             planRunning={planRunning}
             onCancelPlan={() => {
               planAbortRef.current = true;
@@ -1512,7 +1557,7 @@ const DataMind = () => {
         open={heatmapOpen}
         onOpenChange={setHeatmapOpen}
         data={spreadsheetData}
-        fileName={files[0]?.file_name}
+        fileName={activeFile?.file_name}
         onResult={async (pngUrl) => {
           if (!user) return;
           try {

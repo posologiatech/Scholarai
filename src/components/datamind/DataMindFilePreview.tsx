@@ -1,5 +1,6 @@
 import { DataMindFile } from "@/pages/DataMind";
 import { FileSpreadsheet } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -11,9 +12,11 @@ import {
 
 interface Props {
   file: DataMindFile;
+  /** Set when this file is attached but not the one open in the grid. */
+  onOpen?: () => void;
 }
 
-const DataMindFilePreview = ({ file }: Props) => {
+const DataMindFilePreview = ({ file, onOpen }: Props) => {
   const schema = file.schema_info as { columns?: string[]; rows?: number };
   const preview = file.preview_data as Record<string, string>[];
   const columns = schema?.columns || [];
@@ -28,6 +31,11 @@ const DataMindFilePreview = ({ file }: Props) => {
         <span className="text-xs text-muted-foreground ml-auto">
           {schema.rows} linhas · {columns.length} colunas
         </span>
+        {onOpen && (
+          <Button variant="ghost" size="sm" onClick={onOpen} className="h-7 shrink-0 px-2 text-xs text-primary hover:bg-primary/10">
+            Abrir na planilha
+          </Button>
+        )}
       </div>
 
       {preview.length > 0 && (
@@ -59,6 +67,7 @@ const DataMindFilePreview = ({ file }: Props) => {
 
       <div className="px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-t border-border/40">
         Mostrando preview das primeiras 5 linhas
+        {onOpen && " · abra na planilha para explorar e selecionar linhas"}
       </div>
     </div>
   );

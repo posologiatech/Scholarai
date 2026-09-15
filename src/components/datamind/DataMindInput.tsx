@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import {
 import { DataMindFile, SelectedContext } from "@/pages/DataMind";
 
 interface Props {
-  onSend: (content: string, file?: File) => void;
+  onSend: (content: string, attachments?: File[]) => void;
   loading: boolean;
   existingFiles?: DataMindFile[];
   selectedContext?: SelectedContext | null;
@@ -19,18 +19,44 @@ interface Props {
   onOpenGoogleSheetsImport?: () => void;
 }
 
+/** Roughly ten lines; past that the box scrolls instead of eating the page. */
+const MAX_INPUT_HEIGHT = 260;
+
 const DataMindInput = ({ onSend, loading, existingFiles = [], selectedContext, onClearSelection, onOpenGoogleSheetsImport }: Props) => {
   const [text, setText] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  // Several spreadsheets can ride on one message: comparing two files is a normal
+  // question, and making the researcher send them one at a time would split that
+  // question across turns.
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [attachOpen, setAttachOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+
+  // The box grows with the question instead of scrolling a single line — a
+  // question about data is often several lines long, and the researcher should be
+  // able to read what they wrote before sending it.
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, MAX_INPUT_HEIGHT)}px`;
+  }, [text]);
 
   const handleSend = () => {
-    if (!text.trim() && !file) return;
-    onSend(text.trim(), file || undefined);
+    if (!text.trim() && attachments.length === 0) return;
+    onSend(text.trim(), attachments.length > 0 ? attachments : undefined);
     setText("");
-    setFile(null);
+    setAttachments([]);
+  };
+
+  const addFiles = (incoming: File[]) => {
+    if (incoming.length === 0) return;
+    setAttachments((prev) => {
+      // Same file picked twice in a row is a slip, not an intention to upload it twice.
+      const seen = new Set(prev.map((f) => `${f.name}:${f.size}`));
+      return [...prev, ...incoming.filter((f) => !seen.has(`${f.name}:${f.size}`))];
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -47,15 +73,31 @@ const DataMindInput = ({ onSend, loading, existingFiles = [], selectedContext, o
   return (
     <div className="border-t border-border/40 bg-background p-4">
       <div className="max-w-4xl mx-auto">
-        {/* File attachment badge */}
-        {file && (
-          <div className="mb-2 flex items-center gap-2 rounded-lg bg-muted/50 border border-border/60 px-3 py-2 text-sm">
-            <FileSpreadsheet className="h-4 w-4 text-primary" />
-            <span className="truncate flex-1 text-foreground">{file.name}</span>
-            <span className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</span>
-            <button onClick={() => setFile(null)}>
-              <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-            </button>
+        {/* Attached spreadsheets, one row each so any of them can be removed */}
+        {attachments.length > 0 && (
+          <div className="mb-2 space-y-1.5">
+            {attachments.map((f, i) => (
+              <div
+                key={`${f.name}-${f.size}-${i}`}
+                className="flex items-center gap-2 rounded-lg bg-muted/50 border border-border/60 px-3 py-2 text-sm min-w-0"
+              >
+                <FileSpreadsheet className="h-4 w-4 shrink-0 text-primary" />
+                <span className="truncate flex-1 min-w-0 text-foreground">{f.name}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
+                <button
+                  onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+                  aria-label={`Remover ${f.name}`}
+                  className="shrink-0"
+                >
+                  <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                </button>
+              </div>
+            ))}
+            {attachments.length > 1 && (
+              <p className="px-1 text-xs text-muted-foreground">
+                {attachments.length} planilhas serão enviadas juntas e ficam disponíveis para comparação na mesma análise.
+              </p>
+            )}
           </div>
         )}
 
@@ -73,15 +115,18 @@ const DataMindInput = ({ onSend, loading, existingFiles = [], selectedContext, o
           </div>
         )}
 
-        <div className="flex items-end gap-2 rounded-xl border border-border/60 bg-card p-2">
+        {/* The support widget floats over the bottom-right corner on wide screens,
+            which is exactly where the send button sits — inset it so the button
+            stays clickable instead of being covered. */}
+        <div className="flex items-end gap-2 rounded-xl border border-border/60 bg-card p-2 lg:pr-14">
           <input
             ref={fileRef}
             type="file"
             accept=".csv,.xlsx,.xls"
+            multiple
             className="hidden"
             onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) setFile(f);
+              addFiles(Array.from(e.target.files || []));
               e.target.value = "";
               setAttachOpen(false);
             }}
@@ -122,7 +167,7 @@ const DataMindInput = ({ onSend, loading, existingFiles = [], selectedContext, o
                 }}
               >
                 <Upload className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-foreground">Upload File</span>
+                <span className="text-sm text-foreground">Enviar planilha(s)</span>
               </button>
 
               {/* Google Sheets import */}
@@ -173,27 +218,29 @@ const DataMindInput = ({ onSend, loading, existingFiles = [], selectedContext, o
           </Popover>
 
           <Textarea
+            ref={textRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Faça uma pergunta sobre seus dados..."
-            className="min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none p-2 text-sm"
+            className="min-h-[76px] resize-none overflow-y-auto border-0 bg-transparent focus-visible:ring-0 shadow-none p-2 text-sm leading-relaxed"
+            style={{ maxHeight: MAX_INPUT_HEIGHT }}
             disabled={loading}
-            rows={1}
+            rows={3}
           />
 
           <Button
             size="icon"
             className="h-9 w-9 shrink-0 rounded-lg"
             onClick={handleSend}
-            disabled={loading || (!text.trim() && !file)}
+            disabled={loading || (!text.trim() && attachments.length === 0)}
           >
             <Send className="h-4 w-4" />
           </Button>
         </div>
 
         <p className="text-xs text-muted-foreground text-center mt-2">
-          DataMind usa IA para analisar dados. Verifique os resultados.
+          Enter envia · Shift+Enter quebra linha · DataMind usa IA para analisar dados. Verifique os resultados.
         </p>
       </div>
     </div>
