@@ -5,7 +5,7 @@ import DataMindInput from "./DataMindInput";
 import DataMindFilePreview from "./DataMindFilePreview";
 import DataMindSpreadsheet from "./DataMindSpreadsheet";
 import DataMindSuggestions from "./DataMindSuggestions";
-import { BrainCircuit, Upload, BarChart3, Table } from "lucide-react";
+import { BrainCircuit, Upload, BarChart3, Table, Square } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface Props {
@@ -24,9 +24,12 @@ interface Props {
   selectedContext?: SelectedContext | null;
   onSelectionChange?: (ctx: SelectedContext | null) => void;
   onOpenGoogleSheetsImport?: () => void;
+  /** True while a multi-step plan is running, which can be several minutes of calls. */
+  planRunning?: boolean;
+  onCancelPlan?: () => void;
 }
 
-const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange, onOpenGoogleSheetsImport }: Props) => {
+const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange, onOpenGoogleSheetsImport, planRunning, onCancelPlan }: Props) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -130,6 +133,18 @@ const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, c
                       </div>
                       {loadingStage || "Analisando seus dados..."}
                     </div>
+                  )}
+                  {/* A plan chains several AI calls, so it needs a way out that
+                      isn't reloading the page. The current step still finishes. */}
+                  {planRunning && onCancelPlan && (
+                    <button
+                      type="button"
+                      onClick={onCancelPlan}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    >
+                      <Square className="h-3 w-3" />
+                      Interromper plano
+                    </button>
                   )}
                 </div>
               </div>

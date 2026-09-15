@@ -47,8 +47,17 @@ import {
 } from "@/lib/datamind/parseTabular";
 import { parseExcelBuffer } from "@/lib/datamind/parseWorkbook";
 import { CompactProfile, compactProfile, profileDataset } from "@/lib/datamind/profile";
-import { buildHistory } from "@/lib/datamind/conversationContext";
-import { extractExplanationPrefix, parseAssistantReply } from "@/lib/datamind/parseAssistantReply";
+import { HistoryEntry, buildHistory } from "@/lib/datamind/conversationContext";
+import { AssistantReply, extractExplanationPrefix, parseAssistantReply } from "@/lib/datamind/parseAssistantReply";
+import {
+  AnalysisStep,
+  buildStepMessage,
+  buildSynthesisMessage,
+  formatPlanAnnouncement,
+  formatStepHeading,
+  formatStepStage,
+  normalizePlan,
+} from "@/lib/datamind/analysisPlan";
 import { readAssistantStream } from "@/lib/datamind/streamAssistant";
 import { LinkToProjectButton } from "@/components/research/LinkToProjectButton";
 import { RegisterOutputButton } from "@/components/research/RegisterOutputButton";
@@ -112,6 +121,22 @@ const DATAMIND_CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dat
 // researcher is shown an error. Each attempt is one extra AI call.
 const MAX_FIX_ATTEMPTS = 2;
 
+/** What the model is told about each loaded file: columns plus the compact profile. */
+interface FileSchemaPayload {
+  file_name: string;
+  columns: string[];
+  rows?: number;
+  profile?: CompactProfile;
+}
+
+/** One cell of a multi-step plan, as sent to the edge function. */
+interface PlanStepRef {
+  index: number;
+  total: number;
+  /** The closing synthesis turn, which reads results instead of producing code. */
+  final?: boolean;
+}
+
 /** The shape every sandbox engine returns (Pyodide, WebR and the remote server). */
 interface ExecutionResult {
   stdout: string;
@@ -171,6 +196,10 @@ const DataMind = () => {
   const [heatmapOpen, setHeatmapOpen] = useState(false);
   const [googleSheetsOpen, setGoogleSheetsOpen] = useState(false);
   const [usedRemoteExec, setUsedRemoteExec] = useState(false);
+  // A multi-step plan runs several AI calls back to back, so it needs a way out that
+  // does not mean reloading the page.
+  const [planRunning, setPlanRunning] = useState(false);
+  const planAbortRef = useRef(false);
 
   // Full spreadsheet data (client-side only, not persisted)
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData | null>(null);
@@ -483,6 +512,362 @@ const DataMind = () => {
     toast({ title: "Conversa exportada com sucesso!" });
   };
 
+  /**
+   * One assistant turn: ask the model, run whatever code comes back (repairing it if
+   * it fails), and persist the resulting cell.
+   *
+   * Lifted out of sendMessage because a multi-step plan runs this exact turn once per
+   * step — each with the previous steps' code and results already in its history.
+   */
+  const runAssistantTurn = async ({
+    convId,
+    message,
+    history,
+    schemas,
+    allFiles,
+    stage,
+    planStep,
+    heading,
+  }: {
+    convId: string;
+    message: string;
+    history: HistoryEntry[];
+    schemas: FileSchemaPayload[];
+    allFiles: DataMindFile[];
+    /** Status line shown while this turn is generating. */
+    stage: string;
+    planStep?: PlanStepRef;
+    /** Prepended to the persisted message, so a plan step is labelled as one. */
+    heading?: string;
+  }): Promise<{ message: Message | null; plan: AnalysisStep[]; explanation: string }> => {
+    setLoadingStage(stage);
+    const requestBody = {
+      message,
+      history,
+      schemas,
+      planStep,
+      provider: selectedModel?.provider || undefined,
+      model: selectedModel?.model || undefined,
+      codeLanguage,
+      stream: true,
+    };
+
+    // Streamed through a raw fetch rather than functions.invoke, which buffers the
+    // whole body. The function falls back to a plain JSON response whenever the
+    // chosen provider cannot stream, so both shapes are handled here.
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+
+    const chatResponse = await fetch(DATAMIND_CHAT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!chatResponse.ok) {
+      throw new Error(`datamind-chat respondeu ${chatResponse.status}`);
+    }
+
+    let reply: AssistantReply;
+
+    if (chatResponse.headers.get("content-type")?.includes("text/event-stream")) {
+      const raw = await readAssistantStream(chatResponse, {
+        onText: (soFar) => {
+          // The prompt puts "explanation" first precisely so it can be shown
+          // while the code field is still being generated.
+          const prefix = extractExplanationPrefix(soFar);
+          if (prefix) setStreamingText(prefix);
+        },
+      });
+      reply = parseAssistantReply(raw);
+    } else {
+      const json = await chatResponse.json();
+      reply = {
+        explanation: json?.explanation || "",
+        code: json?.code || null,
+        plan: normalizePlan(json?.plan),
+      };
+    }
+
+    setStreamingText("");
+
+    // A plan is not executed here: the caller announces it and then drives one
+    // turn per step, so each step can see what the step before it produced.
+    if (!planStep && reply.plan.length > 0) {
+      return { message: null, plan: reply.plan, explanation: reply.explanation };
+    }
+
+    const aiContent = reply.explanation || "Não consegui processar sua solicitação.";
+    // The synthesis turn interprets results that already exist; code there would
+    // just re-run an analysis the researcher has already seen.
+    const codeBlock = planStep?.final ? null : reply.code;
+
+    // Execute code if present
+    let outputType: string | null = null;
+    let outputContent: string | null = null;
+    // The code that actually ran, which may be a repaired version of what the
+    // model first produced — that is what gets stored and shown.
+    let executedCode: string | null = codeBlock;
+    let fixNote = "";
+    let autoFixed = false;
+
+    if (codeBlock && allFiles.length > 0) {
+      const isRCode = codeLanguage === "r";
+      const totalRows = allFiles.reduce((sum, f) => {
+        const info = f.schema_info as { rows?: number };
+        return sum + (Number(info?.rows) || 0);
+      }, 0);
+      const canUseRemoteExec = !isRCode && isOwner && totalRows > REMOTE_EXEC_THRESHOLD_ROWS;
+      setUsedRemoteExec(canUseRemoteExec);
+
+      const runOnce = async (source: string): Promise<ExecutionResult> => {
+        if (canUseRemoteExec) {
+          const { data: remoteData, error: remoteError } = await supabase.functions.invoke(
+            "datamind-run-remote",
+            {
+              body: {
+                code: source,
+                codeLanguage,
+                // The original file name matters: it decides the dataframe variable
+                // name, and the storage path carries an upload timestamp prefix.
+                files: allFiles.map((f) => ({
+                  path: f.file_path,
+                  fileName: f.file_name,
+                  dialect: readDialect(f.schema_info),
+                })),
+              },
+            }
+          );
+          if (remoteError) throw remoteError;
+          return remoteData as ExecutionResult;
+        }
+
+        for (const f of allFiles) {
+          const cacheKey = f.file_path + (isRCode ? "_r" : "_py");
+          if (loadedFilesRef.current.has(cacheKey)) continue;
+          const { data: fileBlob, error: downloadError } = await supabase.storage
+            .from("datamind-files")
+            .download(f.file_path);
+          if (downloadError || !fileBlob) {
+            throw new Error(`Falha ao carregar o arquivo "${f.file_name}" para a análise. Verifique sua conexão e tente novamente.`);
+          }
+          const arrayBuf = await fileBlob.arrayBuffer();
+          if (isRCode) {
+            await webR.writeFile(f.file_name, arrayBuf);
+          } else {
+            await pyodide.writeFile(f.file_name, arrayBuf);
+          }
+          loadedFilesRef.current.add(cacheKey);
+        }
+
+        const sandboxFiles = toSandboxFiles(allFiles);
+        return isRCode
+          ? await webR.runR(source, sandboxFiles)
+          : await pyodide.runPython(source, sandboxFiles);
+      };
+
+      try {
+        setLoadingStage("Executando a análise...");
+        let result = await runOnce(executedCode);
+
+        // Self-repair loop: a traceback is something the model can act on, and
+        // making the researcher debug generated code is the difference between a
+        // tool that "always works" and one that fails in their face.
+        let attempt = 0;
+        while (result.error && attempt < MAX_FIX_ATTEMPTS) {
+          attempt++;
+          setLoadingStage(
+            attempt === 1
+              ? "O código falhou — corrigindo e tentando de novo..."
+              : `Corrigindo o código (tentativa ${attempt} de ${MAX_FIX_ATTEMPTS})...`
+          );
+
+          const { data: fixData, error: fixError } = await supabase.functions.invoke("datamind-fix", {
+            body: {
+              code: executedCode,
+              error: result.error,
+              codeLanguage,
+              schemas,
+              provider: selectedModel?.provider || undefined,
+              model: selectedModel?.model || undefined,
+            },
+          });
+
+          // No code back means the fixer judged the analysis impossible, or itself
+          // failed; its note explains that far better than a raw traceback.
+          if (fixError || !fixData?.code) {
+            if (fixData?.note) fixNote = fixData.note;
+            break;
+          }
+
+          fixNote = fixData.note || fixNote;
+          executedCode = fixData.code;
+          setLoadingStage("Executando a análise corrigida...");
+          result = await runOnce(executedCode);
+        }
+
+        if (result.error) {
+          outputType = "text";
+          outputContent = [
+            attempt > 0
+              ? `Não consegui executar esta análise, mesmo após ${attempt} tentativa(s) de correção automática.`
+              : "Não consegui executar esta análise.",
+            fixNote ? `Motivo: ${fixNote}` : "",
+            `Detalhe técnico:${NL}${result.error}`,
+          ]
+            .filter(Boolean)
+            .join(NL + NL);
+        } else {
+          const parts: string[] = [];
+          if (result.stdout?.trim()) {
+            parts.push(result.stdout.trim());
+          }
+          if (result.images.length > 0) {
+            result.images.forEach((img) => {
+              parts.push(`[IMG]data:image/png;base64,${img}[/IMG]`);
+            });
+          }
+          if (parts.length > 0) {
+            outputType = result.images.length > 0 ? "mixed" : "text";
+            outputContent = parts.join(NL);
+          } else {
+            outputType = "text";
+            outputContent = "Código executado com sucesso (sem output).";
+          }
+          // Flagged so the UI can say the code shown is a repaired version, not
+          // the one first generated.
+          if (attempt > 0) autoFixed = true;
+        }
+      } catch (e) {
+        console.error("Execution error:", e);
+        outputType = "text";
+        outputContent = e instanceof Error && e.message.startsWith("Falha ao carregar o arquivo")
+          ? e.message
+          : "Erro ao executar o código no navegador.";
+      }
+    }
+
+    const withFixNote = autoFixed
+      ? `${aiContent}${NL}${NL}_O código falhou na primeira execução e foi corrigido automaticamente._`
+      : aiContent;
+
+    const { data: aiMsg } = await supabase
+      .from("datamind_messages")
+      .insert({
+        conversation_id: convId,
+        role: "assistant",
+        content: heading ? `${heading}${NL}${NL}${withFixNote}` : withFixNote,
+        code_block: executedCode,
+        output_type: outputType,
+        output_content: outputContent,
+      })
+      .select()
+      .single();
+
+    if (aiMsg) setMessages((prev) => [...prev, aiMsg as Message]);
+    return { message: (aiMsg as Message) || null, plan: [], explanation: reply.explanation };
+  };
+
+  /**
+   * Runs a plan the model proposed and the researcher's question implied: one cell per
+   * step, each seeing the code and results of the steps before it, then a closing
+   * synthesis that answers the original question from the numbers that came out.
+   */
+  const runPlan = async ({
+    convId,
+    question,
+    plan,
+    explanation,
+    history,
+    schemas,
+    allFiles,
+  }: {
+    convId: string;
+    question: string;
+    plan: AnalysisStep[];
+    explanation: string;
+    history: HistoryEntry[];
+    schemas: FileSchemaPayload[];
+    allFiles: DataMindFile[];
+  }) => {
+    planAbortRef.current = false;
+    setPlanRunning(true);
+
+    const announcement = [explanation.trim(), formatPlanAnnouncement(plan)]
+      .filter(Boolean)
+      .join(NL + NL);
+
+    const { data: planMsg } = await supabase
+      .from("datamind_messages")
+      .insert({ conversation_id: convId, role: "assistant", content: announcement })
+      .select()
+      .single();
+    if (planMsg) setMessages((prev) => [...prev, planMsg as Message]);
+
+    // setMessages has not flushed while this loop runs, so what the steps produced is
+    // accumulated here and condensed the same way a normal follow-up would be. Only
+    // the tail of the pre-plan history is carried: the edge function keeps a limited
+    // window, and inside a plan the step results are what the next step needs.
+    const stepMessages: Message[] = [];
+    const historyFor = (): HistoryEntry[] => [
+      ...history.slice(-2),
+      { role: "user", content: question },
+      ...buildHistory(stepMessages),
+    ];
+
+    try {
+      for (let i = 0; i < plan.length; i++) {
+        if (planAbortRef.current) break;
+        const step = plan[i];
+        const turn = await runAssistantTurn({
+          convId,
+          message: buildStepMessage(question, plan, i),
+          history: historyFor(),
+          schemas,
+          allFiles,
+          stage: formatStepStage(step, i, plan.length),
+          planStep: { index: i, total: plan.length },
+          heading: formatStepHeading(step, i, plan.length),
+        });
+        if (turn.message) stepMessages.push(turn.message);
+      }
+
+      if (planAbortRef.current) {
+        const { data: stopMsg } = await supabase
+          .from("datamind_messages")
+          .insert({
+            conversation_id: convId,
+            role: "assistant",
+            content: `_Plano interrompido após ${stepMessages.length} de ${plan.length} etapas. Os resultados já obtidos continuam acima._`,
+          })
+          .select()
+          .single();
+        if (stopMsg) setMessages((prev) => [...prev, stopMsg as Message]);
+        return;
+      }
+
+      // Without this the researcher is left holding N cells and no answer. It reads
+      // the numbers already produced, so it generates no code of its own.
+      await runAssistantTurn({
+        convId,
+        message: buildSynthesisMessage(question, plan),
+        history: historyFor(),
+        schemas,
+        allFiles,
+        stage: "Consolidando os resultados das etapas...",
+        planStep: { index: plan.length, total: plan.length, final: true },
+        heading: "### Síntese final",
+      });
+    } finally {
+      setPlanRunning(false);
+      planAbortRef.current = false;
+    }
+  };
+
   const sendMessage = async (content: string, file?: File) => {
     if (!user) return;
     if (!canUse("datamind_chat")) {
@@ -639,220 +1024,27 @@ const DataMind = () => {
       // The current message is excluded: it is sent separately as `message`.
       const history = buildHistory(messages);
 
-      setLoadingStage(
-        allFiles.length > 0 ? "Lendo o perfil dos dados e escolhendo a análise..." : "Pensando..."
-      );
-      const requestBody = {
+      const firstTurn = await runAssistantTurn({
+        convId: activeConvId,
         message: fullContent,
         history,
         schemas,
-        provider: selectedModel?.provider || undefined,
-        model: selectedModel?.model || undefined,
-        codeLanguage,
-        stream: true,
-      };
-
-      // Streamed through a raw fetch rather than functions.invoke, which buffers the
-      // whole body. The function falls back to a plain JSON response whenever the
-      // chosen provider cannot stream, so both shapes are handled here.
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-
-      const chatResponse = await fetch(DATAMIND_CHAT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify(requestBody),
+        allFiles,
+        stage: allFiles.length > 0 ? "Lendo o perfil dos dados e escolhendo a análise..." : "Pensando...",
       });
 
-      if (!chatResponse.ok) {
-        throw new Error(`datamind-chat respondeu ${chatResponse.status}`);
-      }
-
-      let reply: { explanation: string; code: string | null };
-
-      if (chatResponse.headers.get("content-type")?.includes("text/event-stream")) {
-        const raw = await readAssistantStream(chatResponse, {
-          onText: (soFar) => {
-            // The prompt puts "explanation" first precisely so it can be shown
-            // while the code field is still being generated.
-            const prefix = extractExplanationPrefix(soFar);
-            if (prefix) setStreamingText(prefix);
-          },
+      // A single-cell answer is already done; only a real plan continues below.
+      if (firstTurn.plan.length > 0) {
+        await runPlan({
+          convId: activeConvId,
+          question: fullContent,
+          plan: firstTurn.plan,
+          explanation: firstTurn.explanation,
+          history,
+          schemas,
+          allFiles,
         });
-        reply = parseAssistantReply(raw);
-      } else {
-        const json = await chatResponse.json();
-        reply = { explanation: json?.explanation || "", code: json?.code || null };
       }
-
-      setStreamingText("");
-
-      const aiContent = reply.explanation || "Não consegui processar sua solicitação.";
-      const codeBlock = reply.code;
-
-      // Execute code if present
-      let outputType: string | null = null;
-      let outputContent: string | null = null;
-      // The code that actually ran, which may be a repaired version of what the
-      // model first produced — that is what gets stored and shown.
-      let executedCode: string | null = codeBlock;
-      let fixNote = "";
-      let autoFixed = false;
-
-      if (codeBlock && allFiles.length > 0) {
-        const isRCode = codeLanguage === "r";
-        const totalRows = allFiles.reduce((sum, f) => {
-          const info = f.schema_info as { rows?: number };
-          return sum + (Number(info?.rows) || 0);
-        }, 0);
-        const canUseRemoteExec = !isRCode && isOwner && totalRows > REMOTE_EXEC_THRESHOLD_ROWS;
-        setUsedRemoteExec(canUseRemoteExec);
-
-        const runOnce = async (source: string): Promise<ExecutionResult> => {
-          if (canUseRemoteExec) {
-            const { data: remoteData, error: remoteError } = await supabase.functions.invoke(
-              "datamind-run-remote",
-              {
-                body: {
-                  code: source,
-                  codeLanguage,
-                  // The original file name matters: it decides the dataframe variable
-                  // name, and the storage path carries an upload timestamp prefix.
-                  files: allFiles.map((f) => ({
-                    path: f.file_path,
-                    fileName: f.file_name,
-                    dialect: readDialect(f.schema_info),
-                  })),
-                },
-              }
-            );
-            if (remoteError) throw remoteError;
-            return remoteData as ExecutionResult;
-          }
-
-          for (const f of allFiles) {
-            const cacheKey = f.file_path + (isRCode ? "_r" : "_py");
-            if (loadedFilesRef.current.has(cacheKey)) continue;
-            const { data: fileBlob, error: downloadError } = await supabase.storage
-              .from("datamind-files")
-              .download(f.file_path);
-            if (downloadError || !fileBlob) {
-              throw new Error(`Falha ao carregar o arquivo "${f.file_name}" para a análise. Verifique sua conexão e tente novamente.`);
-            }
-            const arrayBuf = await fileBlob.arrayBuffer();
-            if (isRCode) {
-              await webR.writeFile(f.file_name, arrayBuf);
-            } else {
-              await pyodide.writeFile(f.file_name, arrayBuf);
-            }
-            loadedFilesRef.current.add(cacheKey);
-          }
-
-          const sandboxFiles = toSandboxFiles(allFiles);
-          return isRCode
-            ? await webR.runR(source, sandboxFiles)
-            : await pyodide.runPython(source, sandboxFiles);
-        };
-
-        try {
-          setLoadingStage("Executando a análise...");
-          let result = await runOnce(executedCode);
-
-          // Self-repair loop: a traceback is something the model can act on, and
-          // making the researcher debug generated code is the difference between a
-          // tool that "always works" and one that fails in their face.
-          let attempt = 0;
-          while (result.error && attempt < MAX_FIX_ATTEMPTS) {
-            attempt++;
-            setLoadingStage(
-              attempt === 1
-                ? "O código falhou — corrigindo e tentando de novo..."
-                : `Corrigindo o código (tentativa ${attempt} de ${MAX_FIX_ATTEMPTS})...`
-            );
-
-            const { data: fixData, error: fixError } = await supabase.functions.invoke("datamind-fix", {
-              body: {
-                code: executedCode,
-                error: result.error,
-                codeLanguage,
-                schemas,
-                provider: selectedModel?.provider || undefined,
-                model: selectedModel?.model || undefined,
-              },
-            });
-
-            // No code back means the fixer judged the analysis impossible, or itself
-            // failed; its note explains that far better than a raw traceback.
-            if (fixError || !fixData?.code) {
-              if (fixData?.note) fixNote = fixData.note;
-              break;
-            }
-
-            fixNote = fixData.note || fixNote;
-            executedCode = fixData.code;
-            setLoadingStage("Executando a análise corrigida...");
-            result = await runOnce(executedCode);
-          }
-
-          if (result.error) {
-            outputType = "text";
-            outputContent = [
-              attempt > 0
-                ? `Não consegui executar esta análise, mesmo após ${attempt} tentativa(s) de correção automática.`
-                : "Não consegui executar esta análise.",
-              fixNote ? `Motivo: ${fixNote}` : "",
-              `Detalhe técnico:${NL}${result.error}`,
-            ]
-              .filter(Boolean)
-              .join(NL + NL);
-          } else {
-            const parts: string[] = [];
-            if (result.stdout?.trim()) {
-              parts.push(result.stdout.trim());
-            }
-            if (result.images.length > 0) {
-              result.images.forEach((img) => {
-                parts.push(`[IMG]data:image/png;base64,${img}[/IMG]`);
-              });
-            }
-            if (parts.length > 0) {
-              outputType = result.images.length > 0 ? "mixed" : "text";
-              outputContent = parts.join(NL);
-            } else {
-              outputType = "text";
-              outputContent = "Código executado com sucesso (sem output).";
-            }
-            // Flagged so the UI can say the code shown is a repaired version, not
-            // the one first generated.
-            if (attempt > 0) autoFixed = true;
-          }
-        } catch (e) {
-          console.error("Execution error:", e);
-          outputType = "text";
-          outputContent = e instanceof Error && e.message.startsWith("Falha ao carregar o arquivo")
-            ? e.message
-            : "Erro ao executar o código no navegador.";
-        }
-      }
-
-      const { data: aiMsg } = await supabase
-        .from("datamind_messages")
-        .insert({
-          conversation_id: activeConvId,
-          role: "assistant",
-          content: autoFixed ? `${aiContent}${NL}${NL}_O código falhou na primeira execução e foi corrigido automaticamente._` : aiContent,
-          code_block: executedCode,
-          output_type: outputType,
-          output_content: outputContent,
-        })
-        .select()
-        .single();
-
-      if (aiMsg) setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
       console.error("AI error:", err);
       const { data: errMsg } = await supabase
@@ -1140,6 +1332,11 @@ const DataMind = () => {
             selectedContext={selectedContext}
             onSelectionChange={setSelectedContext}
             onOpenGoogleSheetsImport={() => setGoogleSheetsOpen(true)}
+            planRunning={planRunning}
+            onCancelPlan={() => {
+              planAbortRef.current = true;
+              toast({ title: "Plano será interrompido", description: "A etapa em andamento ainda vai terminar." });
+            }}
           />
         </div>
       </div>

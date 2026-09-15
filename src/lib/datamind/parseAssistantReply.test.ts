@@ -53,7 +53,7 @@ describe("extractExplanationPrefix", () => {
 describe("parseAssistantReply", () => {
   it("parses a complete reply", () => {
     const reply = parseAssistantReply('{"explanation": "## ANOVA", "code": "print(1)"}');
-    expect(reply).toEqual({ explanation: "## ANOVA", code: "print(1)" });
+    expect(reply).toEqual({ explanation: "## ANOVA", code: "print(1)", plan: [] });
   });
 
   it("parses a reply wrapped in a markdown fence", () => {
@@ -81,7 +81,7 @@ describe("parseAssistantReply", () => {
   });
 
   it("handles an empty body", () => {
-    expect(parseAssistantReply("")).toEqual({ explanation: "", code: null });
+    expect(parseAssistantReply("")).toEqual({ explanation: "", code: null, plan: [] });
   });
 });
 
@@ -90,5 +90,36 @@ describe("isLikelyComplete", () => {
     expect(isLikelyComplete('{"explanation": "a", "code": null}')).toBe(true);
     expect(isLikelyComplete('{"explanation": "a", "code": "prin')).toBe(false);
     expect(isLikelyComplete("")).toBe(false);
+  });
+});
+
+describe("parseAssistantReply — planos multi-etapa", () => {
+  it("reads a plan and leaves code null", () => {
+    const reply = parseAssistantReply(
+      JSON.stringify({
+        explanation: "Precisa de etapas.",
+        plan: [
+          { title: "Preparo", goal: "Tratar ausentes e sentinelas." },
+          { title: "Teste", goal: "Rodar ANOVA de idade por grupo." },
+        ],
+        code: null,
+      })
+    );
+    expect(reply.code).toBeNull();
+    expect(reply.plan.map((s) => s.title)).toEqual(["Preparo", "Teste"]);
+  });
+
+  it("recovers a plan from a reply truncated after the array", () => {
+    const raw = `{"explanation": "Vou dividir em etapas.", "plan": [{"title": "A", "goal": "Descrever os dados."}, {"title": "B", "goal": "Comparar os grupos."}], "cod`;
+    const reply = parseAssistantReply(raw);
+    expect(reply.explanation).toBe("Vou dividir em etapas.");
+    expect(reply.plan).toHaveLength(2);
+  });
+
+  it("ignores a plan with a single step, which is just a normal answer", () => {
+    const reply = parseAssistantReply(
+      JSON.stringify({ explanation: "ok", plan: [{ title: "A", goal: "Só isso." }], code: null })
+    );
+    expect(reply.plan).toEqual([]);
   });
 });

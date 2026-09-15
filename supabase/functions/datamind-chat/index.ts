@@ -184,7 +184,11 @@ serve(async (req) => {
   }
 
   try {
-    const { message, history, schemas, provider, model, codeLanguage, stream } = await req.json();
+    const { message, history, schemas, provider, model, codeLanguage, stream, planStep } = await req.json();
+    // Set when the client is running one cell of a plan the model itself proposed
+    // (see src/lib/datamind/analysisPlan.ts). `final` marks the closing synthesis.
+    const step: { index?: number; total?: number; final?: boolean } | null =
+      planStep && typeof planStep === "object" ? planStep : null;
     const isR = codeLanguage === "r";
     const fileSchemas: FileSchema[] = Array.isArray(schemas) ? schemas : [];
     const hasData = fileSchemas.length > 0;
@@ -562,10 +566,42 @@ Responda SEMPRE em português brasileiro.`;
 
     // Field order is load-bearing while streaming: the client shows "explanation"
     // as it arrives, and it can only do that if the model emits it before "code".
-    const orderRule = `${NL}${NL}ORDEM DOS CAMPOS: no JSON de resposta, escreva SEMPRE o campo "explanation" COMPLETO antes de começar o campo "code". Nunca inverta essa ordem.`;
+    const orderRule = `${NL}${NL}ORDEM DOS CAMPOS: no JSON de resposta, escreva SEMPRE o campo "explanation" COMPLETO antes de começar o campo "code" ou "plan". Nunca inverta essa ordem.`;
+
+    /**
+     * Lets the model answer a question that needs several chained analyses with a
+     * plan instead of one overloaded block of code. The client then runs each step
+     * as its own cell, so every step sees what the previous one actually produced.
+     */
+    const planRule = `${NL}${NL}REGRA DO PLANO DE ANÁLISE EM ETAPAS:
+Algumas perguntas não se resolvem com um único bloco de código (ex: "os grupos diferem e essa diferença se mantém ajustando por idade?", "quais fatores explicam o desfecho?", "faça a análise completa deste dataset"). Nesses casos, em vez de "code", responda com um PLANO:
+{"explanation": "...", "plan": [{"title": "Título curto", "goal": "Instrução completa e autossuficiente desta etapa"}], "code": null}
+- Use plano APENAS quando a pergunta exigir de 2 a 6 etapas ENCADEADAS, em que cada etapa depende do resultado da anterior.
+- NUNCA use plano para algo que cabe em um único bloco de código — aí responda com "code" normalmente.
+- NUNCA use plano quando ainda faltar definir parâmetros: primeiro PERGUNTE ao pesquisador (code: null, sem "plan") e só proponha o plano depois que as variáveis estiverem definidas.
+- Cada "goal" deve ser autossuficiente: diga qual variável usar, qual teste/cálculo fazer e o que exibir. NÃO escreva código dentro do goal.
+- Ordene as etapas da preparação até a conclusão (ex: 1 qualidade e preparo dos dados, 2 pressupostos, 3 teste principal, 4 modelo ajustado).
+- No "explanation", diga em 2-4 linhas por que a pergunta exige várias etapas. NÃO repita a lista de etapas: ela já é exibida a partir do campo "plan".`;
+
+    const stepRule = `${NL}${NL}ESTADO: você está executando a ETAPA ${(step?.index ?? 0) + 1} DE ${step?.total ?? 1} de um plano que você mesmo propôs e o pesquisador aceitou.
+- Gere código APENAS para esta etapa. NÃO refaça o que já rodou nas etapas anteriores — o código e os resultados delas estão no histórico.
+- NUNCA retorne o campo "plan" aqui: o plano já existe. Responda {"explanation": "...", "code": "..."}.
+- NÃO pergunte parâmetros ao pesquisador nesta etapa; o plano já foi aceito. Escolha as variáveis pelo perfil dos dados e diga no "explanation" qual escolha você fez e por quê.
+- Se um resultado anterior mudar o que faz sentido aqui (ex: normalidade violada), ADAPTE esta etapa e explique o que mudou.
+- O "explanation" desta etapa tem no máximo 3 linhas: o que ela faz e por quê. Não repita o plano inteiro.`;
+
+    const synthesisRule = `${NL}${NL}ESTADO: todas as etapas do plano já foram executadas e seus resultados estão no histórico. Esta é a SÍNTESE FINAL.
+- Retorne OBRIGATORIAMENTE "code": null. Não gere código nenhum e nunca retorne "plan".
+- No "explanation", responda diretamente à pergunta original do pesquisador, citando os números concretos que apareceram nas etapas (n, %, médias, p-valores, tamanhos de efeito, intervalos de confiança).
+- Aponte as limitações reais observadas (ausentes, pressupostos violados, amostra pequena, achados não significativos).
+- NÃO invente nenhum número: use apenas o que está no histórico. Se algo não foi calculado, diga que não foi.`;
+
+    // A plan is only offered on a fresh question against real data; inside a plan the
+    // model is executing one, and with no dataframe there is nothing to plan over.
+    const modeRule = step?.final ? synthesisRule : step ? stepRule : hasData ? planRule : "";
 
     const messages_arr = [
-      { role: "system", content: systemPrompt + orderRule },
+      { role: "system", content: systemPrompt + orderRule + modeRule },
       ...(history || []).slice(-8),
       { role: "user", content: message },
     ];
@@ -627,6 +663,7 @@ Responda SEMPRE em português brasileiro.`;
     // Robust JSON extraction
     let explanation = "";
     let code = null;
+    let plan: unknown = null;
 
     try {
       // Strip markdown fences
@@ -643,6 +680,7 @@ Responda SEMPRE em português brasileiro.`;
         const parsed = JSON.parse(cleaned);
         explanation = parsed.explanation || "";
         code = parsed.code || null;
+        plan = Array.isArray(parsed.plan) ? parsed.plan : null;
       } catch {
         // Try to find the last closing brace to handle truncated JSON
         const lastBrace = cleaned.lastIndexOf('}');
@@ -651,6 +689,7 @@ Responda SEMPRE em português brasileiro.`;
             const parsed = JSON.parse(cleaned.slice(0, lastBrace + 1));
             explanation = parsed.explanation || "";
             code = parsed.code || null;
+            plan = Array.isArray(parsed.plan) ? parsed.plan : null;
           } catch {
             // Regex extraction as fallback
             const explMatch = cleaned.match(/"explanation"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
@@ -678,14 +717,24 @@ Responda SEMPRE em português brasileiro.`;
     // numbers/tables through, regardless of what the prompt was told or what the model did.
     if (!hasData) {
       code = null;
+      plan = null;
       if (looksLikeFabricatedData(explanation)) {
         explanation = "Nenhum arquivo de dados foi carregado nesta conversa, então não posso apresentar números ou resultados — eles não seriam reais. Envie um arquivo CSV/XLSX (ícone de anexo) ou importe dados reais pela página DataSUS para que eu possa analisar de verdade.";
       }
     }
 
+    // The synthesis turn reads numbers that already exist; any code it emitted
+    // anyway would re-run an analysis the researcher has already seen.
+    if (step?.final) {
+      code = null;
+      plan = null;
+    }
+    // A step is executing a plan, so a nested plan would restart the chain.
+    if (step) plan = null;
+
     trackUsage(auth.userId, "datamind_chat").catch(e => console.error("usage tracking error:", e));
 
-    return new Response(JSON.stringify({ explanation, code }), {
+    return new Response(JSON.stringify({ explanation, code, plan }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

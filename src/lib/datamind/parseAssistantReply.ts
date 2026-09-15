@@ -1,15 +1,20 @@
 /**
  * Parses the assistant's JSON reply, including while it is still arriving.
  *
- * The model answers with {"explanation": "...", "code": "..."}. When streaming, the
- * explanation has to be shown before the object is closed, so this module can read
- * a partial string; when the stream ends (or when a plain JSON body comes back) the
- * same text is parsed properly, tolerating fences and truncation.
+ * The model answers with {"explanation": "...", "code": "..."} or, when the question
+ * needs several chained analyses, {"explanation": "...", "plan": [...], "code": null}.
+ * When streaming, the explanation has to be shown before the object is closed, so
+ * this module can read a partial string; when the stream ends (or when a plain JSON
+ * body comes back) the same text is parsed properly, tolerating fences and truncation.
  */
+
+import { AnalysisStep, extractPlanArray, normalizePlan } from "./analysisPlan";
 
 export interface AssistantReply {
   explanation: string;
   code: string | null;
+  /** Empty unless the model answered with a multi-step plan. */
+  plan: AnalysisStep[];
 }
 
 /** Strips markdown fences and anything before the opening brace. */
@@ -94,6 +99,9 @@ function fromRegex(text: string): AssistantReply {
   return {
     explanation: explMatch ? decodeJsonStringBody(explMatch[1]) : "",
     code: codeMatch ? decodeJsonStringBody(codeMatch[1]) : null,
+    // A plan is JSON inside the JSON, so it survives a truncated tail that the
+    // string regexes above would miss entirely.
+    plan: normalizePlan(extractPlanArray(text)),
   };
 }
 
@@ -103,27 +111,31 @@ function fromRegex(text: string): AssistantReply {
  */
 export function parseAssistantReply(raw: string): AssistantReply {
   const text = stripToJson(raw);
-  if (!text) return { explanation: "", code: null };
+  if (!text) return { explanation: "", code: null, plan: [] };
+
+  const fromObject = (parsed: any): AssistantReply => ({
+    explanation: parsed.explanation || "",
+    code: parsed.code || null,
+    plan: normalizePlan(parsed.plan),
+  });
 
   try {
-    const parsed = JSON.parse(text);
-    return { explanation: parsed.explanation || "", code: parsed.code || null };
+    return fromObject(JSON.parse(text));
   } catch { /* fall through */ }
 
   const lastBrace = text.lastIndexOf("}");
   if (lastBrace !== -1) {
     try {
-      const parsed = JSON.parse(text.slice(0, lastBrace + 1));
-      return { explanation: parsed.explanation || "", code: parsed.code || null };
+      return fromObject(JSON.parse(text.slice(0, lastBrace + 1)));
     } catch { /* fall through */ }
   }
 
   const viaRegex = fromRegex(text);
-  if (viaRegex.explanation || viaRegex.code) return viaRegex;
+  if (viaRegex.explanation || viaRegex.code || viaRegex.plan.length > 0) return viaRegex;
 
   // Nothing JSON-shaped survived: show the prose rather than an empty bubble.
   const prose = raw.replace(/```[\s\S]*?```/g, "").replace(/[{}]/g, "").trim();
-  return { explanation: prose, code: null };
+  return { explanation: prose, code: null, plan: [] };
 }
 
 /**
