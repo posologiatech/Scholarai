@@ -60,7 +60,10 @@ const PROVIDERS: ProviderConfig[] = [
     headerFn: (key) => ({ Authorization: `Bearer ${key}`, "Content-Type": "application/json" }),
     modelMap: {
       "google/gemini-3-flash-preview": "gemini-3.5-flash",
-      "gemini-2.5-pro": "gemini-2.5-pro",
+      // The strongest-model alias has to name something this provider's key can
+      // actually serve: the configured Google key has no pro tier, and pointing the
+      // alias at gemini-2.5-pro made every DataMind request fail outright.
+      "gemini-2.5-pro": "gemini-3.5-flash",
     },
     defaultModel: "gemini-3.5-flash",
     isOpenAICompatible: true,
@@ -338,7 +341,7 @@ export async function callAI(options: ChatCompletionOptions): Promise<Response> 
     // Per-provider fallback models — used when primary returns 503/429 (overload)
     const modelCandidates: string[] = [primaryModel];
     if (keyRecord.provider === "google") {
-      for (const alt of ["gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"]) {
+      for (const alt of ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-2.5-flash"]) {
         if (!modelCandidates.includes(alt)) modelCandidates.push(alt);
       }
     } else if (keyRecord.provider === "openai") {
@@ -397,7 +400,16 @@ export async function callAI(options: ChatCompletionOptions): Promise<Response> 
 
         // 429/5xx are transient → try next candidate model (same provider)
         const isTransient = [429, 500, 502, 503, 504].includes(response.status);
-        if (!isTransient) break; // hard error (auth/quota/4xx) → skip remaining models
+        // A model this key cannot serve is not an auth problem: the provider is fine,
+        // only the name is wrong. Treating it as a hard error is what turned a single
+        // ungranted model into a total outage instead of a downgrade to a working one.
+        const isUnknownModel =
+          response.status === 404 || (response.status === 400 && /model/i.test(errText));
+        if (isUnknownModel) {
+          console.warn(`[ai-caller] ${keyRecord.provider} nao serve o modelo "${model}"; tentando o proximo candidato`);
+          continue;
+        }
+        if (!isTransient) break; // auth/quota → other models on this key won't help
       } catch (err) {
         console.error(`[ai-caller] Provider ${keyRecord.provider} (${model}) error:`, err);
       }
