@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiveProject } from "@/contexts/ActiveProjectContext";
@@ -7,6 +7,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { UsageLimitDialog } from "@/components/app/UpgradeGate";
 import { supabase } from "@/integrations/supabase/client";
 import { usePyodide, PyodideStatus } from "@/hooks/usePyodide";
+import { useDataMindFindings } from "@/hooks/useDataMindFindings";
 import DataMindSidebar from "@/components/datamind/DataMindSidebar";
 import DataMindChat from "@/components/datamind/DataMindChat";
 import DataMindModelSelector from "@/components/datamind/DataMindModelSelector";
@@ -79,6 +80,8 @@ export interface DataMindFile {
   schema_info: Record<string, unknown>;
   preview_data: unknown[];
   created_at: string;
+  /** Set once the automatic finding scan has been through this file. */
+  findings_scanned_at?: string | null;
 }
 
 export interface Message {
@@ -188,6 +191,9 @@ const DataMind = () => {
   const pyodide = usePyodide();
   const webR = useWebR();
   const loadedFilesRef = useRef<Set<string>>(new Set());
+  // The scan callback is handed to a hook, and rebuilding it on every file change
+  // would retrigger that hook's effect; the ref keeps it stable.
+  const filesForScanRef = useRef<DataMindFile[]>([]);
   const [applyPipelineOpen, setApplyPipelineOpen] = useState(false);
   const [activeDbConnection, setActiveDbConnection] = useState<any>(null);
   const [cleaningOpen, setCleaningOpen] = useState(false);
@@ -243,6 +249,10 @@ const DataMind = () => {
       toast({ title: "Erro ao copiar", variant: "destructive" });
     }
   };
+
+  useEffect(() => {
+    filesForScanRef.current = files;
+  }, [files]);
 
   // Auto-start sandbox on mount
   useEffect(() => {
@@ -513,6 +523,69 @@ const DataMind = () => {
   };
 
   /**
+   * Downloads each file once and writes it into the chosen engine's filesystem.
+   *
+   * Extracted because the finding scan needs exactly this and nothing else around
+   * it: the same files, in the same sandbox, without the remote-exec routing or
+   * the language switch that an analysis turn goes through.
+   */
+  const loadFilesIntoSandbox = async (allFiles: DataMindFile[], isRCode: boolean) => {
+    for (const f of allFiles) {
+      const cacheKey = f.file_path + (isRCode ? "_r" : "_py");
+      if (loadedFilesRef.current.has(cacheKey)) continue;
+      const { data: fileBlob, error: downloadError } = await supabase.storage
+        .from("datamind-files")
+        .download(f.file_path);
+      if (downloadError || !fileBlob) {
+        throw new Error(`Falha ao carregar o arquivo "${f.file_name}" para a análise. Verifique sua conexão e tente novamente.`);
+      }
+      const arrayBuf = await fileBlob.arrayBuffer();
+      if (isRCode) {
+        await webR.writeFile(f.file_name, arrayBuf);
+      } else {
+        await pyodide.writeFile(f.file_name, arrayBuf);
+      }
+      loadedFilesRef.current.add(cacheKey);
+    }
+  };
+
+  /**
+   * Runs the finding scan, always in Pyodide.
+   *
+   * Deliberately not routed through runInSandbox: the scan is Python whatever the
+   * researcher picked in the language switch, and sending it to the home server
+   * would ask a container that may predate the statistics engine to answer the one
+   * question that depends on it.
+   */
+  const runScanCode = useCallback(
+    async (code: string) => {
+      const filesRef = filesForScanRef.current;
+      await loadFilesIntoSandbox(filesRef, false);
+      const result = await pyodide.runPython(code, toSandboxFiles(filesRef));
+      return { stdout: result.stdout, error: result.error };
+    },
+    [pyodide.runPython]
+  );
+
+  const {
+    findings,
+    scanning: findingsScanning,
+    dismiss: dismissFinding,
+    interpret: interpretFindings,
+    interpreting: interpretingFindings,
+    triageSummary,
+  } = useDataMindFindings({
+    conversationId,
+    userId: user?.id,
+    files,
+    model: selectedModel,
+    // "Deferred" in practice: the scan waits for the sandbox that is already
+    // warming up in the background, so it costs the researcher no extra wait.
+    ready: pyodide.status === "ready",
+    runScan: runScanCode,
+  });
+
+  /**
    * Runs one block of code in whichever sandbox fits the dataset.
    *
    * Hoisted out of the assistant turn because replaying a saved pipeline executes
@@ -549,23 +622,7 @@ const DataMind = () => {
       return remoteData as ExecutionResult;
     }
 
-    for (const f of allFiles) {
-      const cacheKey = f.file_path + (isRCode ? "_r" : "_py");
-      if (loadedFilesRef.current.has(cacheKey)) continue;
-      const { data: fileBlob, error: downloadError } = await supabase.storage
-        .from("datamind-files")
-        .download(f.file_path);
-      if (downloadError || !fileBlob) {
-        throw new Error(`Falha ao carregar o arquivo "${f.file_name}" para a análise. Verifique sua conexão e tente novamente.`);
-      }
-      const arrayBuf = await fileBlob.arrayBuffer();
-      if (isRCode) {
-        await webR.writeFile(f.file_name, arrayBuf);
-      } else {
-        await pyodide.writeFile(f.file_name, arrayBuf);
-      }
-      loadedFilesRef.current.add(cacheKey);
-    }
+    await loadFilesIntoSandbox(allFiles, isRCode);
 
     const sandboxFiles = toSandboxFiles(allFiles);
     return isRCode
@@ -1422,6 +1479,12 @@ const DataMind = () => {
             selectedContext={selectedContext}
             onSelectionChange={setSelectedContext}
             onOpenGoogleSheetsImport={() => setGoogleSheetsOpen(true)}
+            findings={findings}
+            findingsScanning={findingsScanning}
+            onDismissFinding={dismissFinding}
+            onInterpretFindings={interpretFindings}
+            interpretingFindings={interpretingFindings}
+            triageSummary={triageSummary}
             planRunning={planRunning}
             onCancelPlan={() => {
               planAbortRef.current = true;

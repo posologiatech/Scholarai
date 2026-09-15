@@ -9,7 +9,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server.py datamind_stats.py ./
+# datamind_scan.py is sent in with the code the browser generates, so the server does
+# not strictly need it on disk — it is copied so an operator debugging on the box has
+# the same module the browser is running.
+COPY server.py datamind_stats.py datamind_scan.py ./
 
 RUN useradd --create-home --uid 1000 runner
 USER runner

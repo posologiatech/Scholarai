@@ -18,6 +18,20 @@ export function usePyodide() {
   const [status, setStatus] = useState<PyodideStatus>("idle");
   const resolveRef = useRef<((result: RunResult) => void) | null>(null);
   const fileWrittenRef = useRef<((name: string) => void) | null>(null);
+  // The worker answers with one message per request and this hook holds exactly one
+  // pending resolver, so two overlapping calls would cross their results: the second
+  // would overwrite the first's resolver and take its answer. That never happened
+  // while only the researcher's own analyses ran, but the automatic finding scan can
+  // now start on its own while the page is doing something else, so every request is
+  // put through this queue and waits for the one before it.
+  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+
+  const enqueue = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
+    const result = queueRef.current.then(task, task);
+    // A failure must not jam the queue for everything behind it.
+    queueRef.current = result.catch(() => undefined);
+    return result;
+  }, []);
 
   const getWorker = useCallback(() => {
     if (workerRef.current) return workerRef.current;
@@ -70,26 +84,28 @@ export function usePyodide() {
   }, []);
 
   const writeFile = useCallback(
-    (fileName: string, data: ArrayBuffer): Promise<string> => {
-      const worker = getWorker();
-      return new Promise((resolve) => {
-        fileWrittenRef.current = resolve;
-        worker.postMessage({ action: "writeFile", payload: { fileName, data } }, [data]);
-      });
-    },
-    [getWorker]
+    (fileName: string, data: ArrayBuffer): Promise<string> =>
+      enqueue(() => {
+        const worker = getWorker();
+        return new Promise<string>((resolve) => {
+          fileWrittenRef.current = resolve;
+          worker.postMessage({ action: "writeFile", payload: { fileName, data } }, [data]);
+        });
+      }),
+    [getWorker, enqueue]
   );
 
   const runPython = useCallback(
-    (code: string, files?: SandboxFile[]): Promise<RunResult> => {
-      const worker = getWorker();
-      setStatus("running");
-      return new Promise((resolve) => {
-        resolveRef.current = resolve;
-        worker.postMessage({ action: "run", payload: { code, files, statsModule: DATAMIND_STATS_PY } });
-      });
-    },
-    [getWorker]
+    (code: string, files?: SandboxFile[]): Promise<RunResult> =>
+      enqueue(() => {
+        const worker = getWorker();
+        setStatus("running");
+        return new Promise<RunResult>((resolve) => {
+          resolveRef.current = resolve;
+          worker.postMessage({ action: "run", payload: { code, files, statsModule: DATAMIND_STATS_PY } });
+        });
+      }),
+    [getWorker, enqueue]
   );
 
   const reset = useCallback(() => {

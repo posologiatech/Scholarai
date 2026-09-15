@@ -1,10 +1,17 @@
 import { DataMindFile, Message } from "@/pages/DataMind";
 import { Lightbulb } from "lucide-react";
 import { motion } from "framer-motion";
+import { Finding, suggestionsFromFindings } from "@/lib/datamind/findings";
 
 interface Props {
   files: DataMindFile[];
   messages?: Message[];
+  /**
+   * What the deterministic scan actually found in this dataset. When it has run,
+   * these replace the keyword heuristic below entirely — a suggestion naming a
+   * real difference the engine measured beats one guessed from a column name.
+   */
+  findings?: Finding[];
   onSelect: (question: string) => void;
   loading: boolean;
 }
@@ -114,8 +121,11 @@ const generateSuggestions = (files: DataMindFile[], messages: Message[] = []): s
   return suggestions.slice(0, 4);
 };
 
-const DataMindSuggestions = ({ files, messages = [], onSelect, loading }: Props) => {
-  const suggestions = generateSuggestions(files, messages);
+const DataMindSuggestions = ({ files, messages = [], findings = [], onSelect, loading }: Props) => {
+  // The keyword heuristic stays as the fallback for the window before the sandbox
+  // is warm and the scan has run — and for files the scan found nothing in.
+  const fromFindings = suggestionsFromFindings(findings);
+  const suggestions = fromFindings.length > 0 ? fromFindings : generateSuggestions(files, messages);
 
   if (suggestions.length === 0) return null;
 
@@ -129,7 +139,9 @@ const DataMindSuggestions = ({ files, messages = [], onSelect, loading }: Props)
       <div className="flex items-center gap-2 mb-2">
         <Lightbulb className="h-4 w-4 text-primary" />
         <span className="text-sm font-medium text-foreground">Sugestões de análise</span>
-        <span className="text-xs text-muted-foreground">{suggestions.length} disponíveis</span>
+        <span className="text-xs text-muted-foreground">
+          {fromFindings.length > 0 ? "a partir dos achados nos seus dados" : `${suggestions.length} disponíveis`}
+        </span>
       </div>
       <div className="flex flex-wrap gap-2">
         {suggestions.map((s, i) => (

@@ -5,6 +5,8 @@ import DataMindInput from "./DataMindInput";
 import DataMindFilePreview from "./DataMindFilePreview";
 import DataMindSpreadsheet from "./DataMindSpreadsheet";
 import DataMindSuggestions from "./DataMindSuggestions";
+import DataMindFindingsPanel from "./DataMindFindingsPanel";
+import { Finding } from "@/lib/datamind/findings";
 import { BrainCircuit, Upload, BarChart3, Table, Square } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -24,12 +26,19 @@ interface Props {
   selectedContext?: SelectedContext | null;
   onSelectionChange?: (ctx: SelectedContext | null) => void;
   onOpenGoogleSheetsImport?: () => void;
+  /** Automatic findings from the deterministic scan, once it has run. */
+  findings?: Finding[];
+  findingsScanning?: boolean;
+  onDismissFinding?: (finding: Finding) => void;
+  onInterpretFindings?: () => void;
+  interpretingFindings?: boolean;
+  triageSummary?: string;
   /** True while a multi-step plan is running, which can be several minutes of calls. */
   planRunning?: boolean;
   onCancelPlan?: () => void;
 }
 
-const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange, onOpenGoogleSheetsImport, planRunning, onCancelPlan }: Props) => {
+const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange, onOpenGoogleSheetsImport, findings = [], findingsScanning = false, onDismissFinding, onInterpretFindings, interpretingFindings, triageSummary, planRunning, onCancelPlan }: Props) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -99,9 +108,23 @@ const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, c
               )
             )}
 
+            {/* What the scan found, before the researcher has asked anything */}
+            {files.length > 0 && (
+              <DataMindFindingsPanel
+                findings={findings}
+                scanning={findingsScanning}
+                loading={loading}
+                onAsk={(q) => onSend(q)}
+                onDismiss={(f) => onDismissFinding?.(f)}
+                onInterpret={onInterpretFindings}
+                interpreting={interpretingFindings}
+                triageSummary={triageSummary}
+              />
+            )}
+
             {/* Suggestions after file upload, before first assistant message */}
             {files.length > 0 && messages.filter(m => m.role === "assistant").length === 0 && (
-              <DataMindSuggestions files={files} messages={[]} onSelect={(q) => onSend(q)} loading={loading} />
+              <DataMindSuggestions files={files} messages={[]} findings={findings} onSelect={(q) => onSend(q)} loading={loading} />
             )}
 
             {/* Messages */}
@@ -111,7 +134,7 @@ const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, c
 
             {/* Suggestions after last AI message — contextual */}
             {!loading && files.length > 0 && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
-              <DataMindSuggestions files={files} messages={messages} onSelect={(q) => onSend(q)} loading={loading} />
+              <DataMindSuggestions files={files} messages={messages} findings={findings} onSelect={(q) => onSend(q)} loading={loading} />
             )}
 
             {loading && (

@@ -722,3 +722,211 @@ def association(df, var_a, var_b, title=None):
     ]
     _table(pd.DataFrame(rows), f"Resultado - {label}")
     return {"test": key, "label": label, "p": p_value, "estimate": cramers_v}
+
+
+# --------------------------------------------------------------------------- #
+# Silent screening
+#
+# The scan (remote-exec/datamind_scan.py) asks the same questions compare_groups
+# and association ask, but about dozens of candidate designs at once and with no
+# researcher having stated a design. So it needs the decision without the report:
+# no printing, no tables, no post-hoc, one effect size.
+#
+# These functions deliberately share the assumption helpers and the rule table
+# with the reporting path above - that shared decision is the whole point, and
+# test_datamind_stats.py asserts the two paths agree on test and p-value. What
+# they do NOT share is the rendering, which is what makes them usable in a loop.
+# --------------------------------------------------------------------------- #
+
+
+def benjamini_hochberg(pvalues):
+    """
+    False discovery rate, the honest correction for a screen.
+
+    Holm controls the chance of ANY false positive, which is right when a
+    researcher states one hypothesis. A scan states hundreds and only needs the
+    shortlist it hands back to be mostly real, so it controls the expected share
+    of false ones instead - Holm here would reject almost everything.
+    """
+    n = len(pvalues)
+    if n == 0:
+        return []
+    order = sorted(range(n), key=lambda i: pvalues[i], reverse=True)
+    adjusted = [0.0] * n
+    running = 1.0
+    for position, idx in enumerate(order):
+        rank = n - position
+        running = min(running, min(pvalues[idx] * n / rank, 1.0))
+        adjusted[idx] = running
+    return adjusted
+
+
+def _screen_samples(df, outcome, group):
+    """Shared preparation: numeric outcome, string groups, levels big enough to test."""
+    data = df[[outcome, group]].copy()
+    data[outcome] = pd.to_numeric(data[outcome], errors="coerce")
+    data = data.dropna()
+
+    counts = data[group].astype(str).value_counts()
+    levels = [str(level) for level in counts[counts >= MIN_GROUP_N].index]
+    if len(levels) < 2:
+        raise NoRuleApplies(
+            f"'{group}' tem menos de 2 grupos com pelo menos {MIN_GROUP_N} observacoes"
+        )
+    samples = [data.loc[data[group].astype(str) == level, outcome] for level in levels]
+    return levels, samples
+
+
+def screen_comparison(df, outcome, group):
+    """
+    compare_groups' decision without its report.
+
+    Returns the rule that fired, the p-value and one effect size, or raises
+    NoRuleApplies exactly where compare_groups would.
+    """
+    for column in (outcome, group):
+        if column not in df.columns:
+            raise NoRuleApplies(f"coluna '{column}' nao existe no dataframe")
+
+    levels, samples = _screen_samples(df, outcome, group)
+    normalities = [_normality(s, level) for s, level in zip(samples, levels)]
+    variance = _equal_variance(samples)
+    all_normal = all(item["normal"] for item in normalities)
+
+    key, label, because = choose_comparison_test(
+        len(levels), False, all_normal, variance["equal"]
+    )
+
+    a = samples[0]
+    b = samples[1] if len(samples) > 1 else None
+
+    if key in ("student_t", "welch_t"):
+        stat, p = stats.ttest_ind(a, b, equal_var=(key == "student_t"))
+        _, effect = _hedges_g(a, b)
+        effect_name = "g de Hedges"
+        magnitude = _d_label(effect)
+    elif key == "mannwhitney":
+        stat, p = stats.mannwhitneyu(a, b, alternative="two-sided")
+        effect = 1 - (2 * float(stat)) / (len(a) * len(b))
+        effect_name = "r (rank-biserial)"
+        magnitude = _r_label(effect)
+    elif key in ("anova", "welch_anova"):
+        if key == "anova":
+            stat, p = stats.f_oneway(*samples)
+        else:
+            stat, p, _, _ = _welch_anova(samples)
+        grand = pd.concat(samples)
+        ss_between = sum(len(s) * (s.mean() - grand.mean()) ** 2 for s in samples)
+        ss_total = float(((grand - grand.mean()) ** 2).sum())
+        effect = float(ss_between / ss_total) if ss_total > 0 else float("nan")
+        effect_name = "eta quadrado"
+        magnitude = _magnitude(effect, [0.01, 0.06, 0.14],
+                               ["desprezivel", "pequeno", "medio", "grande"])
+    else:
+        stat, p = stats.kruskal(*samples)
+        n_total = sum(len(s) for s in samples)
+        effect = (float(stat) - len(samples) + 1) / (n_total - len(samples))
+        effect_name = "epsilon quadrado"
+        magnitude = _magnitude(effect, [0.01, 0.08, 0.26],
+                               ["desprezivel", "pequeno", "medio", "grande"])
+
+    centres = [float(s.median()) if key in ("mannwhitney", "kruskal") else float(s.mean())
+               for s in samples]
+    highest = int(max(range(len(centres)), key=lambda i: centres[i]))
+    lowest = int(min(range(len(centres)), key=lambda i: centres[i]))
+
+    return {
+        "kind": "comparison",
+        "outcome": outcome,
+        "group": group,
+        "test": key,
+        "label": label,
+        "because": because,
+        "p": float(p),
+        "effect": float(effect),
+        "effect_name": effect_name,
+        "magnitude": magnitude,
+        "n": int(sum(len(s) for s in samples)),
+        "n_groups": len(levels),
+        "levels": levels,
+        "centre_measure": "mediana" if key in ("mannwhitney", "kruskal") else "media",
+        "centres": [float(c) for c in centres],
+        "highest": levels[highest],
+        "lowest": levels[lowest],
+    }
+
+
+def screen_association(df, var_a, var_b):
+    """association's decision without its report, for numeric and categorical pairs."""
+    for column in (var_a, var_b):
+        if column not in df.columns:
+            raise NoRuleApplies(f"coluna '{column}' nao existe no dataframe")
+
+    data = df[[var_a, var_b]].dropna()
+    if len(data) < MIN_GROUP_N:
+        raise NoRuleApplies(f"restaram {len(data)} linhas completas nas duas colunas")
+
+    numeric_a = pd.api.types.is_numeric_dtype(data[var_a])
+    numeric_b = pd.api.types.is_numeric_dtype(data[var_b])
+
+    if numeric_a and numeric_b:
+        normalities = [_normality(data[var_a], var_a), _normality(data[var_b], var_b)]
+        both_normal = all(item["normal"] for item in normalities)
+        key, label, because = choose_association_test("numeric", both_normal=both_normal)
+        if key == "pearson":
+            r, p = stats.pearsonr(data[var_a], data[var_b])
+        else:
+            r, p = stats.spearmanr(data[var_a], data[var_b])
+        return {
+            "kind": "correlation",
+            "var_a": var_a,
+            "var_b": var_b,
+            "test": key,
+            "label": label,
+            "because": because,
+            "p": float(p),
+            "effect": float(r),
+            "effect_name": "coeficiente",
+            "magnitude": _r_label(float(r)),
+            "direction": "positiva" if float(r) >= 0 else "negativa",
+            "n": int(len(data)),
+        }
+
+    if numeric_a != numeric_b:
+        raise NoRuleApplies("par numerica x categorica e uma comparacao de grupos")
+
+    crosstab = pd.crosstab(data[var_a], data[var_b])
+    if crosstab.shape[0] < 2 or crosstab.shape[1] < 2:
+        raise NoRuleApplies("cada variavel precisa de pelo menos 2 categorias observadas")
+
+    chi2, p, _, expected = stats.chi2_contingency(crosstab)
+    min_expected = float(expected.min())
+    key, label, because = choose_association_test(
+        "categorical", table_shape=crosstab.shape, min_expected=min_expected
+    )
+    if key == "fisher":
+        _, p_exact = stats.fisher_exact(crosstab)
+        p_value = float(p_exact)
+    else:
+        p_value = float(p)
+
+    n_total = int(crosstab.values.sum())
+    cramers_v = math.sqrt(float(chi2) / (n_total * (min(crosstab.shape) - 1)))
+
+    return {
+        "kind": "association",
+        "var_a": var_a,
+        "var_b": var_b,
+        "test": key,
+        "label": label,
+        "because": because,
+        "p": p_value,
+        "effect": float(cramers_v),
+        "effect_name": "V de Cramer",
+        "magnitude": _r_label(cramers_v),
+        # Carried so the UI can repeat the engine's own caveat instead of showing a
+        # fragile p-value as if it were solid.
+        "fragile": key == "chi2_unreliable",
+        "n": n_total,
+        "table_shape": [int(crosstab.shape[0]), int(crosstab.shape[1])],
+    }
