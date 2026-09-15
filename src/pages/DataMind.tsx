@@ -1315,6 +1315,7 @@ const DataMind = () => {
                   messages={messages}
                   files={files}
                   conversationTitle={conversations.find((c) => c.id === conversationId)?.title}
+                  findings={findings}
                 />
               )}
               {conversationId && (
@@ -1485,6 +1486,7 @@ const DataMind = () => {
             onInterpretFindings={interpretFindings}
             interpretingFindings={interpretingFindings}
             triageSummary={triageSummary}
+            selectedModel={selectedModel}
             planRunning={planRunning}
             onCancelPlan={() => {
               planAbortRef.current = true;

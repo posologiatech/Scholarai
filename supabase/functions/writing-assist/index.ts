@@ -109,8 +109,13 @@ serve(async (req) => {
     }).join("\n");
     const papersCount = (papers || []).length;
 
+    // An analysis may carry the automatic findings DataMind stored for it. They
+    // arrive already labelled CONFIRMADO / PISTA / QUALIDADE DOS DADOS, and the
+    // rule below is what keeps that distinction from being flattened into prose:
+    // a screened lead written as a result would undo the FDR correction that
+    // produced it.
     const datamindContext = (datamindAnalyses || []).length > 0
-      ? `\n\n--- ANÁLISES DATAMIND DISPONÍVEIS ---\n${datamindAnalyses.map((a: any, i: number) => `Análise ${i + 1}: ${a.title || "Sem título"}\n${a.content}`).join("\n\n")}`
+      ? `\n\n--- ANÁLISES DATAMIND DISPONÍVEIS ---\nREGRAS AO ESCREVER SOBRE ESTES ACHADOS: preserve exatamente o teste, o p, o q e o tamanho de efeito; nunca recalcule nem arredonde de forma diferente. Um achado "CONFIRMADO" pode ser relatado como resultado, sempre com o q e o tamanho de efeito. Um achado "PISTA" só pode aparecer como hipótese a investigar ("sugere", "pode indicar"), nunca como resultado. Correlação não é causa. Problemas de qualidade dos dados devem ser declarados antes dos resultados calculados sobre eles.\n${datamindAnalyses.map((a: any, i: number) => `Análise ${i + 1}: ${a.title || "Sem título"}\n${a.content}`).join("\n\n")}`
       : "";
 
     const uploadedPDFContext = (uploadedPDFs || []).length > 0

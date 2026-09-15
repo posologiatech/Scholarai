@@ -44,6 +44,9 @@ import { bytesToPgHex, pgHexToBytes } from "@/lib/collab/yjsPersistence";
 import { colorFromId } from "@/lib/collab/presenceColor";
 import { promoteWritingToPublication, linkResource } from "@/lib/research/integrations";
 import { useActiveProject } from "@/contexts/ActiveProjectContext";
+import { loadFindingsByConversation } from "@/lib/datamind/findingsStore";
+import type { Finding } from "@/lib/datamind/findings";
+import { findingsContextText } from "@/lib/datamind/report";
 interface Paper {
   id: string;
   title: string;
@@ -63,6 +66,8 @@ interface DataMindAnalysis {
   id: string;
   title: string;
   content: string;
+  /** Automatic findings already stored for this conversation, never rescanned here. */
+  findingsCount?: number;
 }
 
 interface IllustrationSource {
@@ -230,10 +235,25 @@ const WritingAssistant = () => {
           .eq("role", "assistant")
           .order("created_at", { ascending: false });
 
+        // The findings DataMind already stored travel with the analysis, so a
+        // results paragraph written from this context carries the test, the
+        // corrected q and the effect size instead of a bare "significativo".
+        let findingsByConv: Record<string, Finding[]> = {};
+        try {
+          findingsByConv = await loadFindingsByConversation(convIds);
+        } catch (e) {
+          console.error("[writing] findings load failed:", e);
+        }
+
         const analyses: DataMindAnalysis[] = convs.map(c => {
           const convMsgs = (msgs || []).filter(m => m.conversation_id === c.id);
           const summary = convMsgs.slice(0, 3).map(m => m.content || m.output_content || "").join("\n");
-          return { id: c.id, title: c.title, content: summary.slice(0, 2000) };
+          const convFindings = findingsByConv[c.id] || [];
+          const findingsText = findingsContextText(convFindings);
+          const content = findingsText
+            ? `${findingsText}\n\nTRECHOS DA ANÁLISE:\n${summary}`.slice(0, 3000)
+            : summary.slice(0, 2000);
+          return { id: c.id, title: c.title, content, findingsCount: convFindings.length };
         });
         setDatamindAnalyses(analyses);
       } else {
@@ -999,6 +1019,11 @@ const WritingAssistant = () => {
                           }`}
                         >
                           <p className={`font-medium line-clamp-2 ${isSelected ? "text-accent" : "text-foreground"}`}>{analysis.title}</p>
+                          {(analysis.findingsCount ?? 0) > 0 && (
+                            <Badge className="mt-1 h-4 px-1.5 text-[9px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/10">
+                              {analysis.findingsCount} {pt ? "achados automáticos" : "automatic findings"}
+                            </Badge>
+                          )}
                           <p className="text-muted-foreground/60 mt-0.5 line-clamp-1">{analysis.content.slice(0, 80)}...</p>
                         </button>
                       );

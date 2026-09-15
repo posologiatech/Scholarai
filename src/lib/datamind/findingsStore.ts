@@ -17,7 +17,10 @@ import { Finding } from "./findings";
  */
 const db = supabase as unknown as {
   from: (table: string) => {
-    select: (columns: string) => { eq: (column: string, value: string) => Promise<{ data: unknown; error: Error | null }> };
+    select: (columns: string) => {
+      eq: (column: string, value: string) => Promise<{ data: unknown; error: Error | null }>;
+      in: (column: string, values: string[]) => Promise<{ data: unknown; error: Error | null }>;
+    };
     upsert: (rows: unknown[], options: { onConflict: string }) => Promise<{ error: Error | null }>;
     update: (values: Record<string, unknown>) => {
       eq: (column: string, value: string) => Promise<{ error: Error | null }>;
@@ -50,6 +53,34 @@ export async function loadFindings(conversationId: string): Promise<Finding[]> {
     id: row.id,
     dismissed: row.dismissed,
   }));
+}
+
+/**
+ * The stored findings of several conversations at once.
+ *
+ * One query rather than one per conversation: the Writing Assistant lists every
+ * analysis of the active project side by side, and a round trip each would make
+ * opening the panel slower than the findings are worth.
+ */
+export async function loadFindingsByConversation(
+  conversationIds: string[]
+): Promise<Record<string, Finding[]>> {
+  if (conversationIds.length === 0) return {};
+
+  const { data, error } = await db
+    .from("datamind_findings")
+    .select("id, conversation_id, finding_key, kind, significant, dismissed, payload")
+    .in("conversation_id", conversationIds);
+
+  if (error) throw error;
+
+  const byConversation: Record<string, Finding[]> = {};
+  for (const row of (data || []) as unknown as (FindingRow & { conversation_id: string })[]) {
+    if (row.dismissed) continue;
+    const list = byConversation[row.conversation_id] || (byConversation[row.conversation_id] = []);
+    list.push({ ...row.payload, key: row.finding_key, id: row.id, dismissed: row.dismissed });
+  }
+  return byConversation;
 }
 
 /**

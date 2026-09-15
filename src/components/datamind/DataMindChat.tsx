@@ -6,6 +6,7 @@ import DataMindFilePreview from "./DataMindFilePreview";
 import DataMindSpreadsheet from "./DataMindSpreadsheet";
 import DataMindSuggestions from "./DataMindSuggestions";
 import DataMindFindingsPanel from "./DataMindFindingsPanel";
+import DataMindBriefing from "./DataMindBriefing";
 import { Finding } from "@/lib/datamind/findings";
 import { BrainCircuit, Upload, BarChart3, Table, Square } from "lucide-react";
 import { motion } from "framer-motion";
@@ -33,12 +34,14 @@ interface Props {
   onInterpretFindings?: () => void;
   interpretingFindings?: boolean;
   triageSummary?: string;
+  /** Model choice, so the written briefing uses the one the researcher picked. */
+  selectedModel?: { provider: string; model: string } | null;
   /** True while a multi-step plan is running, which can be several minutes of calls. */
   planRunning?: boolean;
   onCancelPlan?: () => void;
 }
 
-const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange, onOpenGoogleSheetsImport, findings = [], findingsScanning = false, onDismissFinding, onInterpretFindings, interpretingFindings, triageSummary, planRunning, onCancelPlan }: Props) => {
+const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, conversationId, onSend, hasConversation, existingFiles, spreadsheetData, selectedContext, onSelectionChange, onOpenGoogleSheetsImport, findings = [], findingsScanning = false, onDismissFinding, onInterpretFindings, interpretingFindings, triageSummary, selectedModel, planRunning, onCancelPlan }: Props) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -106,6 +109,20 @@ const DataMindChat = ({ messages, files, loading, loadingStage, streamingText, c
               ) : (
                 <DataMindFilePreview key={f.id} file={f} />
               )
+            )}
+
+            {/* What is in the file, assembled from the profile and the stored
+                findings — no rescan, no AI call unless the researcher asks for
+                the written version. Scoped to the active file. */}
+            {files.length > 0 && (
+              <DataMindBriefing
+                key={files[0].id}
+                file={files[0]}
+                findings={findings}
+                model={selectedModel}
+                loading={loading}
+                onAsk={(q) => onSend(q)}
+              />
             )}
 
             {/* What the scan found, before the researcher has asked anything */}
