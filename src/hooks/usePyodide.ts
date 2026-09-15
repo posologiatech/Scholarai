@@ -1,5 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { SandboxFile } from "@/lib/datamind/parseTabular";
+// The deterministic test-selection engine, shipped into the browser sandbox from the
+// same file the home server imports — Vite inlines it at build time, so the two
+// engines cannot drift apart the way a copied file would.
+import DATAMIND_STATS_PY from "../../remote-exec/datamind_stats.py?raw";
 
 export type PyodideStatus = "idle" | "loading" | "installing" | "ready" | "running" | "error";
 
@@ -82,7 +86,7 @@ export function usePyodide() {
       setStatus("running");
       return new Promise((resolve) => {
         resolveRef.current = resolve;
-        worker.postMessage({ action: "run", payload: { code, files } });
+        worker.postMessage({ action: "run", payload: { code, files, statsModule: DATAMIND_STATS_PY } });
       });
     },
     [getWorker]

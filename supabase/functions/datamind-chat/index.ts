@@ -386,67 +386,39 @@ Quando o usuário CONFIRMAR os parâmetros, siga SEMPRE esta estrutura:
 
 TEMPLATES DE REFERÊNCIA:
 
---- TESTE T INDEPENDENTE ---
-from scipy import stats
-import pandas as pd
-import numpy as np
-# Separar grupos
-g1 = df[df['GRUPO_COL'] == 'valor1']['DEP_COL'].dropna()
-g2 = df[df['GRUPO_COL'] == 'valor2']['DEP_COL'].dropna()
-# Pressupostos
-stat_sw1, p_sw1 = stats.shapiro(g1[:5000])
-stat_sw2, p_sw2 = stats.shapiro(g2[:5000])
-stat_lev, p_lev = stats.levene(g1, g2)
-pressupostos = pd.DataFrame({
-    'Teste': ['Shapiro-Wilk (Grupo 1)', 'Shapiro-Wilk (Grupo 2)', 'Levene'],
-    'Estatística': [stat_sw1, stat_sw2, stat_lev],
-    'p-valor': [p_sw1, p_sw2, p_lev],
-    'Resultado': ['Normal' if p_sw1>0.05 else 'Não-normal', 'Normal' if p_sw2>0.05 else 'Não-normal', 'Homogêneo' if p_lev>0.05 else 'Não-homogêneo']
-})
-show_table(pressupostos, "Verificação de Pressupostos")
-# Teste
-equal_var = p_lev > 0.05
-t_stat, p_val = stats.ttest_ind(g1, g2, equal_var=equal_var)
-# Efeito (d de Cohen)
-pooled_std = np.sqrt(((len(g1)-1)*g1.std()**2 + (len(g2)-1)*g2.std()**2)/(len(g1)+len(g2)-2))
-cohen_d = (g1.mean() - g2.mean()) / pooled_std
-# IC 95% da diferença
-from scipy.stats import sem
-diff = g1.mean() - g2.mean()
-se_diff = np.sqrt(sem(g1)**2 + sem(g2)**2)
-ci_low, ci_high = diff - 1.96*se_diff, diff + 1.96*se_diff
-resultados = pd.DataFrame({
-    'Métrica': ['Média Grupo 1', 'Média Grupo 2', 'Diferença', 't', 'df', 'p-valor', 'IC 95% inferior', 'IC 95% superior', 'd de Cohen', 'Interpretação efeito'],
-    'Valor': [f'{g1.mean():.4f}', f'{g2.mean():.4f}', f'{diff:.4f}', f'{t_stat:.4f}', f'{len(g1)+len(g2)-2}', f'{p_val:.6f}', f'{ci_low:.4f}', f'{ci_high:.4f}', f'{cohen_d:.4f}', 'Pequeno' if abs(cohen_d)<0.5 else 'Médio' if abs(cohen_d)<0.8 else 'Grande']
-})
-show_table(resultados, "Resultado do Teste t Independente")
+MOTOR ESTATÍSTICO OBRIGATÓRIO — o sandbox já expõe três funções que DECIDEM o teste por regra determinística:
 
---- ANOVA ONE-WAY ---
-from scipy import stats
-import pandas as pd
-groups = [group['DEP_COL'].dropna().values for name, group in df.groupby('GRUPO_COL')]
-f_stat, p_val = stats.f_oneway(*groups)
-# Eta-quadrado
-ss_between = sum(len(g)*(g.mean()-df['DEP_COL'].dropna().mean())**2 for g in groups)
-ss_total = sum((df['DEP_COL'].dropna() - df['DEP_COL'].dropna().mean())**2)
-eta_sq = ss_between / ss_total
-# Post-hoc Tukey
-from statsmodels.stats.multicomp import pairwise_tukeyhsd
-tukey = pairwise_tukeyhsd(df['DEP_COL'].dropna(), df.loc[df['DEP_COL'].notna(), 'GRUPO_COL'])
-show_table(pd.DataFrame(tukey._results_table.data[1:], columns=tukey._results_table.data[0]), "Post-hoc de Tukey")
+  compare_groups(df, outcome="<coluna numérica>", group="<coluna categórica>")
+      2 ou mais grupos independentes. Decide entre t de Student, t de Welch, Mann-Whitney,
+      ANOVA one-way, ANOVA de Welch e Kruskal-Wallis, e roda o post-hoc par a par.
 
---- QUI-QUADRADO ---
-from scipy import stats
-import pandas as pd, numpy as np
-ct = pd.crosstab(df['VAR1'], df['VAR2'])
-chi2, p, dof, expected = stats.chi2_contingency(ct)
-n = ct.sum().sum()
-cramers_v = np.sqrt(chi2 / (n * (min(ct.shape) - 1)))
-show_table(ct.reset_index(), "Tabela Cruzada (Frequências Observadas)")
-show_table(pd.DataFrame(expected, index=ct.index, columns=ct.columns).round(2).reset_index(), "Frequências Esperadas")
-resultado = pd.DataFrame({'Métrica': ['χ²', 'df', 'p-valor', 'V de Cramér'], 'Valor': [f'{chi2:.4f}', f'{dof}', f'{p:.6f}', f'{cramers_v:.4f}']})
-show_table(resultado, "Resultado do Teste Qui-quadrado")
+  compare_paired(df, ["<coluna_pré>", "<coluna_pós>"])
+      medidas repetidas na MESMA unidade (pré/pós). Decide entre t pareado, Wilcoxon e Friedman.
 
+  association(df, "<var_a>", "<var_b>")
+      duas numéricas (Pearson/Spearman) ou duas categóricas (qui-quadrado/Fisher).
+
+Cada uma delas mede os pressupostos NOS DADOS REAIS (Shapiro-Wilk ou assimetria em amostra grande, Levene pela mediana, frequência esperada mínima), imprime a regra que decidiu, as descritivas, o resultado com TAMANHO DE EFEITO e INTERVALO DE CONFIANÇA, e corrige comparações múltiplas por Holm-Bonferroni.
+
+REGRAS DO MOTOR (não são opcionais):
+- Para QUALQUER comparação de grupos, medida repetida, correlação ou tabela de contingência, você DEVE chamar essas funções.
+- É PROIBIDO chamar diretamente: stats.ttest_ind, stats.ttest_rel, stats.mannwhitneyu, stats.f_oneway, stats.kruskal, stats.wilcoxon, stats.friedmanchisquare, stats.chi2_contingency, stats.fisher_exact, stats.pearsonr, stats.spearmanr.
+- NÃO escolha o teste por conta própria e NÃO escreva verificação de pressupostos à mão: o motor faz as duas coisas. Se você anunciar um teste no explanation, estará contradizendo o que o código vai imprimir — diga apenas QUAL COMPARAÇÃO será feita, não qual teste.
+- NÃO duplique a saída com show_table() próprio: pressupostos, descritivas, resultado e post-hoc já são impressos pelo motor.
+- Elas levantam NoRuleApplies quando o desenho está fora da cobertura (sobrevivência, medidas repetidas com covariáveis, dados aninhados, numérica x categórica pedida como correlação). SÓ nesse caso escreva o teste à mão — e explique no explanation por que o motor não cobre esse desenho.
+- Gráficos continuam por sua conta (boxplot, dispersão, Kaplan-Meier) DEPOIS da chamada.
+
+Exemplo completo de uma comparação entre grupos:
+resultado = compare_groups(df, outcome="idade", group="grupo_tratamento")
+plt.figure(figsize=(10,6))
+sns.boxplot(data=df, x="grupo_tratamento", y="idade", palette="Set2")
+plt.title("Idade por grupo de tratamento")
+plt.tight_layout()
+plt.show()
+print(f"Interpretação: [cite os valores concretos que o motor imprimiu — n por grupo, diferença, IC, tamanho de efeito — e o que isso significa para o estudo]")
+
+TEMPLATES PARA O QUE ESTÁ FORA DA COBERTURA DO MOTOR.
+Nestes, tamanho de efeito e intervalo de confiança continuam OBRIGATÓRIOS:
 --- REGRESSÃO LINEAR ---
 import statsmodels.api as sm
 X = df[['PRED1', 'PRED2']].dropna()
@@ -481,16 +453,6 @@ plt.title('Curva ROC')
 plt.legend()
 plt.tight_layout()
 plt.show()
-
---- MANN-WHITNEY U ---
-from scipy import stats
-g1 = df[df['GRUPO_COL']=='valor1']['DEP_COL'].dropna()
-g2 = df[df['GRUPO_COL']=='valor2']['DEP_COL'].dropna()
-u_stat, p_val = stats.mannwhitneyu(g1, g2, alternative='two-sided')
-# Rank-biserial correlation
-r_rb = 1 - (2*u_stat)/(len(g1)*len(g2))
-resultado = pd.DataFrame({'Métrica': ['U', 'p-valor', 'Mediana Grupo 1', 'Mediana Grupo 2', 'r (rank-biserial)', 'Tamanho efeito'], 'Valor': [f'{u_stat:.1f}', f'{p_val:.6f}', f'{g1.median():.4f}', f'{g2.median():.4f}', f'{r_rb:.4f}', 'Pequeno' if abs(r_rb)<0.3 else 'Médio' if abs(r_rb)<0.5 else 'Grande']})
-show_table(resultado, "Resultado Mann-Whitney U")
 
 --- KAPLAN-MEIER (requer lifelines) ---
 from lifelines import KaplanMeierFitter

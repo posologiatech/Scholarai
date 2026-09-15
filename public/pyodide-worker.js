@@ -36,7 +36,10 @@ async function installPackages() {
   await pyodide.loadPackage("micropip");
   const micropip = pyodide.pyimport("micropip");
   
-  const packages = ["numpy", "pandas", "matplotlib", "scipy", "scikit-learn", "statsmodels", "seaborn", "openpyxl", "lifelines"];
+  // Kept in step with remote-exec/requirements.txt: an analysis must not depend on
+  // which sandbox it happened to run in. A package that fails to load here is warned
+  // about and skipped, not fatal.
+  const packages = ["numpy", "pandas", "matplotlib", "scipy", "scikit-learn", "statsmodels", "seaborn", "openpyxl", "lifelines", "pingouin"];
   
   for (const pkg of packages) {
     try {
@@ -131,7 +134,23 @@ function buildDataBootstrap(files) {
   return code;
 }
 
-async function runCode(code, files) {
+/**
+ * Defines the deterministic test-selection engine inside the sandbox.
+ *
+ * A failure here is not fatal: the model keeps the ordinary scipy path and only
+ * loses the binding rule for this run, which beats failing the whole analysis.
+ */
+async function loadStatsEngine(py, source) {
+  if (!source) return;
+  try {
+    await py.runPythonAsync(source);
+    await py.runPythonAsync("set_renderer(show_table)");
+  } catch (e) {
+    console.warn("Motor estatistico indisponivel no Pyodide:", e);
+  }
+}
+
+async function runCode(code, files, statsModule) {
   const py = await initPyodide();
   await installPackages();
 
@@ -245,10 +264,14 @@ except Exception as _user_err:
     print(f"\\nErro na análise: {_user_err}")
 `;
 
-  const fullCode = bootstrapCode + dataBootstrap + wrappedUserCode + "\n" + collectCode;
-
   try {
-    await py.runPythonAsync(fullCode);
+    // Run in three stages instead of one string: the stats engine is a real module
+    // with its own `from __future__` header, which has to be the first statement of
+    // its own compile unit, and it needs show_table (from the bootstrap) to already
+    // exist before it can render into the UI.
+    await py.runPythonAsync(bootstrapCode);
+    await loadStatsEngine(py, statsModule);
+    await py.runPythonAsync(dataBootstrap + wrappedUserCode + "\n" + collectCode);
 
     stdout = py.globals.get("_stdout_text") || "";
     const figList = py.globals.get("_figures");
@@ -290,7 +313,7 @@ self.onmessage = async (e) => {
         self.postMessage({ type: "fileWritten", data: payload.fileName });
         break;
       case "run":
-        await runCode(payload.code, payload.files || payload.fileNames);
+        await runCode(payload.code, payload.files || payload.fileNames, payload.statsModule);
         break;
       case "reset":
         await resetRuntime();

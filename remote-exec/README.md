@@ -4,6 +4,24 @@ Roda a análise Python do DataMind fora do navegador, para datasets grandes dema
 para o Pyodide (ver `datamind-run-remote` na pasta `supabase/functions/`). Isso é
 código para **rodar no seu próprio servidor**, não faz parte do deploy do site.
 
+## Motor estatistico
+
+`datamind_stats.py` decide o teste estatistico por regra deterministica (ver o
+docstring do arquivo). Ele e a MESMA fonte usada pelo sandbox do navegador, que
+recebe o conteudo deste arquivo embutido no bundle — entao editar este arquivo muda
+os dois ambientes, e eles nao podem divergir.
+
+Depois de qualquer alteracao nele, o servidor precisa ser reconstruido a mao
+(`docker compose up -d --build`): nada no CI do site toca neste servico. Se a
+imagem estiver velha e sem o arquivo, a analise nao quebra — o `server.py` avisa
+que o motor esta indisponivel e o modelo volta a escolher o teste sozinho.
+
+Teste do motor (nao precisa do Docker, so pandas/scipy):
+
+```
+python remote-exec/test_datamind_stats.py
+```
+
 ## Deploy
 
 1. Copie esta pasta (`remote-exec/`) para o servidor.

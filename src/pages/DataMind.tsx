@@ -513,6 +513,67 @@ const DataMind = () => {
   };
 
   /**
+   * Runs one block of code in whichever sandbox fits the dataset.
+   *
+   * Hoisted out of the assistant turn because replaying a saved pipeline executes
+   * code with no model in the loop at all — that is the whole point of storing the
+   * code rather than the prompt.
+   */
+  const runInSandbox = async (source: string, allFiles: DataMindFile[]): Promise<ExecutionResult> => {
+    const isRCode = codeLanguage === "r";
+    const totalRows = allFiles.reduce((sum, f) => {
+      const info = f.schema_info as { rows?: number };
+      return sum + (Number(info?.rows) || 0);
+    }, 0);
+    const canUseRemoteExec = !isRCode && isOwner && totalRows > REMOTE_EXEC_THRESHOLD_ROWS;
+    setUsedRemoteExec(canUseRemoteExec);
+
+    if (canUseRemoteExec) {
+      const { data: remoteData, error: remoteError } = await supabase.functions.invoke(
+        "datamind-run-remote",
+        {
+          body: {
+            code: source,
+            codeLanguage,
+            // The original file name matters: it decides the dataframe variable
+            // name, and the storage path carries an upload timestamp prefix.
+            files: allFiles.map((f) => ({
+              path: f.file_path,
+              fileName: f.file_name,
+              dialect: readDialect(f.schema_info),
+            })),
+          },
+        }
+      );
+      if (remoteError) throw remoteError;
+      return remoteData as ExecutionResult;
+    }
+
+    for (const f of allFiles) {
+      const cacheKey = f.file_path + (isRCode ? "_r" : "_py");
+      if (loadedFilesRef.current.has(cacheKey)) continue;
+      const { data: fileBlob, error: downloadError } = await supabase.storage
+        .from("datamind-files")
+        .download(f.file_path);
+      if (downloadError || !fileBlob) {
+        throw new Error(`Falha ao carregar o arquivo "${f.file_name}" para a análise. Verifique sua conexão e tente novamente.`);
+      }
+      const arrayBuf = await fileBlob.arrayBuffer();
+      if (isRCode) {
+        await webR.writeFile(f.file_name, arrayBuf);
+      } else {
+        await pyodide.writeFile(f.file_name, arrayBuf);
+      }
+      loadedFilesRef.current.add(cacheKey);
+    }
+
+    const sandboxFiles = toSandboxFiles(allFiles);
+    return isRCode
+      ? await webR.runR(source, sandboxFiles)
+      : await pyodide.runPython(source, sandboxFiles);
+  };
+
+  /**
    * One assistant turn: ask the model, run whatever code comes back (repairing it if
    * it fails), and persist the resulting cell.
    *
@@ -616,63 +677,9 @@ const DataMind = () => {
     let autoFixed = false;
 
     if (codeBlock && allFiles.length > 0) {
-      const isRCode = codeLanguage === "r";
-      const totalRows = allFiles.reduce((sum, f) => {
-        const info = f.schema_info as { rows?: number };
-        return sum + (Number(info?.rows) || 0);
-      }, 0);
-      const canUseRemoteExec = !isRCode && isOwner && totalRows > REMOTE_EXEC_THRESHOLD_ROWS;
-      setUsedRemoteExec(canUseRemoteExec);
-
-      const runOnce = async (source: string): Promise<ExecutionResult> => {
-        if (canUseRemoteExec) {
-          const { data: remoteData, error: remoteError } = await supabase.functions.invoke(
-            "datamind-run-remote",
-            {
-              body: {
-                code: source,
-                codeLanguage,
-                // The original file name matters: it decides the dataframe variable
-                // name, and the storage path carries an upload timestamp prefix.
-                files: allFiles.map((f) => ({
-                  path: f.file_path,
-                  fileName: f.file_name,
-                  dialect: readDialect(f.schema_info),
-                })),
-              },
-            }
-          );
-          if (remoteError) throw remoteError;
-          return remoteData as ExecutionResult;
-        }
-
-        for (const f of allFiles) {
-          const cacheKey = f.file_path + (isRCode ? "_r" : "_py");
-          if (loadedFilesRef.current.has(cacheKey)) continue;
-          const { data: fileBlob, error: downloadError } = await supabase.storage
-            .from("datamind-files")
-            .download(f.file_path);
-          if (downloadError || !fileBlob) {
-            throw new Error(`Falha ao carregar o arquivo "${f.file_name}" para a análise. Verifique sua conexão e tente novamente.`);
-          }
-          const arrayBuf = await fileBlob.arrayBuffer();
-          if (isRCode) {
-            await webR.writeFile(f.file_name, arrayBuf);
-          } else {
-            await pyodide.writeFile(f.file_name, arrayBuf);
-          }
-          loadedFilesRef.current.add(cacheKey);
-        }
-
-        const sandboxFiles = toSandboxFiles(allFiles);
-        return isRCode
-          ? await webR.runR(source, sandboxFiles)
-          : await pyodide.runPython(source, sandboxFiles);
-      };
-
       try {
         setLoadingStage("Executando a análise...");
-        let result = await runOnce(executedCode);
+        let result = await runInSandbox(executedCode, allFiles);
 
         // Self-repair loop: a traceback is something the model can act on, and
         // making the researcher debug generated code is the difference between a
@@ -707,7 +714,7 @@ const DataMind = () => {
           fixNote = fixData.note || fixNote;
           executedCode = fixData.code;
           setLoadingStage("Executando a análise corrigida...");
-          result = await runOnce(executedCode);
+          result = await runInSandbox(executedCode, allFiles);
         }
 
         if (result.error) {
@@ -1075,16 +1082,99 @@ const DataMind = () => {
     setStreamingText("");
   };
 
-  // Apply pipeline: sequentially send each step's prompt
+  /**
+   * Replays a saved pipeline by re-running its stored code, not by re-asking the
+   * model its prompts.
+   *
+   * Re-sending the prompts regenerated the code every time, so "apply the same
+   * pipeline to this month's data" could quietly run a different analysis than the
+   * one that was saved — the opposite of what a pipeline is for. Replaying the code
+   * makes the result reproducible, and costs no AI call at all.
+   *
+   * Steps saved before the code was stored have only a prompt; those still go
+   * through the model, and the message says so.
+   */
   const applyPipelineSteps = async (steps: { prompt: string; code: string }[]) => {
-    for (const step of steps) {
-      if (step.prompt) {
-        await sendMessage(step.prompt);
-        // Small delay between steps for readability
-        await new Promise((r) => setTimeout(r, 500));
-      }
+    if (!user) return;
+    let activeConvId = conversationId;
+    if (!activeConvId) {
+      activeConvId = await createConversation("Pipeline aplicado");
+      if (!activeConvId) return;
     }
-    toast({ title: "Pipeline aplicado!", description: `${steps.length} etapas executadas.` });
+
+    setLoading(true);
+    let replayed = 0;
+    let regenerated = 0;
+    let failed = 0;
+
+    try {
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+
+        if (!step.code) {
+          // No stored code: the only way to run this step is to ask the model again.
+          if (step.prompt) {
+            await sendMessage(step.prompt);
+            regenerated++;
+          }
+          continue;
+        }
+
+        setLoadingStage(`Reexecutando etapa ${i + 1} de ${steps.length} do pipeline...`);
+
+        let outputType = "text";
+        let outputContent: string;
+        try {
+          const result = await runInSandbox(step.code, files);
+          if (result.error) {
+            failed++;
+            outputContent = `Esta etapa do pipeline falhou nos dados atuais.${NL}${NL}Detalhe técnico:${NL}${result.error}`;
+          } else {
+            const parts: string[] = [];
+            if (result.stdout?.trim()) parts.push(result.stdout.trim());
+            result.images.forEach((img) => parts.push(`[IMG]data:image/png;base64,${img}[/IMG]`));
+            outputType = result.images.length > 0 ? "mixed" : "text";
+            outputContent = parts.length > 0 ? parts.join(NL) : "Código executado com sucesso (sem output).";
+            replayed++;
+          }
+        } catch (e) {
+          failed++;
+          outputContent = e instanceof Error && e.message.startsWith("Falha ao carregar o arquivo")
+            ? e.message
+            : "Erro ao executar o código desta etapa.";
+        }
+
+        const heading = `### Etapa ${i + 1} de ${steps.length} do pipeline`;
+        const description = step.prompt || "Etapa salva do pipeline";
+        const { data: msg } = await supabase
+          .from("datamind_messages")
+          .insert({
+            conversation_id: activeConvId,
+            role: "assistant",
+            content: `${heading}${NL}${NL}${description}${NL}${NL}_Código salvo reexecutado sem passar pela IA, então o resultado é reprodutível._`,
+            code_block: step.code,
+            output_type: outputType,
+            output_content: outputContent,
+          })
+          .select()
+          .single();
+        if (msg) setMessages((prev) => [...prev, msg as Message]);
+      }
+    } finally {
+      setLoading(false);
+      setLoadingStage(null);
+    }
+
+    const summary = [
+      replayed > 0 ? `${replayed} reexecutada(s)` : "",
+      regenerated > 0 ? `${regenerated} regerada(s) pela IA por não ter código salvo` : "",
+      failed > 0 ? `${failed} com erro` : "",
+    ].filter(Boolean).join(", ");
+    toast({
+      title: failed > 0 ? "Pipeline aplicado com falhas" : "Pipeline aplicado!",
+      description: summary || `${steps.length} etapas executadas.`,
+      variant: failed > 0 ? "destructive" : undefined,
+    });
   };
 
   // Auto-open apply dialog if pipeline param

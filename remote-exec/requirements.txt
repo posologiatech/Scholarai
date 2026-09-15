@@ -8,3 +8,8 @@ scipy==1.14.1
 scikit-learn==1.5.2
 statsmodels==0.14.4
 requests==2.32.3
+# Kaplan-Meier and Cox live in the prompt catalogue and already work in the browser
+# sandbox; without them here the same analysis broke as soon as a dataset got big
+# enough to route to this server - which is exactly when survival analysis matters.
+lifelines==0.30.3
+pingouin==0.6.1

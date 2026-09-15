@@ -158,6 +158,21 @@ def _worker(code: str, files: list, result_queue) -> None:
         print(f"__DATACHART_START__{payload}__DATACHART_END__")
 
     scope = {"pd": pd, "plt": plt, "show_table": show_table, "show_chart": show_chart}
+
+    # The deterministic test-selection engine, which renders through the UI's own
+    # table renderer rather than stdout. If it cannot load, the model still has the
+    # ordinary scipy path; it just loses the binding rule for that run.
+    try:
+        import datamind_stats
+
+        datamind_stats.set_renderer(show_table)
+        scope["compare_groups"] = datamind_stats.compare_groups
+        scope["compare_paired"] = datamind_stats.compare_paired
+        scope["association"] = datamind_stats.association
+        scope["NoRuleApplies"] = datamind_stats.NoRuleApplies
+        scope["datamind_stats"] = datamind_stats
+    except Exception as e:
+        print(f"Aviso: motor estatistico indisponivel ({e}); os testes serao escolhidos pelo modelo.")
     try:
         import numpy as np
         import seaborn as sns
