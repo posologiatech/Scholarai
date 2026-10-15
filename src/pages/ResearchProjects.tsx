@@ -23,6 +23,8 @@ import {
   Trash2, CheckCircle2, PlayCircle, XCircle, User,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { ResearchQuestionsPanel } from "@/components/research/ResearchQuestionsPanel";
+import { useResearchQuestions } from "@/hooks/useResearchQuestions";
 import {
   useResearchProjects, useCreateResearchProject,
   useUpdateResearchProject, useDeleteResearchProject,
@@ -72,7 +74,11 @@ const Inner = () => {
   const updateMut = useUpdateResearchProject();
   const deleteMut = useDeleteResearchProject();
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<TabKey>("ativo");
+  const [view, setView] = useState<TabKey | "perguntas">("ativo");
+  // The project lists below only know the three status tabs; the questions view replaces them entirely.
+  const tab: TabKey = view === "perguntas" ? "ativo" : view;
+  const { data: questions = [] } = useResearchQuestions();
+  const openQuestions = questions.filter((q) => !q.project_id).length;
   const [categoryFilter, setCategoryFilter] = useState<ResearchProjectCategory | "all">("all");
   const [toDelete, setToDelete] = useState<ResearchProject | null>(null);
   const [form, setForm] = useState<{
@@ -346,7 +352,7 @@ const Inner = () => {
         </div>
       </header>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mb-4">
+      <Tabs value={view} onValueChange={(v) => setView(v as TabKey | "perguntas")} className="mb-4">
         <TabsList>
           <TabsTrigger value="ativo">
             {locale === "pt" ? "Projetos ativos" : "Active"}
@@ -360,8 +366,14 @@ const Inner = () => {
             {locale === "pt" ? "Cancelados" : "Cancelled"}
             <Badge variant="secondary" className="ml-2">{counts.cancelado}</Badge>
           </TabsTrigger>
+          <TabsTrigger value="perguntas">
+            {locale === "pt" ? "Perguntas de pesquisa" : "Research questions"}
+            <Badge variant="secondary" className="ml-2">{openQuestions}</Badge>
+          </TabsTrigger>
         </TabsList>
       </Tabs>
+
+      {view === "perguntas" ? <ResearchQuestionsPanel /> : (<>
 
       {/* Category filter chips */}
       <div className="flex flex-wrap items-center gap-2 mb-6">
@@ -435,6 +447,7 @@ const Inner = () => {
           {filtered.map(renderCard)}
         </div>
       )}
+      </>)}
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
