@@ -142,3 +142,6 @@ verify_jwt = false
 
 [functions.review-ai-screen]
 verify_jwt = false
+
+[functions.review-ai-extract]
+verify_jwt = false
