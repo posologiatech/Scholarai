@@ -9,7 +9,7 @@ const base: ReviewRecord = {
   framework: { population: "Adultos", concept: "Telessaúde", context: "Atenção primária" },
   eligibility: [{ kind: "include", text: "Estudos de 2015 a 2025" }, { kind: "exclude", text: "Editoriais" }],
   registry: {}, protocol_document: null, protocol_locked_at: null, protocol_locked_by: null,
-  current_stage: "scope", stage_state: {}, research_project_id: null, created_at: "", updated_at: "",
+  current_stage: "scope", stage_state: {}, research_project_id: null, ai_disclosure: [], created_at: "", updated_at: "",
 };
 
 describe("buildReviewState", () => {

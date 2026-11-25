@@ -145,3 +145,6 @@ verify_jwt = false
 
 [functions.review-ai-extract]
 verify_jwt = false
+
+[functions.review-ai-write]
+verify_jwt = false

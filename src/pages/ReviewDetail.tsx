@@ -10,6 +10,7 @@ import { ScopeStage } from "@/components/review/ScopeStage";
 import { ExtractionStage } from "@/components/review/ExtractionStage";
 import { ScreeningStage } from "@/components/review/ScreeningStage";
 import { SynthesisStage } from "@/components/review/SynthesisStage";
+import { WritingStage } from "@/components/review/WritingStage";
 import { getScreening } from "@/components/review/ScreeningSummary";
 import { SearchStage } from "@/components/review/SearchStage";
 import { StrategyStage } from "@/components/review/StrategyStage";
@@ -27,7 +28,7 @@ import { currentStage, evaluateGate, getReviewType, type StageKey } from "@/lib/
 import { cn } from "@/lib/utils";
 
 /** Stages not built yet and the phase that delivers them. */
-const COMING: Partial<Record<StageKey, number>> = { writing: 6 };
+const COMING: Partial<Record<StageKey, number>> = {};
 
 const ReviewDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -222,6 +223,9 @@ const ReviewDetail = () => {
               )}
               {active.key === "search" && (
                 <SearchStage def={def} review={review} locale={lang} canEdit={isOwner} metrics={metrics} onChange={change} onDataChanged={refreshMetrics} />
+              )}
+              {active.key === "writing" && (
+                <WritingStage def={def} review={review} userId={user!.id} locale={lang} onChange={change} />
               )}
               {active.key === "synthesis" && (
                 <SynthesisStage def={def} review={review} userId={user!.id} locale={lang} onChange={change} />

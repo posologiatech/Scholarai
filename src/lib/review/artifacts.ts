@@ -246,3 +246,26 @@ export function themePrevalence(c: Ctx): Figure {
 
 /** Candidate categorical fields for an evidence map (free-text or choice fields only). */
 export const mappableFields = (fields: FieldSpec[]) => fields.filter((f) => f.kind === "text" || f.kind === "choice");
+
+/** PRISMA 2020 style flow diagram as standalone SVG, for the manuscript export (the on-screen one is a React component). */
+export function prismaFlowSvg(c: { identified: number; duplicatesRemoved: number; screened: number; excludedScreening: number; includedFullText: number; excludedFullText: number; finalIncluded: number; excludedReasons: Record<string, number> }, reasonLabels: Record<string, string>, locale: "pt" | "en"): Figure {
+  const pt = locale === "pt";
+  const title = pt ? "Fluxograma de seleção dos estudos" : "Study selection flow diagram";
+  const box = (x: number, y: number, w: number, h: number, lines: string[], fill = "#eef2f7") =>
+    `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${fill}" stroke="#64748b"/>` + lines.map((l, i) => `<text x="${x + w / 2}" y="${y + 20 + i * 16}" text-anchor="middle" ${SANS} font-size="12" fill="#1e293b">${esc(l)}</text>`).join("");
+  const arrow = (x1: number, y1: number, x2: number, y2: number) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#64748b" stroke-width="1.5" marker-end="url(#a)"/>`;
+  const reasons = Object.entries(c.excludedReasons).slice(0, 6).map(([k, n]) => `${cut(reasonLabels[k] ?? k, 34)}: ${n}`);
+  const W = 640, mainX = 40, mainW = 240, sideX = 340, sideW = 260;
+  const sideH = Math.max(50, 34 + reasons.length * 16);
+  let body = `<defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>`
+    + `<text x="${W / 2}" y="22" text-anchor="middle" ${SANS} font-size="14" font-weight="700" fill="#1e293b">${esc(title)}</text>`;
+  body += box(mainX, 40, mainW, 50, [pt ? "Registros identificados" : "Records identified", `n = ${c.identified}`]);
+  body += arrow(mainX + mainW / 2, 90, mainX + mainW / 2, 130) + box(sideX, 40, sideW, 50, [pt ? "Duplicatas removidas" : "Duplicates removed", `n = ${c.duplicatesRemoved}`]) + arrow(mainX + mainW, 65, sideX, 65);
+  body += box(mainX, 130, mainW, 50, [pt ? "Registros triados (título e resumo)" : "Records screened", `n = ${c.screened}`]);
+  body += arrow(mainX + mainW / 2, 180, mainX + mainW / 2, 230) + box(sideX, 130, sideW, 50, [pt ? "Excluídos na triagem" : "Excluded at screening", `n = ${c.excludedScreening}`]) + arrow(mainX + mainW, 155, sideX, 155);
+  body += box(mainX, 230, mainW, 50, [pt ? "Avaliados em texto completo" : "Assessed in full text", `n = ${c.includedFullText}`]);
+  body += arrow(mainX + mainW / 2, 280, mainX + mainW / 2, 270 + Math.max(sideH, 50) + 40) + box(sideX, 230, sideW, sideH, [`${pt ? "Excluídos no texto completo" : "Excluded at full text"}: ${c.excludedFullText}`, ...reasons], "#fff5f5") + arrow(mainX + mainW, 255, sideX, 255);
+  const finalY = 270 + Math.max(sideH, 50) + 40;
+  body += box(mainX, finalY, mainW, 50, [pt ? "Estudos incluídos na revisão" : "Studies included in the review", `n = ${c.finalIncluded}`], "#edf7f0");
+  return { title, svg: wrap(W, finalY + 70, body, title) };
+}

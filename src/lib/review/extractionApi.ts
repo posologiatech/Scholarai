@@ -6,7 +6,7 @@ const db = supabase as unknown as { from: (t: string) => any; functions: typeof 
 
 export interface IncludedRecord {
   id: string; title: string; authors: string[]; year: number | null; abstract: string | null;
-  study_design: string | null; doi: string | null; source: string; external_id: string | null; url: string | null;
+  study_design: string | null; journal: string | null; doi: string | null; source: string; external_id: string | null; url: string | null;
   full_text_source: string | null; has_full_text: boolean;
 }
 
@@ -14,7 +14,7 @@ export async function loadIncluded(reviewId: string): Promise<IncludedRecord[]> 
   const out: IncludedRecord[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db.from("review_records")
-      .select("id,title,authors,year,abstract,study_design,doi,source,external_id,url,full_text_source")
+      .select("id,title,authors,year,abstract,study_design,journal,doi,source,external_id,url,full_text_source")
       .eq("review_id", reviewId).eq("screen_status", "included").order("year", { ascending: false }).order("id").range(from, from + 999);
     if (error) throw error;
     out.push(...data.map((r: IncludedRecord) => ({ ...r, has_full_text: !!r.full_text_source })));
