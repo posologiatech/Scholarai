@@ -9,6 +9,7 @@ import { ProtocolStage } from "@/components/review/ProtocolStage";
 import { ScopeStage } from "@/components/review/ScopeStage";
 import { ExtractionStage } from "@/components/review/ExtractionStage";
 import { ScreeningStage } from "@/components/review/ScreeningStage";
+import { SynthesisStage } from "@/components/review/SynthesisStage";
 import { getScreening } from "@/components/review/ScreeningSummary";
 import { SearchStage } from "@/components/review/SearchStage";
 import { StrategyStage } from "@/components/review/StrategyStage";
@@ -20,12 +21,13 @@ import { buildReviewState } from "@/lib/review/state";
 import { loadMetrics, type ReviewMetrics } from "@/lib/review/records";
 import { listMembers } from "@/lib/review/screeningApi";
 import { loadProgress, type Progress } from "@/lib/review/extractionApi";
+import { outcomesGraded, synthesisFlags } from "@/lib/review/synthesis";
 import { getStrategy, withFlags } from "@/lib/review/strategy";
 import { currentStage, evaluateGate, getReviewType, type StageKey } from "@/lib/review/types";
 import { cn } from "@/lib/utils";
 
 /** Stages not built yet and the phase that delivers them. */
-const COMING: Partial<Record<StageKey, number>> = { synthesis: 5, writing: 6 };
+const COMING: Partial<Record<StageKey, number>> = { writing: 6 };
 
 const ReviewDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -91,7 +93,7 @@ const ReviewDetail = () => {
   const state = useMemo(() => {
     if (!review) return null;
     const d = getReviewType(review.review_type);
-    return buildReviewState(review, {
+    const built = buildReviewState(review, {
       sources_selected: d ? getStrategy(review, d).sources.length : 0,
       searches_logged: metrics?.searchedSources ?? 0,
       records: metrics?.total ?? 0,
@@ -102,7 +104,10 @@ const ReviewDetail = () => {
       extraction_verified_pct: progress && progress.included > 0 ? Math.round((progress.extracted / progress.included) * 100) : 0,
       appraisal_done_pct: progress && progress.included > 0 ? Math.round((progress.appraised / progress.included) * 100) : 0,
       full_text_done_pct: getScreening(review).ft_closed_at ? 100 : 0,
+      outcomes_graded: outcomesGraded(review),
     });
+    // Synthesis flags follow what the user wrote, so they cannot drift from the content.
+    return { ...built, flags: { ...built.flags, ...synthesisFlags(review), ...(built.flags.themes_confirmed ? { themes_confirmed: true } : {}) } };
   }, [review, metrics, reviewerCount, progress]);
 
   if (loading || !review || !state) {
@@ -217,6 +222,9 @@ const ReviewDetail = () => {
               )}
               {active.key === "search" && (
                 <SearchStage def={def} review={review} locale={lang} canEdit={isOwner} metrics={metrics} onChange={change} onDataChanged={refreshMetrics} />
+              )}
+              {active.key === "synthesis" && (
+                <SynthesisStage def={def} review={review} userId={user!.id} locale={lang} onChange={change} />
               )}
               {active.key === "appraisal" && (
                 <ExtractionStage def={def} review={review} userId={user!.id} locale={lang} onChange={change} onDataChanged={refreshMetrics} />
