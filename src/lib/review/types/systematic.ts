@@ -1,0 +1,120 @@
+import { b, pico, ref, searchStage, strategyStage, writingStage } from "./common";
+import type { ReviewTypeDef } from "./schema";
+
+export const systematic: ReviewTypeDef = {
+  id: "systematic",
+  version: "0.1.0",
+  label: b("Revisão sistemática", "Systematic review"),
+  summary: b(
+    "Responde a uma pergunta focada com busca exaustiva, seleção por critérios definidos antes, avaliação crítica e síntese, com meta-análise quando os dados permitem.",
+    "Answers a focused question with an exhaustive search, pre-specified selection criteria, critical appraisal and synthesis, with meta-analysis when data allow.",
+  ),
+  framework: { name: "PICO", fields: pico },
+  registry: { name: "PROSPERO", url: "https://www.crd.york.ac.uk/prospero/", required: false },
+  reportingGuideline: { id: "prisma2020", name: "PRISMA 2020 (+ PRISMA-S para a busca)" },
+  appraisal: {
+    required: true,
+    tools: [
+      { id: "rob2", label: "RoB 2", appliesTo: b("Ensaios clínicos randomizados", "Randomised trials"), required: false },
+      { id: "robins-i", label: "ROBINS-I", appliesTo: b("Estudos não randomizados de intervenção", "Non-randomised studies of interventions"), required: false },
+      { id: "nos", label: "Newcastle-Ottawa", appliesTo: b("Coorte e caso-controle", "Cohort and case-control"), required: false },
+      { id: "quadas2", label: "QUADAS-2", appliesTo: b("Acurácia diagnóstica", "Diagnostic accuracy"), required: false },
+    ],
+  },
+  screening: { dual: "required", phases: ["title_abstract", "full_text"] },
+  synthesis: b(
+    "Meta-análise quando houver dados combináveis; caso contrário, síntese sem meta-análise estruturada (SWiM). Certeza da evidência por GRADE.",
+    "Meta-analysis when data can be combined; otherwise structured synthesis without meta-analysis (SWiM). Certainty of evidence by GRADE.",
+  ),
+  extractionFields: [
+    { key: "design", label: b("Desenho do estudo", "Study design"), kind: "text" },
+    { key: "country", label: b("País", "Country"), kind: "text" },
+    { key: "sample_size", label: b("Tamanho da amostra", "Sample size"), kind: "number" },
+    { key: "population", label: b("População", "Population"), kind: "text" },
+    { key: "intervention", label: b("Intervenção / exposição", "Intervention / exposure"), kind: "text" },
+    { key: "comparator", label: b("Comparador", "Comparator"), kind: "text" },
+    { key: "outcomes", label: b("Desfechos e medidas", "Outcomes and measures"), kind: "list" },
+    { key: "effect", label: b("Resultado principal (efeito, IC95%)", "Main result (effect, 95% CI)"), kind: "text" },
+    { key: "follow_up", label: b("Seguimento", "Follow-up"), kind: "text" },
+    { key: "funding", label: b("Financiamento", "Funding"), kind: "text" },
+  ],
+  artifacts: [
+    { kind: "prisma_flow", label: b("Fluxograma PRISMA 2020", "PRISMA 2020 flow diagram"), type: "figure" },
+    { kind: "rob_traffic_light", label: b("Semáforo de risco de viés", "Risk-of-bias traffic light"), type: "figure" },
+    { kind: "forest", label: b("Forest plot", "Forest plot"), type: "figure" },
+    { kind: "funnel", label: b("Funnel plot", "Funnel plot"), type: "figure" },
+    { kind: "search_appendix", label: b("Estratégia de busca por base", "Search strategy by source"), type: "table" },
+    { kind: "characteristics", label: b("Características dos estudos incluídos", "Characteristics of included studies"), type: "table" },
+    { kind: "excluded_fulltext", label: b("Excluídos no texto completo, com motivo", "Excluded at full text, with reason"), type: "table" },
+    { kind: "sof_grade", label: b("Resumo dos achados (GRADE)", "Summary of findings (GRADE)"), type: "table" },
+  ],
+  stages: [
+    {
+      key: "scope", title: b("Tipo e escopo", "Type and scope"),
+      description: b("Defina o tema, a área, a equipe e confirme que uma revisão sistemática é o desenho adequado.", "Define topic, area and team, and confirm a systematic review is the right design."),
+      aiRole: b("Avalia se a pergunta cabe numa revisão sistemática ou pede outro tipo.", "Assesses whether the question fits a systematic review or calls for another type."),
+      gate: [
+        { kind: "field", field: "title", label: b("Dar um título de trabalho", "Give a working title") },
+        { kind: "field", field: "area", label: b("Informar a área", "Set the area") },
+      ],
+      uses: ["QuestionEvaluator"],
+    },
+    {
+      key: "protocol", title: b("Pergunta e protocolo", "Question and protocol"),
+      description: b("Escreva a pergunta em PICO, os critérios de inclusão e exclusão e os desfechos. Registre (PROSPERO) e congele o protocolo.", "Write the question in PICO, eligibility criteria and outcomes. Register (PROSPERO) and lock the protocol."),
+      aiRole: b("Sugere critérios e refina a pergunta; o protocolo só vale depois que você o congela.", "Suggests criteria and refines the question; the protocol only counts once you lock it."),
+      gate: [
+        { kind: "field", field: "framework.population", label: b("Preencher a população (P)", "Fill in the population (P)") },
+        { kind: "field", field: "framework.intervention", label: b("Preencher a intervenção (I)", "Fill in the intervention (I)") },
+        { kind: "field", field: "framework.outcome", label: b("Preencher o desfecho (O)", "Fill in the outcome (O)") },
+        { kind: "field", field: "eligibility", label: b("Definir critérios de elegibilidade", "Define eligibility criteria") },
+        { kind: "field", field: "protocol_locked_at", label: b("Congelar o protocolo", "Lock the protocol") },
+      ],
+      uses: ["ProtocolPanel", "generate-screening-criteria", "lib/systematicReview/protocol.ts"],
+    },
+    strategyStage(),
+    searchStage(),
+    {
+      key: "screening", title: b("Triagem", "Screening"),
+      description: b("Triagem por título e resumo e depois por texto completo, por dois revisores independentes, com resolução de conflitos.", "Title/abstract then full-text screening by two independent reviewers, with conflict resolution."),
+      aiRole: b("Prioriza e atua como apoio rotulado; não conta como voto de revisor.", "Prioritises and acts as a labelled aid; it does not count as a reviewer vote."),
+      gate: [
+        { kind: "count", metric: "reviewers", min: 2, label: b("Ter dois revisores", "Have two reviewers") },
+        { kind: "count", metric: "title_abstract_done_pct", min: 100, label: b("Concluir a triagem por título e resumo", "Finish title/abstract screening") },
+        { kind: "count", metric: "open_conflicts_zero", min: 1, label: b("Resolver todos os conflitos", "Resolve all conflicts") },
+        { kind: "count", metric: "full_text_done_pct", min: 100, label: b("Concluir o texto completo, com motivo de exclusão", "Finish full text, with exclusion reasons") },
+      ],
+      uses: ["StepScreening", "DualScreeningPanel", "ConflictsPanel", "PrismaFlowDiagram"],
+    },
+    {
+      key: "appraisal", title: b("Extração e risco de viés", "Extraction and risk of bias"),
+      description: b("Extraia os dados de cada estudo e avalie o risco de viés com a ferramenta do desenho.", "Extract each study's data and assess risk of bias with the tool for its design."),
+      aiRole: b("Propõe valores com o trecho de origem; você confere.", "Proposes values with the source passage; you verify."),
+      gate: [
+        { kind: "count", metric: "extraction_verified_pct", min: 100, label: b("Verificar a extração de todos os incluídos", "Verify extraction for all included studies") },
+        { kind: "count", metric: "appraisal_done_pct", min: 100, label: b("Avaliar o risco de viés de todos os incluídos", "Appraise risk of bias for all included studies") },
+      ],
+      uses: ["StepExtraction", "StepQuality", "extract-column", "risk-of-bias", "quality-assessment"],
+    },
+    {
+      key: "synthesis", title: b("Síntese", "Synthesis"),
+      description: b("Combine os resultados por meta-análise ou, quando não for adequado, por síntese estruturada sem meta-análise; classifique a certeza (GRADE).", "Combine results by meta-analysis or, where inappropriate, structured synthesis without meta-analysis; rate certainty (GRADE)."),
+      aiRole: b("Descreve os resultados já calculados; não calcula efeitos.", "Describes already-computed results; it does not compute effects."),
+      gate: [
+        { kind: "flag", flag: "synthesis_method_chosen", label: b("Escolher e justificar o método de síntese", "Choose and justify the synthesis method") },
+        { kind: "count", metric: "outcomes_graded", min: 1, label: b("Classificar a certeza de ao menos um desfecho", "Rate certainty for at least one outcome") },
+      ],
+      uses: ["MetaAnalysis", "MetaAnalysisCharts"],
+    },
+    writingStage(),
+  ],
+  references: [
+    { citation: ref.cochrane, role: "method" },
+    { citation: ref.prisma2020, role: "reporting" },
+    { citation: ref.prismaS, role: "reporting" },
+    { citation: ref.rob2, role: "appraisal" },
+    { citation: ref.robinsI, role: "appraisal" },
+    { citation: ref.swim, role: "synthesis" },
+  ],
+  review: { status: "pending-expert-review" },
+};
