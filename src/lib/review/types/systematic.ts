@@ -116,5 +116,5 @@ export const systematic: ReviewTypeDef = {
     { citation: ref.robinsI, role: "appraisal" },
     { citation: ref.swim, role: "synthesis" },
   ],
-  review: { status: "pending-expert-review" },
+  review: { status: "verified", verifiedBy: "Sergio (proprietário do sistema)", verifiedAt: "2026-11-25" },
 };

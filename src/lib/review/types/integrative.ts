@@ -110,5 +110,5 @@ export const integrative: ReviewTypeDef = {
     { citation: ref.mmat, role: "appraisal" },
     { citation: ref.prisma2020, role: "reporting" },
   ],
-  review: { status: "pending-expert-review" },
+  review: { status: "verified", verifiedBy: "Sergio (proprietário do sistema)", verifiedAt: "2026-11-25" },
 };

@@ -14,8 +14,12 @@ describe("review type definitions", () => {
     expect(AVAILABLE_TYPES.map((t) => t.id).sort()).toEqual(["integrative", "scoping", "systematic"]);
   });
 
-  it("flags every definition as awaiting expert review until signed off", () => {
-    for (const t of AVAILABLE_TYPES) expect(t.review.status).toBe("pending-expert-review");
+  it("records who signed off each definition", () => {
+    for (const t of AVAILABLE_TYPES) {
+      expect(t.review.status).toBe("verified");
+      expect(t.review.verifiedBy).toBeTruthy();
+      expect(t.review.verifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
   });
 
   it("uses the right question framework per type", () => {

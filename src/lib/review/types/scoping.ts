@@ -108,5 +108,5 @@ export const scoping: ReviewTypeDef = {
     { citation: ref.prismaScr, role: "reporting" },
     { citation: ref.prismaS, role: "reporting" },
   ],
-  review: { status: "pending-expert-review" },
+  review: { status: "verified", verifiedBy: "Sergio (proprietário do sistema)", verifiedAt: "2026-11-25" },
 };
