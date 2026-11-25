@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import type { EligibilityItem, ReviewRecord } from "@/lib/review/protocol";
-import type { ReviewTypeDef } from "@/lib/review/types";
+import { frameworkName, type ReviewTypeDef } from "@/lib/review/types";
 
 interface Props {
   def: ReviewTypeDef;
@@ -72,7 +72,7 @@ export function ProtocolStage({ def, review, locale, canLock, onChange, onLock }
       </div>
 
       <fieldset className="space-y-3" disabled={locked}>
-        <legend className="mb-1 text-sm font-medium">{def.framework.name}</legend>
+        <legend className="mb-1 text-sm font-medium">{frameworkName(def, locale)}</legend>
         {def.framework.fields.filter((f) => f.key !== "problem").map((f) => (
           <div key={f.key} className="space-y-1.5">
             <Label htmlFor={`fw-${f.key}`}>{f.label[locale]}{f.required && <span className="text-destructive"> *</span>}</Label>

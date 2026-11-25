@@ -1,4 +1,4 @@
-import type { ReviewTypeDef } from "./types";
+import { frameworkName, type ReviewTypeDef } from "./types";
 
 export interface EligibilityItem { kind: "include" | "exclude"; text: string }
 
@@ -39,7 +39,7 @@ export function buildProtocolDocument(def: ReviewTypeDef, r: ReviewRecord, locke
   out.push(`## ${pt ? "Pergunta" : "Question"}`);
   out.push(r.question || "—");
   out.push("");
-  out.push(`## ${def.framework.name}`);
+  out.push(`## ${frameworkName(def, r.locale)}`);
   for (const f of def.framework.fields) out.push(`- **${L(f.label)}:** ${r.framework?.[f.key] || "—"}`);
   out.push("");
   out.push(`## ${pt ? "Critérios de elegibilidade" : "Eligibility criteria"}`);

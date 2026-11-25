@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildProtocolDocument, type ReviewRecord } from "./protocol";
 import { buildReviewState } from "./state";
-import { currentStage, evaluateGate, getReviewType } from "./types";
+import { currentStage, evaluateGate, frameworkName, getReviewType } from "./types";
 
 const base: ReviewRecord = {
   id: "r1", owner_id: "u1", review_type: "scoping", title: "Telessaúde", question: "O que se sabe sobre telessaúde na APS?",
@@ -33,6 +33,14 @@ describe("buildReviewState", () => {
     const def = getReviewType("integrative")!;
     const r: ReviewRecord = { ...base, review_type: "integrative", framework: {} };
     expect(currentStage(def, buildReviewState(r)).key).toBe("scope");
+  });
+});
+
+describe("framework name", () => {
+  it("shows a translated label for types without an acronym, the acronym otherwise", () => {
+    expect(frameworkName(getReviewType("integrative")!, "pt")).toBe("Problema, população e variáveis");
+    expect(frameworkName(getReviewType("integrative")!, "en")).toBe("Problem, population and variables");
+    expect(frameworkName(getReviewType("scoping")!, "pt")).toBe("PCC");
   });
 });
 

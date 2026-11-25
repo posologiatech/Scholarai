@@ -43,7 +43,8 @@ export interface ReviewTypeDef {
   version: string;
   label: Bilingual;
   summary: Bilingual;
-  framework: { name: string; fields: FrameworkField[] };
+  /** `name` is the acronym (PICO, PCC); `label` replaces it on screen when there is no acronym. */
+  framework: { name: string; label?: Bilingual; fields: FrameworkField[] };
   registry: { name: string; url: string; required: boolean } | null;
   reportingGuideline: { id: string; name: string };
   appraisal: { tools: AppraisalTool[]; required: boolean };
@@ -112,3 +113,5 @@ export function currentStage(def: ReviewTypeDef, state: ReviewState): StageDef {
   }
   return def.stages[def.stages.length - 1];
 }
+
+export const frameworkName = (def: ReviewTypeDef, locale: "pt" | "en"): string => def.framework.label?.[locale] ?? def.framework.name;

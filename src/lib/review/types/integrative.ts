@@ -10,7 +10,8 @@ export const integrative: ReviewTypeDef = {
     "Combines studies of different methods (experimental, non-experimental, qualitative, theoretical) for a broad understanding of a phenomenon, following Whittemore and Knafl's stages.",
   ),
   framework: {
-    name: "Problem / population / variables",
+    name: "PPV",
+    label: b("Problema, população e variáveis", "Problem, population and variables"),
     fields: [
       { key: "problem", label: b("Problema de revisão", "Review problem"), hint: b("Que questão a revisão responde e por que importa?", "What question does the review answer and why does it matter?"), required: true },
       { key: "population", label: b("População ou fenômeno", "Population or phenomenon"), hint: b("Foco do estudo", "Focus of study"), required: true },

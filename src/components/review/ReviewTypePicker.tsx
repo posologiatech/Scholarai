@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AVAILABLE_TYPES, type ReviewTypeDef } from "@/lib/review/types";
+import { AVAILABLE_TYPES, frameworkName, type ReviewTypeDef } from "@/lib/review/types";
 
 interface Props {
   value: string | null;
@@ -32,7 +32,7 @@ export function ReviewTypePicker({ value, onChange, locale }: Props) {
             </div>
             <p className="mt-1 text-sm text-muted-foreground">{def.summary[locale]}</p>
             <dl className="mt-3 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
-              <div className="min-w-0"><dt className="text-muted-foreground">{pt ? "Pergunta" : "Question"}</dt><dd className="font-medium">{def.framework.name}</dd></div>
+              <div className="min-w-0"><dt className="text-muted-foreground">{pt ? "Pergunta" : "Question"}</dt><dd className="font-medium">{frameworkName(def, locale)}</dd></div>
               <div className="min-w-0"><dt className="text-muted-foreground">{pt ? "Guia de relato" : "Reporting"}</dt><dd className="font-medium">{def.reportingGuideline.name}</dd></div>
               <div className="min-w-0"><dt className="text-muted-foreground">{pt ? "Qualidade dos estudos" : "Appraisal"}</dt><dd className="font-medium">{def.appraisal.required ? (pt ? "Obrigatória" : "Required") : (pt ? "Opcional" : "Optional")}</dd></div>
             </dl>
