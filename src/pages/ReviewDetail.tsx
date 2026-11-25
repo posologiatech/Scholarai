@@ -7,16 +7,20 @@ import { Button } from "@/components/ui/button";
 import { GatePanel } from "@/components/review/GatePanel";
 import { ProtocolStage } from "@/components/review/ProtocolStage";
 import { ScopeStage } from "@/components/review/ScopeStage";
+import { SearchStage } from "@/components/review/SearchStage";
+import { StrategyStage } from "@/components/review/StrategyStage";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { getReview, logEvent, updateReview } from "@/lib/review/api";
 import { buildProtocolDocument, type ReviewRecord } from "@/lib/review/protocol";
 import { buildReviewState } from "@/lib/review/state";
+import { loadMetrics, type ReviewMetrics } from "@/lib/review/records";
+import { getStrategy, withFlags } from "@/lib/review/strategy";
 import { currentStage, evaluateGate, getReviewType, type StageKey } from "@/lib/review/types";
 import { cn } from "@/lib/utils";
 
 /** Stages not built yet and the phase that delivers them. */
-const COMING: Partial<Record<StageKey, number>> = { strategy: 2, search: 2, screening: 3, appraisal: 4, synthesis: 5, writing: 6 };
+const COMING: Partial<Record<StageKey, number>> = { screening: 3, appraisal: 4, synthesis: 5, writing: 6 };
 
 const ReviewDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +34,7 @@ const ReviewDetail = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   const [viewing, setViewing] = useState<StageKey | null>(null);
+  const [metrics, setMetrics] = useState<ReviewMetrics | null>(null);
   const pending = useRef<Partial<ReviewRecord>>({});
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -55,6 +60,11 @@ const ReviewDetail = () => {
     }
   }, [id, pt]);
 
+  const refreshMetrics = useCallback(() => {
+    if (id) loadMetrics(id).then(setMetrics).catch((e) => console.error("metrics", e));
+  }, [id]);
+  useEffect(() => { refreshMetrics(); }, [refreshMetrics]);
+
   // Save what is still pending when leaving the page.
   useEffect(() => () => { clearTimeout(timer.current); void flush(); }, [flush]);
 
@@ -67,7 +77,15 @@ const ReviewDetail = () => {
 
   const def = review ? getReviewType(review.review_type) : undefined;
   const isOwner = !!review && review.owner_id === user?.id;
-  const state = useMemo(() => (review ? buildReviewState(review) : null), [review]);
+  const state = useMemo(() => {
+    if (!review) return null;
+    const d = getReviewType(review.review_type);
+    return buildReviewState(review, {
+      sources_selected: d ? getStrategy(review, d).sources.length : 0,
+      searches_logged: metrics?.searchedSources ?? 0,
+      records: metrics?.total ?? 0,
+    });
+  }, [review, metrics]);
 
   if (loading || !review || !state) {
     return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
@@ -175,6 +193,13 @@ const ReviewDetail = () => {
 
               {active.key === "scope" && <ScopeStage def={def} review={review} locale={lang} onChange={isOwner ? change : () => {}} />}
               {active.key === "protocol" && <ProtocolStage def={def} review={review} locale={lang} canLock={canLock} onChange={isOwner ? change : () => {}} onLock={lockProtocol} />}
+              {active.key === "strategy" && (
+                <StrategyStage def={def} review={review} locale={lang} canEdit={isOwner} onChange={change}
+                  onReopen={() => { change(withFlags(review, { strategy_approved: false })); void logEvent(review.id, user!.id, "strategy_reopened", {}); }} />
+              )}
+              {active.key === "search" && (
+                <SearchStage def={def} review={review} locale={lang} canEdit={isOwner} metrics={metrics} onChange={change} onDataChanged={refreshMetrics} />
+              )}
               {COMING[active.key] && (
                 <div className="flex items-start gap-3 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
                   <Construction className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
