@@ -137,3 +137,5 @@ verify_jwt = false
 
 [functions.log-system-update]
 verify_jwt = false
+[functions.review-harvest]
+verify_jwt = false
