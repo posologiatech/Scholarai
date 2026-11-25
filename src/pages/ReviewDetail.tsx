@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { GatePanel } from "@/components/review/GatePanel";
 import { ProtocolStage } from "@/components/review/ProtocolStage";
 import { ScopeStage } from "@/components/review/ScopeStage";
+import { ScreeningStage } from "@/components/review/ScreeningStage";
+import { getScreening } from "@/components/review/ScreeningSummary";
 import { SearchStage } from "@/components/review/SearchStage";
 import { StrategyStage } from "@/components/review/StrategyStage";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,12 +17,13 @@ import { getReview, logEvent, updateReview } from "@/lib/review/api";
 import { buildProtocolDocument, type ReviewRecord } from "@/lib/review/protocol";
 import { buildReviewState } from "@/lib/review/state";
 import { loadMetrics, type ReviewMetrics } from "@/lib/review/records";
+import { listMembers } from "@/lib/review/screeningApi";
 import { getStrategy, withFlags } from "@/lib/review/strategy";
 import { currentStage, evaluateGate, getReviewType, type StageKey } from "@/lib/review/types";
 import { cn } from "@/lib/utils";
 
 /** Stages not built yet and the phase that delivers them. */
-const COMING: Partial<Record<StageKey, number>> = { screening: 3, appraisal: 4, synthesis: 5, writing: 6 };
+const COMING: Partial<Record<StageKey, number>> = { appraisal: 4, synthesis: 5, writing: 6 };
 
 const ReviewDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -35,6 +38,7 @@ const ReviewDetail = () => {
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   const [viewing, setViewing] = useState<StageKey | null>(null);
   const [metrics, setMetrics] = useState<ReviewMetrics | null>(null);
+  const [reviewerCount, setReviewerCount] = useState(1);
   const pending = useRef<Partial<ReviewRecord>>({});
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -61,7 +65,10 @@ const ReviewDetail = () => {
   }, [id, pt]);
 
   const refreshMetrics = useCallback(() => {
-    if (id) loadMetrics(id).then(setMetrics).catch((e) => console.error("metrics", e));
+    if (!id) return;
+    loadMetrics(id).then(setMetrics).catch((e) => console.error("metrics", e));
+    // The owner sees the whole roster; the owner always screens, plus members with the reviewer role.
+    listMembers(id).then((ms) => setReviewerCount(1 + ms.filter((m) => m.role === "reviewer").length)).catch(() => {});
   }, [id]);
   useEffect(() => { refreshMetrics(); }, [refreshMetrics]);
 
@@ -84,8 +91,13 @@ const ReviewDetail = () => {
       sources_selected: d ? getStrategy(review, d).sources.length : 0,
       searches_logged: metrics?.searchedSources ?? 0,
       records: metrics?.total ?? 0,
+      reviewers: reviewerCount,
+      // Screening gates follow the closing of each phase, which is what proves every vote is in.
+      title_abstract_done_pct: getScreening(review).ta_closed_at ? 100 : 0,
+      open_conflicts_zero: getScreening(review).ta_closed_at ? 1 : 0,
+      full_text_done_pct: getScreening(review).ft_closed_at ? 100 : 0,
     });
-  }, [review, metrics]);
+  }, [review, metrics, reviewerCount]);
 
   if (loading || !review || !state) {
     return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
@@ -199,6 +211,9 @@ const ReviewDetail = () => {
               )}
               {active.key === "search" && (
                 <SearchStage def={def} review={review} locale={lang} canEdit={isOwner} metrics={metrics} onChange={change} onDataChanged={refreshMetrics} />
+              )}
+              {active.key === "screening" && (
+                <ScreeningStage def={def} review={review} userId={user!.id} locale={lang} onChange={change} onDataChanged={refreshMetrics} />
               )}
               {COMING[active.key] && (
                 <div className="flex items-start gap-3 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">

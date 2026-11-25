@@ -139,3 +139,6 @@ verify_jwt = false
 verify_jwt = false
 [functions.review-harvest]
 verify_jwt = false
+
+[functions.review-ai-screen]
+verify_jwt = false
