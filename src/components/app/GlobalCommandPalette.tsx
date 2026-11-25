@@ -78,6 +78,7 @@ export default function GlobalCommandPalette() {
     { label: t("nav.riskOfBias"), href: "/risk-of-bias", icon: ClipboardCheck },
     { label: t("nav.surveys"), href: "/surveys", icon: ClipboardList },
     { label: pt ? "Revisão sistemática" : "Systematic review", href: "/systematic-review", icon: ClipboardCheck },
+    { label: pt ? "Revisões guiadas" : "Guided reviews", href: "/reviews", icon: ClipboardCheck },
     { label: t("nav.knowledgeGraph"), href: "/knowledge-graph", icon: Network },
     { label: t("nav.coauthorship"), href: "/coauthorship", icon: Users },
     { label: t("nav.writing"), href: "/writing", icon: PenLine },

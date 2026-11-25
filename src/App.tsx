@@ -39,6 +39,8 @@ import ReferenceCheck from "./pages/ReferenceCheck";
 import Illustrations from "./pages/Illustrations";
 import SystematicReview from "./pages/SystematicReview";
 import SystematicReviewList from "./pages/SystematicReviewList";
+import Reviews from "./pages/Reviews";
+import ReviewDetail from "./pages/ReviewDetail";
 import DataMind from "./pages/DataMind";
 import KnowledgeGraph from "./pages/KnowledgeGraph";
 import Workspaces from "./pages/Workspaces";
@@ -129,6 +131,8 @@ const App = () => (
               <Route path="/reference-check" element={<ProtectedRoute><ReferenceCheck /></ProtectedRoute>} />
               <Route path="/illustrations" element={<ProtectedRoute><Illustrations /></ProtectedRoute>} />
               <Route path="/systematic-review" element={<ProtectedRoute><SystematicReviewList /></ProtectedRoute>} />
+              <Route path="/reviews" element={<ProtectedRoute><Reviews /></ProtectedRoute>} />
+              <Route path="/reviews/:id" element={<ProtectedRoute><ReviewDetail /></ProtectedRoute>} />
               <Route path="/systematic-review/new" element={<ProtectedRoute><SystematicReview /></ProtectedRoute>} />
               <Route path="/datamind" element={<ProtectedRoute><DataMind /></ProtectedRoute>} />
               <Route path="/datamind/:id" element={<ProtectedRoute><DataMind /></ProtectedRoute>} />

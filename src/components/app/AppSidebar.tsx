@@ -73,6 +73,7 @@ const AppSidebar = ({ children }: { children: React.ReactNode }) => {
         { label: t("nav.discover"), href: "/discover", icon: Compass },
         { label: t("nav.library"), href: "/library", icon: BookOpen, linkType: "library" },
         { label: t("nav.extraction"), href: "/extraction", icon: Table },
+        { label: pt ? "Revisões guiadas" : "Guided reviews", href: "/reviews", icon: ClipboardCheck },
         { label: t("nav.reports"), href: "/reports", icon: FileText },
         { label: "Ref. Check", href: "/reference-check", icon: ShieldCheck, linkType: "reference_check" },
         { label: t("nav.illustrations"), href: "/illustrations", icon: Palette, linkType: "illustration" },
