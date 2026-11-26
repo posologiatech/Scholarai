@@ -13,7 +13,7 @@ export const realist: ReviewTypeDef = {
     { key: "outcome", label: b("Resultados de interesse", "Outcomes of interest"), hint: b("Resultados pretendidos e não pretendidos", "Intended and unintended outcomes"), required: true },
   ] },
   registry: { name: "PROSPERO / OSF", url: "https://osf.io/registries", required: false },
-  reportingGuideline: { id: "realist-adapted", name: "Processo realista (adaptado; consulte o RAMESES)" },
+  reportingGuideline: { id: "rameses", name: "RAMESES" },
   appraisal: { required: false, tools: [] },
   screening: { dual: "optional", phases: ["title_abstract", "full_text"] },
   synthesis: b("Refinamento iterativo da teoria do programa a partir das configurações contexto-mecanismo-resultado extraídas dos documentos.", "Iterative refinement of the program theory from context-mechanism-outcome configurations extracted from the documents."),

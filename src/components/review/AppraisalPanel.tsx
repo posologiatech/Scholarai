@@ -163,7 +163,7 @@ export function AppraisalPanel({ reviewId, userId, record, allowed, rows, locale
         {counts && <p className="text-sm">{pt ? "Respostas: " : "Answers: "}<span className="font-medium">{counts.yes} {pt ? "sim" : "yes"} · {counts.no} {pt ? "não" : "no"} · {counts.cant} {pt ? "não sei dizer" : "can't tell"}</span>
           <span className="block text-xs text-muted-foreground">{pt ? "O MMAT desaconselha uma nota única: relate as respostas por critério. Responda apenas as perguntas do desenho do estudo." : "The MMAT advises against a single score: report answers per criterion. Answer only the questions for the study's design."}</span></p>}
         <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">{spec.source}</p>
+          <div className="text-xs text-muted-foreground"><p>{spec.source}</p><p>{spec.checkedOn ? (pt ? `Itens conferidos com a publicação oficial em ${new Date(spec.checkedOn).toLocaleDateString("pt-BR")}.` : `Items checked against the official publication on ${spec.checkedOn}.`) : (pt ? "Itens ainda não conferidos com a publicação oficial." : "Items not yet checked against the official publication.")}</p>{spec.guidance && <p className="mt-1">{spec.guidance[locale]}</p>}</div>
           {complete ? <Badge className="gap-1"><BadgeCheck className="h-3 w-3" />{pt ? "Avaliação completa" : "Appraisal complete"}</Badge> : <Badge variant="outline">{pt ? "Incompleta" : "Incomplete"}</Badge>}
         </div>
       </div>

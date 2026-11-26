@@ -14,6 +14,10 @@ export interface ToolSpec {
   overallScale?: Judgement[];
   /** Items whose failure counts as a critical flaw (AMSTAR 2). */
   critical?: string[];
+  /** Date (ISO) the items and rules were compared with the official publication; absent when they were not. */
+  checkedOn?: string;
+  /** One line the reviewer should keep in mind when using the tool, taken from the tool's own guidance. */
+  guidance?: Bilingual;
   items: AppraisalItem[];
   /** How the overall result is shown: a judgement, a star total, or per-criterion counts only. */
   overall: "judgement" | "stars" | "none";
@@ -54,7 +58,7 @@ const BASE: Omit<Record<ToolId, ToolSpec>, "amstar2" | "casp"> = {
   },
   "robins-i": {
     id: "robins-i", name: "ROBINS-I", scale: ROBINS, overall: "judgement",
-    source: "Sterne JAC et al. BMJ 2016;355:i4919",
+    source: "Sterne JAC et al. BMJ 2016;355:i4919 (a 2025 draft, ROBINS-I V2, exists; this is the 2016 version)", checkedOn: "2026-11-26",
     items: [
       { key: "D1", label: b("Confusão", "Confounding") },
       { key: "D2", label: b("Seleção dos participantes", "Selection of participants") },
@@ -66,7 +70,7 @@ const BASE: Omit<Record<ToolId, ToolSpec>, "amstar2" | "casp"> = {
     ],
   },
   nos: {
-    id: "nos", name: "Newcastle-Ottawa", overall: "stars",
+    id: "nos", name: "Newcastle-Ottawa", overall: "stars", checkedOn: "2026-11-26",
     scale: [{ value: "star", label: b("★ (atende)", "★ (met)") }, { value: "none", label: b("Sem estrela", "No star") }],
     source: "Wells GA et al. Newcastle-Ottawa Scale (coorte)",
     items: [
@@ -150,7 +154,8 @@ const AMSTAR_ITEMS: [string, string, string][] = [
   ["16", "Declararam conflitos de interesse e financiamento da própria revisão?", "Did they report conflicts of interest and funding for the review?"],
 ];
 const AMSTAR: ToolSpec = {
-  id: "amstar2", name: "AMSTAR 2", scale: AMSTAR_SCALE, overall: "judgement", source: "Shea BJ et al. BMJ 2017;358:j4008",
+  id: "amstar2", name: "AMSTAR 2", scale: AMSTAR_SCALE, overall: "judgement", source: "Shea BJ et al. BMJ 2017;358:j4008", checkedOn: "2026-11-26",
+  guidance: b("Sem informação para avaliar um item, responda \"Não\": os autores da revisão não recebem o benefício da dúvida. Não some os itens numa nota. Vários pontos fracos fora dos críticos podem justificar baixar a confiança de moderada para baixa.", "If there is no information to rate an item, answer \"No\": the review authors get no benefit of the doubt. Do not add items into a score. Several non-critical weaknesses may justify moving confidence from moderate to low."),
   critical: ["2", "4", "7", "9", "11", "13", "15"],
   overallScale: [
     { value: "high", label: b("Confiança alta", "High confidence") }, { value: "moderate", label: b("Confiança moderada", "Moderate confidence") },
@@ -168,9 +173,11 @@ const CASP_ITEMS: [string, string, string][] = [
   ["7", "As questões éticas foram consideradas?", "Have ethical issues been taken into consideration?"],
   ["8", "A análise dos dados foi suficientemente rigorosa?", "Was the data analysis sufficiently rigorous?"],
   ["9", "Há uma declaração clara dos achados?", "Is there a clear statement of findings?"],
+  ["10", "Qual o valor da pesquisa (contribuição ao conhecimento, novas áreas, transferibilidade)?", "How valuable is the research (contribution to knowledge, new areas, transferability)?"],
 ];
 const CASP: ToolSpec = {
-  id: "casp", name: "CASP (qualitativo)", scale: YES_NO_CANT, overall: "none", source: "Critical Appraisal Skills Programme, Qualitative Studies Checklist",
+  id: "casp", name: "CASP (qualitativo)", scale: YES_NO_CANT, overall: "none", source: "Critical Appraisal Skills Programme, Qualitative Studies Checklist (2024, CC BY-NC-SA 4.0)", checkedOn: "2026-11-26",
+  guidance: b("Nunca suponha o que os pesquisadores fizeram: se não der para saber, responda \"Não sei dizer\". Muitas respostas assim indicam falta de transparência. O CASP não gera nota.", "Never assume what the researchers did: if you cannot tell, answer \"Can't tell\". Many such answers mean a lack of transparency. CASP does not produce a score."),
   items: CASP_ITEMS.map(([key, pt, en]) => ({ key, label: b(pt, en) })),
 };
 
@@ -197,10 +204,12 @@ export function suggestOverall(tool: ToolId, domains: Record<string, string | un
   const vals = spec.items.map((i) => domains[i.key]);
   if (vals.some((v) => !v)) return null;
   if (tool === "robins-i") {
-    const order = ["low", "moderate", "serious", "critical"];
-    const known = vals.filter((v) => order.includes(v!));
-    if (known.length === 0) return "ni";
-    return order[Math.max(...known.map((v) => order.indexOf(v!)))];
+    // ROBINS-I: critical if any domain is critical; serious if any is serious; "no information" when some key
+    // domain lacks information and nothing is clearly serious or critical; otherwise moderate, else low.
+    if (vals.includes("critical")) return "critical";
+    if (vals.includes("serious")) return "serious";
+    if (vals.includes("ni")) return "ni";
+    return vals.includes("moderate") ? "moderate" : "low";
   }
   if (vals.includes("high")) return "high";
   if (tool === "quadas2") return vals.includes("unclear") ? "unclear" : "low";

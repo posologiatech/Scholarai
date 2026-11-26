@@ -13,7 +13,7 @@ export const umbrella: ReviewTypeDef = {
     ],
   },
   registry: { name: "PROSPERO / OSF", url: "https://www.crd.york.ac.uk/prospero/", required: false },
-  reportingGuideline: { id: "umbrella-adapted", name: "PRISMA 2020 adaptado (consulte o PRIOR)" },
+  reportingGuideline: { id: "prior", name: "PRIOR" },
   appraisal: { required: true, tools: [{ id: "amstar2", label: "AMSTAR 2", appliesTo: b("Revisões sistemáticas", "Systematic reviews"), required: true }] },
   screening: { dual: "required", phases: ["title_abstract", "full_text"] },
   synthesis: b("Síntese estruturada em tabelas e narrativa, com a sobreposição de estudos primários medida (área coberta corrigida).", "Structured synthesis in tables and narrative, with overlap of primary studies measured (corrected covered area)."),

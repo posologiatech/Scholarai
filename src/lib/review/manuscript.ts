@@ -71,14 +71,19 @@ const MAP: Record<string, Record<string, string>> = {
     "15": "methods_extraction", "16": "methods_extraction", "17": "methods_extraction", "18": "methods_synthesis", "19": "methods_synthesis", "20": "results_findings", "21": "results_findings",
   },
   sanra: { "1": "rationale", "2": "objectives", "3": "methods_sources", "4": "results_findings", "5": "discussion", "6": "results_findings" },
-  "umbrella-adapted": {
-    "1": "title", "2": "abstract", "3": "rationale", "4": "objectives", "5": "methods_eligibility", "6": "methods_sources", "7": "methods_sources", "8": "methods_selection", "9": "methods_extraction",
-    "10": "methods_rob", "11": "methods_synthesis", "12": "methods_synthesis", "13": "results_selection", "14": "results_characteristics", "15": "results_rob", "16": "results_findings",
-    "17": "results_findings", "18": "discussion", "19": "registration", "20": "declarations",
+  prior: {
+    "1": "title", "2": "abstract", "3": "rationale", "4": "objectives", "5a": "methods_eligibility", "5b": "methods_eligibility", "6": "methods_sources", "7": "methods_sources",
+    "8a": "methods_selection", "8b": "methods_selection", "9a": "methods_extraction", "9b": "methods_extraction", "9c": "methods_extraction", "10": "methods_extraction",
+    "11a": "methods_rob", "11b": "methods_rob", "11c": "methods_rob", "12a": "methods_synthesis", "12b": "methods_synthesis", "12c": "methods_synthesis", "13": "methods_certainty", "14": "methods_certainty",
+    "15a": "results_selection", "15b": "results_selection", "16": "results_characteristics", "17": "results_findings", "18a": "results_rob", "18b": "results_rob", "18c": "results_rob",
+    "19a": "results_findings", "19b": "results_findings", "19c": "results_findings", "20": "results_findings", "21": "results_certainty",
+    "22a": "discussion", "22b": "discussion", "22c": "limitations", "22d": "discussion", "23a": "registration", "23b": "registration", "23c": "registration",
+    "24": "declarations", "25": "declarations", "26a": "declarations", "26b": "declarations", "27": "declarations",
   },
-  "realist-adapted": {
-    "1": "title", "2": "abstract", "3": "rationale", "4": "objectives", "5": "methods_synthesis", "6": "methods_sources", "7": "methods_selection", "8": "methods_extraction", "9": "methods_synthesis",
-    "10": "results_selection", "11": "results_characteristics", "12": "results_findings", "13": "discussion", "14": "limitations", "15": "declarations",
+  rameses: {
+    "1": "title", "2": "abstract", "3": "rationale", "4": "objectives", "5": "registration", "6": "methods_synthesis", "7": "methods_sources", "8": "methods_sources", "9": "methods_selection",
+    "10": "methods_extraction", "11": "methods_synthesis", "12": "results_selection", "13": "results_characteristics", "14": "results_findings", "15": "discussion", "16": "limitations",
+    "17": "discussion", "18": "discussion", "19": "declarations",
   },
 };
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isComplete, suggestOverall, TOOLS } from "./appraisal";
 import { amstarSummary, cmoTable, overlapMatrix, overlapSummaryText, shortcutsTable, type Ctx } from "./artifacts";
-import { CHECKLISTS, ENTREQ, SANRA } from "./checklists";
+import { CHECKLISTS, ENTREQ, PRIOR, RAMESES, SANRA } from "./checklists";
 import { buildFacts, type FactsInput } from "./facts";
 import { manuscriptFor, sectionOfItem, MASTER_SECTIONS } from "./manuscript";
 import type { ReviewRecord } from "./protocol";
@@ -24,13 +24,32 @@ describe("the five later types", () => {
     for (const s of ["title", "abstract", "discussion", "declarations"]) expect(m.sections.map((x) => x.key)).toContain(s);
   });
 
-  it("use the reporting guideline each one is known for, and flag the lists that are only adaptations", () => {
+  it("use the official reporting guideline of each type; only the integrative list is an adaptation", () => {
     expect(getReviewType("rapid")!.reportingGuideline.id).toBe("prisma2020");
-    expect(CHECKLISTS[getReviewType("qualitative")!.reportingGuideline.id].official).toBe(true);
+    expect(getReviewType("umbrella")!.reportingGuideline.id).toBe("prior");
+    expect(getReviewType("realist")!.reportingGuideline.id).toBe("rameses");
+    expect(getReviewType("qualitative")!.reportingGuideline.id).toBe("entreq");
+    for (const t of ["rapid", "umbrella", "qualitative", "realist", "narrative", "scoping", "systematic"]) expect(CHECKLISTS[getReviewType(t)!.reportingGuideline.id].official, t).toBe(true);
+    expect(CHECKLISTS[getReviewType("integrative")!.reportingGuideline.id].official).toBe(false);
+  });
+
+  it("carries the item counts of the official publications, which were compared with them on 2026-11-26", () => {
     expect(ENTREQ.items).toHaveLength(21);
     expect(SANRA.items).toHaveLength(6);
-    expect(CHECKLISTS[getReviewType("umbrella")!.reportingGuideline.id].official).toBe(false);
-    expect(CHECKLISTS[getReviewType("realist")!.reportingGuideline.id].official).toBe(false);
+    expect(RAMESES.items).toHaveLength(19);
+    expect(PRIOR.items).toHaveLength(46);
+    expect(new Set(PRIOR.items.map((i) => i.key.replace(/[a-d]$/, ""))).size).toBe(27);
+    for (const c of [ENTREQ, SANRA, RAMESES, PRIOR]) expect(c.checkedOn).toBe("2026-11-26");
+  });
+
+  it("SANRA is flagged as an appraisal scale, not a reporting guideline", () => {
+    expect(SANRA.kind).toBe("appraisal");
+    expect(getReviewType("narrative")!.reportingGuideline.id).toBe("sanra");
+  });
+
+  it("PRIOR splits the overlap items the module can fill from the overlap analysis", () => {
+    const keys = new Set(PRIOR.items.filter((i) => ["8b", "9b", "17"].includes(i.key)).map((i) => i.key));
+    expect(keys).toEqual(new Set(["8b", "9b", "17"]));
   });
 
   it("narrative and realist reviews do not require formal appraisal; umbrella and qualitative do, with the right tool", () => {
@@ -96,10 +115,10 @@ describe("AMSTAR 2 and CASP", () => {
     expect(TOOLS.amstar2.items).toHaveLength(16);
     expect(TOOLS.amstar2.critical).toEqual(["2", "4", "7", "9", "11", "13", "15"]);
   });
-  it("is complete only with every item and an overall confidence; CASP needs its nine answers and no score", () => {
+  it("is complete only with every item and an overall confidence; CASP needs its ten answers and no score", () => {
     expect(isComplete("amstar2", all("yes"), null)).toBe(false);
     expect(isComplete("amstar2", all("yes"), "high")).toBe(true);
-    expect(TOOLS.casp.items).toHaveLength(9);
+    expect(TOOLS.casp.items).toHaveLength(10);
     expect(isComplete("casp", Object.fromEntries(TOOLS.casp.items.map((i) => [i.key, "yes"])), null)).toBe(true);
     expect(suggestOverall("casp", {})).toBeNull();
   });
@@ -152,5 +171,32 @@ describe("facts for the later types", () => {
     const f = buildFacts("results_findings", input("realist")) as any;
     expect(f.programTheory).toBe("Teoria.");
     expect(f.configurations).toHaveLength(1);
+  });
+});
+
+describe("rules checked against the official publications", () => {
+  const robins = (o: Record<string, string>) => suggestOverall("robins-i", { D1: "low", D2: "low", D3: "low", D4: "low", D5: "low", D6: "low", D7: "low", ...o });
+  it("ROBINS-I: critical beats serious beats no-information beats moderate beats low", () => {
+    expect(robins({})).toBe("low");
+    expect(robins({ D2: "moderate" })).toBe("moderate");
+    expect(robins({ D2: "moderate", D5: "ni" })).toBe("ni");
+    expect(robins({ D2: "serious", D5: "ni" })).toBe("serious");
+    expect(robins({ D2: "serious", D3: "critical" })).toBe("critical");
+  });
+  it("ROBINS-I has seven domains and five judgements", () => {
+    expect(TOOLS["robins-i"].items).toHaveLength(7);
+    expect(TOOLS["robins-i"].scale.map((s) => s.value)).toEqual(["low", "moderate", "serious", "critical", "ni"]);
+  });
+  it("Newcastle-Ottawa has nine items worth one star each (4 selection, 2 for comparability, 3 outcome)", () => {
+    expect(TOOLS.nos.items.map((i) => i.key[0]).join("")).toBe("SSSSCCOOO");
+  });
+  it("records which tools were compared with the official text, and which were not", () => {
+    for (const t of ["amstar2", "robins-i", "nos", "casp"] as const) expect(TOOLS[t].checkedOn, t).toBe("2026-11-26");
+    // RoB 2, QUADAS-2 and the MMAT could not be reached from an open source: they must not claim a check.
+    for (const t of ["rob2", "quadas2", "mmat"] as const) expect(TOOLS[t].checkedOn, t).toBeUndefined();
+  });
+  it("AMSTAR 2 keeps the author's advice about overall scores and missing information", () => {
+    expect(TOOLS.amstar2.guidance!.pt).toContain("Não some os itens");
+    expect(TOOLS.amstar2.guidance!.pt).toContain("benefício da dúvida");
   });
 });

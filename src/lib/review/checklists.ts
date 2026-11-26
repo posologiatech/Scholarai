@@ -14,7 +14,12 @@ export interface Checklist {
   name: string;
   /** True when this is the official statement; false when the project adapted it. */
   official: boolean;
+  /** "appraisal" for instruments that grade a finished review (SANRA) rather than say what to report. */
+  kind?: "reporting" | "appraisal";
   source: string;
+  /** Date the item list was compared with the official publication (ISO), and what it was compared with. */
+  checkedOn?: string;
+  checkedWith?: string;
   items: ChecklistItem[];
 }
 
@@ -22,7 +27,8 @@ const i = (key: string, part: ChecklistItem["part"], pt: string, en: string, opt
 
 /** Items paraphrased from the PRISMA 2020 statement (Page et al., BMJ 2021;372:n71, CC BY 4.0). */
 export const PRISMA_2020: Checklist = {
-  id: "prisma2020", name: "PRISMA 2020", official: true, source: "Page MJ et al. BMJ 2021;372:n71",
+  id: "prisma2020", name: "PRISMA 2020", official: true, source: "Page MJ et al. BMJ 2021;372:n71 (CC BY 4.0)",
+  checkedOn: "2026-11-26", checkedWith: "prisma-statement.org checklist (Word file, 2025)",
   items: [
     i("1", "title", "Identificar o relatório como revisão sistemática", "Identify the report as a systematic review"),
     i("2", "abstract", "Resumo estruturado conforme o PRISMA 2020 para resumos", "Structured abstract following PRISMA 2020 for Abstracts"),
@@ -49,7 +55,7 @@ export const PRISMA_2020: Checklist = {
     i("16b", "results", "Estudos que pareciam elegíveis mas foram excluídos, com os motivos", "Studies that seemed eligible but were excluded, with reasons"),
     i("17", "results", "Características de cada estudo incluído", "Characteristics of each included study"),
     i("18", "results", "Risco de viés de cada estudo incluído", "Risk of bias of each included study"),
-    i("19", "results", "Resultados de cada estudo individual", "Results of each individual study"),
+    i("19", "results", "Resultados de cada estudo: estatísticas por grupo e estimativa de efeito com sua precisão", "Results of each study: summary statistics per group and an effect estimate with its precision"),
     i("20a", "results", "Características e risco de viés entre os estudos de cada síntese", "Characteristics and risk of bias among studies in each synthesis"),
     i("20b", "results", "Resultados de todas as sínteses estatísticas, com medida de precisão", "Results of all statistical syntheses, with precision"),
     i("20c", "results", "Investigações de causas de heterogeneidade", "Investigations of causes of heterogeneity"),
@@ -72,6 +78,7 @@ export const PRISMA_2020: Checklist = {
 /** Items paraphrased from PRISMA-ScR (Tricco et al., Ann Intern Med 2018;169:467-473): 22 items, 20 essential. */
 export const PRISMA_SCR: Checklist = {
   id: "prisma-scr", name: "PRISMA-ScR", official: true, source: "Tricco AC et al. Ann Intern Med 2018;169:467-473",
+  checkedOn: "2026-11-26", checkedWith: "prisma-statement.org checklist (Word file, 2019)",
   items: [
     i("1", "title", "Identificar o relatório como revisão de escopo", "Identify the report as a scoping review"),
     i("2", "abstract", "Resumo estruturado com contexto, objetivos, critérios, fontes, métodos, resultados e conclusões", "Structured summary with background, objectives, eligibility, sources, methods, results and conclusions"),
@@ -126,9 +133,10 @@ export const INTEGRATIVE_ADAPTED: Checklist = {
 
 /** Items paraphrased from ENTREQ (Tong et al., BMC Med Res Methodol 2012;12:181): 21 items for qualitative evidence synthesis. */
 export const ENTREQ: Checklist = {
-  id: "entreq", name: "ENTREQ", official: true, source: "Tong A et al. BMC Med Res Methodol 2012;12:181",
+  id: "entreq", name: "ENTREQ", official: true, source: "Tong A et al. BMC Med Res Methodol 2012;12:181 (CC BY 2.0)",
+  checkedOn: "2026-11-26", checkedWith: "Table 1 of the article (Europe PMC PMC3552766)",
   items: [
-    i("1", "introduction", "Objetivo da síntese", "Aim of the synthesis"),
+    i("1", "introduction", "Pergunta de pesquisa que a síntese responde", "The research question the synthesis addresses"),
     i("2", "methods", "Metodologia ou referencial teórico da síntese", "Synthesis methodology or theoretical framework"),
     i("3", "methods", "Abordagem de busca: planejada de antemão ou iterativa", "Approach to searching: pre-planned or iterative"),
     i("4", "methods", "Critérios de inclusão e exclusão (população, idioma, período, tipo de publicação e de estudo)", "Inclusion criteria (population, language, years, publication and study type)"),
@@ -152,70 +160,111 @@ export const ENTREQ: Checklist = {
   ],
 };
 
-/** SANRA (Baethge et al., Res Integr Peer Rev 2019;4:5): six quality items for narrative review articles. */
+/**
+ * SANRA (Baethge et al., Res Integr Peer Rev 2019;4:5). The authors state it is "a critical appraisal tool and not a
+ * reporting guideline": six items, each scored 0 to 2, on the importance and aims of the review, the literature search,
+ * referencing, evidence level and relevant endpoint data.
+ */
 export const SANRA: Checklist = {
-  id: "sanra", name: "SANRA", official: true, source: "Baethge C et al. Res Integr Peer Rev 2019;4:5",
+  id: "sanra", name: "SANRA", official: true, kind: "appraisal", source: "Baethge C et al. Res Integr Peer Rev 2019;4:5 (CC BY 4.0)",
+  checkedOn: "2026-11-26", checkedWith: "Article text (Europe PMC PMC6434870); the item descriptions are the authors' summary, the anchor definitions were not read",
   items: [
-    i("1", "introduction", "Justificativa da importância do tema para o leitor", "Justification of the topic importance for the readership"),
-    i("2", "introduction", "Declaração dos objetivos ou questões concretas do artigo", "Statement of concrete aims or formulation of questions"),
+    i("1", "introduction", "Explicação da importância da revisão para o leitor", "Explanation of the importance of the review"),
+    i("2", "introduction", "Declaração dos objetivos ou das questões da revisão", "Statement of the aims or questions of the review"),
     i("3", "methods", "Descrição da busca na literatura", "Description of the literature search"),
-    i("4", "results", "Referenciamento: as afirmações-chave estão apoiadas em referências", "Referencing: key statements are supported by references"),
-    i("5", "discussion", "Raciocínio científico: nível de evidência e argumentação apropriados", "Scientific reasoning: appropriate evidence level and argumentation"),
-    i("6", "results", "Apresentação apropriada dos dados", "Appropriate presentation of data"),
+    i("4", "results", "Referenciamento: as afirmações-chave têm referência", "Referencing: key statements are referenced"),
+    i("5", "discussion", "Apresentação do nível de evidência", "Presentation of the level of evidence"),
+    i("6", "results", "Apresentação dos dados relevantes de desfecho", "Presentation of relevant endpoint data"),
   ],
 };
 
-/** No official umbrella list is reproduced here (PRIOR is the reference); this PRISMA-derived list is an aid, not the guideline. */
-export const UMBRELLA_ADAPTED: Checklist = {
-  id: "umbrella-adapted", name: "PRISMA 2020 adaptado (guarda-chuva)", official: false, source: "Adapted from PRISMA 2020; consult the PRIOR statement (Gates et al., BMJ 2022) for the official list",
+/**
+ * PRIOR (Gates et al., BMJ 2022;378:e070849): 27 main items, 46 with sub-items. Numbering follows the statement; the
+ * wording is a short paraphrase. The article is published under CC BY-NC 4.0, so confirm that a commercial product
+ * may carry even paraphrased items before relying on this list.
+ */
+export const PRIOR: Checklist = {
+  id: "prior", name: "PRIOR", official: true, source: "Gates M et al. BMJ 2022;378:e070849 (CC BY-NC 4.0)",
+  checkedOn: "2026-11-26", checkedWith: "Table 2 of the article (Europe PMC PMC9361065)",
   items: [
-    i("1", "title", "Identificar o relatório como revisão guarda-chuva (revisão de revisões)", "Identify the report as an umbrella review (overview of reviews)"),
-    i("2", "abstract", "Resumo estruturado", "Structured abstract"),
-    i("3", "introduction", "Justificativa, incluindo o que já existe em revisões sobre o tema", "Rationale, including what existing reviews on the topic show"),
-    i("4", "introduction", "Objetivos e questão, com os tipos de revisão elegíveis", "Objectives and question, with the eligible review types"),
-    i("5", "methods", "Critérios de elegibilidade das revisões", "Eligibility criteria for reviews"),
-    i("6", "methods", "Fontes de informação e data da última busca", "Information sources and date last searched"),
-    i("7", "methods", "Estratégia de busca completa", "Full search strategy"),
-    i("8", "methods", "Processo de seleção das revisões e número de revisores", "Process for selecting reviews and number of reviewers"),
-    i("9", "methods", "Extração de dados das revisões", "Data extraction from the reviews"),
-    i("10", "methods", "Avaliação da qualidade das revisões (por exemplo, AMSTAR 2) e revisores", "Quality appraisal of the reviews (e.g. AMSTAR 2) and reviewers"),
-    i("11", "methods", "Método para avaliar a sobreposição de estudos primários entre as revisões", "Method to assess overlap of primary studies between reviews"),
-    i("12", "methods", "Métodos de síntese", "Synthesis methods"),
-    i("13", "results", "Fluxograma da seleção, com motivos de exclusão", "Selection flow diagram, with reasons for exclusion"),
-    i("14", "results", "Características das revisões incluídas", "Characteristics of the included reviews"),
-    i("15", "results", "Qualidade das revisões incluídas", "Quality of the included reviews"),
-    i("16", "results", "Grau de sobreposição e como foi tratado", "Degree of overlap and how it was handled"),
-    i("17", "results", "Resultados da síntese", "Results of the synthesis"),
-    i("18", "discussion", "Interpretação, limitações e implicações", "Interpretation, limitations and implications"),
-    i("19", "other", "Registro e protocolo", "Registration and protocol"),
-    i("20", "other", "Financiamento, conflitos de interesse, dados e uso de IA", "Funding, competing interests, data and use of AI"),
+    i("1", "title", "Identificar o relatório como uma revisão de revisões", "Identify the report as an overview of reviews"),
+    i("2", "abstract", "Resumo completo e preciso do objetivo, dos métodos e dos resultados", "Comprehensive and accurate summary of purpose, methods and results"),
+    i("3", "introduction", "Justificativa da revisão de revisões no contexto do conhecimento existente", "Rationale for the overview in the context of existing knowledge"),
+    i("4", "introduction", "Objetivos ou questões, de forma explícita", "Explicit objectives or questions"),
+    i("5a", "methods", "Critérios de inclusão e exclusão; se estudos primários complementares entraram, dizer e justificar", "Inclusion and exclusion criteria; if supplemental primary studies were included, say so and justify"),
+    i("5b", "methods", "Definição de \"revisão sistemática\" usada nos critérios", "Definition of \"systematic review\" used in the criteria"),
+    i("6", "methods", "Todas as fontes pesquisadas e a data da última busca de cada uma", "All sources searched and the date each was last searched"),
+    i("7", "methods", "Estratégias de busca completas, reprodutíveis, com filtros e limites", "Full, reproducible search strategies with filters and limits"),
+    i("8a", "methods", "Métodos para decidir se uma revisão atendia aos critérios", "Methods to decide whether a review met the criteria"),
+    i("8b", "methods", "Como a sobreposição de populações, intervenções, comparadores e desfechos foi identificada e tratada na seleção", "How overlap in populations, interventions, comparators and outcomes was identified and managed during selection"),
+    i("9a", "methods", "Métodos de coleta de dados dos relatos", "Methods to collect data from reports"),
+    i("9b", "methods", "Como a sobreposição de estudos primários foi identificada, tratada e quantificada para cada desfecho", "How primary-study overlap was identified, managed and quantified for each outcome"),
+    i("9c", "methods", "Como dados discrepantes entre as revisões foram tratados", "How discrepant data across reviews were handled"),
+    i("10", "methods", "Variáveis e desfechos buscados, suposições e medidas para dados ausentes ou pouco claros", "Variables and outcomes sought, assumptions, and measures for missing or unclear information"),
+    i("11a", "methods", "Métodos para avaliar o risco de viés ou a qualidade metodológica das revisões incluídas", "Methods to assess risk of bias or methodological quality of the included reviews"),
+    i("11b", "methods", "Como o risco de viés dos estudos primários foi coletado ou reavaliado, justificando avaliações falhas não reavaliadas", "How primary-study risk of bias was collected or reassessed, justifying flawed assessments not reassessed"),
+    i("11c", "methods", "Avaliação do risco de viés dos estudos primários complementares, se houver", "Risk-of-bias assessment of supplemental primary studies, if any"),
+    i("12a", "methods", "Métodos para resumir ou sintetizar os resultados, com a justificativa", "Methods to summarise or synthesise results, with rationale"),
+    i("12b", "methods", "Métodos para explorar causas de heterogeneidade", "Methods to explore causes of heterogeneity"),
+    i("12c", "methods", "Análises de sensibilidade", "Sensitivity analyses"),
+    i("13", "methods", "Métodos para coletar ou avaliar o risco de viés por resultados ausentes (viés de relato)", "Methods to collect or assess risk of bias due to missing results (reporting biases)"),
+    i("14", "methods", "Métodos para coletar ou avaliar a certeza da evidência de cada desfecho", "Methods to collect or assess certainty of evidence for each outcome"),
+    i("15a", "results", "Resultado da busca e da seleção, com fluxograma", "Results of the search and selection, with a flow diagram"),
+    i("15b", "results", "Lista das revisões que pareciam elegíveis mas foram excluídas, com o motivo principal", "List of reviews that seemed eligible but were excluded, with the main reason"),
+    i("16", "results", "Cada revisão incluída e suas características", "Each included review and its characteristics"),
+    i("17", "results", "Extensão da sobreposição de estudos primários entre as revisões", "Extent of primary-study overlap across the reviews"),
+    i("18a", "results", "Risco de viés ou qualidade metodológica de cada revisão incluída", "Risk of bias or methodological quality of each included review"),
+    i("18b", "results", "Risco de viés dos estudos primários das revisões", "Risk of bias of the primary studies in the reviews"),
+    i("18c", "results", "Risco de viés dos estudos primários complementares, se houver", "Risk of bias of supplemental primary studies, if any"),
+    i("19a", "results", "Resumo da evidência para todos os desfechos, com estimativas e precisão quando houve meta-análise", "Summary of evidence for all outcomes, with estimates and precision when meta-analysed"),
+    i("19b", "results", "Resultados das investigações de heterogeneidade, se houve meta-análise", "Results of heterogeneity investigations, if meta-analysed"),
+    i("19c", "results", "Resultados das análises de sensibilidade, se houve meta-análise", "Results of sensitivity analyses, if meta-analysed"),
+    i("20", "results", "Risco de viés por resultados ausentes em cada síntese", "Risk of bias due to missing results for each synthesis"),
+    i("21", "results", "Certeza da evidência de cada desfecho", "Certainty of evidence for each outcome"),
+    i("22a", "discussion", "Principais achados, incluindo discrepâncias entre as revisões", "Main findings, including discrepancies across reviews"),
+    i("22b", "discussion", "Interpretação geral no contexto de outras evidências", "General interpretation in the context of other evidence"),
+    i("22c", "discussion", "Limitações da evidência e dos métodos da revisão de revisões", "Limitations of the evidence and of the overview methods"),
+    i("22d", "discussion", "Implicações para a prática, a política e a pesquisa futura", "Implications for practice, policy and future research"),
+    i("23a", "other", "Registro, com nome e número, ou declaração de que não foi registrada", "Registration with name and number, or a statement that it was not registered"),
+    i("23b", "other", "Onde acessar o protocolo, ou declaração de que não houve", "Where to access the protocol, or that none was prepared"),
+    i("23c", "other", "Alterações em relação ao protocolo e em que etapa ocorreram", "Amendments to the protocol and the stage at which they occurred"),
+    i("24", "other", "Apoio financeiro e não financeiro e papel dos financiadores", "Financial and non-financial support and the role of funders"),
+    i("25", "other", "Conflitos de interesse dos autores", "Competing interests of the authors"),
+    i("26a", "other", "Contato do autor correspondente", "Contact information of the corresponding author"),
+    i("26b", "other", "Contribuição de cada autor e quem é o garantidor", "Each author's contribution and who the guarantor is"),
+    i("27", "other", "Disponibilidade de formulários, dados, código e outros materiais, e em que condições", "Availability of forms, data, code and other materials, and under what conditions"),
   ],
 };
 
-/** The RAMESES publication standards are not reproduced from memory; this list follows the realist review process and is an aid only. */
-export const REALIST_ADAPTED: Checklist = {
-  id: "realist-adapted", name: "Revisão realista (adaptado)", official: false, source: "Adapted from the realist review process (Pawson et al.); consult the RAMESES publication standards (Wong et al., BMC Med 2013) for the official list",
+/** RAMESES publication standards for realist syntheses (Wong et al., BMC Med 2013;11:21): 19 standards. */
+export const RAMESES: Checklist = {
+  id: "rameses", name: "RAMESES (síntese realista)", official: true, source: "Wong G et al. BMC Med 2013;11:21 (CC BY 2.0)",
+  checkedOn: "2026-11-26", checkedWith: "Table 1 of the article (Europe PMC PMC3558331)",
   items: [
-    i("1", "title", "Identificar o relatório como revisão realista", "Identify the report as a realist review"),
-    i("2", "abstract", "Resumo com questão, método, achados e conclusões", "Abstract with question, method, findings and conclusions"),
-    i("3", "introduction", "Justificativa e por que uma abordagem realista", "Rationale and why a realist approach"),
-    i("4", "introduction", "Objetivos e foco: o que funciona, para quem, em que circunstâncias e por quê", "Objectives and focus: what works, for whom, in what circumstances and why"),
-    i("5", "methods", "Teoria inicial do programa e como foi construída", "Initial program theory and how it was built"),
-    i("6", "methods", "Processo de busca, que pode ser iterativo, e as fontes", "Search process, which may be iterative, and sources"),
-    i("7", "methods", "Seleção dos documentos por relevância e rigor", "Selecting documents by relevance and rigour"),
-    i("8", "methods", "Extração de dados: contexto, mecanismo e resultado", "Data extraction: context, mechanism and outcome"),
-    i("9", "methods", "Análise e síntese, incluindo o refinamento da teoria", "Analysis and synthesis, including refining the theory"),
-    i("10", "results", "Fluxo dos documentos e motivos de exclusão", "Document flow and reasons for exclusion"),
-    i("11", "results", "Características dos documentos incluídos", "Characteristics of the included documents"),
-    i("12", "results", "Configurações contexto-mecanismo-resultado e a teoria refinada", "Context-mechanism-outcome configurations and the refined theory"),
-    i("13", "discussion", "Resumo dos achados e relação com a literatura existente", "Summary of findings and link to the existing literature"),
-    i("14", "discussion", "Pontos fortes, limitações e implicações", "Strengths, limitations and implications"),
-    i("15", "other", "Financiamento, conflitos de interesse e uso de IA", "Funding, competing interests and use of AI"),
+    i("1", "title", "No título, identificar o documento como síntese ou revisão realista", "In the title, identify the document as a realist synthesis or review"),
+    i("2", "abstract", "Resumo com contexto, questão, busca, métodos de seleção, avaliação, análise e síntese, principais resultados e implicações", "Abstract with background, question, search, methods of selection, appraisal, analysis and synthesis, main results and implications"),
+    i("3", "introduction", "Justificativa: por que a revisão é necessária e o que ela deve acrescentar", "Rationale: why the review is needed and what it should add"),
+    i("4", "introduction", "Objetivos ou questões da revisão e justificativa do foco", "Objectives or questions of the review and rationale for the focus"),
+    i("5", "methods", "Mudanças no processo originalmente planejado, descritas e justificadas", "Changes to the originally planned process, described and justified"),
+    i("6", "methods", "Por que a síntese realista foi considerada o método mais adequado", "Why realist synthesis was the most appropriate method"),
+    i("7", "methods", "Processo inicial de exploração (escopo) da literatura, descrito e justificado", "Initial exploratory scoping of the literature, described and justified"),
+    i("8", "methods", "Como a busca iterativa foi feita, com todas as fontes, termos, datas de cobertura e data da última busca", "How the iterative searching was done, with all sources, terms, coverage dates and date last searched"),
+    i("9", "methods", "Como os documentos foram incluídos ou excluídos e avaliados, com justificativa", "How documents were included, excluded and appraised, with justification"),
+    i("10", "methods", "Quais dados foram extraídos dos documentos e por quê", "Which data were extracted from the documents and why"),
+    i("11", "methods", "Processos de análise e síntese em detalhe, incluindo os construtos analisados", "Analysis and synthesis processes in detail, including the constructs analysed"),
+    i("12", "results", "Fluxo dos documentos avaliados e incluídos, com motivos de exclusão e origem", "Flow of documents assessed and included, with reasons for exclusion and source"),
+    i("13", "results", "Características dos documentos incluídos", "Characteristics of the included documents"),
+    i("14", "results", "Principais achados, com foco na construção e no teste de teoria", "Main findings, focused on theory building and testing"),
+    i("15", "discussion", "Resumo dos achados à luz dos objetivos, do foco e do público", "Summary of findings in light of the objectives, focus and audience"),
+    i("16", "discussion", "Pontos fortes, limitações e direções de pesquisa futura, incluindo a força da evidência das explicações", "Strengths, limitations and future research, including the strength of evidence behind the explanations"),
+    i("17", "discussion", "Comparação com a literatura existente, quando aplicável", "Comparison with the existing literature, where applicable"),
+    i("18", "discussion", "Conclusões e recomendações para política e prática, se cabível", "Conclusions and recommendations for policy and practice, if appropriate"),
+    i("19", "other", "Financiamento, papel do financiador e conflitos de interesse dos revisores", "Funding, the funder's role and reviewers' conflicts of interest"),
   ],
 };
 
 export const CHECKLISTS: Record<string, Checklist> = {
-  prisma2020: PRISMA_2020, "prisma-scr": PRISMA_SCR, "prisma-adapted": INTEGRATIVE_ADAPTED, entreq: ENTREQ, sanra: SANRA, "umbrella-adapted": UMBRELLA_ADAPTED, "realist-adapted": REALIST_ADAPTED,
+  prisma2020: PRISMA_2020, "prisma-scr": PRISMA_SCR, "prisma-adapted": INTEGRATIVE_ADAPTED, entreq: ENTREQ, sanra: SANRA, prior: PRIOR, rameses: RAMESES,
 };
 export const checklistFor = (guidelineId: string): Checklist => CHECKLISTS[guidelineId] ?? PRISMA_2020;
 
