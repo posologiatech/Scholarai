@@ -103,7 +103,8 @@ export async function applyOutcomes(phase: Phase, outcomes: Map<string, Reconcil
   }
   for (const g of groups.values()) {
     for (let i = 0; i < g.ids.length; i += 100) {
-      const { error } = await db.from("review_records").update({ screen_status: g.status, exclusion_reason_code: g.reason }).in("id", g.ids.slice(i, i + 100));
+      // Only records still waiting for this phase change, so closing again after a living round never moves an older decision.
+      const { error } = await db.from("review_records").update({ screen_status: g.status, exclusion_reason_code: g.reason }).in("id", g.ids.slice(i, i + 100)).eq("screen_status", phase === "title_abstract" ? "pending" : "full_text");
       if (error) throw error;
     }
   }

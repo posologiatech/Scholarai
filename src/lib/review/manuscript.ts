@@ -65,11 +65,29 @@ const MAP: Record<string, Record<string, string>> = {
     "1": "title", "2": "abstract", "3": "rationale", "4": "objectives", "5": "methods_eligibility", "6": "methods_sources", "7": "methods_sources", "8": "methods_selection",
     "9": "methods_rob", "10": "methods_synthesis", "11": "results_selection", "12": "results_characteristics", "13": "results_findings", "14": "discussion", "15": "declarations",
   },
+  entreq: {
+    "1": "objectives", "2": "methods_synthesis", "3": "methods_sources", "4": "methods_eligibility", "5": "methods_sources", "6": "methods_sources", "7": "methods_selection",
+    "8": "results_characteristics", "9": "results_selection", "10": "methods_rob", "11": "methods_rob", "12": "methods_rob", "13": "results_rob", "14": "methods_extraction",
+    "15": "methods_extraction", "16": "methods_extraction", "17": "methods_extraction", "18": "methods_synthesis", "19": "methods_synthesis", "20": "results_findings", "21": "results_findings",
+  },
+  sanra: { "1": "rationale", "2": "objectives", "3": "methods_sources", "4": "results_findings", "5": "discussion", "6": "results_findings" },
+  "umbrella-adapted": {
+    "1": "title", "2": "abstract", "3": "rationale", "4": "objectives", "5": "methods_eligibility", "6": "methods_sources", "7": "methods_sources", "8": "methods_selection", "9": "methods_extraction",
+    "10": "methods_rob", "11": "methods_synthesis", "12": "methods_synthesis", "13": "results_selection", "14": "results_characteristics", "15": "results_rob", "16": "results_findings",
+    "17": "results_findings", "18": "discussion", "19": "registration", "20": "declarations",
+  },
+  "realist-adapted": {
+    "1": "title", "2": "abstract", "3": "rationale", "4": "objectives", "5": "methods_synthesis", "6": "methods_sources", "7": "methods_selection", "8": "methods_extraction", "9": "methods_synthesis",
+    "10": "results_selection", "11": "results_characteristics", "12": "results_findings", "13": "discussion", "14": "limitations", "15": "declarations",
+  },
 };
 
 export const sectionOfItem = (checklistId: string, itemKey: string): string | undefined => MAP[checklistId]?.[itemKey];
 
 export interface Manuscript { checklist: Checklist; sections: SectionDef[]; itemsBySection: Record<string, string[]> }
+
+/** Sections every manuscript has, even when the guideline gives them no item of their own. */
+const ALWAYS = new Set(["title", "abstract", "rationale", "discussion", "limitations", "declarations"]);
 
 export function manuscriptFor(def: ReviewTypeDef): Manuscript {
   const checklist = checklistFor(def.reportingGuideline.id);
@@ -78,7 +96,7 @@ export function manuscriptFor(def: ReviewTypeDef): Manuscript {
     const sec = sectionOfItem(checklist.id, it.key);
     if (sec) (itemsBySection[sec] ??= []).push(it.key);
   }
-  return { checklist, sections: MASTER_SECTIONS.filter((x) => itemsBySection[x.key]), itemsBySection };
+  return { checklist, sections: MASTER_SECTIONS.filter((x) => itemsBySection[x.key] || ALWAYS.has(x.key)), itemsBySection };
 }
 
 export interface SectionState { text: string; approved?: boolean; generated?: boolean; issues?: { type: string; snippet: string }[] }

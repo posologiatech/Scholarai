@@ -37,6 +37,13 @@ export function ScopeStage({ def, review, locale, onChange }: Props) {
           <ProjectPicker value={review.research_project_id} onChange={(id) => onChange({ research_project_id: id })} />
         </div>
       </div>
+      {(def.id === "systematic" || def.id === "rapid") && (
+        <label className="flex items-start gap-2 rounded-md border border-border p-3 text-sm">
+          <input type="checkbox" className="mt-1" checked={review.is_living} onChange={(e) => onChange({ is_living: e.target.checked })} />
+          <span><span className="block font-medium">{pt ? "Revisão viva" : "Living review"}</span>
+            <span className="text-xs text-muted-foreground">{pt ? "A busca é repetida de tempos em tempos e só os estudos novos entram na triagem, sem refazer o que já foi decidido. Cada rodada é aberta por você; o sistema não busca sozinho." : "The search is repeated from time to time and only new studies enter screening, without redoing what was already decided. You start each round; the system does not search by itself."}</span></span>
+        </label>
+      )}
       {problem && (
         <div className="space-y-1.5">
           <Label htmlFor="scope-problem">{problem.label[locale]}</Label>

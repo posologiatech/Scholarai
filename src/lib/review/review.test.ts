@@ -10,16 +10,17 @@ describe("review type definitions", () => {
     expect(validateDefinition(def)).toEqual([]);
   });
 
-  it("all three first-wave types are registered", () => {
-    expect(AVAILABLE_TYPES.map((t) => t.id).sort()).toEqual(["integrative", "scoping", "systematic"]);
+  it("all eight review types are registered", () => {
+    expect(AVAILABLE_TYPES.map((t) => t.id).sort()).toEqual(["integrative", "narrative", "qualitative", "rapid", "realist", "scoping", "systematic", "umbrella"]);
   });
 
-  it("records who signed off each definition", () => {
-    for (const t of AVAILABLE_TYPES) {
+  it("records who signed off the first three definitions and keeps the newer ones flagged until they are signed off", () => {
+    for (const t of AVAILABLE_TYPES.filter((x) => ["systematic", "scoping", "integrative"].includes(x.id))) {
       expect(t.review.status).toBe("verified");
       expect(t.review.verifiedBy).toBeTruthy();
       expect(t.review.verifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
+    for (const t of AVAILABLE_TYPES.filter((x) => !["systematic", "scoping", "integrative"].includes(x.id))) expect(t.review.status).toBe("pending-expert-review");
   });
 
   it("uses the right question framework per type", () => {

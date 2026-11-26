@@ -12,9 +12,10 @@ import { getReviewType } from "@/lib/review/types";
 vi.mock("@/i18n/LanguageContext", () => ({ useLanguage: () => ({ locale: "pt", t: (k: string) => k }) }));
 
 describe("ReviewTypePicker", () => {
-  it("shows the three types and the translated framework for the integrative review", () => {
+  it("shows all eight types and the translated framework for the integrative review", () => {
     render(<ReviewTypePicker value={null} onChange={() => {}} locale="pt" />);
-    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(screen.getAllByRole("radio")).toHaveLength(8);
+    expect(screen.queryByText(/chegam em uma fase posterior/)).toBeNull();
     expect(screen.getByText("Problema, população e variáveis")).toBeInTheDocument();
     expect(screen.queryByText(/Problem \/ population/)).toBeNull();
   });

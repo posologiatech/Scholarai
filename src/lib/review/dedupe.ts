@@ -5,6 +5,8 @@ export interface DedupeRecord {
   authors?: string[] | null;
   doi?: string | null;
   abstract?: string | null;
+  /** Already screened or otherwise in use: a duplicate group must keep this record, never replace it. */
+  locked?: boolean;
 }
 
 export type DuplicateReason = "doi" | "title_year_author" | "similar_title";
@@ -62,7 +64,7 @@ function dice(a: Map<string, number>, b: Map<string, number>): number {
 }
 
 /** Richest record wins: abstract and DOI matter most for the later stages. */
-const richness = (r: DedupeRecord) => (r.abstract?.length ? 2 : 0) + (normalizeDoi(r.doi) ? 1 : 0) + (r.authors?.length ? 0.5 : 0);
+const richness = (r: DedupeRecord) => (r.locked ? 100 : 0) + (r.abstract?.length ? 2 : 0) + (normalizeDoi(r.doi) ? 1 : 0) + (r.authors?.length ? 0.5 : 0);
 
 /**
  * Groups duplicates in three passes of decreasing certainty: same DOI, same normalized

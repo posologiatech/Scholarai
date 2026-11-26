@@ -124,7 +124,99 @@ export const INTEGRATIVE_ADAPTED: Checklist = {
   ],
 };
 
-export const CHECKLISTS: Record<string, Checklist> = { prisma2020: PRISMA_2020, "prisma-scr": PRISMA_SCR, "prisma-adapted": INTEGRATIVE_ADAPTED };
+/** Items paraphrased from ENTREQ (Tong et al., BMC Med Res Methodol 2012;12:181): 21 items for qualitative evidence synthesis. */
+export const ENTREQ: Checklist = {
+  id: "entreq", name: "ENTREQ", official: true, source: "Tong A et al. BMC Med Res Methodol 2012;12:181",
+  items: [
+    i("1", "introduction", "Objetivo da síntese", "Aim of the synthesis"),
+    i("2", "methods", "Metodologia ou referencial teórico da síntese", "Synthesis methodology or theoretical framework"),
+    i("3", "methods", "Abordagem de busca: planejada de antemão ou iterativa", "Approach to searching: pre-planned or iterative"),
+    i("4", "methods", "Critérios de inclusão e exclusão (população, idioma, período, tipo de publicação e de estudo)", "Inclusion criteria (population, language, years, publication and study type)"),
+    i("5", "methods", "Fontes de informação usadas e quando as buscas foram feitas", "Information sources used and when the searches were conducted"),
+    i("6", "methods", "Estratégia de busca eletrônica, com termos e filtros para pesquisa qualitativa", "Electronic search strategy, with terms and filters for qualitative research"),
+    i("7", "methods", "Processo de triagem e seleção dos estudos", "Process of study screening and sifting"),
+    i("8", "results", "Características dos estudos incluídos", "Characteristics of the included studies"),
+    i("9", "results", "Número de estudos triados e motivos de exclusão", "Number of studies screened and reasons for exclusion"),
+    i("10", "methods", "Justificativa e abordagem da avaliação dos estudos", "Rationale and approach used to appraise the studies"),
+    i("11", "methods", "Instrumentos, referenciais e critérios usados na avaliação", "Tools, frameworks and criteria used to appraise"),
+    i("12", "methods", "Se a avaliação foi independente e se exigiu consenso", "Whether appraisal was independent and whether consensus was required"),
+    i("13", "results", "Resultados da avaliação e se algum estudo foi excluído ou ponderado por ela", "Appraisal results and whether any study was weighted or excluded because of it"),
+    i("14", "methods", "Quais partes dos estudos foram analisadas e como os dados foram extraídos", "Which sections of the studies were analysed and how data were extracted"),
+    i("15", "methods", "Software usado, se algum", "Software used, if any"),
+    i("16", "methods", "Quem codificou e analisou os dados", "Who coded and analysed the data"),
+    i("17", "methods", "Processo de codificação dos dados", "Process for coding the data"),
+    i("18", "methods", "Como as comparações foram feitas dentro e entre estudos", "How comparisons were made within and across studies"),
+    i("19", "methods", "Se os temas foram derivados de forma indutiva ou dedutiva", "Whether themes were derived inductively or deductively"),
+    i("20", "results", "Citações dos estudos primários que ilustram os temas, indicando se são dos participantes ou interpretação dos autores", "Quotations that illustrate themes, identifying participant quotes versus authors interpretation"),
+    i("21", "results", "Resultados da síntese que vão além de um resumo dos estudos primários", "Synthesis output that goes beyond a summary of the primary studies"),
+  ],
+};
+
+/** SANRA (Baethge et al., Res Integr Peer Rev 2019;4:5): six quality items for narrative review articles. */
+export const SANRA: Checklist = {
+  id: "sanra", name: "SANRA", official: true, source: "Baethge C et al. Res Integr Peer Rev 2019;4:5",
+  items: [
+    i("1", "introduction", "Justificativa da importância do tema para o leitor", "Justification of the topic importance for the readership"),
+    i("2", "introduction", "Declaração dos objetivos ou questões concretas do artigo", "Statement of concrete aims or formulation of questions"),
+    i("3", "methods", "Descrição da busca na literatura", "Description of the literature search"),
+    i("4", "results", "Referenciamento: as afirmações-chave estão apoiadas em referências", "Referencing: key statements are supported by references"),
+    i("5", "discussion", "Raciocínio científico: nível de evidência e argumentação apropriados", "Scientific reasoning: appropriate evidence level and argumentation"),
+    i("6", "results", "Apresentação apropriada dos dados", "Appropriate presentation of data"),
+  ],
+};
+
+/** No official umbrella list is reproduced here (PRIOR is the reference); this PRISMA-derived list is an aid, not the guideline. */
+export const UMBRELLA_ADAPTED: Checklist = {
+  id: "umbrella-adapted", name: "PRISMA 2020 adaptado (guarda-chuva)", official: false, source: "Adapted from PRISMA 2020; consult the PRIOR statement (Gates et al., BMJ 2022) for the official list",
+  items: [
+    i("1", "title", "Identificar o relatório como revisão guarda-chuva (revisão de revisões)", "Identify the report as an umbrella review (overview of reviews)"),
+    i("2", "abstract", "Resumo estruturado", "Structured abstract"),
+    i("3", "introduction", "Justificativa, incluindo o que já existe em revisões sobre o tema", "Rationale, including what existing reviews on the topic show"),
+    i("4", "introduction", "Objetivos e questão, com os tipos de revisão elegíveis", "Objectives and question, with the eligible review types"),
+    i("5", "methods", "Critérios de elegibilidade das revisões", "Eligibility criteria for reviews"),
+    i("6", "methods", "Fontes de informação e data da última busca", "Information sources and date last searched"),
+    i("7", "methods", "Estratégia de busca completa", "Full search strategy"),
+    i("8", "methods", "Processo de seleção das revisões e número de revisores", "Process for selecting reviews and number of reviewers"),
+    i("9", "methods", "Extração de dados das revisões", "Data extraction from the reviews"),
+    i("10", "methods", "Avaliação da qualidade das revisões (por exemplo, AMSTAR 2) e revisores", "Quality appraisal of the reviews (e.g. AMSTAR 2) and reviewers"),
+    i("11", "methods", "Método para avaliar a sobreposição de estudos primários entre as revisões", "Method to assess overlap of primary studies between reviews"),
+    i("12", "methods", "Métodos de síntese", "Synthesis methods"),
+    i("13", "results", "Fluxograma da seleção, com motivos de exclusão", "Selection flow diagram, with reasons for exclusion"),
+    i("14", "results", "Características das revisões incluídas", "Characteristics of the included reviews"),
+    i("15", "results", "Qualidade das revisões incluídas", "Quality of the included reviews"),
+    i("16", "results", "Grau de sobreposição e como foi tratado", "Degree of overlap and how it was handled"),
+    i("17", "results", "Resultados da síntese", "Results of the synthesis"),
+    i("18", "discussion", "Interpretação, limitações e implicações", "Interpretation, limitations and implications"),
+    i("19", "other", "Registro e protocolo", "Registration and protocol"),
+    i("20", "other", "Financiamento, conflitos de interesse, dados e uso de IA", "Funding, competing interests, data and use of AI"),
+  ],
+};
+
+/** The RAMESES publication standards are not reproduced from memory; this list follows the realist review process and is an aid only. */
+export const REALIST_ADAPTED: Checklist = {
+  id: "realist-adapted", name: "Revisão realista (adaptado)", official: false, source: "Adapted from the realist review process (Pawson et al.); consult the RAMESES publication standards (Wong et al., BMC Med 2013) for the official list",
+  items: [
+    i("1", "title", "Identificar o relatório como revisão realista", "Identify the report as a realist review"),
+    i("2", "abstract", "Resumo com questão, método, achados e conclusões", "Abstract with question, method, findings and conclusions"),
+    i("3", "introduction", "Justificativa e por que uma abordagem realista", "Rationale and why a realist approach"),
+    i("4", "introduction", "Objetivos e foco: o que funciona, para quem, em que circunstâncias e por quê", "Objectives and focus: what works, for whom, in what circumstances and why"),
+    i("5", "methods", "Teoria inicial do programa e como foi construída", "Initial program theory and how it was built"),
+    i("6", "methods", "Processo de busca, que pode ser iterativo, e as fontes", "Search process, which may be iterative, and sources"),
+    i("7", "methods", "Seleção dos documentos por relevância e rigor", "Selecting documents by relevance and rigour"),
+    i("8", "methods", "Extração de dados: contexto, mecanismo e resultado", "Data extraction: context, mechanism and outcome"),
+    i("9", "methods", "Análise e síntese, incluindo o refinamento da teoria", "Analysis and synthesis, including refining the theory"),
+    i("10", "results", "Fluxo dos documentos e motivos de exclusão", "Document flow and reasons for exclusion"),
+    i("11", "results", "Características dos documentos incluídos", "Characteristics of the included documents"),
+    i("12", "results", "Configurações contexto-mecanismo-resultado e a teoria refinada", "Context-mechanism-outcome configurations and the refined theory"),
+    i("13", "discussion", "Resumo dos achados e relação com a literatura existente", "Summary of findings and link to the existing literature"),
+    i("14", "discussion", "Pontos fortes, limitações e implicações", "Strengths, limitations and implications"),
+    i("15", "other", "Financiamento, conflitos de interesse e uso de IA", "Funding, competing interests and use of AI"),
+  ],
+};
+
+export const CHECKLISTS: Record<string, Checklist> = {
+  prisma2020: PRISMA_2020, "prisma-scr": PRISMA_SCR, "prisma-adapted": INTEGRATIVE_ADAPTED, entreq: ENTREQ, sanra: SANRA, "umbrella-adapted": UMBRELLA_ADAPTED, "realist-adapted": REALIST_ADAPTED,
+};
 export const checklistFor = (guidelineId: string): Checklist => CHECKLISTS[guidelineId] ?? PRISMA_2020;
 
 export type ItemStatus = "met" | "partial" | "missing" | "not_applicable";

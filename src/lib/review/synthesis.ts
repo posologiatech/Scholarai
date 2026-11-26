@@ -5,6 +5,8 @@ import type { ReviewRecord } from "./protocol";
 
 export type Method = "meta_analysis" | "swim";
 
+export interface Cmo { id: string; context: string; mechanism: string; outcome: string; evidence: string }
+
 export interface SynthesisState {
   method?: Method;
   justification?: string;
@@ -14,6 +16,8 @@ export interface SynthesisState {
   assign?: Record<string, string[]>;
   gaps?: string;
   conclusions?: string;
+  programTheory?: string;
+  cmo?: Cmo[];
 }
 
 export const getSynthesis = (r: ReviewRecord): SynthesisState => (r.stage_state?.synthesis as SynthesisState | undefined) ?? {};
@@ -32,6 +36,8 @@ export function synthesisFlags(r: ReviewRecord): Record<string, boolean> {
     synthesis_method_chosen: !!s.method && (s.justification ?? "").trim().length >= 20,
     matrix_built: (s.themes ?? []).length > 0 && assigned,
     gaps_identified: (s.gaps ?? "").trim().length >= 20,
+    program_theory_written: (s.programTheory ?? "").trim().length >= 40,
+    cmo_built: (s.cmo ?? []).some((c) => c.context.trim() && c.mechanism.trim() && c.outcome.trim()),
   };
 }
 

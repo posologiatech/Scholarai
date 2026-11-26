@@ -127,3 +127,14 @@ describe("toRecords", () => {
     expect(rows[0].dedupe_key).toContain("souza");
   });
 });
+
+describe("dedupe keeps what is already in use", () => {
+  it("keeps a screened record even when a new one has the abstract and DOI", () => {
+    const [g] = groupDuplicates([
+      { id: "old", title: "Same long title about metformin and dementia", year: 2020, authors: ["Silva, J"], doi: null, abstract: null, locked: true },
+      { id: "new", title: "Same long title about metformin and dementia", year: 2020, authors: ["Silva, J"], doi: "10.1/x", abstract: "Full abstract" },
+    ]);
+    expect(g.keepId).toBe("old");
+    expect(g.duplicateIds).toEqual(["new"]);
+  });
+});

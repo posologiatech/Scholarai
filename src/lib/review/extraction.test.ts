@@ -94,10 +94,12 @@ describe("appraisal tools", () => {
     expect(guessTool("Randomized Controlled Trial", ["rob2", "mmat"])).toBe("rob2");
     expect(guessTool("Cohort study", ["mmat", "nos"])).toBe("nos");
     expect(guessTool("randomised trial", ["mmat"])).toBe("mmat");
-    expect(guessTool(null, ["casp", "mmat"])).toBe("mmat");
+    expect(guessTool(null, ["casp", "mmat"])).toBe("casp");
+    expect(guessTool("Systematic review with meta-analysis", ["amstar2"])).toBe("amstar2");
+    expect(guessTool("Qualitative interview study", ["casp", "mmat"])).toBe("casp");
   });
-  it("knows which tools exist today (CASP is listed by a type but not built)", () => {
-    expect(isImplemented("rob2")).toBe(true);
-    expect(isImplemented("casp")).toBe(false);
+  it("knows which tools exist, and rejects one that does not", () => {
+    for (const t of ["rob2", "robins-i", "nos", "quadas2", "mmat", "amstar2", "casp"]) expect(isImplemented(t)).toBe(true);
+    expect(isImplemented("grade")).toBe(false);
   });
 });

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Download, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { distribution, excludedFullText, extractionTable, prismaFlowSvg, robTrafficLight, searchAppendix, summaryOfFindings, type Ctx, type Figure, type Table } from "@/lib/review/artifacts";
+import { amstarSummary, cmoTable, distribution, excludedFullText, extractionTable, overlapMatrix, prismaFlowSvg, robTrafficLight, searchAppendix, shortcutsTable, summaryOfFindings, type Ctx, type Figure, type Table } from "@/lib/review/artifacts";
 import { buildDocx } from "@/lib/review/docx";
 import { composeManuscript, type ExportFigure } from "@/lib/review/exportManuscript";
 import type { WritingData } from "@/lib/review/factsInput";
@@ -42,12 +42,15 @@ export function ExportPanel({ def, review, userId, data, manuscript, state, loca
     const ctx: Ctx = {
       locale, reviewType: def.id, fields: input.fields, studies: input.studies.map((s) => ({ id: s.id, title: s.title, authors: s.authors, year: s.year })),
       extraction: input.extraction, appraisals: input.appraisals, searches: input.searches.map((s) => ({ source: s.source, method: s.method, interface: null, query: s.query, run_at: s.run_at, results_count: s.results_count, imported_count: s.imported_count, filters: {} })),
-      sourceLabel: (id) => input.searches.find((s) => s.source === id)?.label ?? id, excluded: data.excluded, themes: input.themes, assign: input.assign, grade: input.grade,
+      sourceLabel: (id) => input.searches.find((s) => s.source === id)?.label ?? id, excluded: data.excluded, themes: input.themes, assign: input.assign, grade: input.grade, cmo: input.cmo, shortcuts: input.shortcuts,
     };
     const tables: { title: string; table: Table }[] = [
       { title: pt ? "Estratégias de busca por fonte" : "Search strategies by source", table: searchAppendix(ctx) },
       { title: pt ? "Características dos estudos incluídos" : "Characteristics of included studies", table: extractionTable(ctx) },
       ...(data.excluded.length ? [{ title: pt ? "Estudos excluídos no texto completo, com motivo" : "Studies excluded at full text, with reason", table: excludedFullText(ctx) }] : []),
+      ...(def.id === "rapid" ? [{ title: pt ? "Atalhos metodológicos declarados" : "Declared methodological shortcuts", table: shortcutsTable(ctx) }] : []),
+      ...(def.id === "umbrella" ? [{ title: pt ? "Qualidade das revisões (AMSTAR 2)" : "Quality of the reviews (AMSTAR 2)", table: amstarSummary(ctx) }, { title: pt ? "Matriz de sobreposição de estudos primários" : "Overlap matrix of primary studies", table: overlapMatrix(ctx) }] : []),
+      ...(def.id === "realist" ? [{ title: pt ? "Configurações contexto-mecanismo-resultado" : "Context-mechanism-outcome configurations", table: cmoTable(ctx) }] : []),
       ...(input.grade.length ? [{ title: pt ? "Resumo dos achados e certeza da evidência (GRADE)" : "Summary of findings and certainty of evidence (GRADE)", table: summaryOfFindings(ctx) }] : []),
     ];
     const figs: ExportFigure[] = [];

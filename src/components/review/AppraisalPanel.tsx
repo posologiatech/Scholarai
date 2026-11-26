@@ -82,7 +82,7 @@ export function AppraisalPanel({ reviewId, userId, record, allowed, rows, locale
   const flatDomains = flat(domains);
   const suggested = suggestOverall(tool, flatDomains);
   const complete = isComplete(tool, flatDomains, overall);
-  const label = (v: string) => spec.scale.find((s) => s.value === v)?.label[locale] ?? v;
+  const label = (v: string) => (spec.overallScale ?? spec.scale).find((s) => s.value === v)?.label[locale] ?? spec.scale.find((s) => s.value === v)?.label[locale] ?? v;
   const stars = tool === "nos" ? starTotal(flatDomains) : null;
   const counts = tool === "mmat" ? mmatCounts(flatDomains) : null;
   // The MMAT has one set of five criteria per study design; show the screening questions plus the chosen set.
@@ -150,7 +150,7 @@ export function AppraisalPanel({ reviewId, userId, record, allowed, rows, locale
           <div className="space-y-1.5">
             <p className="text-sm font-medium">{pt ? "Julgamento geral" : "Overall judgement"}</p>
             <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label={pt ? "Julgamento geral" : "Overall judgement"}>
-              {spec.scale.map((s) => (
+              {(spec.overallScale ?? spec.scale).map((s) => (
                 <button key={s.value} type="button" role="radio" aria-checked={overall === s.value} disabled={!canEdit} onClick={() => { setOverall(s.value); schedule(); }}
                   className={`rounded-md border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${overall === s.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted"}`}>{s.label[locale]}</button>
               ))}

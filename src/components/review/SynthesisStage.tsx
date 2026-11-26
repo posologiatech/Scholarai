@@ -4,10 +4,13 @@ import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { ArtifactsPanel } from "./ArtifactsPanel";
 import { GradeEditor } from "./GradeEditor";
+import { MethodChooser } from "./MethodChooser";
+import { RealistPanel } from "./RealistPanel";
+import { UmbrellaPanel } from "./UmbrellaPanel";
 import { ThemeMatrix } from "./ThemeMatrix";
 import { Button } from "@/components/ui/button";
 import { SOURCES } from "@/lib/review/databases";
-import type { Ctx } from "@/lib/review/artifacts";
+import { primaryLists, type Ctx } from "@/lib/review/artifacts";
 import { fieldsFor } from "@/lib/review/extraction";
 import { loadIncluded, loadMyAppraisals, loadMyExtractions, type AppraisalRow, type ExtractionRow, type IncludedRecord } from "@/lib/review/extractionApi";
 import type { ReviewRecord } from "@/lib/review/protocol";
@@ -60,7 +63,8 @@ export function SynthesisStage({ def, review, userId, locale, onChange }: Props)
     searches: data.searches,
     sourceLabel: (id: string) => SOURCES.find((s) => s.id === id)?.label ?? id,
     excluded: data.excluded, themes: syn.themes ?? [], assign: syn.assign ?? {}, grade: syn.grade ?? [],
-  }), [data, locale, def.id, fields, syn.themes, syn.assign, syn.grade]);
+    cmo: syn.cmo ?? [], shortcuts: (review.stage_state?.rapid as { shortcuts?: string[] } | undefined)?.shortcuts ?? [],
+  }), [data, locale, def.id, fields, syn.themes, syn.assign, syn.grade, syn.cmo, review.stage_state?.rapid]);
 
   if (!isOwner) return <p className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">{pt ? "A síntese é feita pelo dono da revisão." : "Synthesis is done by the review owner."}</p>;
   if (!data || !ctx) return <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
@@ -87,7 +91,7 @@ export function SynthesisStage({ def, review, userId, locale, onChange }: Props)
 
       {tab === "artifacts" && <ArtifactsPanel def={def} ctx={ctx} statusRows={data.statusRows} locale={locale} />}
 
-      {tab === "synthesis" && def.id === "systematic" && (
+      {tab === "synthesis" && (def.id === "systematic" || def.id === "rapid") && (
         <div className="space-y-8">
           <section className="space-y-3">
             <h3 className="text-sm font-medium">{pt ? "1. Método de síntese" : "1. Synthesis method"}</h3>
@@ -132,7 +136,7 @@ export function SynthesisStage({ def, review, userId, locale, onChange }: Props)
         </div>
       )}
 
-      {tab === "synthesis" && def.id === "integrative" && (
+      {tab === "synthesis" && (def.id === "integrative" || def.id === "qualitative") && (
         <div className="space-y-8">
           <section className="space-y-3">
             <h3 className="text-sm font-medium">{pt ? "1. Redução e exibição dos dados" : "1. Data reduction and display"}</h3>
@@ -147,6 +151,33 @@ export function SynthesisStage({ def, review, userId, locale, onChange }: Props)
               : <Button size="sm" disabled={(syn.themes ?? []).length === 0 || (syn.conclusions ?? "").trim().length < 20} onClick={() => onChange(withFlags(review, { themes_confirmed: true }))}>{pt ? "Confirmar temas e conclusões" : "Confirm themes and conclusions"}</Button>}
           </section>
         </div>
+      )}
+
+      {tab === "synthesis" && def.id === "umbrella" && (
+        <div className="space-y-8">
+          <section className="space-y-3">
+            <h3 className="text-sm font-medium">{pt ? "1. Método de síntese" : "1. Synthesis method"}</h3>
+            <MethodChooser method={syn.method} justification={syn.justification ?? ""} locale={locale}
+              options={[{ value: "swim", label: pt ? "Síntese estruturada (tabelas e narrativa)" : "Structured synthesis (tables and narrative)", description: pt ? "Descreve os resultados de cada revisão, sem somar efeitos entre elas." : "Describes each review's results without pooling effects between them." },
+                        { value: "meta_analysis", label: pt ? "Reanálise quantitativa" : "Quantitative re-analysis", description: pt ? "Reúne estimativas das revisões; exige tratar a sobreposição para não contar o mesmo estudo duas vezes." : "Pools estimates from the reviews; requires handling overlap so the same study is not counted twice." }]}
+              onChange={(p) => set(p)} />
+          </section>
+          <section className="space-y-3">
+            <h3 className="text-sm font-medium">{pt ? "2. Sobreposição de estudos primários" : "2. Overlap of primary studies"}</h3>
+            <UmbrellaPanel lists={primaryLists(ctx)} reviewed={!!flags.overlap_reviewed} locale={locale} canEdit onReviewed={(v) => onChange(withFlags(review, { overlap_reviewed: v }))} />
+          </section>
+        </div>
+      )}
+
+      {tab === "synthesis" && def.id === "narrative" && (
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">{pt ? "Organização temática" : "Thematic organisation"}</h3>
+          <ThemeMatrix studies={ctx.studies} findings={findings} themes={syn.themes ?? []} assign={syn.assign ?? {}} locale={locale} canEdit onChange={(themes, assign) => set({ themes, assign })} />
+        </section>
+      )}
+
+      {tab === "synthesis" && def.id === "realist" && (
+        <RealistPanel programTheory={syn.programTheory ?? ""} cmo={syn.cmo ?? []} locale={locale} canEdit onChange={(p) => set(p)} />
       )}
     </div>
   );

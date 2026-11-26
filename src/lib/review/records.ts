@@ -52,14 +52,14 @@ export async function loadActiveRecords(reviewId: string): Promise<(DedupeRecord
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db
       .from("review_records")
-      .select("id,title,year,authors,doi,abstract,source")
+      .select("id,title,year,authors,doi,abstract,source,screen_status")
       .eq("review_id", reviewId)
       .is("duplicate_of", null)
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
       .range(from, from + 999);
     if (error) throw error;
-    out.push(...data);
+    out.push(...data.map((r: { screen_status?: string }) => ({ ...r, locked: r.screen_status != null && r.screen_status !== "pending" })));
     if (data.length < 1000) break;
   }
   return out;

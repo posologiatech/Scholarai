@@ -7,6 +7,7 @@ import { listSearches } from "./records";
 import { agreement, prismaCounts, reasonsFor } from "./screening";
 import { listMembers, loadDecisions, loadStatusRows } from "./screeningApi";
 import { getFlags } from "./strategy";
+import { overlapOf } from "./overlap";
 import { getSynthesis, loadExcluded } from "./synthesis";
 import type { ReviewTypeDef } from "./types";
 import type { WritingState } from "./manuscript";
@@ -36,6 +37,12 @@ export async function loadWritingData(def: ReviewTypeDef, review: ReviewRecord, 
     searches: searches.map((s) => ({ source: s.source, label: SOURCES.find((x) => x.id === s.source)?.label ?? s.source, method: s.method, query: s.query, run_at: s.run_at, results_count: s.results_count, imported_count: s.imported_count })),
     screening: { reviewers: reviewerIds.length, kappaTitleAbstract: k.kappa, aiScreening: aiUses.includes("screening"), pilot: getFlags(review).pilot_done === true },
     aiUses,
+    shortcuts: (review.stage_state?.rapid as { shortcuts?: string[] } | undefined)?.shortcuts ?? [],
+    cmo: syn.cmo ?? [], programTheory: syn.programTheory ?? "",
+    overlap: def.id === "umbrella" ? (() => {
+      const o = overlapOf(records.map((r) => ({ id: r.id, label: r.title, studies: (extractions.find((e) => e.record_id === r.id)?.data.primary_studies ?? "").split(/\n+/) })));
+      return { cca: o.cca, unique: o.unique, inclusions: o.inclusions, reviews: o.reviews };
+    })() : null,
   };
   return { input, records, excluded, statusRows };
 }

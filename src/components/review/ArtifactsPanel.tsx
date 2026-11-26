@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   distribution, esc, evidenceMap, excludedFullText, extractionTable, mappableFields, methodEvidence, robTrafficLight,
   searchAppendix, summaryOfFindings, synthesisMatrix, themePrevalence, toCsv, type Ctx, type Figure, type Table,
+  amstarSummary, cmoTable, overlapMatrix, overlapSummaryText, shortcutsTable,
 } from "@/lib/review/artifacts";
 import { prismaCounts, reasonsFor, type ScreenStatus } from "@/lib/review/screening";
 import type { ReviewTypeDef } from "@/lib/review/types";
@@ -97,6 +98,10 @@ export function ArtifactsPanel({ def, ctx, statusRows, locale }: Props) {
       case "excluded_fulltext": return <TableView title={label} table={excludedFullText(ctx)} locale={locale} />;
       case "synthesis_matrix": return <TableView title={label} table={synthesisMatrix(ctx)} locale={locale} />;
       case "method_evidence": return <TableView title={label} table={methodEvidence(ctx)} locale={locale} />;
+      case "overlap_matrix": return <div className="space-y-2"><p className="text-sm font-medium">{overlapSummaryText(ctx)}</p><TableView title={label} table={overlapMatrix(ctx)} locale={locale} /></div>;
+      case "amstar_summary": return <TableView title={label} table={amstarSummary(ctx)} locale={locale} />;
+      case "cmo_table": return <TableView title={label} table={cmoTable(ctx)} locale={locale} />;
+      case "shortcuts_table": return <TableView title={label} table={shortcutsTable(ctx)} locale={locale} />;
       case "sof_grade": return <TableView title={label} table={summaryOfFindings(ctx)} locale={locale} />;
       case "prisma_flow": case "prisma_flow_scr": {
         const c = prismaCounts(statusRows);

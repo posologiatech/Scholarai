@@ -1,6 +1,6 @@
 import type { Bilingual } from "./types";
 
-export type ToolId = "rob2" | "robins-i" | "nos" | "quadas2" | "mmat";
+export type ToolId = "rob2" | "robins-i" | "nos" | "quadas2" | "mmat" | "amstar2" | "casp";
 
 export interface AppraisalItem { key: string; label: Bilingual; hint?: Bilingual }
 export interface Judgement { value: string; label: Bilingual }
@@ -10,6 +10,10 @@ export interface ToolSpec {
   name: string;
   /** Scale used for each item. */
   scale: Judgement[];
+  /** Scale of the overall rating when it differs from the items' (AMSTAR 2 rates confidence, not items). */
+  overallScale?: Judgement[];
+  /** Items whose failure counts as a critical flaw (AMSTAR 2). */
+  critical?: string[];
   items: AppraisalItem[];
   /** How the overall result is shown: a judgement, a star total, or per-criterion counts only. */
   overall: "judgement" | "stars" | "none";
@@ -36,7 +40,7 @@ const YES_NO_CANT: Judgement[] = [
   { value: "cant", label: b("Não sei dizer", "Can't tell") },
 ];
 
-export const TOOLS: Record<ToolId, ToolSpec> = {
+const BASE: Omit<Record<ToolId, ToolSpec>, "amstar2" | "casp"> = {
   rob2: {
     id: "rob2", name: "RoB 2", scale: LOW_SOME_HIGH, overall: "judgement",
     source: "Sterne JAC et al. BMJ 2019;366:l4898",
@@ -123,6 +127,55 @@ export const TOOLS: Record<ToolId, ToolSpec> = {
   },
 };
 
+const AMSTAR_SCALE: Judgement[] = [
+  { value: "yes", label: b("Sim", "Yes") }, { value: "partial", label: b("Sim parcial", "Partial yes") },
+  { value: "no", label: b("Não", "No") }, { value: "na", label: b("Não se aplica", "Not applicable") },
+];
+const AMSTAR_ITEMS: [string, string, string][] = [
+  ["1", "A pergunta e os critérios de inclusão contêm os componentes PICO?", "Do the research questions and inclusion criteria include the PICO components?"],
+  ["2", "[Crítico] Os métodos foram estabelecidos antes da revisão e os desvios justificados?", "[Critical] Were the methods established before the review and deviations justified?"],
+  ["3", "Os autores explicaram a escolha dos desenhos de estudo incluídos?", "Did the authors explain their selection of study designs?"],
+  ["4", "[Crítico] A estratégia de busca foi abrangente?", "[Critical] Was the search strategy comprehensive?"],
+  ["5", "A seleção dos estudos foi feita em duplicata?", "Was study selection performed in duplicate?"],
+  ["6", "A extração de dados foi feita em duplicata?", "Was data extraction performed in duplicate?"],
+  ["7", "[Crítico] Há lista dos estudos excluídos, com justificativa?", "[Critical] Is there a list of excluded studies with justification?"],
+  ["8", "Os estudos incluídos foram descritos em detalhe adequado?", "Were the included studies described in adequate detail?"],
+  ["9", "[Crítico] A técnica de avaliação do risco de viés foi satisfatória?", "[Critical] Was the risk-of-bias technique satisfactory?"],
+  ["10", "Informaram as fontes de financiamento dos estudos incluídos?", "Did they report the funding sources of the included studies?"],
+  ["11", "[Crítico] Os métodos de meta-análise foram adequados?", "[Critical] Were appropriate methods used for meta-analysis?"],
+  ["12", "Consideraram o impacto do risco de viés na meta-análise?", "Did they assess the impact of risk of bias on the meta-analysis?"],
+  ["13", "[Crítico] O risco de viés foi considerado na interpretação dos resultados?", "[Critical] Was risk of bias accounted for when interpreting the results?"],
+  ["14", "A heterogeneidade foi explicada e discutida?", "Was heterogeneity explained and discussed?"],
+  ["15", "[Crítico] O viés de publicação foi investigado e discutido?", "[Critical] Was publication bias investigated and discussed?"],
+  ["16", "Declararam conflitos de interesse e financiamento da própria revisão?", "Did they report conflicts of interest and funding for the review?"],
+];
+const AMSTAR: ToolSpec = {
+  id: "amstar2", name: "AMSTAR 2", scale: AMSTAR_SCALE, overall: "judgement", source: "Shea BJ et al. BMJ 2017;358:j4008",
+  critical: ["2", "4", "7", "9", "11", "13", "15"],
+  overallScale: [
+    { value: "high", label: b("Confiança alta", "High confidence") }, { value: "moderate", label: b("Confiança moderada", "Moderate confidence") },
+    { value: "low", label: b("Confiança baixa", "Low confidence") }, { value: "critically_low", label: b("Confiança criticamente baixa", "Critically low confidence") },
+  ],
+  items: AMSTAR_ITEMS.map(([key, pt, en]) => ({ key, label: b(pt, en) })),
+};
+const CASP_ITEMS: [string, string, string][] = [
+  ["1", "Há uma declaração clara dos objetivos da pesquisa?", "Was there a clear statement of the aims of the research?"],
+  ["2", "A metodologia qualitativa é adequada?", "Is a qualitative methodology appropriate?"],
+  ["3", "O desenho da pesquisa é adequado aos objetivos?", "Was the research design appropriate to address the aims?"],
+  ["4", "A estratégia de recrutamento foi adequada?", "Was the recruitment strategy appropriate to the aims?"],
+  ["5", "Os dados foram coletados de modo a abordar a questão?", "Was the data collected in a way that addressed the research issue?"],
+  ["6", "A relação entre pesquisadores e participantes foi considerada?", "Has the relationship between researcher and participants been adequately considered?"],
+  ["7", "As questões éticas foram consideradas?", "Have ethical issues been taken into consideration?"],
+  ["8", "A análise dos dados foi suficientemente rigorosa?", "Was the data analysis sufficiently rigorous?"],
+  ["9", "Há uma declaração clara dos achados?", "Is there a clear statement of findings?"],
+];
+const CASP: ToolSpec = {
+  id: "casp", name: "CASP (qualitativo)", scale: YES_NO_CANT, overall: "none", source: "Critical Appraisal Skills Programme, Qualitative Studies Checklist",
+  items: CASP_ITEMS.map(([key, pt, en]) => ({ key, label: b(pt, en) })),
+};
+
+export const TOOLS: Record<ToolId, ToolSpec> = { ...BASE, amstar2: AMSTAR, casp: CASP };
+
 /** Tools the module can apply today; a type's definition may list others that are not built yet. */
 export const isImplemented = (id: string): id is ToolId => id in TOOLS;
 
@@ -133,6 +186,14 @@ export const isImplemented = (id: string): id is ToolId => id in TOOLS;
 export function suggestOverall(tool: ToolId, domains: Record<string, string | undefined>): string | null {
   const spec = TOOLS[tool];
   if (spec.overall !== "judgement") return null;
+  if (tool === "amstar2") {
+    if (spec.items.some((i) => !domains[i.key])) return null;
+    // Only "No" counts as a flaw or weakness; "Partial yes" is treated as met, as the authors' scoring does.
+    const crit = spec.critical ?? [];
+    const flaws = crit.filter((k) => domains[k] === "no").length;
+    const weak = spec.items.filter((i) => !crit.includes(i.key) && domains[i.key] === "no").length;
+    return flaws > 1 ? "critically_low" : flaws === 1 ? "low" : weak > 1 ? "moderate" : "high";
+  }
   const vals = spec.items.map((i) => domains[i.key]);
   if (vals.some((v) => !v)) return null;
   if (tool === "robins-i") {
@@ -173,6 +234,8 @@ export function isComplete(tool: ToolId, domains: Record<string, string | undefi
 export function guessTool(design: string | null | undefined, allowed: string[]): ToolId | null {
   const d = (design ?? "").toLowerCase();
   const pick = (id: ToolId) => (allowed.includes(id) ? id : null);
+  if (/systematic review|meta-analys|umbrella|overview/.test(d)) return pick("amstar2");
+  if (/qualitative|focus group|interview|phenomenolog|ethnograph|grounded/.test(d) && allowed.includes("casp")) return "casp";
   if (/random/.test(d) && !/non/.test(d)) return pick("rob2") ?? pick("mmat");
   if (/cohort|case-control|observational|coorte/.test(d)) return pick("nos") ?? pick("robins-i") ?? pick("mmat");
   if (/diagnostic|accuracy/.test(d)) return pick("quadas2");

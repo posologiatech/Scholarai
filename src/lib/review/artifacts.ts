@@ -2,6 +2,9 @@ import { CERTAINTY_LABEL, CERTAINTY_SYMBOL, certaintyOf, downgradeReasons, type 
 import { TOOLS, type ToolId } from "./appraisal";
 import { reasonsFor } from "./screening";
 import type { Data, FieldSpec } from "./extraction";
+import { overlapOf, type ReviewPrimaryList } from "./overlap";
+import { RAPID_SHORTCUTS } from "./types/rapid";
+import type { Cmo } from "./synthesis";
 
 export interface Table { head: string[]; rows: string[][] }
 export interface Figure { title: string; svg: string }
@@ -24,6 +27,8 @@ export interface Ctx {
   themes: Theme[];
   assign: Record<string, string[]>;
   grade: GradeEntry[];
+  cmo?: Cmo[];
+  shortcuts?: string[];
 }
 
 // ───────── helpers ─────────
@@ -268,4 +273,58 @@ export function prismaFlowSvg(c: { identified: number; duplicatesRemoved: number
   const finalY = 270 + Math.max(sideH, 50) + 40;
   body += box(mainX, finalY, mainW, 50, [pt ? "Estudos incluídos na revisão" : "Studies included in the review", `n = ${c.finalIncluded}`], "#edf7f0");
   return { title, svg: wrap(W, finalY + 70, body, title) };
+}
+
+// ───────── tables for the later review types ─────────
+
+/** Primary-study lists extracted from each included review (umbrella reviews). */
+export function primaryLists(c: Ctx): ReviewPrimaryList[] {
+  return c.studies.map((s) => ({ id: s.id, label: studyLabel(s), studies: (c.extraction.get(s.id)?.primary_studies ?? "").split(/\n+/) }));
+}
+
+export function overlapMatrix(c: Ctx): Table {
+  const pt = c.locale === "pt";
+  const lists = primaryLists(c);
+  const o = overlapOf(lists);
+  const cols = lists.filter((l) => !o.missing.includes(l.id));
+  return {
+    head: [pt ? "Estudo primário" : "Primary study", ...cols.map((l) => l.label), pt ? "Nº de revisões" : "No. of reviews"],
+    rows: o.matrix.map((m) => [m.display, ...cols.map((l) => (m.inReviews.includes(l.id) ? "●" : "")), String(m.inReviews.length)]),
+  };
+}
+
+export function overlapSummaryText(c: Ctx): string {
+  const pt = c.locale === "pt";
+  const o = overlapOf(primaryLists(c));
+  if (o.cca === null) return pt ? "Sobreposição não calculada (menos de duas revisões com lista de estudos primários)." : "Overlap not computed (fewer than two reviews with a primary-study list).";
+  return pt ? `Área coberta corrigida de ${o.cca}% (${o.unique} estudos primários distintos em ${o.inclusions} inclusões, ${o.reviews} revisões).` : `Corrected covered area of ${o.cca}% (${o.unique} distinct primary studies in ${o.inclusions} inclusions, ${o.reviews} reviews).`;
+}
+
+export function amstarSummary(c: Ctx): Table {
+  const pt = c.locale === "pt";
+  const spec = TOOLS.amstar2;
+  const crit = spec.critical ?? [];
+  const label = (v: string | null) => (v ? spec.overallScale?.find((s) => s.value === v)?.label[c.locale] ?? v : pt ? "não avaliada" : "not appraised");
+  return {
+    head: [pt ? "Revisão" : "Review", pt ? "Itens críticos não atendidos" : "Critical items not met", pt ? "Outros itens não atendidos" : "Other items not met", pt ? "Confiança geral" : "Overall confidence"],
+    rows: c.appraisals.filter((a) => a.tool === "amstar2").map((a) => {
+      const st = c.studies.find((s) => s.id === a.record_id);
+      const no = spec.items.filter((i) => a.domains[i.key]?.judgement === "no").map((i) => i.key);
+      return [st ? studyLabel(st) : "—", crit.filter((k) => no.includes(k)).join(", ") || "—", no.filter((k) => !crit.includes(k)).join(", ") || "—", label(a.overall)];
+    }),
+  };
+}
+
+export function cmoTable(c: Ctx): Table {
+  const pt = c.locale === "pt";
+  return {
+    head: ["#", pt ? "Contexto" : "Context", pt ? "Mecanismo" : "Mechanism", pt ? "Resultado" : "Outcome", pt ? "Documentos" : "Documents"],
+    rows: (c.cmo ?? []).map((x, i) => [String(i + 1), x.context, x.mechanism, x.outcome, x.evidence]),
+  };
+}
+
+export function shortcutsTable(c: Ctx): Table {
+  const pt = c.locale === "pt";
+  const chosen = new Set(c.shortcuts ?? []);
+  return { head: [pt ? "Atalho metodológico" : "Methodological shortcut", pt ? "Declarado" : "Declared"], rows: RAPID_SHORTCUTS.map((s) => [pt ? s.pt : s.en, chosen.has(s.key) ? (pt ? "Sim" : "Yes") : (pt ? "Não" : "No")]) };
 }

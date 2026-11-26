@@ -4,6 +4,7 @@ import { ArrowRight, ClipboardList, Loader2, Lock, Plus, Trash2 } from "lucide-r
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LegacyReviews } from "@/components/review/LegacyReviews";
 import { NewReviewDialog } from "@/components/review/NewReviewDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -98,6 +99,7 @@ const Reviews = () => {
               })}
             </div>
           )}
+          <LegacyReviews locale={lang} migratedIds={new Set(reviews.map((r) => r.legacy_systematic_review_id).filter(Boolean) as string[])} />
         </div>
       </main>
       <NewReviewDialog open={creating} onOpenChange={setCreating} locale={lang} />

@@ -5,7 +5,7 @@ import type { Data, FieldSpec } from "./extraction";
 import { CERTAINTY_LABEL, certaintyOf, downgradeReasons, type GradeEntry } from "./grade";
 import type { ReviewRecord } from "./protocol";
 import type { PrismaCounts } from "./screening";
-import type { SynthesisState } from "./synthesis";
+import type { Cmo, SynthesisState } from "./synthesis";
 import type { ReviewTypeDef } from "./types";
 
 export interface StudyFact { id: string; key: string; label: string; title: string; year: number | null; authors: string[] }
@@ -27,6 +27,11 @@ export interface FactsInput {
   searches: { source: string; label: string; method: string; query: string; run_at: string; results_count: number | null; imported_count: number }[];
   screening: { reviewers: number; kappaTitleAbstract: number | null; aiScreening: boolean; pilot: boolean };
   aiUses: string[];
+  /** Later review types. */
+  shortcuts?: string[];
+  cmo?: Cmo[];
+  programTheory?: string;
+  overlap?: { cca: number | null; unique: number; inclusions: number; reviews: number } | null;
 }
 
 /** Assigns S1..Sn in a stable order, so a draft's [S3] always means the same study. */
@@ -66,12 +71,12 @@ export function buildFacts(section: string, c: FactsInput): Record<string, unkno
     case "objectives": return { question: c.review.question, framework: fw };
     case "methods_eligibility": return { framework: fw, include: c.review.eligibility.filter((e) => e.kind === "include").map((e) => e.text), exclude: c.review.eligibility.filter((e) => e.kind === "exclude").map((e) => e.text) };
     case "methods_selection":
-      return { phases: ["title and abstract", "full text"], reviewers: c.screening.reviewers, independentDuplicate: c.screening.reviewers >= 2, agreementKappaTitleAbstract: c.screening.kappaTitleAbstract !== null ? Number(c.screening.kappaTitleAbstract.toFixed(2)) : null,
+      return { declaredShortcuts: c.shortcuts ?? [], phases: ["title and abstract", "full text"], reviewers: c.screening.reviewers, independentDuplicate: c.screening.reviewers >= 2, agreementKappaTitleAbstract: c.screening.kappaTitleAbstract !== null ? Number(c.screening.kappaTitleAbstract.toFixed(2)) : null,
         aiUsedAsSecondOpinion: c.screening.aiScreening, aiVoteCounted: false, calibrationPilot: c.screening.pilot, exclusionReasonsRecorded: true, duplicatesRemoved: c.prisma.duplicatesRemoved };
     case "methods_extraction":
       return { fields: c.fields.map((f) => f.label), studies: c.studies.length, reviewers: c.screening.reviewers, aiProposedValues: c.aiUses.includes("extraction"), everyValueCheckedByAReviewer: true, notReportedMarkedAs: "N/R", aiProposalsRequiredAQuoteFromTheText: true };
     case "methods_rob": return { toolsUsed: robByTool.map((r) => ({ tool: r.tool, studies: r.perStudy.length })), appraisalRequired: c.def.appraisal.required, aiSuggestedJudgements: c.aiUses.includes("extraction") };
-    case "methods_synthesis": return { method: c.synthesis.method ?? null, justification: c.synthesis.justification ?? "", themes: themes.map((t) => t.theme), approach: c.def.synthesis[c.locale] };
+    case "methods_synthesis": return { declaredShortcuts: c.shortcuts ?? [], overlap: c.overlap ?? null, method: c.synthesis.method ?? null, justification: c.synthesis.justification ?? "", themes: themes.map((t) => t.theme), approach: c.def.synthesis[c.locale] };
     case "methods_certainty": return { framework: "GRADE", domains: ["risk of bias", "inconsistency", "indirectness", "imprecision", "publication bias"], outcomesRated: gradeRows.length };
     case "results_selection": return { flow: c.prisma, exclusionReasons: Object.entries(c.prisma.excludedReasons).map(([k, n]) => ({ reason: c.reasonLabels[k] ?? k, n })) };
     case "results_characteristics":
@@ -80,10 +85,10 @@ export function buildFacts(section: string, c: FactsInput): Record<string, unkno
         perStudy: c.studies.map((s) => ({ key: s.key, label: s.label, ...Object.fromEntries(c.fields.slice(0, 6).map((f) => [f.label, get(s.id, f.key) ?? ""])) })) };
     case "results_rob": return { tools: robByTool };
     case "results_findings":
-      return { perStudy: c.studies.map((s) => ({ key: s.key, label: s.label, findings: findingKey ? get(s.id, findingKey) ?? "" : "", outcomes: get(s.id, "outcomes") ?? "" })), themes, gaps: c.synthesis.gaps ?? "", conclusions: c.synthesis.conclusions ?? "" };
+      return { programTheory: c.programTheory ?? "", configurations: c.cmo ?? [], overlap: c.overlap ?? null, perStudy: c.studies.map((s) => ({ key: s.key, label: s.label, findings: findingKey ? get(s.id, findingKey) ?? "" : "", outcomes: get(s.id, "outcomes") ?? "" })), themes, gaps: c.synthesis.gaps ?? "", conclusions: c.synthesis.conclusions ?? "" };
     case "results_certainty": return { outcomes: gradeRows };
     case "limitations":
-      return { robOverall: robByTool.map((r) => ({ tool: r.tool, counts: r.overallCounts })), certainty: gradeRows.map((g) => ({ outcome: g.outcome, certainty: g.certainty, downgradedFor: g.downgradedFor })), sourcesSearched: c.searches.length, studies: c.studies.length,
+      return { declaredShortcuts: c.shortcuts ?? [], robOverall: robByTool.map((r) => ({ tool: r.tool, counts: r.overallCounts })), certainty: gradeRows.map((g) => ({ outcome: g.outcome, certainty: g.certainty, downgradedFor: g.downgradedFor })), sourcesSearched: c.searches.length, studies: c.studies.length,
         singleReviewer: c.screening.reviewers < 2, aiUsed: c.aiUses };
     default: return {};
   }

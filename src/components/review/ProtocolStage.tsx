@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import type { EligibilityItem, ReviewRecord } from "@/lib/review/protocol";
-import { frameworkName, type ReviewTypeDef } from "@/lib/review/types";
+import { frameworkName, RAPID_SHORTCUTS, type ReviewTypeDef } from "@/lib/review/types";
 
 interface Props {
   def: ReviewTypeDef;
@@ -116,6 +116,23 @@ export function ProtocolStage({ def, review, locale, canLock, onChange, onLock }
         ))}
         {!locked && <p className="text-xs text-muted-foreground">{pt ? "As sugestões da IA são ponto de partida; você decide cada critério." : "AI suggestions are a starting point; you decide each criterion."}</p>}
       </div>
+
+      {def.id === "rapid" && (
+        <fieldset className="space-y-2" disabled={locked}>
+          <legend className="mb-1 text-sm font-medium">{pt ? "Atalhos metodológicos (declare antes de buscar)" : "Methodological shortcuts (declare before searching)"}</legend>
+          <p className="text-xs text-muted-foreground">{pt ? "Cada atalho aumenta o risco de viés e precisa constar nos métodos e nas limitações do manuscrito." : "Each shortcut raises the risk of bias and must appear in the manuscript methods and limitations."}</p>
+          {RAPID_SHORTCUTS.map((sc) => {
+            const chosen: string[] = (review.stage_state?.rapid as { shortcuts?: string[] } | undefined)?.shortcuts ?? [];
+            const on = chosen.includes(sc.key);
+            return (
+              <label key={sc.key} className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={on} onChange={(e) => {
+                const next = sc.key === "none" ? (e.target.checked ? ["none"] : []) : e.target.checked ? [...chosen.filter((k) => k !== "none"), sc.key] : chosen.filter((k) => k !== sc.key);
+                onChange({ stage_state: { ...review.stage_state, rapid: { ...(review.stage_state?.rapid as object | undefined), shortcuts: next } } });
+              }} /><span>{pt ? sc.pt : sc.en}</span></label>
+            );
+          })}
+        </fieldset>
+      )}
 
       {def.registry && (
         <div className="space-y-1.5">

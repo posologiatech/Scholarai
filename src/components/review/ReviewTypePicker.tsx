@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AVAILABLE_TYPES, frameworkName, type ReviewTypeDef } from "@/lib/review/types";
 
@@ -11,7 +11,7 @@ interface Props {
 export function ReviewTypePicker({ value, onChange, locale }: Props) {
   const pt = locale === "pt";
   return (
-    <div role="radiogroup" aria-label={pt ? "Tipo de revisão" : "Review type"} className="grid gap-3">
+    <div role="radiogroup" aria-label={pt ? "Tipo de revisão" : "Review type"} className="grid gap-3 md:grid-cols-2">
       {AVAILABLE_TYPES.map((def: ReviewTypeDef) => {
         const selected = value === def.id;
         return (
@@ -39,12 +39,6 @@ export function ReviewTypePicker({ value, onChange, locale }: Props) {
           </button>
         );
       })}
-      <p className="flex items-start gap-2 text-xs text-muted-foreground">
-        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-        {pt
-          ? "Outros tipos (rápida, guarda-chuva, narrativa, qualitativa, realista) chegam em uma fase posterior."
-          : "Other types (rapid, umbrella, narrative, qualitative, realist) arrive in a later phase."}
-      </p>
     </div>
   );
 }

@@ -20,6 +20,8 @@ export interface ReviewRecord {
   current_stage: string;
   stage_state: Record<string, unknown>;
   research_project_id: string | null;
+  is_living: boolean;
+  legacy_systematic_review_id: string | null;
   ai_disclosure: { feature: string; model?: string; first_used_at?: string; role?: string }[];
   created_at: string;
   updated_at: string;

@@ -78,6 +78,16 @@ export function ScreeningSummary({ review, userId, reviewerIds, names, hasPilotG
     finally { setBusy(null); }
   };
 
+  const newRound = async () => {
+    setBusy("title_abstract");
+    try {
+      const cycles = ((review.stage_state?.living as { cycles?: string[] } | undefined)?.cycles) ?? [];
+      onChange({ stage_state: { ...review.stage_state, screening: {}, living: { cycles: [...cycles, new Date().toISOString()] }, flags: { ...getFlags(review), duplicates_reviewed: false } } });
+      await logEvent(review.id, userId, "living_round_started", { round: cycles.length + 1 });
+      onDataChanged();
+    } finally { setBusy(null); }
+  };
+
   const reasonLabels = useMemo(() => Object.fromEntries(reasonsFor(review.review_type).map((r) => [r.code, r.label[locale]])), [review.review_type, locale]);
   if (!data) return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
   const c = data.counts;
@@ -114,6 +124,14 @@ export function ScreeningSummary({ review, userId, reviewerIds, names, hasPilotG
       {hasPilotGate && (
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={getFlags(review).pilot_done === true} onChange={(e) => onChange(withFlags(review, { pilot_done: e.target.checked }))} />
           <span>{pt ? "Fiz o piloto de calibração: os revisores triaram juntos uma amostra e ajustaram os critérios." : "I ran the calibration pilot: reviewers screened a sample together and adjusted the criteria."}</span></label>
+      )}
+
+      {review.is_living && state.ta_closed_at && (
+        <div className="space-y-1 rounded-md border border-border p-3 text-sm">
+          <p className="font-medium">{pt ? "Revisão viva" : "Living review"}{((review.stage_state?.living as { cycles?: string[] } | undefined)?.cycles ?? []).length > 0 ? ` · ${(review.stage_state?.living as { cycles: string[] }).cycles.length} ${pt ? "rodada(s) de atualização" : "update round(s)"}` : ""}</p>
+          <p className="text-xs text-muted-foreground">{pt ? "Para atualizar: inicie uma rodada, repita as buscas na etapa Busca (as duplicatas de estudos já triados são descartadas, nunca o contrário), confira as duplicatas e triagem só os registros novos. As decisões anteriores são mantidas." : "To update: start a round, repeat the searches in the Search stage (duplicates of studies already screened are discarded, never the other way round), check duplicates and screen only the new records. Earlier decisions are kept."}</p>
+          <Button size="sm" variant="outline" disabled={busy !== null} onClick={newRound}>{pt ? "Iniciar nova rodada de atualização" : "Start a new update round"}</Button>
+        </div>
       )}
 
       <div className="grid gap-3 md:grid-cols-2">
